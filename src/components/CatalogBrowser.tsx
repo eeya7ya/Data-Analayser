@@ -83,6 +83,9 @@ export default function CatalogBrowser({
   const [sortKey, setSortKey] = useState("model");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
+  // ── Multi-select state (bulk "move to designer") ─────────────────────────
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
   // ── Draft summary (items already in the designer) ────────────────────────
   const [draftCount, setDraftCount] = useState(0);
   useEffect(() => {
@@ -116,6 +119,19 @@ export default function CatalogBrowser({
       .catch(() => setHits([]))
       .finally(() => setLoading(false));
   }, [systemId, debouncedSearch]);
+
+  // Clear selection whenever the current system changes, so you don't
+  // accidentally carry leftovers from a different vendor into the designer.
+  useEffect(() => {
+    setSelected(new Set());
+  }, [systemId]);
+
+  // Stable key per catalog hit — system + model is enough to dedupe.
+  const keyOf = useCallback(
+    (h: HitWithSystem): string =>
+      `${systemId}__${String(h.product.model ?? "")}`,
+    [systemId],
+  );
 
   // ── Dynamic visible columns ───────────────────────────────────────────────
   const columns = useMemo(() => {
@@ -185,6 +201,32 @@ export default function CatalogBrowser({
     [systemId, systems],
   );
 
+  // ── Selection helpers ────────────────────────────────────────────────────
+  const toggleSelect = useCallback((k: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  }, []);
+
+  // ── Bulk: add every selected hit to the draft, then go to designer ───────
+  const addSelectedAndGo = useCallback(() => {
+    if (selected.size === 0) return;
+    const sys = systems.find((s) => s.id === systemId);
+    let lastCount = draftCount;
+    for (const h of hits) {
+      if (selected.has(keyOf(h))) {
+        const d = appendItem(toQuotationItem(h, sys || h.system, 1));
+        lastCount = d.items.length;
+      }
+    }
+    setDraftCount(lastCount);
+    setSelected(new Set());
+    router.push("/designer");
+  }, [hits, selected, systemId, systems, keyOf, draftCount, router]);
+
   // ── Systems grouped by vendor ─────────────────────────────────────────────
   const systemsByVendor = useMemo(() => {
     const map = new Map<string, SystemEntry[]>();
@@ -196,6 +238,23 @@ export default function CatalogBrowser({
   }, [systems]);
 
   const currentSystem = systems.find((s) => s.id === systemId);
+
+  const allVisibleSelected =
+    sortedHits.length > 0 && sortedHits.every((h) => selected.has(keyOf(h)));
+  const someVisibleSelected =
+    !allVisibleSelected && sortedHits.some((h) => selected.has(keyOf(h)));
+
+  function toggleSelectAllVisible() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        sortedHits.forEach((h) => next.delete(keyOf(h)));
+      } else {
+        sortedHits.forEach((h) => next.add(keyOf(h)));
+      }
+      return next;
+    });
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -241,7 +300,16 @@ export default function CatalogBrowser({
           />
         </div>
 
-        <div className="pt-5">
+        <div className="pt-5 flex gap-2">
+          <button
+            onClick={addSelectedAndGo}
+            disabled={selected.size === 0}
+            className="rounded-lg bg-magic-ink text-white px-4 py-2 text-sm font-semibold hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Move every ticked product to the designer in one shot"
+          >
+            Move {selected.size > 0 ? `${selected.size} ` : ""}selected →
+            designer
+          </button>
           <button
             onClick={() => router.push("/designer")}
             className="relative rounded-lg bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700"
@@ -257,11 +325,14 @@ export default function CatalogBrowser({
       </div>
 
       <p className="text-[11px] text-magic-ink/60 -mt-2">
-        Click <b>+</b> to send a product straight to the designer. Hold{" "}
+        Tick the checkboxes to batch‑select products, then press{" "}
+        <b>Move selected → designer</b> to push them all at once. You can also
+        click <b>+</b> on a single row to jump straight into the designer, or
+        hold{" "}
         <kbd className="px-1 py-0.5 rounded bg-magic-soft border border-magic-border">
           Shift
         </kbd>{" "}
-        while clicking to add without navigating away.
+        while clicking <b>+</b> to add one without leaving the catalog.
       </p>
 
       {/* ── Product table ── */}
@@ -293,11 +364,34 @@ export default function CatalogBrowser({
                   {sortedHits.length} products
                 </span>
               </span>
+              {selected.size > 0 && (
+                <span className="text-[11px] text-magic-ink/60">
+                  {selected.size} selected{" "}
+                  <button
+                    onClick={() => setSelected(new Set())}
+                    className="ml-1 underline hover:text-magic-red"
+                  >
+                    clear
+                  </button>
+                </span>
+              )}
             </div>
             <div className="overflow-x-auto max-h-[65vh] overflow-y-auto">
               <table className="w-full text-xs border-collapse">
                 <thead className="sticky top-0 bg-magic-soft/80 backdrop-blur z-10">
                   <tr>
+                    <th className="px-2 py-2 text-center font-semibold text-magic-ink/60 w-8">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all visible products"
+                        checked={allVisibleSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = someVisibleSelected;
+                        }}
+                        onChange={toggleSelectAllVisible}
+                        className="cursor-pointer"
+                      />
+                    </th>
                     <th className="px-3 py-2 text-left font-semibold text-magic-ink/60 w-8"></th>
                     {columns.map((col) => (
                       <th
@@ -322,11 +416,26 @@ export default function CatalogBrowser({
                 <tbody>
                   {sortedHits.map((h, rowIdx) => {
                     const prices = getPrice(h.product);
+                    const k = keyOf(h);
+                    const isSelected = selected.has(k);
                     return (
                       <tr
                         key={rowIdx}
-                        className="border-t border-magic-border/50 hover:bg-magic-soft/30 transition-colors"
+                        className={`border-t border-magic-border/50 transition-colors ${
+                          isSelected
+                            ? "bg-magic-soft/70"
+                            : "hover:bg-magic-soft/30"
+                        }`}
                       >
+                        <td className="px-2 py-1.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(k)}
+                            aria-label={`Select ${String(h.product.model ?? "")}`}
+                            className="cursor-pointer"
+                          />
+                        </td>
                         <td className="px-2 py-1.5">
                           <button
                             onClick={(e) => {

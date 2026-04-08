@@ -42,6 +42,19 @@ body {
 
 .quotation-sheet .footer-address {
   margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 10px;
+  letter-spacing: 0.01em;
+}
+
+.quotation-sheet .footer-address .footer-sep {
+  color: var(--mt-red);
+  opacity: 0.6;
+  font-weight: 700;
 }
 
 /* Force a hard page break after every sheet except the last one. */
@@ -100,6 +113,46 @@ body {
   font-weight: 600;
   border: 1px solid #cfbebc;
   margin-top: 16px;
+}
+
+.quotation-sheet .terms-block {
+  margin-top: 18px;
+}
+
+.quotation-sheet .terms-block .terms-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  padding: 8px 10px;
+  border: 1px solid #cfbebc;
+  border-top: none;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.quotation-sheet .terms-block .terms-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.quotation-sheet .terms-block .terms-num {
+  color: var(--mt-red);
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.quotation-sheet .terms-block .terms-text {
+  flex: 1;
+}
+
+.quotation-sheet .terms-block .terms-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dotted var(--mt-border);
+  outline: none;
+  font-size: 10px;
 }
 
 @media print {
