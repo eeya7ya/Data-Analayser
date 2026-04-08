@@ -457,6 +457,17 @@ export default function Designer({
             }}
             items={items}
             setItems={setItems}
+            setHeader={(patch) => {
+              if (patch.project_name !== undefined)
+                setProjectName(patch.project_name);
+              if (patch.client_name !== undefined)
+                setClientName(patch.client_name);
+              if (patch.client_email !== undefined)
+                setClientEmail(patch.client_email);
+              if (patch.sales_engineer !== undefined)
+                setSalesEng(patch.sales_engineer);
+              if (patch.site_name !== undefined) setSiteName(patch.site_name);
+            }}
             editable
             showPictures={showPictures}
             terms={terms}

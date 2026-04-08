@@ -105,28 +105,51 @@ body {
 }
 
 @media print {
+  html,
   body {
     background: #ffffff;
+    margin: 0;
+    padding: 0;
   }
   .no-print {
     display: none !important;
   }
   .quotation-doc {
     gap: 0;
+    display: block;
   }
+  /* Keep the sheet geometry identical to the on-screen preview so the
+   * printed output matches what the user sees. The @page rule below uses
+   * zero margins, and the sheet's own padding provides the safe area. */
   .quotation-sheet {
     box-shadow: none;
     margin: 0;
-    width: auto;
-    min-height: auto;
-    padding: 8mm;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 14mm 12mm 18mm 12mm;
   }
   .quotation-sheet.page-break-after {
     page-break-after: always;
     break-after: page;
   }
+  /* Hide editable form chrome in print so inputs print as plain text. */
+  .quotation-sheet input,
+  .quotation-sheet textarea,
+  .quotation-sheet select {
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    -webkit-appearance: none;
+    appearance: none;
+    color: inherit;
+    font: inherit;
+    resize: none;
+  }
   @page {
     size: A4;
-    margin: 8mm;
+    margin: 0;
   }
 }
