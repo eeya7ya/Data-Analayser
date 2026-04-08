@@ -35,6 +35,82 @@ export interface QuotationDraft {
   extraColumns: QuotationExtraColumn[];
   /** Optional custom project-scope paragraph shown above Final Totals. */
   scopeIntro: string;
+  /**
+   * Dedicated design / presales engineer name — pre-filled from the
+   * per-user preference so the user only has to type it once.
+   */
+  designEng: string;
+}
+
+// Per-user preference keys that survive individual draft resets so the
+// fields only need to be filled in once.
+const PREF_DESIGN_ENG = "mt_design_engineer_v1";
+
+export function loadDesignEngineerPref(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(PREF_DESIGN_ENG) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function saveDesignEngineerPref(value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (value && value.trim()) {
+      window.localStorage.setItem(PREF_DESIGN_ENG, value.trim());
+    } else {
+      window.localStorage.removeItem(PREF_DESIGN_ENG);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+// ── Editing context ─────────────────────────────────────────────────────────
+// Remembers which saved quotation (if any) the user is currently editing so
+// that /catalog can route its "Open designer" button back to the correct
+// /designer?id=<X> page instead of accidentally starting a new quotation.
+const EDITING_QUOTATION_KEY = "mt_editing_quotation_v1";
+
+export interface EditingContext {
+  id: number;
+  ref: string;
+  projectName: string;
+}
+
+export function loadEditingContext(): EditingContext | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(EDITING_QUOTATION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<EditingContext>;
+    if (typeof parsed.id !== "number" || !Number.isFinite(parsed.id)) {
+      return null;
+    }
+    return {
+      id: parsed.id,
+      ref: typeof parsed.ref === "string" ? parsed.ref : "",
+      projectName:
+        typeof parsed.projectName === "string" ? parsed.projectName : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function saveEditingContext(ctx: EditingContext | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (!ctx) {
+      window.localStorage.removeItem(EDITING_QUOTATION_KEY);
+      return;
+    }
+    window.localStorage.setItem(EDITING_QUOTATION_KEY, JSON.stringify(ctx));
+  } catch {
+    /* ignore */
+  }
 }
 
 const STORAGE_KEY = "mt_quotation_draft_v1";
@@ -56,6 +132,7 @@ export function emptyDraft(): QuotationDraft {
     terms: [...DEFAULT_TERMS],
     extraColumns: [],
     scopeIntro: "",
+    designEng: loadDesignEngineerPref(),
   };
 }
 

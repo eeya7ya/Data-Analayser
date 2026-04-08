@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import type { SystemEntry } from "@/lib/manifest.generated";
 import type { SessionUser } from "@/lib/auth";
 import type { ScoredProduct } from "@/lib/search";
-import { appendItem, loadDraft } from "@/lib/quotationDraft";
+import {
+  appendItem,
+  loadDraft,
+  loadEditingContext,
+  type EditingContext,
+} from "@/lib/quotationDraft";
 import type { QuotationItem } from "@/components/QuotationPreview";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -179,6 +184,8 @@ export default function CatalogBrowser({
   // ── Draft summary (items + existing page names already in the designer) ──
   const [draftCount, setDraftCount] = useState(0);
   const [existingPages, setExistingPages] = useState<string[]>([]);
+  // ── Editing context (set by Designer when the user is editing a saved quote)
+  const [editing, setEditing] = useState<EditingContext | null>(null);
   const refreshDraftSummary = useCallback(() => {
     const d = loadDraft();
     setDraftCount(d.items.length);
@@ -187,6 +194,7 @@ export default function CatalogBrowser({
       if (it.system) set.add(it.system);
     }
     setExistingPages([...set]);
+    setEditing(loadEditingContext());
   }, []);
   useEffect(() => {
     refreshDraftSummary();
@@ -367,16 +375,20 @@ export default function CatalogBrowser({
 
         <div className="pt-5">
           <button
-            onClick={() => router.push("/designer")}
-            disabled={draftCount === 0}
+            onClick={() =>
+              router.push(editing ? `/designer?id=${editing.id}` : "/designer")
+            }
+            disabled={!editing && draftCount === 0}
             className="relative rounded-lg bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
             title={
-              draftCount === 0
-                ? "Select at least one product first"
-                : "Finish and open the designer"
+              editing
+                ? `Return to editing ${editing.ref}`
+                : draftCount === 0
+                  ? "Select at least one product first"
+                  : "Finish and open the designer"
             }
           >
-            Open designer
+            {editing ? "Back to editor" : "Open designer"}
             {draftCount > 0 && (
               <span className="absolute -top-2 -right-2 bg-white text-magic-red border border-magic-red text-[10px] rounded-full w-5 h-5 flex items-center justify-center font-bold">
                 {draftCount}
@@ -386,12 +398,41 @@ export default function CatalogBrowser({
         </div>
       </div>
 
+      {editing && (
+        <div className="-mt-2 flex items-center justify-between gap-3 rounded-lg border border-magic-red/40 bg-magic-red/5 px-3 py-2 text-[11px] text-magic-ink">
+          <div>
+            <b>Editing {editing.ref}</b>
+            {editing.projectName && (
+              <span className="text-magic-ink/60"> — {editing.projectName}</span>
+            )}
+            .{" "}
+            <span className="text-magic-ink/70">
+              Products you pick here will be appended to that quotation
+              {draftCount > 0 && (
+                <>
+                  {" "}
+                  — <b>{draftCount}</b> queued
+                </>
+              )}
+              .
+            </span>
+          </div>
+          <button
+            onClick={() => router.push(`/designer?id=${editing.id}`)}
+            className="shrink-0 rounded-md border border-magic-red bg-white px-3 py-1 text-[11px] font-semibold text-magic-red hover:bg-magic-red hover:text-white"
+          >
+            Back to editor →
+          </button>
+        </div>
+      )}
+
       <p className="text-[11px] text-magic-ink/60 -mt-2">
         Pick a system to browse its full catalog, or just type in the search
         box to find products across <b>every vendor</b>. Click <b>+</b> on any
         product to add it to a quotation page. You stay on the catalog while
-        you select — when you&apos;re done, click <b>Open designer</b> to
-        review and edit the quotation.
+        you select — when you&apos;re done, click{" "}
+        <b>{editing ? "Back to editor" : "Open designer"}</b> to review and
+        edit the quotation.
       </p>
 
       {/* ── Product table ── */}

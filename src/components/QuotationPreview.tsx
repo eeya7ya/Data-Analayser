@@ -24,6 +24,13 @@ export interface QuotationItem {
   picture_url?: string;
   /** Per-row values for user-added manual columns, keyed by column id. */
   extra?: Record<string, string>;
+  /**
+   * Per-column "merge with previous row" flags. When true for a column, the
+   * cell is visually merged up into the nearest anchor row's cell (rendered
+   * via rowSpan). Supported keys: brand, model, description, delivery,
+   * unit_price, total_price, quantity, and `extra:<columnId>`.
+   */
+  merge_up?: Record<string, boolean>;
 }
 
 export interface QuotationHeader {
@@ -36,6 +43,13 @@ export interface QuotationHeader {
   sales_engineer?: string;
   prepared_by?: string;
   sales_phone?: string;
+  /**
+   * Dedicated design / presales engineer — shown on the Terms page and
+   * remembered across quotations via a localStorage preference. Falls back
+   * to `sales_engineer` when not set, for backwards compatibility with
+   * quotations saved before this field existed.
+   */
+  design_engineer?: string;
   site_name: string;
   tax_percent: number;
   /** User-added manual columns shown in every system table. */
@@ -132,9 +146,47 @@ export default function QuotationPreview({
     );
   }
 
+  /**
+   * Prompts for a page (system) name and adds an empty row to it.
+   * Used from the empty-state so the user can start typing without first
+   * having to go through the catalog or the AI designer.
+   */
+  function addManualItem() {
+    if (!setItems) return;
+    const existingPages = Array.from(
+      new Set(items.map((it) => it.system).filter(Boolean)),
+    );
+    const suggestion = existingPages[0] || "General";
+    const page = window.prompt(
+      existingPages.length > 0
+        ? `Add a new item to which page?\nExisting pages: ${existingPages.join(", ")}`
+        : "Name the first page of this quotation (e.g. CCTV, Sound System)",
+      suggestion,
+    );
+    if (!page || !page.trim()) return;
+    addRowToSystem(page.trim());
+  }
+
   function removeRow(i: number) {
     if (!setItems) return;
     setItems(renumber(items.filter((_, idx) => idx !== i)));
+  }
+
+  // Toggles the `merge_up` flag for a specific column on a specific row.
+  // Pairs with SystemTable's `computeMergePlan` to render rowSpan correctly.
+  function toggleMerge(globalIndex: number, col: MergeCol) {
+    if (!setItems) return;
+    const next = items.slice();
+    const cur = next[globalIndex];
+    if (!cur) return;
+    const merge_up = { ...(cur.merge_up || {}) };
+    if (merge_up[col]) {
+      delete merge_up[col];
+    } else {
+      merge_up[col] = true;
+    }
+    next[globalIndex] = { ...cur, merge_up };
+    setItems(next);
   }
 
   function renameSystem(oldName: string, newName: string) {
@@ -200,14 +252,22 @@ export default function QuotationPreview({
           logoUrl={logoUrl}
           isLast={!editable}
         >
-          <p className="py-8 text-center text-magic-ink/50 text-xs">
-            No items yet. Add products from the Catalog or use the AI Designer.
+          <p className="py-6 text-center text-magic-ink/50 text-xs">
+            No items yet. Add products from the Catalog, use the AI Designer,
+            or start from scratch with the buttons below.
           </p>
           {editable && (
-            <div className="no-print flex items-center justify-center gap-2">
+            <div className="no-print flex flex-wrap items-center justify-center gap-2">
+              <button
+                onClick={addManualItem}
+                className="rounded-md bg-magic-red text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-red-700"
+                title="Create a new page and add a blank row you can fill in by hand"
+              >
+                + Add manual item
+              </button>
               <button
                 onClick={addExtraColumn}
-                className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
+                className="rounded-md border border-magic-border px-3 py-1.5 text-[11px] hover:bg-magic-soft"
                 title="Add a manual column that will show up in every table"
               >
                 + Add manual column
@@ -247,6 +307,7 @@ export default function QuotationPreview({
             extraColumns={extraColumns}
             onUpdate={update}
             onRemove={removeRow}
+            onToggleMerge={toggleMerge}
             onRenameExtraColumn={renameExtraColumn}
             onRemoveExtraColumn={removeExtraColumn}
           />
@@ -257,6 +318,13 @@ export default function QuotationPreview({
                 className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
               >
                 + Add row to {group.system}
+              </button>
+              <button
+                onClick={addManualItem}
+                className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
+                title="Add a blank row to any page (existing or brand new)"
+              >
+                + Add manual item
               </button>
               {/* Only show the "add column" button on the first group so the
                * user isn't tempted to add the same column multiple times —
@@ -313,7 +381,7 @@ export default function QuotationPreview({
             terms={terms}
             setTerms={setTerms}
             editable={editable}
-            salesEngineer={header.sales_engineer}
+            presalesEngineer={header.design_engineer || header.sales_engineer}
           />
         </QuotationPage>
       )}
@@ -542,6 +610,53 @@ function SystemBanner({
 
 // ─── Table for one system group ──────────────────────────────────────────────
 
+// Columns that support user-driven cell merging via `merge_up`. Quantity,
+// total price, picture and the row "no" cell are intentionally excluded —
+// merging a quantity would break subtotal math, and the others are either
+// auto-computed or per-row by nature.
+const MERGEABLE_COLUMNS = [
+  "brand",
+  "model",
+  "description",
+  "delivery",
+  "unit_price",
+] as const;
+
+type MergeCol = (typeof MERGEABLE_COLUMNS)[number];
+
+interface MergePlan {
+  /** rowSpan to apply when rendering this row's cell (≥ 1). */
+  spans: Record<MergeCol, number[]>;
+  /** true → skip rendering this row's cell; its span was folded into anchor */
+  skip: Record<MergeCol, boolean[]>;
+}
+
+function computeMergePlan(
+  rows: Array<{ item: QuotationItem; globalIndex: number }>,
+): MergePlan {
+  const spans = {} as Record<MergeCol, number[]>;
+  const skip = {} as Record<MergeCol, boolean[]>;
+  for (const col of MERGEABLE_COLUMNS) {
+    const sp = new Array<number>(rows.length).fill(1);
+    const sk = new Array<boolean>(rows.length).fill(false);
+    let anchor = -1;
+    for (let i = 0; i < rows.length; i++) {
+      // First row can never merge up, and an orphan merge_up with no anchor
+      // is treated as a normal cell rather than disappearing into nothing.
+      const merged = i > 0 && !!rows[i].item.merge_up?.[col];
+      if (merged && anchor >= 0) {
+        sk[i] = true;
+        sp[anchor] += 1;
+      } else {
+        anchor = i;
+      }
+    }
+    spans[col] = sp;
+    skip[col] = sk;
+  }
+  return { spans, skip };
+}
+
 function SystemTable({
   group,
   allPages,
@@ -550,6 +665,7 @@ function SystemTable({
   extraColumns,
   onUpdate,
   onRemove,
+  onToggleMerge,
   onRenameExtraColumn,
   onRemoveExtraColumn,
 }: {
@@ -560,6 +676,7 @@ function SystemTable({
   extraColumns: QuotationExtraColumn[];
   onUpdate: (globalIndex: number, patch: Partial<QuotationItem>) => void;
   onRemove: (globalIndex: number) => void;
+  onToggleMerge: (globalIndex: number, col: MergeCol) => void;
   onRenameExtraColumn: (id: string, label: string) => void;
   onRemoveExtraColumn: (id: string) => void;
 }) {
@@ -575,6 +692,50 @@ function SystemTable({
   // everything still fits on A4 without horizontal overflow.
   const extraShare = Math.min(extraColumns.length * 7, 21); // max 21%
   const descWidth = showPictures ? 28 - extraShare : 36 - extraShare;
+
+  const plan = computeMergePlan(group.rows);
+
+  // Renders a mergeable cell that either:
+  //   - is skipped (cell was folded into an anchor above), or
+  //   - gets a rowSpan from the plan and an optional "merge up" toggle.
+  function mergeableCell(
+    col: MergeCol,
+    rowIdx: number,
+    globalIndex: number,
+    className: string,
+    children: React.ReactNode,
+  ): React.ReactNode {
+    if (plan.skip[col][rowIdx]) return null;
+    const span = plan.spans[col][rowIdx];
+    const isMerged = rowIdx > 0 && !!group.rows[rowIdx].item.merge_up?.[col];
+    return (
+      <td
+        className={`relative ${className}`}
+        rowSpan={span > 1 ? span : undefined}
+      >
+        {children}
+        {editable && rowIdx > 0 && (
+          <button
+            type="button"
+            onClick={() => onToggleMerge(globalIndex, col)}
+            title={
+              isMerged
+                ? "Unmerge this cell from the row above"
+                : "Merge this cell with the row above"
+            }
+            className={`no-print absolute top-0 right-0 w-4 h-4 text-[9px] leading-none rounded-bl ${
+              isMerged
+                ? "bg-magic-red text-white"
+                : "bg-white/80 text-magic-ink/50 hover:bg-magic-soft"
+            }`}
+          >
+            ⇧
+          </button>
+        )}
+      </td>
+    );
+  }
+
   return (
     <table>
       <thead>
@@ -622,11 +783,15 @@ function SystemTable({
             </td>
           </tr>
         )}
-        {group.rows.map(({ item, globalIndex }) => (
+        {group.rows.map(({ item, globalIndex }, rowIdx) => (
           <tr key={globalIndex}>
             <td>{item.no}</td>
-            <td className="font-bold">
-              {editable ? (
+            {mergeableCell(
+              "brand",
+              rowIdx,
+              globalIndex,
+              "font-bold",
+              editable ? (
                 <input
                   className="w-full bg-transparent text-center"
                   value={item.brand}
@@ -634,10 +799,14 @@ function SystemTable({
                 />
               ) : (
                 item.brand
-              )}
-            </td>
-            <td className="font-semibold">
-              {editable ? (
+              ),
+            )}
+            {mergeableCell(
+              "model",
+              rowIdx,
+              globalIndex,
+              "font-semibold",
+              editable ? (
                 <input
                   className="w-full bg-transparent text-center"
                   value={item.model}
@@ -645,10 +814,14 @@ function SystemTable({
                 />
               ) : (
                 item.model
-              )}
-            </td>
-            <td className="text-left align-top">
-              {editable ? (
+              ),
+            )}
+            {mergeableCell(
+              "description",
+              rowIdx,
+              globalIndex,
+              "text-left align-top",
+              editable ? (
                 <textarea
                   rows={3}
                   className="w-full bg-transparent text-[10.5px]"
@@ -665,8 +838,8 @@ function SystemTable({
                     : `${item.brand || ""} ${item.model || ""}`.trim() ||
                       "—"}
                 </div>
-              )}
-            </td>
+              ),
+            )}
             {showPictures && (
               <td>
                 <PictureCell
@@ -690,8 +863,12 @@ function SystemTable({
                 item.quantity
               )}
             </td>
-            <td>
-              {editable ? (
+            {mergeableCell(
+              "delivery",
+              rowIdx,
+              globalIndex,
+              "",
+              editable ? (
                 <input
                   className="w-full bg-transparent text-center"
                   value={item.delivery}
@@ -699,10 +876,14 @@ function SystemTable({
                 />
               ) : (
                 item.delivery
-              )}
-            </td>
-            <td>
-              {editable ? (
+              ),
+            )}
+            {mergeableCell(
+              "unit_price",
+              rowIdx,
+              globalIndex,
+              "",
+              editable ? (
                 <input
                   type="number"
                   className="w-full bg-transparent text-center"
@@ -713,8 +894,8 @@ function SystemTable({
                 />
               ) : (
                 money(item.unit_price)
-              )}
-            </td>
+              ),
+            )}
             <td className="font-semibold">
               {money(
                 (Number(item.quantity) || 0) * (Number(item.unit_price) || 0),
@@ -923,12 +1104,12 @@ function TermsBlock({
   terms,
   setTerms,
   editable,
-  salesEngineer,
+  presalesEngineer,
 }: {
   terms: string[];
   setTerms?: (t: string[]) => void;
   editable: boolean;
-  salesEngineer?: string;
+  presalesEngineer?: string;
 }) {
   function update(i: number, v: string) {
     if (!setTerms) return;
@@ -984,7 +1165,7 @@ function TermsBlock({
         </button>
       )}
       <p className="mt-3 font-bold italic">
-        Presales Engineer: {salesEngineer || "—"}
+        Presales Engineer: {presalesEngineer || "—"}
       </p>
     </div>
   );
