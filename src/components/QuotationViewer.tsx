@@ -13,6 +13,7 @@ interface SavedConfig {
   salesPhone?: string;
   extraColumns?: QuotationExtraColumn[];
   scopeIntro?: string;
+  designEng?: string;
 }
 
 export default function QuotationViewer({
@@ -37,6 +38,7 @@ export default function QuotationViewer({
     sales_engineer: (row.sales_engineer as string) || "",
     sales_phone: config.salesPhone || "",
     prepared_by: (row.prepared_by as string) || "",
+    design_engineer: config.designEng || "",
     site_name: String(row.site_name),
     tax_percent: Number(row.tax_percent || 0),
     date: new Date(String(row.created_at)).toLocaleDateString("en-GB"),

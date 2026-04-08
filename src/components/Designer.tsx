@@ -14,6 +14,9 @@ import {
   loadDraft,
   saveDraft,
   clearDraft,
+  loadDesignEngineerPref,
+  saveDesignEngineerPref,
+  saveEditingContext,
 } from "@/lib/quotationDraft";
 
 interface DesignResult {
@@ -53,6 +56,7 @@ export interface ExistingQuotation {
     salesPhone?: string;
     extraColumns?: QuotationExtraColumn[];
     scopeIntro?: string;
+    designEng?: string;
   };
 }
 
@@ -98,19 +102,59 @@ export default function Designer({
   const [terms, setTerms] = useState<string[]>([...DEFAULT_TERMS]);
   const [extraColumns, setExtraColumns] = useState<QuotationExtraColumn[]>([]);
   const [scopeIntro, setScopeIntro] = useState("");
+  const [designEng, setDesignEngState] = useState("");
+  // Price-adjustment tool inputs — kept local, never persisted. Users apply
+  // them with a button and the result is written straight to item.unit_price.
+  const [priceMultiplier, setPriceMultiplier] = useState(1);
+  const [embeddedTaxPct, setEmbeddedTaxPct] = useState(16);
+  const [priceStatus, setPriceStatus] = useState("");
   const hydratedRef = useRef(false);
 
+  // Wrap the design-engineer setter so it also updates the per-user
+  // preference. The user types it once and it pre-fills on every future
+  // quotation, even after a draft reset.
+  function setDesignEng(value: string) {
+    setDesignEngState(value);
+    saveDesignEngineerPref(value);
+  }
+
   // ── Hydrate state on mount ────────────────────────────────────────────────
-  // Edit mode: load from the server-provided existing quotation.
+  // Edit mode: load from the server-provided existing quotation, then fold in
+  //   any items the user picked from the catalog since opening the editor.
   // New mode: load from localStorage draft.
   useEffect(() => {
     if (existing) {
-      setItems(
-        (existing.items_json || []).map((it) => ({
-          ...it,
-          system: it.system || it.brand || "General",
-        })),
-      );
+      // Remember the editing context so /catalog can route "Open designer"
+      // back to this same quotation (instead of silently starting a new one).
+      saveEditingContext({
+        id: existing.id,
+        ref: existing.ref,
+        projectName: existing.project_name || "",
+      });
+
+      const baseItems = (existing.items_json || []).map((it) => ({
+        ...it,
+        system: it.system || it.brand || "General",
+      }));
+
+      // If the user bounced to the catalog and added products, those landed
+      // in the shared draft. Fold them into the edited quotation now and
+      // clear the draft so refreshing the page doesn't duplicate them.
+      const draft = loadDraft();
+      const stagedItems =
+        Array.isArray(draft.items) && draft.items.length > 0
+          ? draft.items.map((it) => ({
+              ...it,
+              system: it.system || it.brand || "General",
+            }))
+          : [];
+      const combined = [...baseItems, ...stagedItems].map((it, i) => ({
+        ...it,
+        no: i + 1,
+      }));
+      setItems(combined);
+      if (stagedItems.length > 0) clearDraft();
+
       setProjectName(existing.project_name || "");
       setClientName(existing.client_name || "");
       setClientEmail(existing.client_email || "");
@@ -134,9 +178,16 @@ export default function Designer({
           : [],
       );
       setScopeIntro(existing.config_json?.scopeIntro || "");
+      setDesignEngState(
+        existing.config_json?.designEng || loadDesignEngineerPref() || "",
+      );
       hydratedRef.current = true;
       return;
     }
+
+    // New-mode: clear any stale editing context so /catalog behaves normally.
+    saveEditingContext(null);
+
     const d = loadDraft();
     setItems(d.items);
     setProjectName(d.projectName);
@@ -153,6 +204,7 @@ export default function Designer({
     setTerms(d.terms.length > 0 ? d.terms : [...DEFAULT_TERMS]);
     setExtraColumns(d.extraColumns || []);
     setScopeIntro(d.scopeIntro || "");
+    setDesignEngState(d.designEng || loadDesignEngineerPref() || "");
     hydratedRef.current = true;
   }, [existing, user.username]);
 
@@ -175,6 +227,7 @@ export default function Designer({
       terms,
       extraColumns,
       scopeIntro,
+      designEng,
     });
   }, [
     editMode,
@@ -193,6 +246,7 @@ export default function Designer({
     terms,
     extraColumns,
     scopeIntro,
+    designEng,
   ]);
 
   const systemsBy = useMemo(() => {
@@ -316,7 +370,14 @@ export default function Designer({
         tax_percent: taxPercent,
         items,
         totals,
-        config: { showPictures, terms, salesPhone, extraColumns, scopeIntro },
+        config: {
+          showPictures,
+          terms,
+          salesPhone,
+          extraColumns,
+          scopeIntro,
+          designEng,
+        },
       };
       const res = editMode
         ? await fetch(`/api/quotations?id=${existing!.id}`, {
@@ -332,6 +393,9 @@ export default function Designer({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "save failed");
       if (!editMode) clearDraft();
+      // Once we navigate to the read-only view the editing session is over —
+      // clear the context so re-visiting /catalog starts a fresh workflow.
+      saveEditingContext(null);
       const id = editMode ? existing!.id : data.quotation.id;
       router.push(`/quotation?id=${id}`);
     } catch (err) {
@@ -352,6 +416,63 @@ export default function Designer({
     setShowPictures(false);
     setTerms([...DEFAULT_TERMS]);
     if (!editMode) clearDraft();
+  }
+
+  // ── Price-adjustment helpers ──────────────────────────────────────────────
+  // "Apply" buttons mutate every unit_price on every row at once. We only
+  // touch unit_price (not total_price) because total_price is always
+  // recomputed from quantity × unit_price during render and save.
+  function applyPriceMultiplier() {
+    const factor = Number(priceMultiplier);
+    if (!Number.isFinite(factor) || factor <= 0) {
+      setPriceStatus("Enter a positive multiplier first.");
+      return;
+    }
+    if (items.length === 0) {
+      setPriceStatus("No items to adjust.");
+      return;
+    }
+    if (
+      !confirm(
+        `Multiply every unit price by ${factor}? This cannot be undone automatically — you'll need to divide by the same factor to reverse it.`,
+      )
+    ) {
+      return;
+    }
+    setItems(
+      items.map((it) => ({
+        ...it,
+        unit_price: Number(((Number(it.unit_price) || 0) * factor).toFixed(2)),
+      })),
+    );
+    setPriceStatus(`× ${factor} applied to ${items.length} item(s).`);
+  }
+
+  function stripEmbeddedTax() {
+    const pct = Number(embeddedTaxPct);
+    if (!Number.isFinite(pct) || pct <= 0) {
+      setPriceStatus("Enter a positive TAX % first.");
+      return;
+    }
+    if (items.length === 0) {
+      setPriceStatus("No items to adjust.");
+      return;
+    }
+    if (
+      !confirm(
+        `Strip ${pct}% embedded TAX from every unit price (divide each by 1 + ${pct / 100})? TAX will then be added back via the header tax %.`,
+      )
+    ) {
+      return;
+    }
+    const divisor = 1 + pct / 100;
+    setItems(
+      items.map((it) => ({
+        ...it,
+        unit_price: Number(((Number(it.unit_price) || 0) / divisor).toFixed(2)),
+      })),
+    );
+    setPriceStatus(`Embedded ${pct}% TAX stripped from ${items.length} item(s).`);
   }
 
   return (
@@ -485,6 +606,11 @@ export default function Designer({
               value={salesEng}
               onChange={setSalesEng}
             />
+            <Field
+              label="Design / Presales engineer"
+              value={designEng}
+              onChange={setDesignEng}
+            />
             <div>
               <label className="block text-[10px] font-semibold uppercase text-magic-ink/60">
                 Tax %
@@ -497,6 +623,10 @@ export default function Designer({
               />
             </div>
           </div>
+          <p className="mt-2 text-[10px] text-magic-ink/50">
+            Design / Presales engineer is remembered across quotations — set
+            it once and it pre-fills every future draft.
+          </p>
           <label className="mt-3 flex items-center gap-2 text-xs text-magic-ink/80">
             <input
               type="checkbox"
@@ -505,6 +635,70 @@ export default function Designer({
             />
             Show picture column (pictures are uploaded manually per row)
           </label>
+        </Card>
+
+        <Card title="Price tools">
+          <p className="text-[11px] text-magic-ink/60 mb-3">
+            Bulk-adjust every unit price in the quotation. Helpful when the
+            catalog ships DPP prices and you need to apply a margin, or when
+            prices already include TAX and you want to add it separately via
+            the header TAX %.
+          </p>
+          <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+            <div>
+              <label className="block text-[10px] font-semibold uppercase text-magic-ink/60">
+                Multiply unit prices by
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                value={priceMultiplier}
+                onChange={(e) =>
+                  setPriceMultiplier(Number(e.target.value) || 0)
+                }
+                className="mt-1 w-full rounded-md border border-magic-border px-2 py-1 text-sm"
+                placeholder="e.g. 1.15 for a 15% margin"
+              />
+            </div>
+            <button
+              onClick={applyPriceMultiplier}
+              disabled={items.length === 0}
+              className="h-[34px] rounded-md bg-magic-red text-white px-3 text-xs font-semibold hover:bg-red-700 disabled:opacity-40"
+            >
+              Apply ×
+            </button>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] gap-2 items-end mt-3">
+            <div>
+              <label className="block text-[10px] font-semibold uppercase text-magic-ink/60">
+                Strip embedded TAX %
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                value={embeddedTaxPct}
+                onChange={(e) =>
+                  setEmbeddedTaxPct(Number(e.target.value) || 0)
+                }
+                className="mt-1 w-full rounded-md border border-magic-border px-2 py-1 text-sm"
+                placeholder="e.g. 16"
+              />
+            </div>
+            <button
+              onClick={stripEmbeddedTax}
+              disabled={items.length === 0}
+              className="h-[34px] rounded-md border border-magic-red text-magic-red px-3 text-xs font-semibold hover:bg-magic-red/5 disabled:opacity-40"
+            >
+              Strip TAX
+            </button>
+          </div>
+          {priceStatus && (
+            <p className="mt-3 text-[11px] text-magic-ink/70 italic">
+              {priceStatus}
+            </p>
+          )}
         </Card>
       </section>
 
@@ -562,6 +756,7 @@ export default function Designer({
               sales_engineer: salesEng,
               sales_phone: salesPhone,
               prepared_by: preparedBy,
+              design_engineer: designEng,
               site_name: siteName,
               ref: refCode || "PREVIEW",
               tax_percent: taxPercent,
@@ -592,6 +787,8 @@ export default function Designer({
                 setExtraColumns(patch.extra_columns);
               if (patch.scope_intro !== undefined)
                 setScopeIntro(patch.scope_intro);
+              if (patch.design_engineer !== undefined)
+                setDesignEng(patch.design_engineer);
             }}
             editable
             showPictures={showPictures}
