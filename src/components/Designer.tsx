@@ -32,14 +32,32 @@ interface DesignResult {
   error?: string;
 }
 
+export interface ExistingQuotation {
+  id: number;
+  ref: string;
+  project_name: string;
+  client_name: string | null;
+  client_email: string | null;
+  client_phone: string | null;
+  sales_engineer: string | null;
+  prepared_by: string | null;
+  site_name: string;
+  tax_percent: number;
+  items_json: QuotationItem[];
+  config_json: { showPictures?: boolean; terms?: string[]; salesPhone?: string };
+}
+
 export default function Designer({
   systems,
   user,
+  existing,
 }: {
   systems: SystemEntry[];
   user: SessionUser;
+  existing?: ExistingQuotation;
 }) {
   const router = useRouter();
+  const editMode = !!existing;
   const [systemId, setSystemId] = useState<number | "">("");
   const [designModel, setDesignModel] = useState<GroqChatModelId>(
     GROQ_CHAT_MODELS[0].id,
@@ -53,7 +71,11 @@ export default function Designer({
   const [projectName, setProjectName] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
   const [salesEng, setSalesEng] = useState("ENG. Yahya Khaled");
+  const [salesPhone, setSalesPhone] = useState("+962 795172566");
+  const [preparedBy, setPreparedBy] = useState(user.username);
+  const [refCode, setRefCode] = useState("");
   const [siteName, setSiteName] = useState("");
   const [taxPercent, setTaxPercent] = useState(16);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -67,41 +89,83 @@ export default function Designer({
   const [terms, setTerms] = useState<string[]>([...DEFAULT_TERMS]);
   const hydratedRef = useRef(false);
 
-  // ── Load persisted draft on mount ─────────────────────────────────────────
+  // ── Hydrate state on mount ────────────────────────────────────────────────
+  // Edit mode: load from the server-provided existing quotation.
+  // New mode: load from localStorage draft.
   useEffect(() => {
+    if (existing) {
+      setItems(
+        (existing.items_json || []).map((it) => ({
+          ...it,
+          system: it.system || it.brand || "General",
+        })),
+      );
+      setProjectName(existing.project_name || "");
+      setClientName(existing.client_name || "");
+      setClientEmail(existing.client_email || "");
+      setClientPhone(existing.client_phone || "");
+      setSalesEng(existing.sales_engineer || "ENG. Yahya Khaled");
+      setSalesPhone(existing.config_json?.salesPhone || "+962 795172566");
+      setPreparedBy(existing.prepared_by || user.username);
+      setRefCode(existing.ref);
+      setSiteName(existing.site_name || "");
+      setTaxPercent(Number(existing.tax_percent ?? 16));
+      setShowPictures(Boolean(existing.config_json?.showPictures));
+      setTerms(
+        Array.isArray(existing.config_json?.terms) &&
+          existing.config_json!.terms!.length > 0
+          ? existing.config_json!.terms!
+          : [...DEFAULT_TERMS],
+      );
+      hydratedRef.current = true;
+      return;
+    }
     const d = loadDraft();
     setItems(d.items);
     setProjectName(d.projectName);
     setClientName(d.clientName);
     setClientEmail(d.clientEmail);
+    setClientPhone(d.clientPhone);
     setSalesEng(d.salesEng);
+    setSalesPhone(d.salesPhone);
+    setPreparedBy(d.preparedBy || user.username);
+    setRefCode(d.refCode);
     setSiteName(d.siteName);
     setTaxPercent(d.taxPercent);
     setShowPictures(d.showPictures);
     setTerms(d.terms.length > 0 ? d.terms : [...DEFAULT_TERMS]);
     hydratedRef.current = true;
-  }, []);
+  }, [existing, user.username]);
 
-  // ── Persist draft whenever it changes ─────────────────────────────────────
+  // ── Persist draft whenever it changes (new-mode only) ─────────────────────
   useEffect(() => {
-    if (!hydratedRef.current) return;
+    if (!hydratedRef.current || editMode) return;
     saveDraft({
       items,
       projectName,
       clientName,
       clientEmail,
+      clientPhone,
       salesEng,
+      salesPhone,
+      preparedBy,
+      refCode,
       siteName,
       taxPercent,
       showPictures,
       terms,
     });
   }, [
+    editMode,
     items,
     projectName,
     clientName,
     clientEmail,
+    clientPhone,
     salesEng,
+    salesPhone,
+    preparedBy,
+    refCode,
     siteName,
     taxPercent,
     showPictures,
@@ -209,26 +273,36 @@ export default function Designer({
     setSaving(true);
     try {
       const totals = computeTotals(items, taxPercent);
-      const res = await fetch("/api/quotations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project_name: projectName || "Untitled Quotation",
-          client_name: clientName,
-          client_email: clientEmail,
-          sales_engineer: salesEng,
-          prepared_by: user.username,
-          site_name: siteName,
-          tax_percent: taxPercent,
-          items,
-          totals,
-          config: { showPictures, terms },
-        }),
-      });
+      const payload = {
+        ref: refCode || undefined,
+        project_name: projectName || "Untitled Quotation",
+        client_name: clientName,
+        client_email: clientEmail,
+        client_phone: clientPhone,
+        sales_engineer: salesEng,
+        prepared_by: preparedBy || user.username,
+        site_name: siteName,
+        tax_percent: taxPercent,
+        items,
+        totals,
+        config: { showPictures, terms, salesPhone },
+      };
+      const res = editMode
+        ? await fetch(`/api/quotations?id=${existing!.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch("/api/quotations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "save failed");
-      clearDraft();
-      router.push(`/quotation?id=${data.quotation.id}`);
+      if (!editMode) clearDraft();
+      const id = editMode ? existing!.id : data.quotation.id;
+      router.push(`/quotation?id=${id}`);
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -242,10 +316,11 @@ export default function Designer({
     setProjectName("");
     setClientName("");
     setClientEmail("");
+    setClientPhone("");
     setSiteName("");
     setShowPictures(false);
     setTerms([...DEFAULT_TERMS]);
-    clearDraft();
+    if (!editMode) clearDraft();
   }
 
   return (
@@ -439,7 +514,11 @@ export default function Designer({
                 disabled={items.length === 0 || saving}
                 className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
               >
-                {saving ? "Saving…" : "Save & open printable"}
+                {saving
+                  ? "Saving…"
+                  : editMode
+                    ? "Update quotation"
+                    : "Save & open printable"}
               </button>
             </div>
           </div>
@@ -448,10 +527,12 @@ export default function Designer({
               project_name: projectName,
               client_name: clientName,
               client_email: clientEmail,
+              client_phone: clientPhone,
               sales_engineer: salesEng,
-              prepared_by: user.username,
+              sales_phone: salesPhone,
+              prepared_by: preparedBy,
               site_name: siteName,
-              ref: "PREVIEW",
+              ref: refCode || "PREVIEW",
               tax_percent: taxPercent,
               date: new Date().toLocaleDateString("en-GB"),
             }}
@@ -464,8 +545,15 @@ export default function Designer({
                 setClientName(patch.client_name);
               if (patch.client_email !== undefined)
                 setClientEmail(patch.client_email);
+              if (patch.client_phone !== undefined)
+                setClientPhone(patch.client_phone);
               if (patch.sales_engineer !== undefined)
                 setSalesEng(patch.sales_engineer);
+              if (patch.sales_phone !== undefined)
+                setSalesPhone(patch.sales_phone);
+              if (patch.prepared_by !== undefined)
+                setPreparedBy(patch.prepared_by);
+              if (patch.ref !== undefined) setRefCode(patch.ref);
               if (patch.site_name !== undefined) setSiteName(patch.site_name);
             }}
             editable

@@ -1,29 +1,67 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { SYSTEMS } from "@/lib/manifest.generated";
-import Designer from "@/components/Designer";
+import Designer, { type ExistingQuotation } from "@/components/Designer";
 import TopBar from "@/components/TopBar";
+import { sql, ensureSchema } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export default async function DesignerPage() {
+interface SearchParams {
+  id?: string;
+}
+
+export default async function DesignerPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+
+  const sp = await searchParams;
+  let existing: ExistingQuotation | undefined;
+  if (sp.id) {
+    await ensureSchema();
+    const q = sql();
+    const rows = (await q`
+      select * from quotations where id = ${Number(sp.id)} limit 1
+    `) as Array<Record<string, unknown>>;
+    const row = rows[0];
+    if (row && (user.role === "admin" || row.owner_id === user.id)) {
+      existing = {
+        id: Number(row.id),
+        ref: String(row.ref),
+        project_name: String(row.project_name),
+        client_name: (row.client_name as string) || null,
+        client_email: (row.client_email as string) || null,
+        client_phone: (row.client_phone as string) || null,
+        sales_engineer: (row.sales_engineer as string) || null,
+        prepared_by: (row.prepared_by as string) || null,
+        site_name: String(row.site_name),
+        tax_percent: Number(row.tax_percent ?? 16),
+        items_json: (row.items_json as ExistingQuotation["items_json"]) || [],
+        config_json:
+          (row.config_json as ExistingQuotation["config_json"]) || {},
+      };
+    }
+  }
+
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
       <main className="max-w-7xl mx-auto p-6">
         <header className="mb-6">
           <h1 className="text-2xl font-bold text-magic-ink">
-            AI Quotation Designer
+            {existing ? `Editing ${existing.ref}` : "AI Quotation Designer"}
           </h1>
           <p className="text-sm text-magic-ink/70">
-            Pick a system, describe the project in a sentence, and the AI will
-            fill the rest from the live GitHub catalog. When the catalog can't
-            answer, we escalate to Groq web-search.
+            {existing
+              ? "Edit the quotation below. Changes are saved when you click Update."
+              : "Pick a system, describe the project in a sentence, and the AI will fill the rest from the live GitHub catalog. When the catalog can't answer, we escalate to Groq web-search."}
           </p>
         </header>
-        <Designer systems={SYSTEMS} user={user} />
+        <Designer systems={SYSTEMS} user={user} existing={existing} />
       </main>
     </div>
   );

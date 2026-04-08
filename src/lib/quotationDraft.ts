@@ -19,7 +19,11 @@ export interface QuotationDraft {
   projectName: string;
   clientName: string;
   clientEmail: string;
+  clientPhone: string;
   salesEng: string;
+  salesPhone: string;
+  preparedBy: string;
+  refCode: string;
   siteName: string;
   taxPercent: number;
   showPictures: boolean;
@@ -34,7 +38,11 @@ export function emptyDraft(): QuotationDraft {
     projectName: "",
     clientName: "",
     clientEmail: "",
+    clientPhone: "",
     salesEng: "ENG. Yahya Khaled",
+    salesPhone: "+962 795172566",
+    preparedBy: "",
+    refCode: "",
     siteName: "",
     taxPercent: 16,
     showPictures: false,

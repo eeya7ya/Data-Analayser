@@ -138,6 +138,7 @@ export default function CatalogBrowser({
   const [loading, setLoading] = useState(false);
   const [sortKey, setSortKey] = useState("model");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [globalMode, setGlobalMode] = useState(false);
 
   // ── Page-picker modal state ──────────────────────────────────────────────
   // When a product is clicked we park it here and pop a modal asking the
@@ -170,30 +171,44 @@ export default function CatalogBrowser({
   }, [search]);
 
   // ── Fetch products ────────────────────────────────────────────────────────
+  // - System selected → list/search within that system
+  // - No system but a search term → run a global cross-vendor search
+  // - Nothing selected and empty search → show prompt
   useEffect(() => {
-    if (!systemId) {
+    const hasSystem = !!systemId;
+    const trimmed = debouncedSearch.trim();
+    if (!hasSystem && !trimmed) {
       setHits([]);
+      setGlobalMode(false);
       return;
     }
     setLoading(true);
     fetch("/api/database/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemId,
-        text: debouncedSearch || undefined,
-        limit: 2000,
-      }),
+      body: JSON.stringify(
+        hasSystem
+          ? { systemId, text: trimmed || undefined, limit: 2000 }
+          : { global: true, text: trimmed, limit: 200 },
+      ),
     })
       .then((r) => r.json())
-      .then((data) => setHits(data.hits || []))
-      .catch(() => setHits([]))
+      .then((data) => {
+        setHits(data.hits || []);
+        setGlobalMode(data.mode === "global");
+      })
+      .catch(() => {
+        setHits([]);
+        setGlobalMode(false);
+      })
       .finally(() => setLoading(false));
   }, [systemId, debouncedSearch]);
 
   // ── Dynamic visible columns ───────────────────────────────────────────────
   const columns = useMemo(() => {
-    const CORE = ["model", "category", "sub_category"];
+    const CORE = globalMode
+      ? ["vendor", "model", "category", "sub_category"]
+      : ["model", "category", "sub_category"];
     const ALWAYS_SKIP = new Set(["id", "pricing", "series"]);
     const extra = new Set<string>();
     for (const h of hits.slice(0, 50)) {
@@ -215,7 +230,7 @@ export default function CatalogBrowser({
       return a.localeCompare(b);
     });
     return [...CORE, ...sortedExtra, "si_price", "dpp_price"];
-  }, [hits]);
+  }, [hits, globalMode]);
 
   // ── Sorted hits ───────────────────────────────────────────────────────────
   const sortedHits = useMemo(() => {
@@ -308,14 +323,17 @@ export default function CatalogBrowser({
 
         <div className="flex-1 min-w-48">
           <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
-            Filter / search
+            {systemId ? "Filter / search" : "Global search (all vendors)"}
           </label>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="e.g. 4MP bullet ColorVu PoE"
-            disabled={!systemId}
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm disabled:opacity-40"
+            placeholder={
+              systemId
+                ? "e.g. 4MP bullet ColorVu PoE"
+                : "Search by keyword, model, vendor, category…"
+            }
+            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
           />
         </div>
 
@@ -341,30 +359,35 @@ export default function CatalogBrowser({
       </div>
 
       <p className="text-[11px] text-magic-ink/60 -mt-2">
-        Click <b>+</b> on any product to pick which page it should go to. You
-        stay on the catalog while you select — when you&apos;re done, click{" "}
-        <b>Open designer</b> to review and edit the quotation.
+        Pick a system to browse its full catalog, or just type in the search
+        box to find products across <b>every vendor</b>. Click <b>+</b> on any
+        product to add it to a quotation page. You stay on the catalog while
+        you select — when you&apos;re done, click <b>Open designer</b> to
+        review and edit the quotation.
       </p>
 
       {/* ── Product table ── */}
       <div className="flex-1 min-w-0">
-        {!systemId && (
+        {!systemId && !debouncedSearch.trim() && (
           <div className="rounded-2xl border border-magic-border bg-white p-12 text-center text-magic-ink/40 text-sm">
-            Select a system above to browse its full product catalog.
+            Select a system above to browse its full product catalog, or type
+            in the global search box to find products across every vendor.
           </div>
         )}
 
-        {systemId && loading && (
+        {loading && (
           <div className="rounded-2xl border border-magic-border bg-white p-12 text-center text-magic-ink/40 text-sm animate-pulse">
-            Loading products…
+            {globalMode ? "Searching all vendors…" : "Loading products…"}
           </div>
         )}
 
-        {systemId && !loading && sortedHits.length === 0 && (
-          <div className="rounded-2xl border border-magic-border bg-white p-12 text-center text-magic-ink/40 text-sm">
-            No products found{search ? ` for "${search}"` : ""}.
-          </div>
-        )}
+        {!loading &&
+          (systemId || debouncedSearch.trim()) &&
+          sortedHits.length === 0 && (
+            <div className="rounded-2xl border border-magic-border bg-white p-12 text-center text-magic-ink/40 text-sm">
+              No products found{search ? ` for "${search}"` : ""}.
+            </div>
+          )}
 
         {pendingItem && (
           <PagePickerModal
@@ -381,7 +404,14 @@ export default function CatalogBrowser({
           <div className="rounded-2xl border border-magic-border bg-white overflow-hidden">
             <div className="px-4 py-3 border-b border-magic-border flex items-center justify-between">
               <span className="text-xs font-semibold text-magic-ink">
-                {currentSystem?.vendor} — {currentSystem?.category || "All"}
+                {globalMode ? (
+                  <>Global search results</>
+                ) : (
+                  <>
+                    {currentSystem?.vendor} —{" "}
+                    {currentSystem?.category || "All"}
+                  </>
+                )}
                 <span className="ml-2 text-magic-ink/40 font-normal">
                   {sortedHits.length} products
                 </span>
@@ -441,6 +471,12 @@ export default function CatalogBrowser({
                               prices.dpp > 0
                                 ? `${h.currency} ${prices.dpp.toFixed(2)}`
                                 : "—";
+                          } else if (col === "vendor") {
+                            val =
+                              h.system?.vendor ||
+                              h.system?.name ||
+                              h.product.vendor ||
+                              "";
                           } else {
                             val = h.product[col];
                           }

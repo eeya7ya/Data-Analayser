@@ -131,6 +131,7 @@ export async function POST(req: NextRequest) {
     const user = await requireUser();
     await ensureSchema();
     const body = (await req.json()) as {
+      ref?: string;
       project_name: string;
       client_name?: string;
       client_email?: string;
@@ -143,7 +144,7 @@ export async function POST(req: NextRequest) {
       totals?: Record<string, unknown>;
       config?: Record<string, unknown>;
     };
-    const ref = genRef();
+    const ref = body.ref && body.ref.trim() ? body.ref.trim() : genRef();
     const q = sql();
     const rows = (await q`
       insert into quotations (
