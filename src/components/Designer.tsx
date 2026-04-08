@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { SystemEntry } from "@/lib/manifest.generated";
 import type { SessionUser } from "@/lib/auth";
 import { GROQ_CHAT_MODELS, type GroqChatModelId } from "@/lib/groq";
@@ -34,6 +34,15 @@ export default function Designer({
   user: SessionUser;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // If the Catalog passes `?project=123`, the Designer treats it as
+  // "additive": anything the AI generates will be merged into the existing
+  // project on save (via PATCH). Blank = create a fresh quotation.
+  const initialProjectId = searchParams?.get("project");
+  const [projectQuotationId, setProjectQuotationId] = useState<number | null>(
+    initialProjectId ? Number(initialProjectId) : null,
+  );
+  const [existingItems, setExistingItems] = useState<QuotationItem[]>([]);
   const [systemId, setSystemId] = useState<number | "">("");
   const [designModel, setDesignModel] = useState<GroqChatModelId>(
     GROQ_CHAT_MODELS[0].id,
@@ -69,6 +78,33 @@ export default function Designer({
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [systems]);
+
+  // When launched with ?project=id from the Catalog, hydrate the project
+  // header + items so the designer runs in "add to project" mode.
+  useEffect(() => {
+    if (!projectQuotationId) return;
+    fetch(`/api/quotations?id=${projectQuotationId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const row = data.quotation as Record<string, unknown> | null;
+        if (!row) return;
+        setProjectName(String(row.project_name ?? ""));
+        setClientName(String(row.client_name ?? ""));
+        setClientEmail(String(row.client_email ?? ""));
+        setSalesEng(String(row.sales_engineer ?? salesEng));
+        setSiteName(String(row.site_name ?? ""));
+        setTaxPercent(Number(row.tax_percent ?? 16));
+        const rawItems = Array.isArray(row.items_json)
+          ? (row.items_json as QuotationItem[])
+          : [];
+        setExistingItems(rawItems);
+      })
+      .catch(() => {
+        /* ignore — keep a fresh session if load fails */
+      });
+    // salesEng intentionally not in deps — we only want the initial hydration.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectQuotationId]);
 
   async function runDesign() {
     setLoading(true);
@@ -155,21 +191,41 @@ export default function Designer({
   async function saveQuotation() {
     setSaving(true);
     try {
-      const totals = computeTotals(items, taxPercent);
+      // Merge existing project items with newly AI-designed items, then
+      // renumber. This is what turns "AI design" into an additive operation
+      // on an existing project.
+      const combined: QuotationItem[] = [...existingItems, ...items].map(
+        (it, i) => ({ ...it, no: i + 1 }),
+      );
+      const totals = computeTotals(combined, taxPercent);
+      const method = projectQuotationId ? "PATCH" : "POST";
+      const body = projectQuotationId
+        ? {
+            id: projectQuotationId,
+            project_name: projectName,
+            client_name: clientName,
+            client_email: clientEmail,
+            sales_engineer: salesEng,
+            site_name: siteName,
+            tax_percent: taxPercent,
+            items: combined,
+            totals,
+          }
+        : {
+            project_name: projectName,
+            client_name: clientName,
+            client_email: clientEmail,
+            sales_engineer: salesEng,
+            prepared_by: user.username,
+            site_name: siteName,
+            tax_percent: taxPercent,
+            items: combined,
+            totals,
+          };
       const res = await fetch("/api/quotations", {
-        method: "POST",
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project_name: projectName,
-          client_name: clientName,
-          client_email: clientEmail,
-          sales_engineer: salesEng,
-          prepared_by: user.username,
-          site_name: siteName,
-          tax_percent: taxPercent,
-          items,
-          totals,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "save failed");
@@ -185,6 +241,30 @@ export default function Designer({
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       {/* LEFT — controls */}
       <section className="lg:col-span-5 space-y-4">
+        {projectQuotationId && (
+          <div className="rounded-2xl border border-magic-red/40 bg-magic-red/5 p-3 text-xs">
+            <p className="font-semibold text-magic-red">
+              Adding to existing project
+            </p>
+            <p className="text-magic-ink/70 mt-0.5">
+              {projectName || `Project #${projectQuotationId}`} ·{" "}
+              {existingItems.length} existing item
+              {existingItems.length === 1 ? "" : "s"}. AI-designed items will be
+              merged into this project on save.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setProjectQuotationId(null);
+                setExistingItems([]);
+                router.replace("/designer");
+              }}
+              className="mt-2 text-[11px] underline text-magic-ink/60 hover:text-magic-red"
+            >
+              Detach and create a new quotation instead
+            </button>
+          </div>
+        )}
         <Card title="1 · Select a system &amp; AI model">
           <select
             value={systemId}
