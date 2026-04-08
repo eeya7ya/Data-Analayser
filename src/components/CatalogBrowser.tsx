@@ -65,6 +65,17 @@ function toQuotationItem(
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+// Suggested page names — users can also type their own.
+const PAGE_SUGGESTIONS = [
+  "CCTV",
+  "Sound System",
+  "Networking",
+  "Access Control",
+  "Intercom",
+  "Cabling",
+  "Display & Video Wall",
+];
+
 export default function CatalogBrowser({
   systems,
   user: _user,
@@ -82,6 +93,9 @@ export default function CatalogBrowser({
   const [loading, setLoading] = useState(false);
   const [sortKey, setSortKey] = useState("model");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  // Override the destination "page" name on add. When empty, we
+  // fall back to vendor + category (the previous behaviour).
+  const [destPage, setDestPage] = useState("");
 
   // ── Draft summary (items already in the designer) ────────────────────────
   const [draftCount, setDraftCount] = useState(0);
@@ -169,20 +183,24 @@ export default function CatalogBrowser({
   const addAndGoToDesigner = useCallback(
     (h: HitWithSystem, qty = 1) => {
       const sys = systems.find((s) => s.id === systemId) || h.system;
-      appendItem(toQuotationItem(h, sys, qty));
+      const item = toQuotationItem(h, sys, qty);
+      if (destPage.trim()) item.system = destPage.trim();
+      appendItem(item);
       router.push("/designer");
     },
-    [router, systemId, systems],
+    [router, systemId, systems, destPage],
   );
 
   // ── Add without navigating (for accumulating multiple in one trip) ───────
   const addSilently = useCallback(
     (h: HitWithSystem, qty = 1) => {
       const sys = systems.find((s) => s.id === systemId) || h.system;
-      const d = appendItem(toQuotationItem(h, sys, qty));
+      const item = toQuotationItem(h, sys, qty);
+      if (destPage.trim()) item.system = destPage.trim();
+      const d = appendItem(item);
       setDraftCount(d.items.length);
     },
-    [systemId, systems],
+    [systemId, systems, destPage],
   );
 
   // ── Systems grouped by vendor ─────────────────────────────────────────────
@@ -241,6 +259,24 @@ export default function CatalogBrowser({
           />
         </div>
 
+        <div className="flex-1 min-w-48">
+          <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
+            Push to page <span className="text-magic-ink/40 normal-case">(optional)</span>
+          </label>
+          <input
+            value={destPage}
+            onChange={(e) => setDestPage(e.target.value)}
+            placeholder="e.g. CCTV, Sound System, Networking…"
+            list="dest-page-suggestions"
+            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
+          />
+          <datalist id="dest-page-suggestions">
+            {PAGE_SUGGESTIONS.map((p) => (
+              <option key={p} value={p} />
+            ))}
+          </datalist>
+        </div>
+
         <div className="pt-5">
           <button
             onClick={() => router.push("/designer")}
@@ -257,11 +293,14 @@ export default function CatalogBrowser({
       </div>
 
       <p className="text-[11px] text-magic-ink/60 -mt-2">
-        Click any row to send the product straight to the designer. Hold{" "}
+        Click <b>+</b> to send a product straight to the designer. Hold{" "}
         <kbd className="px-1 py-0.5 rounded bg-magic-soft border border-magic-border">
           Shift
         </kbd>{" "}
-        while clicking to add without navigating away.
+        while clicking to add without navigating away. Use{" "}
+        <b>Push to page</b> to merge categories — e.g. set it to{" "}
+        <i>CCTV</i> while adding DVR, NVR, Cameras and HDD so they all land
+        on the same quotation page.
       </p>
 
       {/* ── Product table ── */}
@@ -298,6 +337,7 @@ export default function CatalogBrowser({
               <table className="w-full text-xs border-collapse">
                 <thead className="sticky top-0 bg-magic-soft/80 backdrop-blur z-10">
                   <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-magic-ink/60 w-8"></th>
                     {columns.map((col) => (
                       <th
                         key={col}
@@ -324,13 +364,20 @@ export default function CatalogBrowser({
                     return (
                       <tr
                         key={rowIdx}
-                        onClick={(e) => {
-                          if (e.shiftKey) addSilently(h);
-                          else addAndGoToDesigner(h);
-                        }}
-                        title="Click to add to designer (Shift+click to stay on catalog)"
-                        className="border-t border-magic-border/50 hover:bg-magic-soft/30 transition-colors cursor-pointer"
+                        className="border-t border-magic-border/50 hover:bg-magic-soft/30 transition-colors"
                       >
+                        <td className="px-2 py-1.5">
+                          <button
+                            onClick={(e) => {
+                              if (e.shiftKey) addSilently(h);
+                              else addAndGoToDesigner(h);
+                            }}
+                            title="Add to designer (Shift+click to stay on catalog)"
+                            className="w-6 h-6 rounded-full bg-magic-red text-white flex items-center justify-center text-base leading-none hover:bg-red-700 font-bold"
+                          >
+                            +
+                          </button>
+                        </td>
                         {columns.map((col) => {
                           let val: unknown;
                           if (col === "si_price") {

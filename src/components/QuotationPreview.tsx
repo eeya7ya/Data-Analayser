@@ -160,6 +160,7 @@ export default function QuotationPreview({
           />
           <SystemTable
             group={group}
+            allPages={groups.map((g) => g.system)}
             showPictures={showPictures}
             editable={editable}
             onUpdate={update}
@@ -229,8 +230,9 @@ function QuotationPage({
   isLast?: boolean;
   children: React.ReactNode;
 }) {
-  // Default to /logo.png in /public so dropping a real PNG there
-  // (public/logo.png) makes it appear automatically.
+  // Default to /logo.png in /public. Drop the real PNG at
+  // public/logo.png and it will appear automatically. If the file
+  // is missing we fall back to the Magic Tech text block.
   const resolvedLogo = logoUrl || "/logo.png";
   const [logoBroken, setLogoBroken] = React.useState(false);
   return (
@@ -269,8 +271,8 @@ function QuotationPage({
         </div>
       </div>
 
-      {/* Info header — both columns kept on the left side of the page */}
-      <div className="flex flex-wrap gap-x-10 gap-y-1 mb-3 text-[10.5px] text-left">
+      {/* Info header */}
+      <div className="grid grid-cols-2 gap-4 mb-3 text-[10.5px]">
         <div>
           <div className="font-bold">
             {header.date || new Date().toLocaleDateString("en-GB")}
@@ -288,7 +290,7 @@ function QuotationPage({
             <b>Phone:</b> {header.client_phone || "—"}
           </div>
         </div>
-        <div>
+        <div className="text-left">
           <div>
             <b>Ref:</b> {header.ref}
           </div>
@@ -344,12 +346,14 @@ function SystemBanner({
 
 function SystemTable({
   group,
+  allPages,
   showPictures,
   editable,
   onUpdate,
   onRemove,
 }: {
   group: { system: string; rows: Array<{ item: QuotationItem; globalIndex: number }> };
+  allPages: string[];
   showPictures: boolean;
   editable: boolean;
   onUpdate: (globalIndex: number, patch: Partial<QuotationItem>) => void;
@@ -478,13 +482,41 @@ function SystemTable({
                 (Number(item.quantity) || 0) * (Number(item.unit_price) || 0),
               )}
               {editable && (
-                <button
-                  onClick={() => onRemove(globalIndex)}
-                  className="no-print ml-2 text-red-500 text-[9px]"
-                  title="Remove row"
-                >
-                  ×
-                </button>
+                <div className="no-print mt-1 flex items-center justify-center gap-1">
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!v) return;
+                      if (v === "__new__") {
+                        const name = prompt("Move to which page?", "");
+                        if (name && name.trim())
+                          onUpdate(globalIndex, { system: name.trim() });
+                      } else {
+                        onUpdate(globalIndex, { system: v });
+                      }
+                    }}
+                    className="text-[9px] border border-magic-border rounded px-1 py-0.5 bg-white"
+                    title="Move this row to another page"
+                  >
+                    <option value="">Move to…</option>
+                    {allPages
+                      .filter((p) => p !== group.system)
+                      .map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    <option value="__new__">+ New page…</option>
+                  </select>
+                  <button
+                    onClick={() => onRemove(globalIndex)}
+                    className="text-red-500 text-[11px]"
+                    title="Remove row"
+                  >
+                    ×
+                  </button>
+                </div>
               )}
             </td>
           </tr>
