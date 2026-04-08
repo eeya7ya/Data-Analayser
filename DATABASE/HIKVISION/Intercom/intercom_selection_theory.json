@@ -1,0 +1,411 @@
+{
+  "database_info": {
+    "name": "Video Intercom Selection Theory - Standards Based",
+    "version": "1.0",
+    "purpose": "Engineering design tool for video intercom system selection",
+    "last_updated": "2026-04-05"
+  },
+  "selection_criteria": {
+    "1_system_architecture_selection": {
+      "standard": "EN 50486 / System Design",
+      "principle": "Architecture type determines wiring, scalability, and feature set",
+      "options": [
+        {
+          "type": "2-Wire Analog",
+          "kit_examples": "DS-KIS202T, DS-KIS203T, DS-KIS204T",
+          "wiring": "2-wire (power + signal)",
+          "max_indoor_stations": "1-2 per door station",
+          "max_distance_m": 100,
+          "features": "Basic audio/video intercom, door unlock",
+          "best_for": "Single family homes, small apartments, retrofit",
+          "cost": "Lowest"
+        },
+        {
+          "type": "4-Wire Analog",
+          "kit_examples": "DS-KIS212, DS-KIS213",
+          "wiring": "4-wire (separate power + signal)",
+          "max_indoor_stations": "1-4",
+          "max_distance_m": 100,
+          "features": "Better video quality, expandable",
+          "best_for": "Villas, small multi-tenant",
+          "cost": "Low"
+        },
+        {
+          "type": "IP Network (Cat5e/Cat6)",
+          "kit_examples": "DS-KIS313-P, DS-KIS602/603/604/606",
+          "wiring": "Cat5e/Cat6 Ethernet (PoE)",
+          "max_indoor_stations": "500+ per door station",
+          "max_distance_m": 100,
+          "features": "HD video, SIP protocol, mobile app, multi-building, centralized management",
+          "best_for": "Apartments, commercial buildings, campuses, multi-building",
+          "cost": "Medium-High"
+        },
+        {
+          "type": "IP + Wi-Fi Hybrid",
+          "kit_examples": "DS-KV8113-WME1 + DS-KH6110-WE1",
+          "wiring": "Ethernet to door station, Wi-Fi to indoor",
+          "max_indoor_stations": "Depends on network",
+          "max_distance_m": "Network dependent",
+          "features": "All IP features + wireless indoor stations",
+          "best_for": "Retrofit, flexible installation, reducing cable runs",
+          "cost": "Medium"
+        }
+      ]
+    },
+    "2_door_station_selection": {
+      "standard": "EN 50486 / Application",
+      "principle": "Door station type is selected based on number of apartments, required features, and aesthetics",
+      "types": [
+        {
+          "type": "Modular (DS-KD8003 + modules)",
+          "buttons": "1-12+ (configurable)",
+          "features": "Customizable: camera + keypad + card reader + fingerprint + display",
+          "best_for": "Multi-apartment buildings, flexible configuration",
+          "mount": "Surface (ACW) or Flush (ACF)",
+          "ip_rating": "IP65",
+          "note": "Most flexible \u2014 add/remove modules as needed"
+        },
+        {
+          "type": "Villa Station (DS-KV8113/8213/8413)",
+          "buttons": "1, 2, or 4",
+          "features": "All-in-one: camera + card reader + call button",
+          "best_for": "Villas, townhouses, small buildings (1-4 units)",
+          "mount": "Surface or Flush",
+          "ip_rating": "IP65",
+          "ik_rating": "IK08",
+          "material": "Aluminum alloy"
+        },
+        {
+          "type": "Villa Plastic (DS-KV6133)",
+          "buttons": 1,
+          "features": "Camera + Mifare + Wi-Fi",
+          "best_for": "Budget villa/residential, single unit",
+          "mount": "Surface",
+          "material": "Plastic"
+        },
+        {
+          "type": "All-in-One Gen6 (DS-KD9203/9403)",
+          "buttons": "Touchscreen",
+          "features": "Touch display + camera + optional fingerprint/card/keypad",
+          "best_for": "Premium installations, modern aesthetics",
+          "mount": "Surface/Flush",
+          "note": "Latest generation with best design"
+        },
+        {
+          "type": "Face Recognition (DS-KV9503)",
+          "buttons": 1,
+          "features": "Face recognition + camera + Wi-Fi",
+          "best_for": "High-end touchless entry",
+          "mount": "Surface"
+        }
+      ],
+      "button_count_guide": {
+        "1_button": "Single family home or single unit",
+        "2_buttons": "Duplex or 2-unit building",
+        "4_buttons": "4-unit apartment or townhouse",
+        "12_buttons_module": "12-unit building (use DS-KD-K12 module)",
+        "more_than_12": "Multiple nametag modules or display directory module (DS-KD-DIS)"
+      }
+    },
+    "3_indoor_station_selection": {
+      "standard": "Application / User Requirements",
+      "principle": "Indoor station is selected based on screen size, connectivity, and features",
+      "comparison": [
+        {
+          "model_range": "DS-KH2220",
+          "screen": "4.3 inch",
+          "type": "Analog 2-wire",
+          "wifi": false,
+          "touch": false,
+          "os": "Embedded",
+          "best_for": "Basic 2-wire systems, budget"
+        },
+        {
+          "model_range": "DS-KH6000-E1",
+          "screen": "4.3 inch",
+          "type": "IP",
+          "wifi": false,
+          "touch": false,
+          "os": "Embedded",
+          "best_for": "Basic IP system, wired only"
+        },
+        {
+          "model_range": "DS-KH6100-E1",
+          "screen": "4.3 inch",
+          "type": "IP",
+          "wifi": false,
+          "touch": true,
+          "os": "Embedded",
+          "best_for": "Standard IP with touch"
+        },
+        {
+          "model_range": "DS-KH6110-WE1",
+          "screen": "4.3 inch",
+          "type": "IP",
+          "wifi": true,
+          "touch": true,
+          "os": "Embedded",
+          "best_for": "Wi-Fi IP, no cable to indoor unit"
+        },
+        {
+          "model_range": "DS-KH6320-LE1",
+          "screen": "7 inch",
+          "type": "IP",
+          "wifi": false,
+          "touch": true,
+          "os": "Embedded",
+          "best_for": "Large display, wired, residential/office"
+        },
+        {
+          "model_range": "DS-KH6320-WTE1",
+          "screen": "7 inch",
+          "type": "IP",
+          "wifi": true,
+          "touch": true,
+          "os": "Embedded",
+          "best_for": "Large display, Wi-Fi, modern home"
+        },
+        {
+          "model_range": "DS-KH8350-WTE1",
+          "screen": "7 inch IPS",
+          "type": "IP",
+          "wifi": true,
+          "touch": true,
+          "os": "Embedded",
+          "best_for": "Premium 7-inch with IPS quality"
+        },
+        {
+          "model_range": "DS-KH8520-WTE1",
+          "screen": "10.1 inch IPS",
+          "type": "IP",
+          "wifi": true,
+          "touch": true,
+          "os": "Embedded",
+          "best_for": "Large premium indoor station"
+        },
+        {
+          "model_range": "DS-KH9310-WTE1",
+          "screen": "7 inch IPS",
+          "type": "IP",
+          "wifi": true,
+          "touch": true,
+          "os": "Android",
+          "best_for": "Smart home integration, apps"
+        },
+        {
+          "model_range": "DS-KH9510-WTE1",
+          "screen": "10.1 inch IPS",
+          "type": "IP",
+          "wifi": true,
+          "touch": true,
+          "os": "Android",
+          "best_for": "Premium smart home, full features"
+        }
+      ]
+    },
+    "4_wiring_and_infrastructure": {
+      "standard": "EN 50173 / TIA-568 / Manufacturer",
+      "principle": "Wiring type and distance must match system architecture",
+      "wiring_by_system": [
+        {
+          "system": "2-Wire Analog",
+          "cable": "2-core 0.75-1.0mm\u00b2",
+          "max_distance_m": 100,
+          "note": "Power and signal on same pair"
+        },
+        {
+          "system": "4-Wire Analog",
+          "cable": "4-core 0.5mm\u00b2",
+          "max_distance_m": 100,
+          "note": "Separate power and signal"
+        },
+        {
+          "system": "IP (PoE)",
+          "cable": "Cat5e/Cat6 UTP",
+          "max_distance_m": 100,
+          "note": "PoE switch required. Use Cat6 for future-proofing."
+        },
+        {
+          "system": "Door lock",
+          "cable": "2-core 1.0mm\u00b2",
+          "max_distance_m": 30,
+          "note": "12VDC to electric strike/mag lock"
+        },
+        {
+          "system": "Exit button",
+          "cable": "2-core 0.5mm\u00b2",
+          "max_distance_m": 30
+        }
+      ],
+      "ip_network_design": {
+        "switch": "PoE switch with adequate power budget",
+        "poe_per_device_w": {
+          "door_station": 13,
+          "indoor_station": 6,
+          "guard_station": 10
+        },
+        "vlan": "Recommended: separate VLAN for intercom traffic",
+        "bandwidth_per_call": "2-4 Mbps (1080p H.264 video + audio)",
+        "distributor": "DS-KAD612 \u2014 provides 12-port distribution with PoE passthrough for door stations"
+      }
+    },
+    "5_system_capacity_and_topology": {
+      "standard": "Manufacturer / System Design",
+      "principle": "System topology must support the number of units with proper hierarchy",
+      "topology": {
+        "villa_system": {
+          "description": "1 door station \u2192 1-4 indoor stations",
+          "max_indoor_per_door": 4,
+          "typical_products": "DS-KV8113 + DS-KH6320-WTE1"
+        },
+        "apartment_system": {
+          "description": "1 main door station \u2192 up to 500 indoor stations via network switch",
+          "max_indoor_per_door": 500,
+          "sub_door_stations": 16,
+          "typical_products": "DS-KD8003-IME1 + DS-KH6320-WTE1 + network switch",
+          "requires": "PoE switch, network infrastructure"
+        },
+        "multi_building_campus": {
+          "description": "Multiple door stations \u2192 central management \u2192 multiple indoor stations",
+          "management_software": "iVMS-4200 or HikCentral",
+          "guard_station": "DS-KP8000-WHE1 at reception/security desk"
+        }
+      }
+    },
+    "6_mounting_and_installation": {
+      "standard": "Manufacturer / Building Code",
+      "principle": "Door stations must be mounted at accessible height with weather protection",
+      "door_station_mounting": {
+        "height_mm": {
+          "center": 1400,
+          "range": "1300-1600",
+          "standard": "ADA / EN 50486"
+        },
+        "surface_mount": "Use ACW frames (ACW1/ACW2/ACW3) for surface mounting",
+        "flush_mount": "Use ACF frames for flush mounting in wall",
+        "weather_protection": "Use rain shield (DS-KABV8113-RS) for exposed outdoor locations",
+        "ip_rating_note": "IP65 rated \u2014 splash-proof but not submersible. Provide overhang for heavy rain areas."
+      },
+      "indoor_station_mounting": {
+        "height_mm": {
+          "center": 1400,
+          "range": "1300-1500"
+        },
+        "options": "Wall mount (default) or desk stand (DS-KAB6320-T for 7-inch models)",
+        "power": "PoE (no separate power needed) or 12VDC adapter"
+      }
+    },
+    "7_lock_integration": {
+      "standard": "EN 14846 / EN 1125",
+      "principle": "Door station lock relay controls the door lock for visitor entry",
+      "lock_relay_specs": {
+        "ds_kd8003": "2 relays, Max 30VDC 2A each",
+        "direct_lock_power": "12V 500mA output (can power small electric strike directly without separate PSU)",
+        "for_mag_lock": "Separate 12/24VDC PSU required \u2014 relay switches the lock power"
+      },
+      "lock_types": {
+        "electric_strike": "Most common for intercom. Fail-secure recommended. Connected via door station relay.",
+        "mag_lock": "Requires separate PSU. Door station relay interrupts power to release.",
+        "electric_bolt": "For high-security. Fail-secure."
+      }
+    },
+    "8_mobile_app_integration": {
+      "standard": "Manufacturer Feature",
+      "principle": "Modern IP intercom systems support mobile app for remote answering",
+      "hik_connect_app": {
+        "function": "Answer door calls on smartphone when away from indoor station",
+        "features": [
+          "Live video from door camera",
+          "Two-way audio",
+          "Remote door unlock",
+          "Call history",
+          "Snapshot capture"
+        ],
+        "requirements": "IP door station with internet access, Hik-Connect account",
+        "supported_door_stations": "All IP/Wi-Fi door stations (KD8003, KV8113, KV6133, KD9203 series)"
+      }
+    },
+    "9_compliance_standards": {
+      "principle": "Intercom systems must meet building, fire, and accessibility standards",
+      "standards": [
+        {
+          "standard": "EN 50486:2008",
+          "scope": "Video door entry systems \u2014 requirements and test methods"
+        },
+        {
+          "standard": "EN 50491-4-3",
+          "scope": "Smart home/building \u2014 electronic systems in residential premises"
+        },
+        {
+          "standard": "SIP (RFC 3261)",
+          "scope": "Session Initiation Protocol for IP intercom communication"
+        },
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety of electronic intercom equipment"
+        },
+        {
+          "standard": "EN 55032",
+          "scope": "EMC emissions"
+        },
+        {
+          "standard": "IEC 60529 (IP65)",
+          "scope": "Ingress protection for outdoor door stations"
+        },
+        {
+          "standard": "IEC 62262 (IK08)",
+          "scope": "Impact protection for door stations"
+        },
+        {
+          "standard": "ADA / Accessibility",
+          "scope": "Door station mounting height 1200-1400mm, visual + audio indicators"
+        },
+        {
+          "standard": "EN 1125 / Fire Code",
+          "scope": "If intercom controls fire exit doors \u2014 must release on fire alarm"
+        }
+      ]
+    },
+    "10_analog_vs_ip_decision": {
+      "standard": "Application Design",
+      "principle": "System type decision based on scale, budget, and feature needs",
+      "decision_matrix": [
+        {
+          "criteria": "1-2 apartments, budget",
+          "recommendation": "2-Wire Analog (DS-KIS202T)",
+          "reason": "Simplest wiring, lowest cost"
+        },
+        {
+          "criteria": "Single villa, basic",
+          "recommendation": "4-Wire or IP Kit (DS-KIS313-P)",
+          "reason": "Good quality, easy install"
+        },
+        {
+          "criteria": "Villa with smart home",
+          "recommendation": "IP: DS-KV8113-WME1 + DS-KH9510-WTE1",
+          "reason": "Wi-Fi, Android, app integration"
+        },
+        {
+          "criteria": "Small apartment (4-12 units)",
+          "recommendation": "IP: DS-KD8003 modular + indoor stations",
+          "reason": "Scalable, configurable modules"
+        },
+        {
+          "criteria": "Large apartment (50+ units)",
+          "recommendation": "IP: DS-KD8003 modular + PoE switch + DS-KAD612",
+          "reason": "Network-based, centralized management"
+        },
+        {
+          "criteria": "Multi-building campus",
+          "recommendation": "IP: Multiple door stations + guard station + HikCentral",
+          "reason": "Full centralized management, cross-building calls"
+        },
+        {
+          "criteria": "Premium/modern design",
+          "recommendation": "DS-KD9203/9403-E6 series",
+          "reason": "Latest Gen6 design, touch screen, sleek aesthetics"
+        }
+      ]
+    }
+  }
+}

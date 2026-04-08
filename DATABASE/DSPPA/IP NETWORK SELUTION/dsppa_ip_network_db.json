@@ -1,0 +1,271 @@
+{
+  "database_info": {
+    "name": "DSPPA IP Network PA & Accessories Database",
+    "version": "1.0",
+    "manufacturer": "DSPPA",
+    "category": "IP/Network PA \u2014 MAG Series, POE Audio, Network Terminals",
+    "currency": "USD",
+    "last_updated": "2026-04-06",
+    "integration_notes": {
+      "amplifier_db": "dsppa_amplifiers_db.json \u2014 MAG network terminals can drive external amplifiers",
+      "speaker_db": "dsppa_speakers_db.json \u2014 POE speakers are self-amplified network endpoints",
+      "pava_db": "dsppa_pava_db.json \u2014 PAVA systems can integrate with IP network backbone",
+      "matrix_db": "dsppa_matrix_db.json \u2014 MAG6588 matrix is IP-networkable"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "POE6311",
+      "category": "IP Network",
+      "sub_category": "POE Network Ceiling Speaker",
+      "pricing": {
+        "dpp": 110,
+        "si": 115,
+        "end_user": 126.5
+      },
+      "specs": {
+        "type": "PoE-powered network audio ceiling speaker",
+        "power_source": "PoE (IEEE 802.3af)",
+        "audio": "IP network audio stream"
+      }
+    },
+    {
+      "id": 2,
+      "model": "MAG6311",
+      "category": "IP Network",
+      "sub_category": "MAG Network Ceiling Speaker",
+      "pricing": {
+        "dpp": 135,
+        "si": 145,
+        "end_user": 159.5
+      }
+    },
+    {
+      "id": 3,
+      "model": "POE255",
+      "category": "IP Network",
+      "sub_category": "POE Network Wall Speaker",
+      "pricing": {
+        "dpp": 165,
+        "si": 175,
+        "end_user": 192.5
+      }
+    },
+    {
+      "id": 4,
+      "model": "POE6368",
+      "category": "IP Network",
+      "sub_category": "POE Network Column Speaker",
+      "pricing": {
+        "dpp": 185,
+        "si": 195,
+        "end_user": 214.5
+      }
+    },
+    {
+      "id": 5,
+      "model": "MAG6368",
+      "category": "IP Network",
+      "sub_category": "MAG Network Column Speaker",
+      "pricing": {
+        "dpp": 235,
+        "si": 245,
+        "end_user": 269.5
+      }
+    },
+    {
+      "id": 6,
+      "model": "POE6463W",
+      "category": "IP Network",
+      "sub_category": "POE Network Active Speaker White",
+      "pricing": {
+        "dpp": 250,
+        "si": 250,
+        "end_user": 275
+      }
+    },
+    {
+      "id": 7,
+      "model": "MAG6463B/W",
+      "category": "IP Network",
+      "sub_category": "MAG Network Active Speaker",
+      "pricing": {
+        "dpp": 235,
+        "si": 245,
+        "end_user": 269.5
+      }
+    },
+    {
+      "id": 8,
+      "model": "MAG2123S",
+      "category": "IP Network",
+      "sub_category": "IP Network Amplifier Module",
+      "pricing": {
+        "dpp": 145,
+        "si": 165,
+        "end_user": 181.5
+      },
+      "specs": {
+        "function": "Network audio terminal with amplifier output"
+      }
+    },
+    {
+      "id": 9,
+      "model": "MAG6812",
+      "category": "IP Network",
+      "sub_category": "MAG Network Audio Terminal 120W",
+      "pricing": {
+        "dpp": 365,
+        "si": 385,
+        "end_user": 423.5
+      }
+    },
+    {
+      "id": 10,
+      "model": "MAG6825",
+      "category": "IP Network",
+      "sub_category": "MAG Network Audio Terminal 250W",
+      "pricing": {
+        "dpp": 450,
+        "si": 475,
+        "end_user": 522.5
+      }
+    },
+    {
+      "id": 11,
+      "model": "MAG6835",
+      "category": "IP Network",
+      "sub_category": "MAG Network Audio Terminal 350W",
+      "pricing": {
+        "dpp": 620,
+        "si": 650,
+        "end_user": 715
+      }
+    },
+    {
+      "id": 12,
+      "model": "MAG6865",
+      "category": "IP Network",
+      "sub_category": "MAG Network Audio Terminal 650W",
+      "pricing": {
+        "dpp": 790,
+        "si": 810,
+        "end_user": 891
+      }
+    },
+    {
+      "id": 13,
+      "model": "DSP6710",
+      "category": "IP Network",
+      "sub_category": "IP Network Terminal",
+      "pricing": {
+        "dpp": 125,
+        "si": 135,
+        "end_user": 148.5
+      }
+    },
+    {
+      "id": 14,
+      "model": "DSP6711",
+      "category": "IP Network",
+      "sub_category": "IP Network Terminal",
+      "pricing": {
+        "dpp": 125,
+        "si": 135,
+        "end_user": 148.5
+      }
+    },
+    {
+      "id": 15,
+      "model": "MAG6468",
+      "category": "IP Network",
+      "sub_category": "MAG Network Premium Terminal",
+      "pricing": {
+        "dpp": 560,
+        "si": 575,
+        "end_user": 632.5
+      }
+    },
+    {
+      "id": 16,
+      "model": "MAG6388",
+      "category": "IP Network",
+      "sub_category": "MAG Network Controller",
+      "pricing": {
+        "dpp": 445,
+        "si": 475,
+        "end_user": 522.5
+      }
+    },
+    {
+      "id": 17,
+      "model": "MAG2107C",
+      "category": "IP Network",
+      "sub_category": "MAG Network Paging Station",
+      "pricing": {
+        "dpp": 225,
+        "si": 250,
+        "end_user": 275
+      }
+    },
+    {
+      "id": 18,
+      "model": "MAG808",
+      "category": "IP Network",
+      "sub_category": "MAG Master Server",
+      "pricing": {
+        "dpp": 820,
+        "si": 850,
+        "end_user": 935
+      },
+      "specs": {
+        "function": "Central server for MAG IP PA system"
+      }
+    },
+    {
+      "id": 19,
+      "model": "MAG808C",
+      "category": "IP Network",
+      "sub_category": "MAG Client Software",
+      "pricing": {
+        "dpp": 110,
+        "si": 120,
+        "end_user": 132
+      }
+    },
+    {
+      "id": 20,
+      "model": "MAG808R",
+      "category": "IP Network",
+      "sub_category": "MAG Rack Mount Server",
+      "pricing": {
+        "dpp": 170,
+        "si": 185,
+        "end_user": 203.5
+      }
+    },
+    {
+      "id": 21,
+      "model": "MAG808S",
+      "category": "IP Network",
+      "sub_category": "MAG System Accessory",
+      "pricing": {
+        "dpp": 65,
+        "si": 68,
+        "end_user": 74.8
+      }
+    },
+    {
+      "id": 22,
+      "model": "DSP9312",
+      "category": "IP Network",
+      "sub_category": "Network Audio Player",
+      "pricing": {
+        "dpp": 150,
+        "si": 150,
+        "end_user": 165
+      }
+    }
+  ]
+}

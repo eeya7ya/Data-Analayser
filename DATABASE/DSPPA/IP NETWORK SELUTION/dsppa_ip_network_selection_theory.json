@@ -1,0 +1,128 @@
+{
+  "database_info": {
+    "name": "DSPPA IP Network PA Selection Theory",
+    "version": "1.0",
+    "last_updated": "2026-04-06"
+  },
+  "selection_criteria": {
+    "1_ip_pa_vs_traditional": {
+      "standard": "System Architecture",
+      "principle": "IP PA distributes audio over existing LAN infrastructure vs dedicated speaker cable",
+      "comparison": [
+        {
+          "type": "Traditional PA (100V line)",
+          "infrastructure": "Dedicated speaker cable from amplifier to each speaker",
+          "distance": "Limited by cable loss (~300m practical)",
+          "scalability": "Limited by amplifier zones (6-24)",
+          "best_for": "Single building, simple zone requirements",
+          "cost": "Lower for small systems"
+        },
+        {
+          "type": "IP Network PA (MAG/POE)",
+          "infrastructure": "Existing LAN/PoE switches",
+          "distance": "Unlimited (via network switches)",
+          "scalability": "Unlimited zones (each terminal = zone)",
+          "best_for": "Multi-building campus, large distributed systems, remote management",
+          "cost": "Higher per endpoint but lower infrastructure for large deployments"
+        }
+      ]
+    },
+    "2_mag_vs_poe_series": {
+      "standard": "Product Selection",
+      "comparison": {
+        "MAG_series": {
+          "protocol": "DSPPA MAG proprietary",
+          "server": "MAG808 central server required",
+          "features": "Full-featured: scheduling, paging zones, emergency, music",
+          "best_for": "Campus PA, large-scale managed installations"
+        },
+        "POE_series": {
+          "protocol": "Standard PoE (802.3af/at)",
+          "server": "Software-based or standalone",
+          "features": "Simpler: PoE powered network speaker/terminal",
+          "best_for": "Retrofit, adding network audio to existing PoE infrastructure"
+        }
+      }
+    },
+    "3_mag_system_architecture": {
+      "standard": "System Design",
+      "components": [
+        "MAG808 Server (central management)",
+        "MAG6812/6825/6835/6865 Zone Terminals (network\u2192amplifier\u2192speakers)",
+        "MAG6311/6368/6463 Network Speakers (self-amplified)",
+        "MAG2107C Paging Station (network mic station)",
+        "LAN Switches (standard Gigabit switches)",
+        "MAG808C Client Software (PC management)"
+      ],
+      "topology": "Star: All terminals connect to LAN switch \u2192 MAG808 server manages all zones via IP"
+    },
+    "4_network_requirements": {
+      "standard": "Network Design",
+      "bandwidth_per_terminal_kbps": "128-320 (MP3/AAC audio stream)",
+      "latency_max_ms": 100,
+      "multicast": "Recommended for group paging",
+      "vlan": "Separate VLAN for PA recommended",
+      "poe_budget_per_terminal_w": "8-15",
+      "switch": "Standard managed PoE switch (Gigabit recommended)"
+    },
+    "5_zone_design": {
+      "standard": "System Design",
+      "principle": "Each MAG terminal is an independent network zone",
+      "advantage": "Unlimited zones without additional amplifier hardware",
+      "example": "University campus: 50 buildings \u00d7 3 zones each = 150 MAG terminals, all managed from single MAG808 server"
+    },
+    "6_emergency_integration": {
+      "standard": "EN 54-16 / Local Fire Code",
+      "principle": "IP PA can integrate with fire alarm for emergency paging",
+      "method": "Fire panel dry contact \u2192 MAG808 server \u2192 triggers emergency message to all/selected zones",
+      "note": "For EN54 compliance, dedicated PAVA system (PAVA8500/9500) is required alongside or instead of IP PA"
+    },
+    "7_scheduling": {
+      "standard": "System Feature",
+      "principle": "MAG808 supports automated scheduling of announcements and music",
+      "features": [
+        "Time-based bell/chime scheduling (schools)",
+        "Zone-based music scheduling (hotels/malls)",
+        "Automated prayer time announcements (mosques)",
+        "Pre-recorded emergency drills"
+      ]
+    },
+    "8_paging_stations": {
+      "standard": "System Design",
+      "principle": "Network paging stations allow remote microphone access from any location",
+      "models": {
+        "MAG2107C": "Desktop paging station with zone selection and microphone",
+        "RM20": "Rack-mount paging microphone (analog \u2014 connects to local amplifier)"
+      }
+    },
+    "9_integration_with_traditional_pa": {
+      "standard": "Hybrid Design",
+      "principle": "IP PA can coexist with traditional 100V PA systems",
+      "method": "MAG6812/6825/6835/6865 terminals have 100V/70V amplifier output \u2192 connect to existing passive speaker infrastructure. This allows gradual migration from traditional to IP PA."
+    },
+    "10_compliance": {
+      "standards": [
+        {
+          "standard": "IEEE 802.3af/at",
+          "scope": "PoE power standard for network speakers"
+        },
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety of networked audio equipment"
+        },
+        {
+          "standard": "IEC 60268-16",
+          "scope": "Speech intelligibility over network"
+        },
+        {
+          "standard": "AES67",
+          "scope": "Audio over IP interoperability (advanced systems)"
+        },
+        {
+          "standard": "EN 55032",
+          "scope": "EMC emissions for network equipment"
+        }
+      ]
+    }
+  }
+}

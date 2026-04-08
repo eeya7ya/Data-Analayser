@@ -1,0 +1,348 @@
+{
+  "database_info": {
+    "name": "Surveillance HDD Selection Theory - Standards Based",
+    "version": "1.0",
+    "purpose": "Engineering design tool for surveillance hard drive selection",
+    "last_updated": "2026-04-05"
+  },
+  "selection_criteria": {
+    "1_surveillance_vs_desktop_hdd": {
+      "standard": "Manufacturer / Application",
+      "principle": "Surveillance-grade HDDs are engineered for 24/7 continuous write with multiple streams",
+      "comparison": [
+        {
+          "type": "Desktop HDD (WD Blue/Seagate Barracuda)",
+          "duty_cycle": "8\u00d75 (office hours)",
+          "streams": "1-2",
+          "workload_tb_year": 55,
+          "firmware": "Desktop optimized",
+          "vibration": "No vibration compensation",
+          "warranty": "2 years",
+          "use_in_nvr": "NOT recommended \u2014 will fail prematurely"
+        },
+        {
+          "type": "Surveillance HDD (WD Purple/HikStorage V)",
+          "duty_cycle": "24\u00d77",
+          "streams": "Up to 64",
+          "workload_tb_year": 180,
+          "firmware": "AllFrame technology \u2014 reduces frame drops",
+          "vibration": "3D Active Balance Plus (WD) for multi-bay",
+          "warranty": "3 years",
+          "use_in_nvr": "DESIGNED for this purpose"
+        },
+        {
+          "type": "AI/Enterprise HDD (HikStorage AI/WD Purple Pro)",
+          "duty_cycle": "24\u00d77 intensive",
+          "streams": "64+ with AI analytics",
+          "workload_tb_year": 360,
+          "firmware": "Optimized for simultaneous record + AI read",
+          "vibration": "Enhanced vibration compensation",
+          "warranty": "3-5 years",
+          "use_in_nvr": "For AcuSense/DeepinMind NVRs with heavy analytics"
+        }
+      ],
+      "rule": "NEVER use desktop HDDs in surveillance recorders. Always use surveillance-grade (Purple or HikStorage V/AI series)."
+    },
+    "2_capacity_calculation": {
+      "standard": "System Design",
+      "principle": "HDD capacity must hold required days of recording at specified quality",
+      "formula": {
+        "storage_gb": "channels \u00d7 bitrate_mbps \u00d7 3600 \u00d7 recording_hours_per_day \u00d7 retention_days / 8 / 1024",
+        "simplified": "channels \u00d7 daily_storage_gb \u00d7 retention_days"
+      },
+      "daily_storage_per_channel_gb": {
+        "2MP_H265_24hr": 8,
+        "4MP_H265_24hr": 16,
+        "5MP_H265_24hr": 20,
+        "8MP_H265_24hr": 35,
+        "2MP_H264_24hr": 16,
+        "4MP_H264_24hr": 32,
+        "8MP_H264_24hr": 70
+      },
+      "examples": [
+        {
+          "scenario": "4ch \u00d7 2MP H.265, 30 days",
+          "calculation": "4 \u00d7 8 \u00d7 30 = 960 GB",
+          "recommended": "1 TB"
+        },
+        {
+          "scenario": "8ch \u00d7 4MP H.265, 30 days",
+          "calculation": "8 \u00d7 16 \u00d7 30 = 3,840 GB",
+          "recommended": "4 TB"
+        },
+        {
+          "scenario": "16ch \u00d7 4MP H.265, 30 days",
+          "calculation": "16 \u00d7 16 \u00d7 30 = 7,680 GB",
+          "recommended": "8 TB"
+        },
+        {
+          "scenario": "32ch \u00d7 4MP H.265, 30 days",
+          "calculation": "32 \u00d7 16 \u00d7 30 = 15,360 GB",
+          "recommended": "2 \u00d7 8 TB"
+        },
+        {
+          "scenario": "16ch \u00d7 8MP H.265, 30 days",
+          "calculation": "16 \u00d7 35 \u00d7 30 = 16,800 GB",
+          "recommended": "2 \u00d7 10 TB"
+        },
+        {
+          "scenario": "64ch \u00d7 4MP H.265, 30 days",
+          "calculation": "64 \u00d7 16 \u00d7 30 = 30,720 GB",
+          "recommended": "4 \u00d7 8 TB"
+        }
+      ],
+      "retention_guidelines": {
+        "residential": "7-14 days typical",
+        "small_commercial": "14-30 days",
+        "enterprise": "30-90 days",
+        "banking_finance": "90-180 days (regulatory)",
+        "government_critical": "90-365 days (policy dependent)"
+      }
+    },
+    "3_wd_purple_vs_hikstorage": {
+      "standard": "Product Comparison",
+      "principle": "Both are surveillance-grade. Selection based on availability, price, and NVR compatibility.",
+      "comparison": {
+        "wd_purple": {
+          "brand": "Western Digital",
+          "firmware": "AllFrame AI (8TB+)",
+          "vibration": "3D Active Balance Plus",
+          "ecosystem": "Universal \u2014 works in any SATA NVR/DVR",
+          "health_monitoring": "WD Device Analytics (WDDA) via NVR"
+        },
+        "hikstorage_v": {
+          "brand": "Hikvision",
+          "firmware": "Surveillance optimized",
+          "vibration": "Vibration compensation",
+          "ecosystem": "Optimized for Hikvision recorders",
+          "health_monitoring": "S.M.A.R.T. via Hikvision NVR"
+        },
+        "hikstorage_ai": {
+          "brand": "Hikvision",
+          "firmware": "AI workload optimized",
+          "vibration": "Enhanced",
+          "ecosystem": "Best for DeepinMind / AcuSense NVRs",
+          "health_monitoring": "S.M.A.R.T.",
+          "note": "20TB capacity available \u2014 largest in lineup"
+        }
+      },
+      "recommendation": "For standard Hikvision systems: either brand works. For AI/DeepinMind NVRs with heavy analytics: HikStorage AI (DS200HKAI) or WD Purple Pro."
+    },
+    "4_multi_bay_configuration": {
+      "standard": "System Design",
+      "principle": "Multiple HDDs provide more storage and optional redundancy",
+      "strategies": [
+        {
+          "config": "Single HDD",
+          "redundancy": "None",
+          "risk": "Total data loss if HDD fails",
+          "best_for": "1-8 cameras, budget systems"
+        },
+        {
+          "config": "Multiple HDDs (JBOD)",
+          "redundancy": "None \u2014 each HDD stores sequentially",
+          "risk": "Partial data loss (only affected HDD's recordings)",
+          "best_for": "Most surveillance \u2014 NVR fills HDDs sequentially or by group"
+        },
+        {
+          "config": "RAID 1 (Mirror)",
+          "redundancy": "Full mirror \u2014 50% usable capacity",
+          "risk": "Survives 1 HDD failure",
+          "best_for": "Critical recordings, small systems needing redundancy"
+        },
+        {
+          "config": "RAID 5",
+          "redundancy": "Distributed parity \u2014 loses 1 HDD capacity",
+          "risk": "Survives 1 HDD failure",
+          "best_for": "Enterprise NVRs (9600 series), balance of capacity and safety"
+        },
+        {
+          "config": "RAID 6",
+          "redundancy": "Dual parity \u2014 loses 2 HDD capacity",
+          "risk": "Survives 2 simultaneous HDD failures",
+          "best_for": "Mission-critical, 24-bay enterprise systems"
+        }
+      ],
+      "nvr_raid_support": "RAID is available only on enterprise NVRs (DS-96xx series with /R suffix). Standard NVRs use JBOD."
+    },
+    "5_hdd_per_nvr_sizing": {
+      "standard": "Recorder Specification",
+      "principle": "Match HDD count and size to NVR SATA bay capacity",
+      "guide": [
+        {
+          "nvr_bays": 1,
+          "max_per_hdd_tb": 10,
+          "total_max_tb": 10,
+          "typical_config": "1\u00d7 4TB or 1\u00d7 8TB"
+        },
+        {
+          "nvr_bays": 2,
+          "max_per_hdd_tb": 10,
+          "total_max_tb": 20,
+          "typical_config": "2\u00d7 6TB or 2\u00d7 8TB"
+        },
+        {
+          "nvr_bays": 4,
+          "max_per_hdd_tb": 10,
+          "total_max_tb": 40,
+          "typical_config": "4\u00d7 8TB or 4\u00d7 10TB"
+        },
+        {
+          "nvr_bays": 8,
+          "max_per_hdd_tb": 10,
+          "total_max_tb": 80,
+          "typical_config": "8\u00d7 8TB or 8\u00d7 10TB"
+        },
+        {
+          "nvr_bays": 16,
+          "max_per_hdd_tb": 20,
+          "total_max_tb": 320,
+          "typical_config": "16\u00d7 20TB (HikStorage AI)"
+        },
+        {
+          "nvr_bays": 24,
+          "max_per_hdd_tb": 20,
+          "total_max_tb": 480,
+          "typical_config": "24\u00d7 20TB (HikStorage AI)"
+        }
+      ],
+      "note": "Check specific NVR datasheet for maximum supported HDD size. Most support up to 10TB per bay. Enterprise models support 20TB."
+    },
+    "6_performance_considerations": {
+      "standard": "System Design",
+      "principle": "HDD speed must support total write throughput from all cameras",
+      "rpm_guide": {
+        "5400rpm": {
+          "sustained_write_mbps": 110,
+          "max_cameras_recording": "Up to 32 at 4MP H.265",
+          "best_for": "Standard surveillance, 1-4 bay NVRs"
+        },
+        "7200rpm": {
+          "sustained_write_mbps": 180,
+          "max_cameras_recording": "Up to 64 at 4MP H.265",
+          "best_for": "High camera count, AI analytics, 4K recording"
+        }
+      },
+      "ai_workload": "AI NVRs perform simultaneous write (recording) + random read (analytics/search). Standard surveillance HDDs may bottleneck. Use AI-grade (DS200HKAI or WD Purple Pro) for DeepinMind NVRs."
+    },
+    "7_hdd_health_monitoring": {
+      "standard": "S.M.A.R.T. / WD Device Analytics",
+      "principle": "Monitor HDD health proactively to replace before failure",
+      "monitoring": {
+        "smart": {
+          "description": "Self-Monitoring, Analysis and Reporting Technology",
+          "metrics": [
+            "Reallocated sectors",
+            "Spin retry count",
+            "Temperature",
+            "Power-on hours",
+            "Pending sectors"
+          ],
+          "access": "Via NVR HDD management page"
+        },
+        "wdda": {
+          "description": "WD Device Analytics (WD Purple only)",
+          "metrics": [
+            "Workload analysis",
+            "Temperature trending",
+            "Remaining life estimate",
+            "Vibration impact"
+          ],
+          "access": "Via compatible NVR firmware"
+        },
+        "replacement_triggers": [
+          "S.M.A.R.T. warning status",
+          "Reallocated sector count increasing",
+          "Operating temperature consistently >55\u00b0C",
+          "Unusual noise (clicking/grinding)",
+          "Recording gaps or frame drops"
+        ]
+      }
+    },
+    "8_environmental_and_vibration": {
+      "standard": "Manufacturer / Installation",
+      "principle": "HDDs in multi-bay NVRs experience vibration from adjacent drives",
+      "vibration_mitigation": {
+        "wd_purple": "3D Active Balance Plus \u2014 compensates for multi-drive vibration",
+        "hikstorage": "Built-in vibration compensation",
+        "installation_tips": [
+          "Use rubber HDD mounting grommets if provided",
+          "Ensure NVR is on stable, vibration-free surface",
+          "Avoid stacking NVRs directly",
+          "Keep NVR away from heavy machinery vibration sources"
+        ]
+      },
+      "temperature": {
+        "operating_range_c": {
+          "min": 0,
+          "max": 65
+        },
+        "optimal_c": {
+          "min": 25,
+          "max": 45
+        },
+        "note": "Every 10\u00b0C above 40\u00b0C approximately halves HDD lifespan. Ensure adequate ventilation around NVR."
+      }
+    },
+    "9_cost_optimization": {
+      "standard": "Design Best Practice",
+      "principle": "Balance capacity, redundancy, and budget",
+      "strategies": [
+        {
+          "strategy": "Use H.265+ compression",
+          "savings": "50-75% storage reduction vs H.264",
+          "implementation": "Enable H.265+ on all Hikvision cameras and NVR"
+        },
+        {
+          "strategy": "Motion-only recording",
+          "savings": "50-80% vs continuous",
+          "implementation": "Record on motion/event only \u2014 reduces writes dramatically"
+        },
+        {
+          "strategy": "Sub-stream recording",
+          "savings": "70-90% vs main stream",
+          "implementation": "Record sub-stream for non-critical cameras, main stream for key cameras"
+        },
+        {
+          "strategy": "ANR (Automatic Network Replenishment)",
+          "savings": "Protects against NVR downtime",
+          "implementation": "Camera records to SD card during network outage, syncs to NVR on recovery"
+        },
+        {
+          "strategy": "Right-size HDD",
+          "savings": "Avoid over-provisioning",
+          "implementation": "Calculate actual storage need (formula above) + 20% margin. Don't buy 10TB when 4TB suffices."
+        }
+      ]
+    },
+    "10_compliance": {
+      "principle": "HDD selection impacts data retention compliance",
+      "standards": [
+        {
+          "standard": "GDPR / Data Protection",
+          "scope": "Retention period limits \u2014 don't store longer than justified. Auto-overwrite after retention period."
+        },
+        {
+          "standard": "PCI-DSS",
+          "scope": "90 days minimum retention for payment card areas"
+        },
+        {
+          "standard": "Local CCTV Code of Practice",
+          "scope": "Varies by jurisdiction \u2014 typically 14-90 days retention requirement"
+        },
+        {
+          "standard": "BS 8418:2021 (UK)",
+          "scope": "Minimum 31 days retention for remote monitoring"
+        },
+        {
+          "standard": "EN 62676-1-2",
+          "scope": "Recording and storage requirements for video surveillance systems"
+        },
+        {
+          "standard": "Data disposal",
+          "scope": "When HDD is decommissioned: secure erase (NIST 800-88) or physical destruction to prevent data recovery"
+        }
+      ]
+    }
+  }
+}

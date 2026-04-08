@@ -1,0 +1,112 @@
+{
+  "database_info": {
+    "name": "DSPPA Matrix System Database",
+    "version": "1.0",
+    "manufacturer": "DSPPA",
+    "category": "Audio Matrix Systems",
+    "currency": "USD",
+    "last_updated": "2026-04-06",
+    "integration_notes": "Matrix systems route audio sources to zones via amplifiers. Connects to: dsppa_amplifiers_db.json, dsppa_speakers_db.json, dsppa_ip_network_db.json"
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "MAG6588",
+      "category": "Audio Matrix",
+      "sub_category": "8\u00d78 Audio Matrix Switcher",
+      "pricing": {
+        "dpp": 490,
+        "si": 510,
+        "end_user": 561
+      },
+      "specs": {
+        "inputs": 8,
+        "outputs": 8,
+        "function": "Route any of 8 audio sources to any of 8 zones",
+        "features": [
+          "Independent volume per zone",
+          "Priority paging",
+          "Timer/scheduler",
+          "RS-485 / TCP/IP control"
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "model": "MAG6588 #2",
+      "category": "Audio Matrix",
+      "sub_category": "8\u00d78 Audio Matrix (Alternate Price)",
+      "pricing": {
+        "dpp": 410,
+        "si": 465,
+        "end_user": 511.5
+      }
+    },
+    {
+      "id": 3,
+      "model": "MAG6183C",
+      "category": "Audio Matrix",
+      "sub_category": "16\u00d716 Audio Matrix Controller",
+      "pricing": {
+        "dpp": 1740,
+        "si": 1850,
+        "end_user": 2035
+      },
+      "specs": {
+        "inputs": 16,
+        "outputs": 16,
+        "function": "Large-scale matrix: 16 sources \u00d7 16 zones",
+        "features": [
+          "Touch screen control",
+          "Network capable",
+          "Expandable",
+          "Emergency priority"
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "model": "D6201",
+      "category": "Audio Matrix",
+      "sub_category": "Matrix System Controller",
+      "pricing": {
+        "dpp": 750,
+        "si": 810,
+        "end_user": 891
+      }
+    },
+    {
+      "id": 5,
+      "model": "D6223",
+      "category": "Audio Matrix",
+      "sub_category": "Matrix Zone Expander",
+      "pricing": {
+        "dpp": 145,
+        "si": 155,
+        "end_user": 170.5
+      }
+    },
+    {
+      "id": 6,
+      "model": "D6224",
+      "category": "Audio Matrix",
+      "sub_category": "Matrix Zone Expander",
+      "pricing": {
+        "dpp": 135,
+        "si": 145,
+        "end_user": 159.5
+      }
+    },
+    {
+      "id": 7,
+      "model": "DSP9312",
+      "category": "Audio Matrix",
+      "sub_category": "Audio Matrix Player",
+      "pricing": {
+        "dpp": 150,
+        "si": 150,
+        "end_user": 165
+      }
+    }
+  ]
+}

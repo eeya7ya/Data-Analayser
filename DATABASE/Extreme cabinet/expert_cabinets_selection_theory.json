@@ -1,0 +1,250 @@
+{
+  "database_info": {
+    "name": "Network Cabinet & Rack Selection Theory",
+    "version": "1.0",
+    "last_updated": "2026-04-07"
+  },
+  "selection_criteria": {
+    "1_cabinet_type_selection": {
+      "standard": "EIA-310 / IEC 60297",
+      "principle": "Cabinet type based on location, equipment count, and environment",
+      "types": [
+        {
+          "type": "Wall Mount (EXW/EXWS)",
+          "sizes": "4U-18U",
+          "depth": "400-600mm",
+          "best_for": "Small IDF closets, offices, retail back rooms, apartments",
+          "mounting": "Wall-mounted on concrete/block wall with 4+ anchor bolts",
+          "max_load_kg": "40-60"
+        },
+        {
+          "type": "Floor Standing (EXFS)",
+          "sizes": "18U-47U",
+          "depth": "600-1000mm",
+          "best_for": "Server rooms, MDF, data centers, comms rooms",
+          "mounting": "Floor-standing with leveling feet or casters",
+          "max_load_kg": "200-800"
+        },
+        {
+          "type": "Premium Floor Standing (ZP-PLUS)",
+          "sizes": "42U",
+          "depth": "800-1000mm",
+          "best_for": "Enterprise server rooms, high-density installations",
+          "features": "Heavy duty, vertical cable management"
+        },
+        {
+          "type": "Outdoor (OR)",
+          "sizes": "4U-9U",
+          "depth": "450-600mm",
+          "best_for": "Pole-mounted for CCTV, parking lots, remote sites, outdoor PoE switches",
+          "features": "IP55 rated, pole bracket, weatherproof",
+          "ip_rating": "IP55"
+        },
+        {
+          "type": "Slim Rack",
+          "size": "530\u00d7140\u00d7400mm",
+          "best_for": "Behind TV, small equipment, patch panel only"
+        }
+      ]
+    },
+    "2_rack_unit_sizing": {
+      "standard": "EIA-310",
+      "principle": "Calculate total U needed then add 30% spare capacity",
+      "equipment_u_heights": {
+        "patch_panel_24p": "1U",
+        "cable_manager": "1U",
+        "blank_panel": "1U",
+        "poe_switch_8p": "1U",
+        "poe_switch_24p": "1U",
+        "managed_switch": "1U",
+        "hikvision_nvr_4_8ch": "1U",
+        "hikvision_nvr_16_32ch": "1.5-2U",
+        "ups_600_1500va": "2U",
+        "ups_3000va": "2-3U",
+        "ups_6_10kva": "3-4U",
+        "legrand_keor_spx": "Desktop (not rack)",
+        "legrand_daker_dk": "2U",
+        "fan_tray": "1U",
+        "pdu": "0U (vertical) or 1U (horizontal)",
+        "fiber_patch_panel": "1U",
+        "shelf": "1U"
+      },
+      "example": "16-camera system: 1U patch panel + 1U cable manager + 1U PoE switch + 1.5U NVR + 2U UPS + 1U fan tray + 1U blank = 8.5U \u2192 select 12U cabinet (with 30% spare)",
+      "rule": "Always round UP and add minimum 2U spare for future expansion"
+    },
+    "3_depth_selection": {
+      "standard": "Equipment Dimensions",
+      "principle": "Cabinet depth must exceed deepest equipment + cable bend radius",
+      "guide": [
+        {
+          "depth_mm": 400,
+          "fits": "Patch panels, small switches, basic NVR",
+          "best_for": "Wall mount, simple installations"
+        },
+        {
+          "depth_mm": 450,
+          "fits": "Most PoE switches, NVRs, small UPS",
+          "best_for": "Standard wall mount"
+        },
+        {
+          "depth_mm": 600,
+          "fits": "Full-depth switches, rack-mount UPS, servers up to 400mm",
+          "best_for": "Standard floor standing, larger wall mount"
+        },
+        {
+          "depth_mm": 800,
+          "fits": "Standard servers, large UPS, deep switches",
+          "best_for": "Server room floor standing"
+        },
+        {
+          "depth_mm": 1000,
+          "fits": "Full-depth servers, enterprise UPS, blade systems",
+          "best_for": "Data center, enterprise server room"
+        }
+      ],
+      "cable_clearance": "Allow minimum 100mm behind equipment for cable bending radius"
+    },
+    "4_width_selection": {
+      "standard": "EIA-310",
+      "principle": "Standard 19\" (482.6mm) equipment width \u2014 cabinet external width varies",
+      "widths": {
+        "542mm": "Economy \u2014 fits 19\" equipment with minimal side clearance",
+        "600mm": "Standard \u2014 fits 19\" equipment with side cable routing",
+        "800mm": "Wide \u2014 fits 19\" equipment with vertical cable management channels on both sides"
+      },
+      "recommendation": "600mm for most installations. 800mm when vertical cable management is needed (>24 cables) or for dense server installations."
+    },
+    "5_outdoor_cabinet_design": {
+      "standard": "IEC 60529 / Installation Design",
+      "principle": "Outdoor cabinets protect equipment from weather, dust, and vandalism",
+      "features": [
+        "IP55 rated (dust protected + water jet protected)",
+        "Pole-mount bracket for street/parking lot installation",
+        "Thermostat-controlled fans for cooling",
+        "Lockable door",
+        "Cable entry glands"
+      ],
+      "typical_use": [
+        "Hikvision PoE switch + fiber media converter for remote camera cluster",
+        "Outdoor Wi-Fi access point power/networking",
+        "Parking lot ANPR camera infrastructure",
+        "Remote gate/barrier controller"
+      ],
+      "sizing": "4U for 1 switch + patch panel. 6U for switch + NVR. 9U for full system with UPS."
+    },
+    "6_cooling_and_ventilation": {
+      "standard": "Thermal Design",
+      "principle": "Equipment generates heat \u2014 cooling prevents premature failure",
+      "rules": [
+        {
+          "equipment_power_w": "0-200",
+          "cooling": "Passive ventilation (perforated panels sufficient)"
+        },
+        {
+          "equipment_power_w": "200-500",
+          "cooling": "2 fans (included in EXWS64 series)"
+        },
+        {
+          "equipment_power_w": "500-1000",
+          "cooling": "4 fans (included in EXFS68/60 series)"
+        },
+        {
+          "equipment_power_w": "1000+",
+          "cooling": "1U thermostat fan unit (4 fans, temp-controlled) + perforated rear door"
+        }
+      ],
+      "thermostat_fan": "1U Fan Unit with Thermostat ($55-65): fans activate automatically when cabinet temp exceeds set threshold (typically 35\u00b0C). Essential for enclosed floor-standing cabinets.",
+      "ambient_temp": "Cabinet should be in air-conditioned room for loads >500W. Max ambient 40\u00b0C."
+    },
+    "7_pdu_selection": {
+      "standard": "IEC 60320 / BS 1363",
+      "principle": "PDU provides power distribution to all rack equipment",
+      "options": [
+        {
+          "type": "Plastic 6-Way ($10-12)",
+          "use": "Budget, wall mount cabinets, light loads"
+        },
+        {
+          "type": "Metal 6-Way ($15)",
+          "use": "Standard, floor standing, surge protection"
+        },
+        {
+          "type": "Metal 8-Way ($25)",
+          "use": "Medium density racks"
+        },
+        {
+          "type": "Metal 12-Way ($30)",
+          "use": "High density racks, server rooms"
+        }
+      ],
+      "plug_type": "UK plug (Type G) \u2014 standard for Jordan",
+      "recommendation": "Use metal PDU for floor-standing cabinets (better grounding, surge protection). 1 PDU per side for redundancy in critical installations."
+    },
+    "8_cable_management": {
+      "standard": "TIA-569 / Best Practice",
+      "principle": "Proper cable management improves airflow, access, and appearance",
+      "components": {
+        "horizontal_cable_manager": "1U cable organizer between every 2U of patch panels/switches ($5-6)",
+        "vertical_cable_management": "Built into 800mm wide cabinets. Routes cables from patch panel to switch ports neatly.",
+        "brush_panel": "Allows cables to pass through while blocking airflow leakage ($5)",
+        "blank_panel": "Covers unused U space to maintain front-to-back airflow ($3-5)"
+      },
+      "rule": "Every patch panel should have a 1U cable manager directly below it. Fill all empty U spaces with blank panels."
+    },
+    "9_expert_vs_schneider_cabinets": {
+      "standard": "Product Comparison",
+      "principle": "Expert (EX) cabinets are budget-friendly local option vs Schneider international brand",
+      "comparison": [
+        {
+          "brand": "Expert (EX)",
+          "currency": "JOD",
+          "wall_9u_600x450": "65 JOD",
+          "floor_42u_800x1000": "450 JOD",
+          "strengths": "Competitive local pricing, full range, outdoor options, accessories included",
+          "warranty": "Standard"
+        },
+        {
+          "brand": "Schneider ClimaSys",
+          "currency": "USD",
+          "wall_9u": "$110-115",
+          "floor_42u": "$600-650",
+          "strengths": "International brand, IP30 rated, RAL7035 finish",
+          "warranty": "Schneider warranty"
+        }
+      ],
+      "note": "Expert cabinets include fans, shelves, and PDU at listed price. Schneider cabinets are typically sold bare \u2014 accessories extra."
+    },
+    "10_compliance": {
+      "standards": [
+        {
+          "standard": "EIA-310-D",
+          "scope": "19-inch rack standard dimensions"
+        },
+        {
+          "standard": "IEC 60297",
+          "scope": "Mechanical structures for electronic equipment"
+        },
+        {
+          "standard": "IEC 60529 (IP55)",
+          "scope": "Ingress protection for outdoor cabinets"
+        },
+        {
+          "standard": "IEC 60950-1 / 62368-1",
+          "scope": "Safety of equipment in racks"
+        },
+        {
+          "standard": "TIA-569-D",
+          "scope": "Telecommunications pathways and spaces"
+        },
+        {
+          "standard": "TIA-942",
+          "scope": "Data center infrastructure (for server room cabinets)"
+        },
+        {
+          "standard": "NFPA 75 / 76",
+          "scope": "Fire protection for IT equipment rooms (US)"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,1495 @@
+{
+  "database_info": {
+    "name": "General Cables Database \u2014 Coaxial, UTP, HDMI, VGA, USB, Audio, Power, Fiber HDMI",
+    "version": "1.0",
+    "category": "Bulk Cable, Pre-Made Cables, Adapters & Converters",
+    "currency": "USD",
+    "last_updated": "2026-04-07",
+    "price_tiers": {
+      "dpp": "DPP/Distributor",
+      "installer": "Installer"
+    },
+    "integration_notes": {
+      "hikvision_analog": "RG58/RG59+power for Turbo HD cameras",
+      "hikvision_ip": "EXT-series Cat6/6A/7 for IP cameras & PoE",
+      "dsppa": "Speaker cable 2\u00d750/100/150 for 100V PA speaker lines",
+      "video_wall": "HDMI cables/fiber HDMI for Hikvision monitors & video wall",
+      "schneider_legrand": "EXT-series cables are alternatives to Schneider Actassi / Legrand LCS"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "RG58+2\u00d70.5 CCA 50M",
+      "category": "Coaxial Cable",
+      "sub_category": "RG58+Power CCA 50m White",
+      "pricing": {
+        "dpp": 6,
+        "installer": 7
+      },
+      "specs": {
+        "type": "RG58+2\u00d70.5mm\u00b2 power",
+        "conductor": "CCA",
+        "length_m": 50
+      }
+    },
+    {
+      "id": 2,
+      "model": "RG58+2\u00d70.5 CCA 100M",
+      "category": "Coaxial Cable",
+      "sub_category": "RG58+Power CCA 100m",
+      "pricing": {
+        "dpp": 11,
+        "installer": 12
+      },
+      "specs": {
+        "length_m": 100
+      }
+    },
+    {
+      "id": 3,
+      "model": "RG58+2\u00d70.5 CCA 200M",
+      "category": "Coaxial Cable",
+      "sub_category": "RG58+Power CCA 200m White",
+      "pricing": {
+        "dpp": 21,
+        "installer": 23
+      },
+      "specs": {
+        "length_m": 200
+      }
+    },
+    {
+      "id": 4,
+      "model": "RG58+2\u00d70.5 CCA 200M BLK",
+      "category": "Coaxial Cable",
+      "sub_category": "RG58+Power CCA 200m Black",
+      "pricing": {
+        "dpp": 21,
+        "installer": 23
+      },
+      "specs": {
+        "length_m": 200,
+        "color": "Black"
+      }
+    },
+    {
+      "id": 5,
+      "model": "RG58+2\u00d70.5 Copper 300M",
+      "category": "Coaxial Cable",
+      "sub_category": "RG58+Power Pure Copper 300m",
+      "pricing": {
+        "dpp": 38,
+        "installer": 40
+      },
+      "specs": {
+        "conductor": "Pure Copper",
+        "length_m": 300
+      }
+    },
+    {
+      "id": 6,
+      "model": "RG59+2\u00d70.5 CCA 100M",
+      "category": "Coaxial Cable",
+      "sub_category": "RG59+Power CCA 100m",
+      "pricing": {
+        "dpp": 16.5,
+        "installer": 18
+      },
+      "specs": {
+        "type": "RG59+2\u00d70.5mm\u00b2",
+        "length_m": 100
+      }
+    },
+    {
+      "id": 7,
+      "model": "RG59+2\u00d70.5 CCA 200M",
+      "category": "Coaxial Cable",
+      "sub_category": "RG59+Power CCA 200m",
+      "pricing": {
+        "dpp": 27,
+        "installer": 30
+      },
+      "specs": {
+        "length_m": 200
+      }
+    },
+    {
+      "id": 8,
+      "model": "RG58 CCA 200M",
+      "category": "Coaxial Cable",
+      "sub_category": "RG58 Coax Only CCA 200m",
+      "pricing": {
+        "dpp": 16,
+        "installer": 17
+      },
+      "specs": {
+        "type": "RG58 no power",
+        "length_m": 200
+      }
+    },
+    {
+      "id": 9,
+      "model": "RG59 Copper 200M",
+      "category": "Coaxial Cable",
+      "sub_category": "RG59 Coax Only Copper 200m",
+      "pricing": {
+        "dpp": 21,
+        "installer": 23
+      },
+      "specs": {
+        "conductor": "Copper",
+        "length_m": 200
+      }
+    },
+    {
+      "id": 10,
+      "model": "2-Pair CCA 200M",
+      "category": "Alarm Cable",
+      "sub_category": "2-Pair 4\u00d70.5mm\u00b2 CCA 200m",
+      "pricing": {
+        "dpp": 11.5,
+        "installer": 12
+      },
+      "specs": {
+        "cores": "4\u00d70.5mm\u00b2",
+        "conductor": "CCA",
+        "length_m": 200
+      }
+    },
+    {
+      "id": 11,
+      "model": "2-Pair Copper 200M",
+      "category": "Alarm Cable",
+      "sub_category": "2-Pair 4\u00d70.5mm\u00b2 Copper 200m",
+      "pricing": {
+        "dpp": 13,
+        "installer": 14
+      },
+      "specs": {
+        "conductor": "Copper",
+        "length_m": 200
+      }
+    },
+    {
+      "id": 12,
+      "model": "Speaker 2\u00d750 80M",
+      "category": "Speaker Cable",
+      "sub_category": "Speaker Cable 2\u00d750 Strand CCA 80m",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      },
+      "specs": {
+        "type": "2\u00d750 strand CCA",
+        "length_m": 80
+      }
+    },
+    {
+      "id": 13,
+      "model": "Speaker 2\u00d7100 80M",
+      "category": "Speaker Cable",
+      "sub_category": "Speaker Cable 2\u00d7100 Strand CCA 80m",
+      "pricing": {
+        "dpp": 15,
+        "installer": 16
+      },
+      "specs": {
+        "type": "2\u00d7100 strand CCA",
+        "length_m": 80
+      }
+    },
+    {
+      "id": 14,
+      "model": "Speaker 2\u00d7150 80M",
+      "category": "Speaker Cable",
+      "sub_category": "Speaker Cable 2\u00d7150 Strand CCA 80m",
+      "pricing": {
+        "dpp": 21,
+        "installer": 23
+      },
+      "specs": {
+        "type": "2\u00d7150 strand CCA",
+        "length_m": 80
+      }
+    },
+    {
+      "id": 15,
+      "model": "UTP Cat5e Extreme 305M",
+      "category": "UTP Cable",
+      "sub_category": "Cat5e UTP (Extreme) 305m",
+      "pricing": {
+        "dpp": 22,
+        "installer": 24
+      },
+      "specs": {
+        "type": "Cat5e UTP",
+        "length_m": 305
+      }
+    },
+    {
+      "id": 16,
+      "model": "EXT-1013H",
+      "category": "UTP Cable",
+      "sub_category": "Cat6 UTP Double Jacket Copper 305m",
+      "pricing": {
+        "dpp": 130,
+        "installer": 140
+      },
+      "specs": {
+        "type": "Cat6 U/UTP",
+        "gauge": "23AWG",
+        "jacket": "Double jacket",
+        "conductor": "Copper"
+      }
+    },
+    {
+      "id": 17,
+      "model": "EXT-1021A",
+      "category": "UTP Cable",
+      "sub_category": "Cat6 F/UTP Indoor Copper 305m",
+      "pricing": {
+        "dpp": 115,
+        "installer": 125
+      },
+      "specs": {
+        "type": "Cat6 F/UTP shielded",
+        "conductor": "Copper"
+      }
+    },
+    {
+      "id": 18,
+      "model": "EXT-1026A",
+      "category": "UTP Cable",
+      "sub_category": "Cat6 S/FTP Indoor Copper 305m",
+      "pricing": {
+        "dpp": 145,
+        "installer": 155
+      },
+      "specs": {
+        "type": "Cat6 S/FTP"
+      }
+    },
+    {
+      "id": 19,
+      "model": "XD-9218",
+      "category": "UTP Cable",
+      "sub_category": "Cat6 UTP Lift/Elevator Cable 305m",
+      "pricing": {
+        "dpp": 380,
+        "installer": 455
+      },
+      "specs": {
+        "type": "Cat6 UTP lift cable",
+        "steel_reinforced": true
+      }
+    },
+    {
+      "id": 20,
+      "model": "EXT-1033L",
+      "category": "UTP Cable",
+      "sub_category": "Cat6A U/UTP Copper LSZH 305m",
+      "pricing": {
+        "dpp": 115,
+        "installer": 128
+      },
+      "specs": {
+        "type": "Cat6A U/UTP",
+        "jacket": "LSZH",
+        "bandwidth_mhz": 500
+      }
+    },
+    {
+      "id": 21,
+      "model": "EXT-1038L",
+      "category": "UTP Cable",
+      "sub_category": "Cat6A S/FTP LSZH 305m",
+      "pricing": {
+        "dpp": 145,
+        "installer": 155
+      },
+      "specs": {
+        "type": "Cat6A S/FTP",
+        "jacket": "LSZH"
+      }
+    },
+    {
+      "id": 22,
+      "model": "EXT-1521L",
+      "category": "UTP Cable",
+      "sub_category": "Cat7 S/FTP Copper LSZH 305m",
+      "pricing": {
+        "dpp": 160,
+        "installer": 175
+      },
+      "specs": {
+        "type": "Cat7 S/FTP",
+        "jacket": "LSZH",
+        "bandwidth_mhz": 600
+      }
+    },
+    {
+      "id": 23,
+      "model": "Tech Line Cat5 305M",
+      "category": "UTP Cable",
+      "sub_category": "Cat5e UTP (Tech Line) 305m",
+      "pricing": {
+        "dpp": 110,
+        "installer": 115
+      },
+      "specs": {
+        "type": "Cat5e UTP"
+      }
+    },
+    {
+      "id": 24,
+      "model": "2\u00d71.5mm\u00b2 100M",
+      "category": "Power/Control Cable",
+      "sub_category": "Power Cable 2\u00d71.5mm\u00b2 100m Black",
+      "pricing": {
+        "dpp": 65,
+        "installer": 70
+      }
+    },
+    {
+      "id": 25,
+      "model": "2\u00d72.5mm\u00b2 100M",
+      "category": "Power/Control Cable",
+      "sub_category": "Power Cable 2\u00d72.5mm\u00b2 100m Black",
+      "pricing": {
+        "dpp": 95,
+        "installer": 100
+      }
+    },
+    {
+      "id": 26,
+      "model": "2\u00d70.35mm\u00b2 100M",
+      "category": "Power/Control Cable",
+      "sub_category": "Signal Cable 2\u00d70.35mm\u00b2 100m",
+      "pricing": {
+        "dpp": 40,
+        "installer": 50
+      }
+    },
+    {
+      "id": 27,
+      "model": "4\u00d70.8 LSZH 305M",
+      "category": "Power/Control Cable",
+      "sub_category": "4-Core 0.8mm\u00b2 LSZH Control Cable 305m Green",
+      "pricing": {
+        "dpp": 125,
+        "installer": 135
+      }
+    },
+    {
+      "id": 28,
+      "model": "Lift Travel Cable /m",
+      "category": "Power/Control Cable",
+      "sub_category": "Elevator Travel Cable (per meter)",
+      "pricing": {
+        "dpp": 1.25,
+        "installer": 1.5
+      }
+    },
+    {
+      "id": 29,
+      "model": "HDMI 1.4 1.5M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 1.4 (1080p) 1.5M",
+      "pricing": {
+        "dpp": 0.5,
+        "installer": 0.55
+      }
+    },
+    {
+      "id": 30,
+      "model": "HDMI 1.4 3M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 1.4 (1080p) 3M",
+      "pricing": {
+        "dpp": 0.8,
+        "installer": 1
+      }
+    },
+    {
+      "id": 31,
+      "model": "HDMI 1.4 5M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 1.4 (1080p) 5M",
+      "pricing": {
+        "dpp": 1.25,
+        "installer": 1.75
+      }
+    },
+    {
+      "id": 32,
+      "model": "HDMI 1.4 10M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 1.4 (1080p) 10M",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 3
+      }
+    },
+    {
+      "id": 33,
+      "model": "HDMI 1.4 15M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 1.4 (1080p) 15M",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 4
+      }
+    },
+    {
+      "id": 34,
+      "model": "HDMI 1.4 20M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 1.4 (1080p) 20M",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 6
+      }
+    },
+    {
+      "id": 35,
+      "model": "HDMI 4K Copper 1.5M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Copper 19+1 1.5M",
+      "pricing": {
+        "dpp": 2,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 36,
+      "model": "HDMI 4K Copper 3M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Copper 19+1 3M",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 3
+      }
+    },
+    {
+      "id": 37,
+      "model": "HDMI 4K Copper 5M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Copper 19+1 5M",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 4
+      }
+    },
+    {
+      "id": 38,
+      "model": "HDMI 4K Copper 10M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Copper 19+1 10M",
+      "pricing": {
+        "dpp": 6,
+        "installer": 7
+      }
+    },
+    {
+      "id": 39,
+      "model": "HDMI 4K Copper 15M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Copper 19+1 15M",
+      "pricing": {
+        "dpp": 11,
+        "installer": 12
+      }
+    },
+    {
+      "id": 40,
+      "model": "HDMI 4K Copper 20M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Copper 19+1 20M",
+      "pricing": {
+        "dpp": 15,
+        "installer": 16
+      }
+    },
+    {
+      "id": 41,
+      "model": "HDMI 4K CCS 1.5M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Budget CCS 1.5M",
+      "pricing": {
+        "dpp": 0.75,
+        "installer": 1.25
+      }
+    },
+    {
+      "id": 42,
+      "model": "HDMI 4K CCS 3M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Budget CCS 3M",
+      "pricing": {
+        "dpp": 1.25,
+        "installer": 1.5
+      }
+    },
+    {
+      "id": 43,
+      "model": "HDMI 4K CCS 5M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Budget CCS 5M",
+      "pricing": {
+        "dpp": 2,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 44,
+      "model": "HDMI 4K CCS 10M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Budget CCS 10M",
+      "pricing": {
+        "dpp": 4,
+        "installer": 6
+      }
+    },
+    {
+      "id": 45,
+      "model": "HDMI 4K CCS 15M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Budget CCS 15M",
+      "pricing": {
+        "dpp": 5,
+        "installer": 7
+      }
+    },
+    {
+      "id": 46,
+      "model": "HDMI 4K CCS 20M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.0 4K Budget CCS 20M",
+      "pricing": {
+        "dpp": 6,
+        "installer": 8
+      }
+    },
+    {
+      "id": 47,
+      "model": "HDMI 4K IC 30M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 4K with IC Booster 30M",
+      "pricing": {
+        "dpp": 23,
+        "installer": 26
+      }
+    },
+    {
+      "id": 48,
+      "model": "HDMI 4K IC 40M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 4K with IC Booster 40M",
+      "pricing": {
+        "dpp": 30,
+        "installer": 32
+      }
+    },
+    {
+      "id": 49,
+      "model": "HDMI 4K IC 50M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 4K with IC Booster 50M",
+      "pricing": {
+        "dpp": 38,
+        "installer": 40
+      }
+    },
+    {
+      "id": 50,
+      "model": "HDMI 8K 1.5M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.1 8K 1.5M",
+      "pricing": {
+        "dpp": 1.75,
+        "installer": 2
+      }
+    },
+    {
+      "id": 51,
+      "model": "HDMI 8K 3M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.1 8K 3M",
+      "pricing": {
+        "dpp": 2.25,
+        "installer": 3
+      }
+    },
+    {
+      "id": 52,
+      "model": "HDMI 8K 5M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.1 8K 5M",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 4
+      }
+    },
+    {
+      "id": 53,
+      "model": "HDMI 8K 10M",
+      "category": "HDMI Cable",
+      "sub_category": "HDMI 2.1 8K 10M",
+      "pricing": {
+        "dpp": 5,
+        "installer": 6
+      }
+    },
+    {
+      "id": 54,
+      "model": "Fiber HDMI 4K 10M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI 4K AOC 10m",
+      "pricing": {
+        "dpp": 12,
+        "installer": 14
+      }
+    },
+    {
+      "id": 55,
+      "model": "Fiber HDMI 4K 15M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI 4K AOC 15m",
+      "pricing": {
+        "dpp": 14,
+        "installer": 16
+      }
+    },
+    {
+      "id": 56,
+      "model": "Fiber HDMI 4K 20M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI 4K AOC 20m",
+      "pricing": {
+        "dpp": 16,
+        "installer": 18
+      }
+    },
+    {
+      "id": 57,
+      "model": "Fiber HDMI 4K 25M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI 4K AOC 25m",
+      "pricing": {
+        "dpp": 17,
+        "installer": 20
+      }
+    },
+    {
+      "id": 58,
+      "model": "Fiber HDMI 4K 30M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI 4K AOC 30m",
+      "pricing": {
+        "dpp": 19,
+        "installer": 23
+      }
+    },
+    {
+      "id": 59,
+      "model": "Fiber HDMI 4K 40M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI 4K AOC 40m",
+      "pricing": {
+        "dpp": 22,
+        "installer": 25
+      }
+    },
+    {
+      "id": 60,
+      "model": "Fiber HDMI 4K 50M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI 4K AOC 50m",
+      "pricing": {
+        "dpp": 24,
+        "installer": 28
+      }
+    },
+    {
+      "id": 61,
+      "model": "Fiber HDMI 4K 60M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI 4K AOC 60m",
+      "pricing": {
+        "dpp": 28,
+        "installer": 30
+      }
+    },
+    {
+      "id": 62,
+      "model": "Fiber HDMI A-D 10M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI A-to-D 10m",
+      "pricing": {
+        "dpp": 18,
+        "installer": 20
+      }
+    },
+    {
+      "id": 63,
+      "model": "Fiber HDMI A-D 15M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI A-to-D 15m",
+      "pricing": {
+        "dpp": 20,
+        "installer": 22
+      }
+    },
+    {
+      "id": 64,
+      "model": "Fiber HDMI A-D 20M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI A-to-D 20m",
+      "pricing": {
+        "dpp": 23,
+        "installer": 25
+      }
+    },
+    {
+      "id": 65,
+      "model": "Fiber HDMI A-D 30M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI A-to-D 30m",
+      "pricing": {
+        "dpp": 28,
+        "installer": 30
+      }
+    },
+    {
+      "id": 66,
+      "model": "Fiber HDMI A-D 40M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI A-to-D 40m",
+      "pricing": {
+        "dpp": 32,
+        "installer": 35
+      }
+    },
+    {
+      "id": 67,
+      "model": "Fiber HDMI A-D 50M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI A-to-D 50m",
+      "pricing": {
+        "dpp": 36,
+        "installer": 38
+      }
+    },
+    {
+      "id": 68,
+      "model": "Fiber HDMI A-D 70M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI A-to-D 70m",
+      "pricing": {
+        "dpp": 85,
+        "installer": 85
+      }
+    },
+    {
+      "id": 69,
+      "model": "Fiber HDMI A-D 80M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI A-to-D 80m",
+      "pricing": {
+        "dpp": 95,
+        "installer": 95
+      }
+    },
+    {
+      "id": 70,
+      "model": "Fiber HDMI A-D 100M",
+      "category": "Fiber HDMI Cable",
+      "sub_category": "Fiber HDMI A-to-D 100m",
+      "pricing": {
+        "dpp": 110,
+        "installer": 110
+      }
+    },
+    {
+      "id": 71,
+      "model": "USB A/A 1.5M",
+      "category": "USB Cable",
+      "sub_category": "USB A-to-A Cable 1.5m",
+      "pricing": {
+        "dpp": 0.45,
+        "installer": 0.45
+      }
+    },
+    {
+      "id": 72,
+      "model": "USB Printer 1.5M",
+      "category": "USB Cable",
+      "sub_category": "USB A-to-B Printer Cable 1.5M",
+      "pricing": {
+        "dpp": 0.45,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 73,
+      "model": "USB Printer 3M",
+      "category": "USB Cable",
+      "sub_category": "USB A-to-B Printer Cable 3M",
+      "pricing": {
+        "dpp": 0.85,
+        "installer": 1
+      }
+    },
+    {
+      "id": 74,
+      "model": "USB Printer 5M",
+      "category": "USB Cable",
+      "sub_category": "USB A-to-B Printer Cable 5M",
+      "pricing": {
+        "dpp": 1.25,
+        "installer": 1.5
+      }
+    },
+    {
+      "id": 75,
+      "model": "USB Printer 10M",
+      "category": "USB Cable",
+      "sub_category": "USB A-to-B Printer Cable 10M",
+      "pricing": {
+        "dpp": 2,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 76,
+      "model": "USB Extension 1.5M",
+      "category": "USB Cable",
+      "sub_category": "USB Extension Cable 1.5M",
+      "pricing": {
+        "dpp": 0.45,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 77,
+      "model": "USB Extension 3M",
+      "category": "USB Cable",
+      "sub_category": "USB Extension Cable 3M",
+      "pricing": {
+        "dpp": 0.9,
+        "installer": 1.25
+      }
+    },
+    {
+      "id": 78,
+      "model": "USB Extension 5M",
+      "category": "USB Cable",
+      "sub_category": "USB Extension Cable 5M",
+      "pricing": {
+        "dpp": 1.5,
+        "installer": 1.75
+      }
+    },
+    {
+      "id": 79,
+      "model": "USB Extension 10M",
+      "category": "USB Cable",
+      "sub_category": "USB Extension Cable 10M",
+      "pricing": {
+        "dpp": 2,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 80,
+      "model": "USB Extension IC 10M",
+      "category": "USB Cable",
+      "sub_category": "USB Extension with IC Booster 10M",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 4
+      }
+    },
+    {
+      "id": 81,
+      "model": "USB Extension IC 15M",
+      "category": "USB Cable",
+      "sub_category": "USB Extension with IC Booster 15M",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 5
+      }
+    },
+    {
+      "id": 82,
+      "model": "USB Extension IC 20M",
+      "category": "USB Cable",
+      "sub_category": "USB Extension with IC Booster 20M",
+      "pricing": {
+        "dpp": 6,
+        "installer": 7
+      }
+    },
+    {
+      "id": 83,
+      "model": "USB Extension IC 30M",
+      "category": "USB Cable",
+      "sub_category": "USB Extension with IC Booster 30M",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      }
+    },
+    {
+      "id": 84,
+      "model": "USB to 5PIN 1.5M",
+      "category": "USB Cable",
+      "sub_category": "USB 2.0 to Mini 5-Pin 1.5m",
+      "pricing": {
+        "dpp": 0.4,
+        "installer": 0.45
+      }
+    },
+    {
+      "id": 85,
+      "model": "VGA 3+4 1.5M",
+      "category": "VGA Cable",
+      "sub_category": "VGA Cable 3+4 1.5M",
+      "pricing": {
+        "dpp": 0.55,
+        "installer": 0.65
+      }
+    },
+    {
+      "id": 86,
+      "model": "VGA 3+4 3M",
+      "category": "VGA Cable",
+      "sub_category": "VGA Cable 3+4 3M",
+      "pricing": {
+        "dpp": 1,
+        "installer": 1.5
+      }
+    },
+    {
+      "id": 87,
+      "model": "VGA 3+4 5M",
+      "category": "VGA Cable",
+      "sub_category": "VGA Cable 3+4 5M",
+      "pricing": {
+        "dpp": 1.75,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 88,
+      "model": "VGA 3+4 10M",
+      "category": "VGA Cable",
+      "sub_category": "VGA Cable 3+4 10M",
+      "pricing": {
+        "dpp": 3,
+        "installer": 4
+      }
+    },
+    {
+      "id": 89,
+      "model": "VGA 3+4 15M",
+      "category": "VGA Cable",
+      "sub_category": "VGA Cable 3+4 15M",
+      "pricing": {
+        "dpp": 4,
+        "installer": 5
+      }
+    },
+    {
+      "id": 90,
+      "model": "VGA 3+4 20M",
+      "category": "VGA Cable",
+      "sub_category": "VGA Cable 3+4 20M",
+      "pricing": {
+        "dpp": 6,
+        "installer": 8
+      }
+    },
+    {
+      "id": 91,
+      "model": "VGA 3+4 30M",
+      "category": "VGA Cable",
+      "sub_category": "VGA Cable 3+4 30M",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      }
+    },
+    {
+      "id": 92,
+      "model": "VGA 3+4 40M",
+      "category": "VGA Cable",
+      "sub_category": "VGA Cable 3+4 40M",
+      "pricing": {
+        "dpp": 13,
+        "installer": 18
+      }
+    },
+    {
+      "id": 93,
+      "model": "VGA 3+2 1.4M",
+      "category": "VGA Cable",
+      "sub_category": "VGA Cable 3+2 (Budget) 1.4m",
+      "pricing": {
+        "dpp": 0.55,
+        "installer": 0.65
+      }
+    },
+    {
+      "id": 94,
+      "model": "DP to DP 1.5M",
+      "category": "DisplayPort Cable",
+      "sub_category": "DisplayPort Cable 1.5M",
+      "pricing": {
+        "dpp": 1.75,
+        "installer": 1.75
+      }
+    },
+    {
+      "id": 95,
+      "model": "DP to DP 3M",
+      "category": "DisplayPort Cable",
+      "sub_category": "DisplayPort Cable 3M",
+      "pricing": {
+        "dpp": 2,
+        "installer": 2
+      }
+    },
+    {
+      "id": 96,
+      "model": "DP to DP 5M",
+      "category": "DisplayPort Cable",
+      "sub_category": "DisplayPort Cable 5M",
+      "pricing": {
+        "dpp": 2.75,
+        "installer": 3
+      }
+    },
+    {
+      "id": 97,
+      "model": "AUX 3.5mm 1.5M",
+      "category": "Audio Cable",
+      "sub_category": "AUX 3.5mm Cable 1.5m",
+      "pricing": {
+        "dpp": 0.13,
+        "installer": 0.15
+      }
+    },
+    {
+      "id": 98,
+      "model": "RCA 1-to-2 1.5M",
+      "category": "Audio Cable",
+      "sub_category": "RCA Splitter 1-to-2 1.5m",
+      "pricing": {
+        "dpp": 0.25,
+        "installer": 0.3
+      }
+    },
+    {
+      "id": 99,
+      "model": "RCA 1-to-3 1.5M",
+      "category": "Audio Cable",
+      "sub_category": "RCA Splitter 1-to-3 1.5m",
+      "pricing": {
+        "dpp": 0.25,
+        "installer": 0.3
+      }
+    },
+    {
+      "id": 100,
+      "model": "RCA 3-to-3 1.5M",
+      "category": "Audio Cable",
+      "sub_category": "RCA Cable 3-to-3 1.5m",
+      "pricing": {
+        "dpp": 0.25,
+        "installer": 0.3
+      }
+    },
+    {
+      "id": 101,
+      "model": "AUX/2RCA 1.5m",
+      "category": "Audio Cable",
+      "sub_category": "AUX 3.5mm to 2\u00d7RCA Cable 1.5m",
+      "pricing": {
+        "dpp": 1.5,
+        "installer": 3
+      }
+    },
+    {
+      "id": 102,
+      "model": "AUX/2RCA 5m",
+      "category": "Audio Cable",
+      "sub_category": "AUX 3.5mm to 2\u00d7RCA Cable 5m",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 4.5
+      }
+    },
+    {
+      "id": 103,
+      "model": "AUX/2RCA 10m",
+      "category": "Audio Cable",
+      "sub_category": "AUX 3.5mm to 2\u00d7RCA Cable 10m",
+      "pricing": {
+        "dpp": 3.75,
+        "installer": 6
+      }
+    },
+    {
+      "id": 104,
+      "model": "AUX/2RCA 15m",
+      "category": "Audio Cable",
+      "sub_category": "AUX 3.5mm to 2\u00d7RCA Cable 15m",
+      "pricing": {
+        "dpp": 5,
+        "installer": 10
+      }
+    },
+    {
+      "id": 105,
+      "model": "AUX/2RCA 20m",
+      "category": "Audio Cable",
+      "sub_category": "AUX 3.5mm to 2\u00d7RCA Cable 20m",
+      "pricing": {
+        "dpp": 8,
+        "installer": 12
+      }
+    },
+    {
+      "id": 106,
+      "model": "AUX/2RCA 25m",
+      "category": "Audio Cable",
+      "sub_category": "AUX 3.5mm to 2\u00d7RCA Cable 25m",
+      "pricing": {
+        "dpp": 9,
+        "installer": 16
+      }
+    },
+    {
+      "id": 107,
+      "model": "AUX/2RCA 30m",
+      "category": "Audio Cable",
+      "sub_category": "AUX 3.5mm to 2\u00d7RCA Cable 30m",
+      "pricing": {
+        "dpp": 10,
+        "installer": 18
+      }
+    },
+    {
+      "id": 108,
+      "model": "2RCA/2RCA 1.5m",
+      "category": "Audio Cable",
+      "sub_category": "2\u00d7RCA to 2\u00d7RCA Cable 1.5m",
+      "pricing": {
+        "dpp": 1.5,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 109,
+      "model": "2RCA/2RCA 3m",
+      "category": "Audio Cable",
+      "sub_category": "2\u00d7RCA to 2\u00d7RCA Cable 3m",
+      "pricing": {
+        "dpp": 1.75,
+        "installer": 3.5
+      }
+    },
+    {
+      "id": 110,
+      "model": "2RCA/2RCA 5m",
+      "category": "Audio Cable",
+      "sub_category": "2\u00d7RCA to 2\u00d7RCA Cable 5m",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 4
+      }
+    },
+    {
+      "id": 111,
+      "model": "2RCA/2RCA 10m",
+      "category": "Audio Cable",
+      "sub_category": "2\u00d7RCA to 2\u00d7RCA Cable 10m",
+      "pricing": {
+        "dpp": 3.75,
+        "installer": 6
+      }
+    },
+    {
+      "id": 112,
+      "model": "2RCA/2RCA 15m",
+      "category": "Audio Cable",
+      "sub_category": "2\u00d7RCA to 2\u00d7RCA Cable 15m",
+      "pricing": {
+        "dpp": 6.5,
+        "installer": 10
+      }
+    },
+    {
+      "id": 113,
+      "model": "2RCA/2RCA 20m",
+      "category": "Audio Cable",
+      "sub_category": "2\u00d7RCA to 2\u00d7RCA Cable 20m",
+      "pricing": {
+        "dpp": 8,
+        "installer": 12
+      }
+    },
+    {
+      "id": 114,
+      "model": "2RCA/2RCA 30m",
+      "category": "Audio Cable",
+      "sub_category": "2\u00d7RCA to 2\u00d7RCA Cable 30m",
+      "pricing": {
+        "dpp": 12,
+        "installer": 18
+      }
+    },
+    {
+      "id": 115,
+      "model": "3RCA/3RCA 1.5m",
+      "category": "Audio Cable",
+      "sub_category": "3\u00d7RCA to 3\u00d7RCA Cable 1.5m",
+      "pricing": {
+        "dpp": 2,
+        "installer": 2.75
+      }
+    },
+    {
+      "id": 116,
+      "model": "3RCA/3RCA 3m",
+      "category": "Audio Cable",
+      "sub_category": "3\u00d7RCA to 3\u00d7RCA Cable 3m",
+      "pricing": {
+        "dpp": 2.75,
+        "installer": 3.5
+      }
+    },
+    {
+      "id": 117,
+      "model": "3RCA/3RCA 5m",
+      "category": "Audio Cable",
+      "sub_category": "3\u00d7RCA to 3\u00d7RCA Cable 5m",
+      "pricing": {
+        "dpp": 3.75,
+        "installer": 5
+      }
+    },
+    {
+      "id": 118,
+      "model": "3RCA/3RCA 10m",
+      "category": "Audio Cable",
+      "sub_category": "3\u00d7RCA to 3\u00d7RCA Cable 10m",
+      "pricing": {
+        "dpp": 6,
+        "installer": 8
+      }
+    },
+    {
+      "id": 119,
+      "model": "3RCA/3RCA 15m",
+      "category": "Audio Cable",
+      "sub_category": "3\u00d7RCA to 3\u00d7RCA Cable 15m",
+      "pricing": {
+        "dpp": 8.5,
+        "installer": 12
+      }
+    },
+    {
+      "id": 120,
+      "model": "3RCA/3RCA 20m",
+      "category": "Audio Cable",
+      "sub_category": "3\u00d7RCA to 3\u00d7RCA Cable 20m",
+      "pricing": {
+        "dpp": 12,
+        "installer": 15
+      }
+    },
+    {
+      "id": 121,
+      "model": "HDMI-DVI",
+      "category": "Adapter/Converter",
+      "sub_category": "HDMI Female to DVI Male 24+1",
+      "pricing": {
+        "dpp": 0.4,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 122,
+      "model": "HDMI-HDMI Coupler",
+      "category": "Adapter/Converter",
+      "sub_category": "HDMI Female-to-Female Coupler",
+      "pricing": {
+        "dpp": 0.5,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 123,
+      "model": "HDMI 90\u00b0",
+      "category": "Adapter/Converter",
+      "sub_category": "HDMI Male to Female 90\u00b0 Adapter",
+      "pricing": {
+        "dpp": 0.5,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 124,
+      "model": "HDMI 360\u00b0",
+      "category": "Adapter/Converter",
+      "sub_category": "HDMI Male to Female 360\u00b0 Adapter",
+      "pricing": {
+        "dpp": 0.5,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 125,
+      "model": "HDMI 180\u00b0",
+      "category": "Adapter/Converter",
+      "sub_category": "HDMI Male to Female 180\u00b0 Adapter",
+      "pricing": {
+        "dpp": 0.5,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 126,
+      "model": "DP to VGA",
+      "category": "Adapter/Converter",
+      "sub_category": "DisplayPort to VGA Adapter",
+      "pricing": {
+        "dpp": 1.75,
+        "installer": 1.75
+      }
+    },
+    {
+      "id": 127,
+      "model": "HDMI to VGA",
+      "category": "Adapter/Converter",
+      "sub_category": "HDMI to VGA Adapter",
+      "pricing": {
+        "dpp": 1.75,
+        "installer": 1.75
+      }
+    },
+    {
+      "id": 128,
+      "model": "HDMI to VGA+Audio",
+      "category": "Adapter/Converter",
+      "sub_category": "HDMI to VGA + Audio Adapter",
+      "pricing": {
+        "dpp": 1.75,
+        "installer": 1.75
+      }
+    },
+    {
+      "id": 129,
+      "model": "DP to HDMI",
+      "category": "Adapter/Converter",
+      "sub_category": "DisplayPort to HDMI Adapter",
+      "pricing": {
+        "dpp": 1.75,
+        "installer": 1.75
+      }
+    },
+    {
+      "id": 130,
+      "model": "USB to LAN",
+      "category": "Adapter/Converter",
+      "sub_category": "USB to RJ45 Ethernet Adapter",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3.5
+      }
+    },
+    {
+      "id": 131,
+      "model": "HDMI Extension 0.5M",
+      "category": "Adapter/Converter",
+      "sub_category": "HDMI Extension Cable 0.5m",
+      "pricing": {
+        "dpp": 0.55,
+        "installer": 0.65
+      }
+    },
+    {
+      "id": 132,
+      "model": "VGA Y-Cable",
+      "category": "Adapter/Converter",
+      "sub_category": "VGA Y Splitter Cable",
+      "pricing": {
+        "dpp": 1,
+        "installer": 1
+      }
+    },
+    {
+      "id": 133,
+      "model": "HDMI Y-Cable",
+      "category": "Adapter/Converter",
+      "sub_category": "HDMI Y Splitter Cable",
+      "pricing": {
+        "dpp": 1,
+        "installer": 1
+      }
+    },
+    {
+      "id": 134,
+      "model": "MK Power Cable 1.5M",
+      "category": "Power Cable",
+      "sub_category": "MK Power Cable with Fuse 1.5m",
+      "pricing": {
+        "dpp": 0.75,
+        "installer": 0.75
+      }
+    },
+    {
+      "id": 135,
+      "model": "PC Power Cable 1.5M",
+      "category": "Power Cable",
+      "sub_category": "PC/Monitor Power Cable 1.5m",
+      "pricing": {
+        "dpp": 0.45,
+        "installer": 0.45
+      }
+    },
+    {
+      "id": 136,
+      "model": "Sony Power Cable 1.5M",
+      "category": "Power Cable",
+      "sub_category": "Sony-type Power Cable 1.5m",
+      "pricing": {
+        "dpp": 0.4,
+        "installer": 0.45
+      }
+    },
+    {
+      "id": 137,
+      "model": "Laptop Power Cable 1.5M",
+      "category": "Power Cable",
+      "sub_category": "Laptop 3-Pin Power Cable 1.5m",
+      "pricing": {
+        "dpp": 0.45,
+        "installer": 0.45
+      }
+    },
+    {
+      "id": 138,
+      "model": "Loop/Figure-8 Cable 1.5M",
+      "category": "Power Cable",
+      "sub_category": "Figure-8 Loop Power Cable 1.5m",
+      "pricing": {
+        "dpp": 0.5,
+        "installer": 0.5
+      }
+    }
+  ]
+}

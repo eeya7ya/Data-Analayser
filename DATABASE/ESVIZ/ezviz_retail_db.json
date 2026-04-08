@@ -1,0 +1,1373 @@
+{
+  "database_info": {
+    "name": "EZVIZ Consumer Product Database (Retail Edition)",
+    "version": "2.0",
+    "manufacturer": "EZVIZ (Hikvision Consumer Brand)",
+    "category": "Smart Home \u2014 Cameras, Doorbells, Locks, Sensors, NVR, Robot Vacuums",
+    "currency": "USD",
+    "last_updated": "2026-04-07",
+    "price_tiers": {
+      "dpp": "DPP/Distributor",
+      "shops": "Retail Shops",
+      "installers": "Installers/SI"
+    },
+    "NOTE": "This replaces the earlier ezviz_db.json with more complete retail pricing (3 tiers). Use this as the primary EZVIZ database.",
+    "integration_notes": {
+      "ezviz_app": "All devices managed via EZVIZ App (iOS/Android)",
+      "hikvision_warning": "EZVIZ cameras CANNOT integrate with Hikvision NVRs. Separate ecosystems.",
+      "smart_home": "Works with Google Assistant, Amazon Alexa, Apple HomeKit (select models)",
+      "storage": "MicroSD (local), EZVIZ Cloud (subscription), or EZVIZ NAS/Wireless NVR"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "H1c",
+      "category": "Indoor Camera",
+      "sub_category": "H1c Cube Camera 2MP",
+      "pricing": {
+        "dpp": 12.75,
+        "shops": 13.5,
+        "installers": 14
+      },
+      "specs": {
+        "resolution": "2MP",
+        "type": "Cube/fixed indoor",
+        "wifi": true
+      }
+    },
+    {
+      "id": 2,
+      "model": "H6c pro 2MP",
+      "category": "Indoor PT Camera",
+      "sub_category": "H6c Pro Indoor PT 2MP",
+      "pricing": {
+        "dpp": 14.75,
+        "shops": 15.5,
+        "installers": 16.5
+      },
+      "specs": {
+        "resolution": "2MP",
+        "type": "Indoor pan/tilt",
+        "auto_tracking": true
+      }
+    },
+    {
+      "id": 3,
+      "model": "H6c pro 3MP",
+      "category": "Indoor PT Camera",
+      "sub_category": "H6c Pro Indoor PT 3MP",
+      "pricing": {
+        "dpp": 14.75,
+        "shops": 15.5,
+        "installers": 16.5
+      },
+      "specs": {
+        "resolution": "3MP"
+      }
+    },
+    {
+      "id": 4,
+      "model": "CP1",
+      "category": "Indoor PT Camera",
+      "sub_category": "CP1 Compact Indoor PT",
+      "pricing": {
+        "dpp": 14.75,
+        "shops": 15.5,
+        "installers": 16.5
+      },
+      "specs": {
+        "resolution": "2K",
+        "type": "Compact pan/tilt"
+      }
+    },
+    {
+      "id": 5,
+      "model": "H6c pro 4MP",
+      "category": "Indoor PT Camera",
+      "sub_category": "H6c Pro Indoor PT 4MP",
+      "pricing": {
+        "dpp": 19.75,
+        "shops": 20.75,
+        "installers": 22
+      },
+      "specs": {
+        "resolution": "4MP"
+      }
+    },
+    {
+      "id": 6,
+      "model": "H6c pro 5MP",
+      "category": "Indoor PT Camera",
+      "sub_category": "H6c Pro Indoor PT 5MP",
+      "pricing": {
+        "dpp": 19.75,
+        "shops": 20.75,
+        "installers": 22
+      },
+      "specs": {
+        "resolution": "5MP"
+      }
+    },
+    {
+      "id": 7,
+      "model": "H6c pro 8MP",
+      "category": "Indoor PT Camera",
+      "sub_category": "H6c Pro Indoor PT 8MP (4K)",
+      "pricing": {
+        "dpp": 28,
+        "shops": 30,
+        "installers": 32
+      },
+      "specs": {
+        "resolution": "8MP (4K)"
+      }
+    },
+    {
+      "id": 8,
+      "model": "C6c 8MP",
+      "category": "Indoor PT Camera",
+      "sub_category": "C6c Indoor PT 8MP (4K)",
+      "pricing": {
+        "dpp": 36.5,
+        "shops": 38.5,
+        "installers": 40.5
+      },
+      "specs": {
+        "resolution": "8MP (4K)",
+        "type": "Premium indoor PT"
+      }
+    },
+    {
+      "id": 9,
+      "model": "C7 Dual 4MP+4MP",
+      "category": "Indoor PT Camera",
+      "sub_category": "C7 Dual-Lens Indoor PT (4MP+4MP)",
+      "pricing": {
+        "dpp": 41,
+        "shops": 43,
+        "installers": 45.5
+      },
+      "specs": {
+        "resolution": "4MP+4MP",
+        "dual_lens": true
+      }
+    },
+    {
+      "id": 10,
+      "model": "H7c Dual 4MP+4MP",
+      "category": "Indoor PT Camera",
+      "sub_category": "H7c Dual-Lens Indoor PT (4MP+4MP)",
+      "pricing": {
+        "dpp": 35.5,
+        "shops": 37.5,
+        "installers": 39
+      },
+      "specs": {
+        "resolution": "4MP+4MP",
+        "dual_lens": true
+      }
+    },
+    {
+      "id": 11,
+      "model": "CB1 2MP",
+      "category": "Battery Camera",
+      "sub_category": "CB1 Battery Camera 2MP",
+      "pricing": {
+        "dpp": 28.5,
+        "shops": 30,
+        "installers": 31.5
+      },
+      "specs": {
+        "resolution": "2MP",
+        "battery": true,
+        "wifi": true
+      }
+    },
+    {
+      "id": 12,
+      "model": "CB2 2MP",
+      "category": "Battery Camera",
+      "sub_category": "CB2 Battery Camera 2MP",
+      "pricing": {
+        "dpp": 38.75,
+        "shops": 40.75,
+        "installers": 43
+      },
+      "specs": {
+        "resolution": "2MP"
+      }
+    },
+    {
+      "id": 13,
+      "model": "BM1 2MP",
+      "category": "Baby Monitor",
+      "sub_category": "BM1 Baby Monitor 2MP",
+      "pricing": {
+        "dpp": 56,
+        "shops": 59,
+        "installers": 62
+      },
+      "specs": {
+        "resolution": "2MP",
+        "type": "Baby monitor",
+        "features": [
+          "Lullabies",
+          "Temperature sensor",
+          "Cry detection"
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "model": "CS-E4P 6MP",
+      "category": "Battery Camera",
+      "sub_category": "E4P Battery Camera 6MP",
+      "pricing": {
+        "dpp": 80,
+        "shops": 85,
+        "installers": 90
+      },
+      "specs": {
+        "resolution": "6MP"
+      }
+    },
+    {
+      "id": 15,
+      "model": "CB3 3MP",
+      "category": "Battery Camera",
+      "sub_category": "CB3 Battery Camera 3MP",
+      "pricing": {
+        "dpp": 56.5,
+        "shops": 60,
+        "installers": 63
+      },
+      "specs": {
+        "resolution": "3MP"
+      }
+    },
+    {
+      "id": 16,
+      "model": "EB3 3MP",
+      "category": "Battery Camera",
+      "sub_category": "EB3 Battery Camera 3MP",
+      "pricing": {
+        "dpp": 56.5,
+        "shops": 60,
+        "installers": 63
+      },
+      "specs": {
+        "resolution": "3MP"
+      }
+    },
+    {
+      "id": 17,
+      "model": "CB5 8MP",
+      "category": "Battery Camera",
+      "sub_category": "CB5 Battery Camera 8MP (4K)",
+      "pricing": {
+        "dpp": 93,
+        "shops": 98,
+        "installers": 103
+      },
+      "specs": {
+        "resolution": "8MP (4K)"
+      }
+    },
+    {
+      "id": 18,
+      "model": "EB5 8MP",
+      "category": "Battery Camera",
+      "sub_category": "EB5 Battery Camera 8MP (4K)",
+      "pricing": {
+        "dpp": 93,
+        "shops": 98,
+        "installers": 103
+      },
+      "specs": {
+        "resolution": "8MP (4K)"
+      }
+    },
+    {
+      "id": 19,
+      "model": "CB8 3MP",
+      "category": "Battery Camera",
+      "sub_category": "CB8 Battery Camera 3MP (Premium)",
+      "pricing": {
+        "dpp": 98,
+        "shops": 103,
+        "installers": 108
+      },
+      "specs": {
+        "resolution": "3MP"
+      }
+    },
+    {
+      "id": 20,
+      "model": "HB8 4MP",
+      "category": "Battery Camera",
+      "sub_category": "HB8 Battery Camera 4MP",
+      "pricing": {
+        "dpp": 105,
+        "shops": 110.5,
+        "installers": 116
+      },
+      "specs": {
+        "resolution": "4MP"
+      }
+    },
+    {
+      "id": 21,
+      "model": "EB3/SP 2K 4GA",
+      "category": "Battery Camera Kit",
+      "sub_category": "EB3 + Solar Panel 2K 4G",
+      "pricing": {
+        "dpp": 70,
+        "shops": 75,
+        "installers": 75
+      },
+      "specs": {
+        "resolution": "2K",
+        "4g": true,
+        "solar": true
+      }
+    },
+    {
+      "id": 22,
+      "model": "EB8/SP",
+      "category": "Battery Camera Kit",
+      "sub_category": "EB8 + Solar Panel",
+      "pricing": {
+        "dpp": 130,
+        "shops": 135,
+        "installers": 140
+      },
+      "specs": {
+        "solar": true
+      }
+    },
+    {
+      "id": 23,
+      "model": "CS-CB8C/SP 4MP",
+      "category": "Battery Camera Kit",
+      "sub_category": "CB8C + Solar Panel 4MP",
+      "pricing": {
+        "dpp": 85,
+        "shops": 90,
+        "installers": 95
+      },
+      "specs": {
+        "resolution": "4MP",
+        "solar": true
+      }
+    },
+    {
+      "id": 24,
+      "model": "CS-CB90/SP 4MP+4MP",
+      "category": "Battery Camera Kit",
+      "sub_category": "CB90 Dual + Solar Panel",
+      "pricing": {
+        "dpp": 118,
+        "shops": 125,
+        "installers": 130
+      },
+      "specs": {
+        "resolution": "4MP+4MP",
+        "dual_lens": true,
+        "solar": true
+      }
+    },
+    {
+      "id": 25,
+      "model": "CS-SB90X/SP 4MP+4MP 4G",
+      "category": "Battery Camera Kit",
+      "sub_category": "SB90X Dual + Solar 4G",
+      "pricing": {
+        "dpp": 155,
+        "shops": 160,
+        "installers": 165
+      },
+      "specs": {
+        "resolution": "4MP+4MP",
+        "4g": true,
+        "solar": true
+      }
+    },
+    {
+      "id": 26,
+      "model": "CB2 4G 3MP",
+      "category": "Battery 4G Camera",
+      "sub_category": "CB2 4G Battery Camera 3MP",
+      "pricing": {
+        "dpp": 45.75,
+        "shops": 48,
+        "installers": 50.5
+      },
+      "specs": {
+        "resolution": "3MP",
+        "4g": true,
+        "battery": true
+      }
+    },
+    {
+      "id": 27,
+      "model": "EB8 4G 3MP",
+      "category": "Battery 4G Camera",
+      "sub_category": "EB8 4G Battery Camera 3MP",
+      "pricing": {
+        "dpp": 110,
+        "shops": 115.5,
+        "installers": 121
+      },
+      "specs": {
+        "resolution": "3MP",
+        "4g": true
+      }
+    },
+    {
+      "id": 28,
+      "model": "EB3 4G 3MP",
+      "category": "Battery 4G Camera",
+      "sub_category": "EB3 4G Battery Camera 3MP",
+      "pricing": {
+        "dpp": 55,
+        "shops": 57.5,
+        "installers": 61
+      },
+      "specs": {
+        "resolution": "3MP",
+        "4g": true
+      }
+    },
+    {
+      "id": 29,
+      "model": "H5 4G",
+      "category": "4G Camera",
+      "sub_category": "H5 4G Wired Camera",
+      "pricing": {
+        "dpp": 35,
+        "shops": 37,
+        "installers": 39
+      },
+      "specs": {
+        "4g": true,
+        "wired": true
+      }
+    },
+    {
+      "id": 30,
+      "model": "H8c 4G",
+      "category": "4G Camera",
+      "sub_category": "H8c 4G Outdoor PT Camera",
+      "pricing": {
+        "dpp": 39,
+        "shops": 40.5,
+        "installers": 43
+      },
+      "specs": {
+        "4g": true,
+        "type": "Outdoor pan/tilt"
+      }
+    },
+    {
+      "id": 31,
+      "model": "H3c 2MP",
+      "category": "Outdoor Bullet",
+      "sub_category": "H3c Bullet 2MP",
+      "pricing": {
+        "dpp": 27.5,
+        "shops": 29,
+        "installers": 30.5
+      },
+      "specs": {
+        "resolution": "2MP",
+        "type": "Bullet",
+        "ip_rating": "IP67",
+        "color_night_vision": true
+      }
+    },
+    {
+      "id": 32,
+      "model": "H3c 3MP",
+      "category": "Outdoor Bullet",
+      "sub_category": "H3c Bullet 3MP",
+      "pricing": {
+        "dpp": 30,
+        "shops": 31.5,
+        "installers": 33
+      },
+      "specs": {
+        "resolution": "3MP"
+      }
+    },
+    {
+      "id": 33,
+      "model": "H3c 4MP",
+      "category": "Outdoor Bullet",
+      "sub_category": "H3c Bullet 4MP",
+      "pricing": {
+        "dpp": 34,
+        "shops": 36,
+        "installers": 37.5
+      },
+      "specs": {
+        "resolution": "4MP"
+      }
+    },
+    {
+      "id": 34,
+      "model": "H3c 5MP",
+      "category": "Outdoor Bullet",
+      "sub_category": "H3c Bullet 5MP",
+      "pricing": {
+        "dpp": 36.5,
+        "shops": 38.5,
+        "installers": 40.5
+      },
+      "specs": {
+        "resolution": "5MP"
+      }
+    },
+    {
+      "id": 35,
+      "model": "H8c pro 3MP",
+      "category": "Outdoor PT Camera",
+      "sub_category": "H8c Pro Outdoor PT 3MP",
+      "pricing": {
+        "dpp": 31.5,
+        "shops": 33.5,
+        "installers": 35
+      },
+      "specs": {
+        "resolution": "3MP",
+        "type": "Pan/tilt outdoor",
+        "ip_rating": "IP65"
+      }
+    },
+    {
+      "id": 36,
+      "model": "H8c pro 4MP",
+      "category": "Outdoor PT Camera",
+      "sub_category": "H8c Pro Outdoor PT 4MP",
+      "pricing": {
+        "dpp": 37.5,
+        "shops": 39.5,
+        "installers": 42
+      },
+      "specs": {
+        "resolution": "4MP"
+      }
+    },
+    {
+      "id": 37,
+      "model": "H8c pro 5MP",
+      "category": "Outdoor PT Camera",
+      "sub_category": "H8c Pro Outdoor PT 5MP",
+      "pricing": {
+        "dpp": 41,
+        "shops": 43.5,
+        "installers": 46
+      },
+      "specs": {
+        "resolution": "5MP"
+      }
+    },
+    {
+      "id": 38,
+      "model": "H8c pro 8MP",
+      "category": "Outdoor PT Camera",
+      "sub_category": "H8c Pro Outdoor PT 8MP (4K)",
+      "pricing": {
+        "dpp": 50,
+        "shops": 52.5,
+        "installers": 55
+      },
+      "specs": {
+        "resolution": "8MP (4K)"
+      }
+    },
+    {
+      "id": 39,
+      "model": "H9c 3MP+3MP",
+      "category": "Outdoor PT Camera",
+      "sub_category": "H9c Dual-Lens PT 3MP+3MP",
+      "pricing": {
+        "dpp": 54,
+        "shops": 57,
+        "installers": 60
+      },
+      "specs": {
+        "resolution": "3MP+3MP",
+        "dual_lens": true
+      }
+    },
+    {
+      "id": 40,
+      "model": "H9c 5MP+5MP",
+      "category": "Outdoor PT Camera",
+      "sub_category": "H9c Dual-Lens PT 5MP+5MP",
+      "pricing": {
+        "dpp": 60,
+        "shops": 63,
+        "installers": 66
+      },
+      "specs": {
+        "resolution": "5MP+5MP",
+        "dual_lens": true
+      }
+    },
+    {
+      "id": 41,
+      "model": "H80x 8MP+2MP",
+      "category": "Outdoor PT Camera",
+      "sub_category": "H80x Dual-Lens PT 8MP+2MP",
+      "pricing": {
+        "dpp": 65,
+        "shops": 69,
+        "installers": 71.5
+      },
+      "specs": {
+        "resolution": "8MP+2MP",
+        "dual_lens": true
+      }
+    },
+    {
+      "id": 42,
+      "model": "CS-H90 4MP+4MP",
+      "category": "Outdoor PT Camera",
+      "sub_category": "H90 Dual-Lens PT 4MP+4MP",
+      "pricing": {
+        "dpp": 55,
+        "shops": 60,
+        "installers": 65
+      },
+      "specs": {
+        "resolution": "4MP+4MP",
+        "dual_lens": true
+      }
+    },
+    {
+      "id": 43,
+      "model": "H80F-R100-8G444WKFL",
+      "category": "Outdoor PT Camera",
+      "sub_category": "H80F Premium Outdoor PT",
+      "pricing": {
+        "dpp": 68,
+        "shops": 75,
+        "installers": 80
+      }
+    },
+    {
+      "id": 44,
+      "model": "H4 wifi 3MP",
+      "category": "Outdoor Dome",
+      "sub_category": "H4 Wi-Fi Dome 3MP",
+      "pricing": {
+        "dpp": 36.5,
+        "shops": 38.5,
+        "installers": 40.5
+      },
+      "specs": {
+        "resolution": "3MP",
+        "wifi": true
+      }
+    },
+    {
+      "id": 45,
+      "model": "H4 POE 3MP",
+      "category": "PoE Camera",
+      "sub_category": "H4 PoE Dome 3MP",
+      "pricing": {
+        "dpp": 31.5,
+        "shops": 33.5,
+        "installers": 35
+      },
+      "specs": {
+        "resolution": "3MP",
+        "poe": true,
+        "type": "PoE wired dome"
+      }
+    },
+    {
+      "id": 46,
+      "model": "H5 POE 3MP",
+      "category": "PoE Camera",
+      "sub_category": "H5 PoE Bullet 3MP",
+      "pricing": {
+        "dpp": 31.5,
+        "shops": 33.5,
+        "installers": 35
+      },
+      "specs": {
+        "resolution": "3MP",
+        "poe": true
+      }
+    },
+    {
+      "id": 47,
+      "model": "H8c POE 3MP",
+      "category": "PoE Camera",
+      "sub_category": "H8c PoE PT 3MP",
+      "pricing": {
+        "dpp": 31.5,
+        "shops": 33.5,
+        "installers": 35
+      },
+      "specs": {
+        "resolution": "3MP",
+        "poe": true,
+        "type": "PoE pan/tilt"
+      }
+    },
+    {
+      "id": 48,
+      "model": "Solar panel E",
+      "category": "Accessory",
+      "sub_category": "Solar Panel for EZVIZ Cameras",
+      "pricing": {
+        "dpp": 14.25,
+        "shops": 15,
+        "installers": 16
+      }
+    },
+    {
+      "id": 49,
+      "model": "PBC 10A",
+      "category": "Accessory",
+      "sub_category": "Battery Charging Station 10A",
+      "pricing": {
+        "dpp": 46,
+        "shops": 49,
+        "installers": 51
+      }
+    },
+    {
+      "id": 50,
+      "model": "PBC 20A",
+      "category": "Accessory",
+      "sub_category": "Battery Charging Station 20A",
+      "pricing": {
+        "dpp": 71,
+        "shops": 74.5,
+        "installers": 79
+      }
+    },
+    {
+      "id": 51,
+      "model": "EP3x pro 3MP+2MP",
+      "category": "Video Doorbell",
+      "sub_category": "EP3x Pro Dual-Lens Doorbell + Solar",
+      "pricing": {
+        "dpp": 56,
+        "shops": 59,
+        "installers": 62
+      },
+      "specs": {
+        "resolution": "3MP+2MP",
+        "dual_lens": true,
+        "solar": "Included",
+        "chime": "Included"
+      }
+    },
+    {
+      "id": 52,
+      "model": "EP3x 3MP+2MP",
+      "category": "Video Doorbell",
+      "sub_category": "EP3x Dual-Lens Doorbell + Chime",
+      "pricing": {
+        "dpp": 51,
+        "shops": 54,
+        "installers": 56.5
+      },
+      "specs": {
+        "resolution": "3MP+2MP",
+        "chime": "Included"
+      }
+    },
+    {
+      "id": 53,
+      "model": "Ch1 chime",
+      "category": "Doorbell Accessory",
+      "sub_category": "CH1 Indoor Chime (Wi-Fi Extender)",
+      "pricing": {
+        "dpp": 14.25,
+        "shops": 15,
+        "installers": 15.75
+      }
+    },
+    {
+      "id": 54,
+      "model": "DB2C",
+      "category": "Door Viewer",
+      "sub_category": "DB2C Battery Video Doorbell",
+      "pricing": {
+        "dpp": 45,
+        "shops": 48,
+        "installers": 50
+      },
+      "specs": {
+        "resolution": "2K"
+      }
+    },
+    {
+      "id": 55,
+      "model": "DP2C 2MP",
+      "category": "Peephole Doorbell",
+      "sub_category": "DP2C Peephole Doorbell 2MP",
+      "pricing": {
+        "dpp": 61,
+        "shops": 64,
+        "installers": 67.5
+      },
+      "specs": {
+        "resolution": "2MP",
+        "screen": "4.3\" indoor"
+      }
+    },
+    {
+      "id": 56,
+      "model": "DP2 3MP",
+      "category": "Peephole Doorbell",
+      "sub_category": "DP2 Peephole Doorbell 3MP",
+      "pricing": {
+        "dpp": 76.25,
+        "shops": 80,
+        "installers": 84
+      },
+      "specs": {
+        "resolution": "3MP",
+        "screen": "4.3\" touch"
+      }
+    },
+    {
+      "id": 57,
+      "model": "HP4 2MP",
+      "category": "Peephole Viewer",
+      "sub_category": "HP4 Peephole Viewer 2MP",
+      "pricing": {
+        "dpp": 51,
+        "shops": 53.75,
+        "installers": 56.5
+      }
+    },
+    {
+      "id": 58,
+      "model": "HP2 2MP",
+      "category": "Peephole Viewer",
+      "sub_category": "HP2 Peephole Viewer 2MP",
+      "pricing": {
+        "dpp": 35.5,
+        "shops": 37.5,
+        "installers": 39
+      }
+    },
+    {
+      "id": 59,
+      "model": "HP5 2MP",
+      "category": "Video Intercom",
+      "sub_category": "HP5 Video Intercom 2MP",
+      "pricing": {
+        "dpp": 86.5,
+        "shops": 91,
+        "installers": 95.5
+      },
+      "specs": {
+        "resolution": "2MP",
+        "type": "Video intercom with indoor screen"
+      }
+    },
+    {
+      "id": 60,
+      "model": "HP7 3MP",
+      "category": "Video Intercom",
+      "sub_category": "HP7 Video Intercom 3MP",
+      "pricing": {
+        "dpp": 107,
+        "shops": 113,
+        "installers": 118
+      },
+      "specs": {
+        "resolution": "3MP"
+      }
+    },
+    {
+      "id": 61,
+      "model": "HP7 KIT 2SCREEN",
+      "category": "Video Intercom Kit",
+      "sub_category": "HP7 Kit with 2 Screens",
+      "pricing": {
+        "dpp": 195,
+        "shops": 200,
+        "installers": 225
+      }
+    },
+    {
+      "id": 62,
+      "model": "HP7 KIT 2KEYPAD",
+      "category": "Video Intercom Kit",
+      "sub_category": "HP7 Kit with 2 Keypads",
+      "pricing": {
+        "dpp": 170,
+        "shops": 175,
+        "installers": 185
+      }
+    },
+    {
+      "id": 63,
+      "model": "EP7 3MP",
+      "category": "Video Doorbell",
+      "sub_category": "EP7 Premium Video Doorbell 3MP",
+      "pricing": {
+        "dpp": 137,
+        "shops": 144,
+        "installers": 151
+      },
+      "specs": {
+        "resolution": "3MP"
+      }
+    },
+    {
+      "id": 64,
+      "model": "SD7",
+      "category": "Smart Screen",
+      "sub_category": "SD7 Smart Display / Solar Camera",
+      "pricing": {
+        "dpp": 56,
+        "shops": 59,
+        "installers": 62
+      }
+    },
+    {
+      "id": 65,
+      "model": "PB18",
+      "category": "Power Accessory",
+      "sub_category": "PB18 Power Bank for Cameras",
+      "pricing": {
+        "dpp": 12.25,
+        "shops": 13,
+        "installers": 13.5
+      }
+    },
+    {
+      "id": 66,
+      "model": "SD card 32G",
+      "category": "Storage",
+      "sub_category": "MicroSD Card 32GB",
+      "pricing": {
+        "dpp": 3.55,
+        "shops": 3.75,
+        "installers": 4
+      }
+    },
+    {
+      "id": 67,
+      "model": "SD card 64G",
+      "category": "Storage",
+      "sub_category": "MicroSD Card 64GB",
+      "pricing": {
+        "dpp": 5.6,
+        "shops": 5.9,
+        "installers": 6.25
+      }
+    },
+    {
+      "id": 68,
+      "model": "SD card 128G",
+      "category": "Storage",
+      "sub_category": "MicroSD Card 128GB",
+      "pricing": {
+        "dpp": 10.75,
+        "shops": 11.5,
+        "installers": 12
+      }
+    },
+    {
+      "id": 69,
+      "model": "SD card 256G",
+      "category": "Storage",
+      "sub_category": "MicroSD Card 256GB",
+      "pricing": {
+        "dpp": 21,
+        "shops": 22,
+        "installers": 23.25
+      }
+    },
+    {
+      "id": 70,
+      "model": "SD card 512G",
+      "category": "Storage",
+      "sub_category": "MicroSD Card 512GB",
+      "pricing": {
+        "dpp": 42,
+        "shops": 44.5,
+        "installers": 46.5
+      }
+    },
+    {
+      "id": 71,
+      "model": "NAS",
+      "category": "Storage",
+      "sub_category": "EZVIZ NAS Storage",
+      "pricing": {
+        "dpp": 40.75,
+        "shops": 43,
+        "installers": 45
+      },
+      "specs": {
+        "type": "Network Attached Storage for EZVIZ cameras"
+      }
+    },
+    {
+      "id": 72,
+      "model": "Wireless NVR 4CH",
+      "category": "NVR",
+      "sub_category": "EZVIZ Wireless NVR 4-Channel",
+      "pricing": {
+        "dpp": 26,
+        "shops": 27.5,
+        "installers": 29
+      },
+      "specs": {
+        "channels": 4,
+        "type": "Wireless NVR for EZVIZ cameras"
+      }
+    },
+    {
+      "id": 73,
+      "model": "Wireless NVR 8CH",
+      "category": "NVR",
+      "sub_category": "EZVIZ Wireless NVR 8-Channel",
+      "pricing": {
+        "dpp": 30,
+        "shops": 31.5,
+        "installers": 33
+      },
+      "specs": {
+        "channels": 8
+      }
+    },
+    {
+      "id": 74,
+      "model": "EL3",
+      "category": "Light Camera",
+      "sub_category": "EL3 Light Bulb Camera",
+      "pricing": {
+        "dpp": 66,
+        "shops": 69.5,
+        "installers": 73
+      },
+      "specs": {
+        "type": "Camera integrated into light fixture"
+      }
+    },
+    {
+      "id": 75,
+      "model": "DL03 pro",
+      "category": "Smart Lock",
+      "sub_category": "DL03 Pro Smart Lock",
+      "pricing": {
+        "dpp": 45.75,
+        "shops": 48,
+        "installers": 50.5
+      },
+      "specs": {
+        "unlock": [
+          "PIN",
+          "RFID",
+          "App",
+          "Key"
+        ]
+      }
+    },
+    {
+      "id": 76,
+      "model": "DL04 pro",
+      "category": "Smart Lock",
+      "sub_category": "DL04 Pro Smart Lock",
+      "pricing": {
+        "dpp": 61,
+        "shops": 64,
+        "installers": 67.5
+      },
+      "specs": {
+        "unlock": [
+          "Fingerprint",
+          "PIN",
+          "RFID",
+          "App",
+          "Key"
+        ]
+      }
+    },
+    {
+      "id": 77,
+      "model": "DL05",
+      "category": "Smart Lock",
+      "sub_category": "DL05 Smart Lock",
+      "pricing": {
+        "dpp": 71,
+        "shops": 74.75,
+        "installers": 78.5
+      },
+      "specs": {
+        "unlock": [
+          "Fingerprint",
+          "PIN",
+          "RFID",
+          "App",
+          "Key"
+        ]
+      }
+    },
+    {
+      "id": 78,
+      "model": "DL50FVS",
+      "category": "Smart Lock",
+      "sub_category": "DL50FVS Smart Lock (Face Recognition)",
+      "pricing": {
+        "dpp": 178,
+        "shops": 187,
+        "installers": 196
+      },
+      "specs": {
+        "unlock": [
+          "Face recognition",
+          "Fingerprint",
+          "PIN",
+          "RFID",
+          "App",
+          "Key"
+        ],
+        "face_recognition": true
+      }
+    },
+    {
+      "id": 79,
+      "model": "T1C",
+      "category": "Smart Sensor",
+      "sub_category": "T1C PIR Motion Sensor",
+      "pricing": {
+        "dpp": 10.5,
+        "shops": 11,
+        "installers": 11.75
+      },
+      "specs": {
+        "type": "Wireless PIR motion sensor",
+        "protocol": "Zigbee",
+        "requires": "A3 Gateway"
+      }
+    },
+    {
+      "id": 80,
+      "model": "T2C",
+      "category": "Smart Sensor",
+      "sub_category": "T2C Door/Window Sensor",
+      "pricing": {
+        "dpp": 8.25,
+        "shops": 8.75,
+        "installers": 9.25
+      },
+      "specs": {
+        "type": "Open/close magnetic sensor"
+      }
+    },
+    {
+      "id": 81,
+      "model": "T3C",
+      "category": "Smart Sensor",
+      "sub_category": "T3C Emergency Button",
+      "pricing": {
+        "dpp": 8.25,
+        "shops": 8.75,
+        "installers": 9.25
+      },
+      "specs": {
+        "type": "Panic/emergency button"
+      }
+    },
+    {
+      "id": 82,
+      "model": "T4C",
+      "category": "Smart Sensor",
+      "sub_category": "T4C Smoke Sensor",
+      "pricing": {
+        "dpp": 22.5,
+        "shops": 23.75,
+        "installers": 24.75
+      },
+      "specs": {
+        "type": "Photoelectric smoke detector"
+      }
+    },
+    {
+      "id": 83,
+      "model": "T9C",
+      "category": "Smart Sensor",
+      "sub_category": "T9C Smart Siren",
+      "pricing": {
+        "dpp": 28.5,
+        "shops": 30,
+        "installers": 31.5
+      },
+      "specs": {
+        "type": "Indoor alarm siren"
+      }
+    },
+    {
+      "id": 84,
+      "model": "T10C",
+      "category": "Smart Sensor",
+      "sub_category": "T10C Water Leak Sensor",
+      "pricing": {
+        "dpp": 8.25,
+        "shops": 8.75,
+        "installers": 9.25
+      },
+      "specs": {
+        "type": "Water leak/flood sensor"
+      }
+    },
+    {
+      "id": 85,
+      "model": "T51C",
+      "category": "Smart Sensor",
+      "sub_category": "T51C Temperature & Humidity Sensor",
+      "pricing": {
+        "dpp": 12.25,
+        "shops": 13,
+        "installers": 13.5
+      },
+      "specs": {
+        "type": "Temperature + humidity monitor"
+      }
+    },
+    {
+      "id": 86,
+      "model": "A3 gateway",
+      "category": "Smart Hub",
+      "sub_category": "A3 Zigbee Gateway",
+      "pricing": {
+        "dpp": 25.5,
+        "shops": 26.75,
+        "installers": 28
+      },
+      "specs": {
+        "type": "Smart home hub for EZVIZ sensors",
+        "protocol": "Zigbee",
+        "function": "Central gateway for T-series sensors"
+      }
+    },
+    {
+      "id": 87,
+      "model": "T35W",
+      "category": "Wi-Fi Relay",
+      "sub_category": "T35W Wi-Fi Smart Relay",
+      "pricing": {
+        "dpp": 9.25,
+        "shops": 9.75,
+        "installers": 10.5
+      },
+      "specs": {
+        "type": "Wi-Fi relay switch",
+        "function": "Remote on/off control"
+      }
+    },
+    {
+      "id": 88,
+      "model": "T35WM",
+      "category": "Wi-Fi Relay",
+      "sub_category": "T35WM Wi-Fi Smart Relay (Mini)",
+      "pricing": {
+        "dpp": 9.25,
+        "shops": 9.75,
+        "installers": 10.5
+      }
+    },
+    {
+      "id": 89,
+      "model": "T36WM",
+      "category": "Wi-Fi Relay",
+      "sub_category": "T36WM Wi-Fi Relay (Metering)",
+      "pricing": {
+        "dpp": 11.75,
+        "shops": 12.5,
+        "installers": 13
+      },
+      "specs": {
+        "type": "Wi-Fi relay with energy metering"
+      }
+    },
+    {
+      "id": 90,
+      "model": "RC3",
+      "category": "Robot Vacuum",
+      "sub_category": "RC3 Robot Vacuum",
+      "pricing": {
+        "dpp": 112,
+        "shops": 118,
+        "installers": 124
+      },
+      "specs": {
+        "type": "Robot vacuum cleaner"
+      }
+    },
+    {
+      "id": 91,
+      "model": "RC3 PLUS",
+      "category": "Robot Vacuum",
+      "sub_category": "RC3 Plus Robot Vacuum",
+      "pricing": {
+        "dpp": 163,
+        "shops": 172,
+        "installers": 180
+      },
+      "specs": {
+        "type": "Robot vacuum + mop"
+      }
+    },
+    {
+      "id": 92,
+      "model": "RE5",
+      "category": "Robot Vacuum",
+      "sub_category": "RE5 Robot Vacuum",
+      "pricing": {
+        "dpp": 183,
+        "shops": 193,
+        "installers": 202
+      },
+      "specs": {
+        "type": "Advanced robot vacuum"
+      }
+    },
+    {
+      "id": 93,
+      "model": "RE5 PLUS",
+      "category": "Robot Vacuum",
+      "sub_category": "RE5 Plus Robot Vacuum",
+      "pricing": {
+        "dpp": 225,
+        "shops": 237,
+        "installers": 248
+      }
+    },
+    {
+      "id": 94,
+      "model": "RS20 pro",
+      "category": "Robot Vacuum",
+      "sub_category": "RS20 Pro Robot Vacuum (Flagship)",
+      "pricing": {
+        "dpp": 488,
+        "shops": 513,
+        "installers": 537
+      },
+      "specs": {
+        "type": "Flagship robot vacuum",
+        "features": [
+          "LiDAR navigation",
+          "Auto-empty",
+          "Mop lift"
+        ]
+      }
+    }
+  ]
+}

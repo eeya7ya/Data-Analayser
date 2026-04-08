@@ -1,0 +1,627 @@
+{
+  "database_info": {
+    "name": "Hikvision Gate Barrier System Database",
+    "version": "1.0",
+    "manufacturer": "Hikvision",
+    "category": "Gate Barrier & Parking Management",
+    "currency": "USD",
+    "price_tiers": {
+      "dpp": "Distributor Price",
+      "si": "System Integrator Price",
+      "end_user": "End User Price"
+    },
+    "last_updated": "2026-04-05",
+    "data_source": "Official Hikvision Datasheets & Product Pages"
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "DS-TMG4B0-RA(3m octagonal)(O-STD)",
+      "category": "Barrier Gate",
+      "sub_category": "Straight-Arm AC Barrier Gate",
+      "series": "4 Series",
+      "status": "Active",
+      "pricing": {
+        "dpp": 320,
+        "si": 350,
+        "end_user": null
+      },
+      "features": [
+        "DC frequency conversion",
+        "Rising/falling speed adjustable independently",
+        "Hand wheel manual operation on power failure",
+        "3 buttons: rise/fall/stop",
+        "Contactless monitoring",
+        "Multiple interfaces: IR cable, induction, toll system",
+        "Wireless remote control 430.5MHz",
+        "-30\u00b0C cold environment operation",
+        "IP54 protection"
+      ],
+      "barrier_gate": {
+        "boom_pole_type": "Octagonal straight boom pole",
+        "boom_pole_length_m": 3,
+        "boom_pole_direction": "Right",
+        "boom_pole_material": "Aluminum alloy",
+        "barrier_housing_material": "CRS (Cold Rolled Steel)",
+        "rising_speed_s": 3,
+        "falling_speed_s": 3,
+        "motor_type": "AC motor with DC frequency conversion",
+        "lifespan_cycles": 2500000,
+        "body_indicator": false
+      },
+      "interfaces": {
+        "control_inputs": [
+          "IR cable (low level signal)",
+          "Induction loop",
+          "Toll connection system"
+        ],
+        "remote_control": {
+          "frequency_mhz": 430.5,
+          "type": "Wireless"
+        }
+      },
+      "power": {
+        "supply": "220 VAC \u00b115%",
+        "consumption_w": 60
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": -30,
+          "max": 70
+        },
+        "working_temp_f": {
+          "min": -22,
+          "max": 158
+        },
+        "humidity_pct": {
+          "max": 90
+        },
+        "ip_rating": "IP54"
+      },
+      "physical": {
+        "dimensions_mm": {
+          "w": 355,
+          "h": 1035,
+          "d": 245
+        },
+        "dimensions_inch": {
+          "w": 14.0,
+          "h": 40.7,
+          "d": 9.6
+        },
+        "net_weight_kg": 41,
+        "net_weight_lb": 90.4,
+        "gross_weight_kg": 47,
+        "gross_weight_lb": 103.6,
+        "package_dimensions_mm": {
+          "w": 430,
+          "h": 1100,
+          "d": 360
+        },
+        "package_dimensions_inch": {
+          "w": 16.9,
+          "h": 43.3,
+          "d": 14.2
+        }
+      },
+      "available_models": [
+        "DS-TMG4B0-RA(3m)",
+        "DS-TMG4B0-RA(4m)",
+        "DS-TMG4B0-RA(6m)",
+        "DS-TMG4B0-LA(3m)",
+        "DS-TMG4B0-LA(4m)",
+        "DS-TMG4B0-LA(6m)"
+      ]
+    },
+    {
+      "id": 2,
+      "model": "DS-TMG520-H(3m octagonal)(O-STD)",
+      "category": "Barrier Gate",
+      "sub_category": "Straight-Arm DC Barrier Gate",
+      "series": "5 Series (High-End)",
+      "status": "Active",
+      "pricing": {
+        "dpp": 790,
+        "si": 830,
+        "end_user": null
+      },
+      "features": [
+        "DC brushless motor",
+        "Anti-condensation motor heating",
+        "Auto lock on power cutoff",
+        "Arrow indicator and strip light",
+        "Traffic signal light support",
+        "RS-485 communication",
+        "Remote configuration",
+        "Anti-fall radar compatible",
+        "99 speed shifts configurable",
+        "Delayed closing (10s default)"
+      ],
+      "barrier_gate": {
+        "boom_pole_type": "Octagonal straight boom pole",
+        "boom_pole_length_m": 3,
+        "boom_pole_direction": "Right (switchable)",
+        "boom_pole_material": "Aluminum alloy",
+        "matched_boom_types": [
+          "Cylinder 1-4m anti-collision",
+          "Octagonal straight 1-6m",
+          "Octagonal telescopic 4-6m"
+        ],
+        "barrier_housing_material": "CRS (Cold Rolled Steel)",
+        "rising_speed_s": 1.5,
+        "falling_speed_s": 1.5,
+        "motor_type": "DC brushless",
+        "lifespan_cycles": 5000000,
+        "body_indicator": false,
+        "boom_pole_falling_delay_s": 10,
+        "speed_shifts": 99,
+        "traffic_signal_light": "1 group (external 220VAC required)"
+      },
+      "interfaces": {
+        "control_inputs": [
+          "IR cable",
+          "Induction loop",
+          "RS-485"
+        ],
+        "current_max_a": 1.5,
+        "remote_control": {
+          "type": "Wireless"
+        }
+      },
+      "power": {
+        "supply": "220 VAC \u00b115%",
+        "consumption_w": 139
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": -30,
+          "max": 70
+        },
+        "humidity_pct": {
+          "max": 90
+        },
+        "ip_rating": "IP54"
+      },
+      "physical": {
+        "dimensions_mm": {
+          "w": 355,
+          "h": 1035,
+          "d": 245
+        },
+        "net_weight_kg": 45,
+        "gross_weight_kg": 52
+      },
+      "available_models": [
+        "DS-TMG520-H",
+        "DS-TMG520-H/A/B"
+      ]
+    },
+    {
+      "id": 3,
+      "model": "DS-TMG320-MR(Barrier Body)",
+      "category": "Barrier Gate",
+      "sub_category": "Barrier Gate Body (Medium Speed)",
+      "series": "3 Series",
+      "status": "Active",
+      "pricing": {
+        "dpp": 480,
+        "si": 500,
+        "end_user": 550
+      },
+      "features": [
+        "Medium speed barrier",
+        "Right-side boom pole",
+        "DC motor",
+        "Manual hand wheel override"
+      ],
+      "barrier_gate": {
+        "boom_pole_direction": "Right",
+        "barrier_housing_material": "CRS (Cold Rolled Steel)",
+        "motor_type": "DC",
+        "body_indicator": false,
+        "note": "Barrier body only \u2014 boom pole sold separately"
+      },
+      "available_models": [
+        "DS-TMG320-MR"
+      ]
+    },
+    {
+      "id": 4,
+      "model": "DS-TMG320-ML(Barrier Body)",
+      "category": "Barrier Gate",
+      "sub_category": "Barrier Gate Body (Medium Speed)",
+      "series": "3 Series",
+      "status": "Active",
+      "pricing": {
+        "dpp": 480,
+        "si": 500,
+        "end_user": 550
+      },
+      "features": [
+        "Medium speed barrier",
+        "Left-side boom pole",
+        "DC motor",
+        "Manual hand wheel override"
+      ],
+      "barrier_gate": {
+        "boom_pole_direction": "Left",
+        "barrier_housing_material": "CRS (Cold Rolled Steel)",
+        "motor_type": "DC",
+        "body_indicator": false,
+        "note": "Barrier body only \u2014 boom pole sold separately"
+      },
+      "available_models": [
+        "DS-TMG320-ML"
+      ]
+    },
+    {
+      "id": 5,
+      "model": "DS-TMG320-MR/B(Barrier Body)",
+      "category": "Barrier Gate",
+      "sub_category": "Barrier Gate Body with Indicator",
+      "series": "3 Series",
+      "status": "Active",
+      "pricing": {
+        "dpp": 520,
+        "si": 550,
+        "end_user": 600
+      },
+      "features": [
+        "Medium speed barrier",
+        "Right-side boom pole",
+        "Body indicator lights (Green arrow / Red prohibition)",
+        "DC motor",
+        "Manual hand wheel override"
+      ],
+      "barrier_gate": {
+        "boom_pole_direction": "Right",
+        "barrier_housing_material": "CRS (Cold Rolled Steel)",
+        "motor_type": "DC",
+        "body_indicator": true,
+        "indicator_green": "Arrow (passage allowed)",
+        "indicator_red": "Prohibition (no passage)",
+        "note": "Barrier body with LED indicator \u2014 boom pole sold separately"
+      },
+      "available_models": [
+        "DS-TMG320-MR/B"
+      ]
+    },
+    {
+      "id": 6,
+      "model": "DS-TMG320-ML/B(Barrier Body)",
+      "category": "Barrier Gate",
+      "sub_category": "Barrier Gate Body with Indicator",
+      "series": "3 Series",
+      "status": "Active",
+      "pricing": {
+        "dpp": 520,
+        "si": 550,
+        "end_user": 600
+      },
+      "features": [
+        "Medium speed barrier",
+        "Left-side boom pole",
+        "Body indicator lights",
+        "DC motor"
+      ],
+      "barrier_gate": {
+        "boom_pole_direction": "Left",
+        "barrier_housing_material": "CRS (Cold Rolled Steel)",
+        "motor_type": "DC",
+        "body_indicator": true,
+        "indicator_green": "Arrow (passage allowed)",
+        "indicator_red": "Prohibition (no passage)",
+        "note": "Barrier body with LED indicator \u2014 boom pole sold separately"
+      },
+      "available_models": [
+        "DS-TMG320-ML/B"
+      ]
+    },
+    {
+      "id": 7,
+      "model": "DS-TMG001-3D(2.6-4m)",
+      "category": "Boom Pole Accessory",
+      "sub_category": "Octagonal Boom Pole",
+      "series": "Accessory",
+      "status": "Active",
+      "pricing": {
+        "dpp": 60,
+        "si": 65,
+        "end_user": 75
+      },
+      "features": [
+        "Octagonal straight boom pole",
+        "Adjustable 2.6m to 4m length",
+        "Aluminum alloy construction"
+      ],
+      "specs": {
+        "type": "Octagonal straight boom pole",
+        "length_range_m": {
+          "min": 2.6,
+          "max": 4.0
+        },
+        "material": "Aluminum alloy",
+        "compatible_with": "DS-TMG320/DS-TMG420/DS-TMG520 series barrier gates"
+      },
+      "available_models": [
+        "DS-TMG001-3D(2.6-4m)"
+      ]
+    },
+    {
+      "id": 8,
+      "model": "DS-TMG420(4m octagonal)",
+      "category": "Barrier Gate",
+      "sub_category": "Straight-Arm DC Barrier Gate",
+      "series": "4 Series (Mid-Range)",
+      "status": "Active",
+      "pricing": {
+        "dpp": 610,
+        "si": 650,
+        "end_user": 750
+      },
+      "features": [
+        "Manual hand wheel override",
+        "Delayed closing 10s default",
+        "99 speed shifts",
+        "Auto open on power cutoff (optional)",
+        "Supports arrow indicator and strip light"
+      ],
+      "barrier_gate": {
+        "boom_pole_type": "Octagonal straight boom pole",
+        "boom_pole_length_m": 4,
+        "boom_pole_direction": "Configurable Left/Right",
+        "barrier_housing_material": "CRS (Cold Rolled Steel)",
+        "rising_speed_s": 3,
+        "falling_speed_s": 3,
+        "motor_type": "DC",
+        "boom_pole_falling_delay_s": 10,
+        "speed_shifts": 99,
+        "body_indicator": false
+      },
+      "power": {
+        "supply": "220 VAC \u00b115%",
+        "consumption_w": 139
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": -30,
+          "max": 60
+        },
+        "humidity_pct": {
+          "max": 90
+        }
+      },
+      "available_models": [
+        "DS-TMG420",
+        "DS-TMG420-L",
+        "DS-TMG420-R",
+        "DS-TMG420/B",
+        "DS-TMG420-L/B",
+        "DS-TMG420-R/B"
+      ]
+    },
+    {
+      "id": 9,
+      "model": "DS-TMG520-M(4m octagonal)",
+      "category": "Barrier Gate",
+      "sub_category": "Straight-Arm DC Barrier Gate",
+      "series": "5 Series (High-End)",
+      "status": "Active",
+      "pricing": {
+        "dpp": 950,
+        "si": 1100,
+        "end_user": 1250
+      },
+      "features": [
+        "DC brushless motor",
+        "Anti-condensation",
+        "Auto lock",
+        "Arrow indicator",
+        "Traffic signal light",
+        "RS-485",
+        "Anti-fall radar compatible",
+        "5 million cycle lifespan"
+      ],
+      "barrier_gate": {
+        "boom_pole_type": "Octagonal straight boom pole",
+        "boom_pole_length_m": 4,
+        "boom_pole_direction": "Right (switchable)",
+        "barrier_housing_material": "CRS (Cold Rolled Steel)",
+        "rising_speed_s": 3,
+        "falling_speed_s": 3,
+        "motor_type": "DC brushless",
+        "lifespan_cycles": 5000000,
+        "boom_pole_falling_delay_s": 10,
+        "speed_shifts": 99
+      },
+      "power": {
+        "supply": "220 VAC \u00b115%",
+        "consumption_w": 139
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": -30,
+          "max": 70
+        },
+        "humidity_pct": {
+          "max": 90
+        },
+        "ip_rating": "IP54"
+      },
+      "available_models": [
+        "DS-TMG520-M"
+      ]
+    },
+    {
+      "id": 10,
+      "model": "DS-TMG035(Anti-fall Radar)",
+      "category": "Safety Accessory",
+      "sub_category": "Anti-Fall Radar",
+      "series": "Radar",
+      "status": "Active",
+      "pricing": {
+        "dpp": 85,
+        "si": 90,
+        "end_user": 115
+      },
+      "features": [
+        "79GHz MMIC radar",
+        "Detects pedestrians and vehicles",
+        "Prevents boom pole falling on objects",
+        "LED status indicators",
+        "Auto parameter restore after reboot",
+        "Immune to EMI/dust/rain/snow",
+        "Direction recognition",
+        "Adjustable detection distance/width",
+        "RS-485 or Wi-Fi communication",
+        "Mobile app configuration"
+      ],
+      "specs": {
+        "frequency_ghz": 79,
+        "beam_width_deg": {
+          "vertical": 12,
+          "horizontal": 34
+        },
+        "output": "Relay output",
+        "communication": [
+          "RS-485",
+          "Wi-Fi"
+        ],
+        "installation_height_cm": 60,
+        "detection": "Pedestrian and vehicle",
+        "compatible_with": "All Hikvision barrier gate series"
+      },
+      "available_models": [
+        "DS-TMG035(Anti-fall Radar)",
+        "DS-TMG035(Trigger Radar)"
+      ]
+    },
+    {
+      "id": 11,
+      "model": "DS-TCG406-E(S)(12V/PoE)(2812)",
+      "category": "ANPR Camera",
+      "sub_category": "Entrance/Exit LPR Camera",
+      "series": "Parking Camera",
+      "status": "Active",
+      "pricing": {
+        "dpp": 400,
+        "si": 425,
+        "end_user": null
+      },
+      "features": [
+        "ANPR/LPR camera for parking",
+        "12VDC or PoE powered",
+        "2.8-12mm varifocal lens",
+        "Integrated with parking management system"
+      ],
+      "specs": {
+        "power": "12VDC / PoE",
+        "lens_mm": "2.8-12mm varifocal",
+        "function": "Automatic Number Plate Recognition",
+        "application": "Parking entrance/exit vehicle identification"
+      },
+      "available_models": [
+        "DS-TCG406-E(S)(12V/Poe)(2812)"
+      ]
+    },
+    {
+      "id": 12,
+      "model": "DS-TMG110(T/R)",
+      "category": "Safety Accessory",
+      "sub_category": "Infrared Beam Sensor",
+      "series": "Safety",
+      "status": "Active",
+      "pricing": {
+        "dpp": 15,
+        "si": 20,
+        "end_user": 25
+      },
+      "features": [
+        "Transmitter and receiver pair",
+        "Infrared beam detection",
+        "Vehicle/pedestrian presence detection",
+        "Prevents boom pole falling"
+      ],
+      "specs": {
+        "type": "IR beam transmitter/receiver pair",
+        "function": "Safety beam to prevent boom pole closing on vehicle/pedestrian",
+        "compatible_with": "All Hikvision barrier gate series"
+      },
+      "available_models": [
+        "DS-TMG110(T/R)"
+      ]
+    },
+    {
+      "id": 13,
+      "model": "DS-TMG320-MR/B(Barrier Body)",
+      "category": "Barrier Gate",
+      "sub_category": "Barrier Gate Body with Indicator",
+      "series": "3 Series",
+      "status": "Bundled/Project",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "note": "Zero price indicates bundled/project item or included in kit"
+    },
+    {
+      "id": 14,
+      "model": "DS-TMG001-6L",
+      "category": "Boom Pole Accessory",
+      "sub_category": "Boom Pole (6m)",
+      "series": "Accessory",
+      "status": "Bundled/Project",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "specs": {
+        "type": "Octagonal boom pole",
+        "length_m": 6,
+        "material": "Aluminum alloy"
+      },
+      "note": "Zero price indicates bundled/project item"
+    },
+    {
+      "id": 15,
+      "model": "DS-TMC407-EHR/4m str/R/TCG400",
+      "category": "System Bundle",
+      "sub_category": "Barrier + Camera Kit",
+      "series": "Integrated Kit",
+      "status": "Bundled/Project",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "specs": {
+        "description": "4m straight boom pole barrier gate with ANPR camera integration kit",
+        "includes": "Barrier gate + ANPR camera TCG400 series",
+        "boom_direction": "Right"
+      },
+      "note": "Zero price indicates bundled/project item"
+    },
+    {
+      "id": 16,
+      "model": "DS-TMG012-A1(new)(gray)",
+      "category": "Accessory",
+      "sub_category": "Barrier Gate Accessory",
+      "series": "Accessory",
+      "status": "Active",
+      "pricing": {
+        "dpp": 12,
+        "si": 13,
+        "end_user": 15
+      },
+      "specs": {
+        "color": "Gray",
+        "variant": "New version (A1)"
+      },
+      "available_models": [
+        "DS-TMG012-A1"
+      ]
+    }
+  ]
+}

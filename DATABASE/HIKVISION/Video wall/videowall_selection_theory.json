@@ -1,0 +1,408 @@
+{
+  "database_info": {
+    "name": "Video Wall Selection Theory - Standards Based",
+    "version": "1.0",
+    "purpose": "Engineering design tool for video wall system selection based on international standards",
+    "last_updated": "2026-04-05"
+  },
+  "selection_criteria": {
+    "1_technology_selection_lcd_vs_led": {
+      "standard": "Application Best Practice / ISO 11064",
+      "principle": "Technology choice is driven by viewing distance, seam tolerance, brightness needs, and budget",
+      "comparison": [
+        {
+          "type": "LCD Video Wall (e.g. DS-D2064LU-Y, DS-D2055LE-G)",
+          "pixel_pitch_range_mm": "0.5-0.75 (based on panel PPI)",
+          "brightness_typical_nits": "500-700",
+          "contrast_ratio": "1200:1 - 4000:1",
+          "seam_bezel_mm": "1.8 - 3.5 (bezel-to-bezel)",
+          "lifespan_hours": "60000-80000",
+          "best_for": "Control rooms, NOC/SOC, surveillance centers, command centers",
+          "advantages": "Lower cost per sqm, higher native resolution per panel, proven 24/7 reliability",
+          "disadvantages": "Visible seams between panels, brightness limited vs LED, larger depth"
+        },
+        {
+          "type": "LED Video Wall (e.g. DS-D4225FI-CWF)",
+          "pixel_pitch_range_mm": "0.9 - 4.8 (selectable by model)",
+          "brightness_typical_nits": "600-800 indoor / 5000+ outdoor",
+          "contrast_ratio": "5000:1+",
+          "seam_bezel_mm": "0 (truly seamless)",
+          "lifespan_hours": "100000+",
+          "best_for": "Boardrooms, exhibition halls, lobbies, broadcast, high-end command centers",
+          "advantages": "Zero seam, higher brightness, longer lifespan, front-serviceable, flexible sizes",
+          "disadvantages": "Higher cost per sqm, lower native resolution per module at larger pixel pitches"
+        }
+      ],
+      "decision_rule": "If seam visibility is critical \u2192 LED. If budget is primary concern and seams are acceptable \u2192 LCD. If viewing distance > 3m and P2.5 LED is used, pixel visibility is not an issue."
+    },
+    "2_pixel_pitch_selection_led": {
+      "standard": "Industry Practice / Viewing Distance Formula",
+      "principle": "Pixel pitch determines minimum comfortable viewing distance",
+      "formulas": {
+        "min_viewing_distance_m": {
+          "formula": "D_min (m) = pixel_pitch (mm) \u00d7 1.0 to 1.5",
+          "example": "P2.5 \u2192 min 2.5m to 3.75m",
+          "source": "LED industry standard rule of thumb"
+        },
+        "optimal_viewing_distance_m": {
+          "formula": "D_opt (m) = pixel_pitch (mm) \u00d7 3",
+          "example": "P2.5 \u2192 optimal at ~7.5m",
+          "source": "Industry practice"
+        },
+        "max_viewing_distance_m": {
+          "formula": "D_max (m) = pixel_pitch (mm) \u00d7 8 to 10",
+          "example": "P2.5 \u2192 max useful at ~20-25m"
+        }
+      },
+      "lookup_table": [
+        {
+          "pixel_pitch_mm": 1.25,
+          "designation": "P1.25",
+          "min_distance_m": 1.25,
+          "optimal_m": 3.75,
+          "application": "Close-up command center, boardroom"
+        },
+        {
+          "pixel_pitch_mm": 1.56,
+          "designation": "P1.56",
+          "min_distance_m": 1.56,
+          "optimal_m": 4.7,
+          "application": "Control room, meeting room"
+        },
+        {
+          "pixel_pitch_mm": 2.48,
+          "designation": "P2.5",
+          "min_distance_m": 2.5,
+          "optimal_m": 7.5,
+          "application": "Conference room, monitoring center, exhibition"
+        },
+        {
+          "pixel_pitch_mm": 3.9,
+          "designation": "P3.9",
+          "min_distance_m": 3.9,
+          "optimal_m": 11.7,
+          "application": "Large halls, retail, stadiums (outdoor)"
+        },
+        {
+          "pixel_pitch_mm": 4.8,
+          "designation": "P4.8",
+          "min_distance_m": 4.8,
+          "optimal_m": 14.4,
+          "application": "Outdoor signage, large venue"
+        }
+      ]
+    },
+    "3_lcd_bezel_seam_selection": {
+      "standard": "Application Best Practice",
+      "principle": "Smaller bezel = less visual disruption but higher cost",
+      "options": [
+        {
+          "bezel_to_bezel_mm": 3.5,
+          "example_model": "DS-D2046LU-Y / DS-D2064LU-Y",
+          "cost_tier": "Standard",
+          "application": "Surveillance video wall, budget control room, general monitoring"
+        },
+        {
+          "bezel_to_bezel_mm": 1.8,
+          "example_model": "DS-D2055LE-G",
+          "cost_tier": "Premium",
+          "application": "Command center, NOC/SOC, executive briefing room"
+        },
+        {
+          "bezel_to_bezel_mm": 0.88,
+          "example_model": "Near-seamless models",
+          "cost_tier": "Ultra-Premium",
+          "application": "Broadcast, high-end command center"
+        },
+        {
+          "bezel_to_bezel_mm": 0,
+          "example_model": "LED (DS-D4225FI-CWF)",
+          "cost_tier": "LED Premium",
+          "application": "Seamless required, boardroom, exhibition"
+        }
+      ],
+      "guideline": "For surveillance with 16+ camera channels: 3.5mm seam is acceptable. For map/GIS/SCADA single-image display: 1.8mm or LED recommended."
+    },
+    "4_screen_size_and_layout": {
+      "standard": "ISO 11064-5 / Application Practice",
+      "principle": "Total video wall size is driven by viewing distance, content, and operator count",
+      "lcd_standard_configurations": {
+        "2x2_46inch": {
+          "total_width_mm": 2044,
+          "total_height_mm": 1154,
+          "diagonal_inch": 92,
+          "resolution": "3840x2160 (combined)"
+        },
+        "3x3_46inch": {
+          "total_width_mm": 3066,
+          "total_height_mm": 1730,
+          "diagonal_inch": 138,
+          "resolution": "5760x3240 (combined)"
+        },
+        "2x2_55inch": {
+          "total_width_mm": 2423,
+          "total_height_mm": 1365,
+          "diagonal_inch": 110,
+          "resolution": "3840x2160 (combined)"
+        },
+        "3x3_55inch": {
+          "total_width_mm": 3635,
+          "total_height_mm": 2047,
+          "diagonal_inch": 165,
+          "resolution": "5760x3240 (combined)"
+        },
+        "4x4_55inch": {
+          "total_width_mm": 4846,
+          "total_height_mm": 2730,
+          "diagonal_inch": 220,
+          "resolution": "7680x4320 (combined)"
+        }
+      },
+      "led_standard_configurations": {
+        "fhd_1920x1080_p25": {
+          "modules_wxh": "8x8",
+          "wall_size_mm": {
+            "w": 4800,
+            "h": 2700
+          },
+          "note": "P2.5 module 600x337.5mm, 240x136 pixels per module"
+        },
+        "4k_3840x2160_p25": {
+          "modules_wxh": "16x16",
+          "wall_size_mm": {
+            "w": 9600,
+            "h": 5400
+          },
+          "note": "Requires multiple DS-D42C08-H controllers cascaded"
+        }
+      },
+      "viewing_distance_by_wall": {
+        "standard": "ISO 11064-5",
+        "formula": "Min viewing distance = 1.5 \u00d7 diagonal of total wall",
+        "note": "For LED walls, also apply pixel pitch minimum distance"
+      }
+    },
+    "5_brightness_requirements": {
+      "standard": "ISO 9241-307 / ISO 3664",
+      "principle": "Video wall brightness must overcome ambient light and maintain uniformity",
+      "requirements_by_environment": [
+        {
+          "environment": "Dark control room (<50 lux)",
+          "min_brightness_nits": 200,
+          "recommended_nits": 350,
+          "note": "Lower brightness reduces eye strain in dark rooms"
+        },
+        {
+          "environment": "Controlled lighting (100-300 lux)",
+          "min_brightness_nits": 350,
+          "recommended_nits": 500,
+          "note": "Standard for most NOC/SOC/control rooms"
+        },
+        {
+          "environment": "Office lighting (300-500 lux)",
+          "min_brightness_nits": 500,
+          "recommended_nits": 700,
+          "note": "Brighter needed to overcome ambient reflections"
+        },
+        {
+          "environment": "Lobby / public (500+ lux)",
+          "min_brightness_nits": 700,
+          "recommended_nits": 1000,
+          "note": "High-brightness LED typically required"
+        },
+        {
+          "environment": "Outdoor / semi-outdoor",
+          "min_brightness_nits": 3000,
+          "recommended_nits": 5000,
+          "note": "Outdoor-rated LED panels only"
+        }
+      ],
+      "uniformity": {
+        "standard": "ISO 9241-307",
+        "lcd_requirement": "Factory calibrated color and brightness uniformity across all panels",
+        "led_requirement": "Brightness uniformity \u226597%, Color uniformity \u00b10.003 Cx,Cy",
+        "note": "Hikvision LCD video walls include factory calibration for multi-panel uniformity"
+      }
+    },
+    "6_controller_sizing": {
+      "standard": "Manufacturer / System Design",
+      "principle": "Controller must support total pixel load and input requirements",
+      "ds_d42c08h_capacity": {
+        "max_load_pixels": 5000000,
+        "output_ports": 8,
+        "inputs": "2x HDMI 2.0 (4K@60), 1x DP 1.2 (4K@60), 1x DVI",
+        "max_resolution_input": "4096x2160@60Hz",
+        "cascade": "Multi-controller cascade for larger walls"
+      },
+      "sizing_formula": {
+        "pixels_per_module": "module_resolution_w \u00d7 module_resolution_h",
+        "total_pixels": "number_of_modules \u00d7 pixels_per_module",
+        "controllers_needed": "ceiling(total_pixels / 5,000,000)",
+        "example": "8x8 P2.5 modules: 64 \u00d7 (240\u00d7136) = 2,088,960 pixels \u2192 1 controller sufficient"
+      },
+      "lcd_controller_note": "LCD video walls use built-in scalers per panel + optional external video wall processor for source management. Each LCD panel has its own HDMI/DVI/DP/VGA inputs and HDMI loop-out for daisy chain up to 30 screens."
+    },
+    "7_structural_mounting": {
+      "standard": "Manufacturer / Local Building Code",
+      "principle": "Wall structure must support total weight with safety margin",
+      "lcd_mounting": {
+        "bracket_types": [
+          "Wall-mounted (DS-DN4601W / DS-DN5501W)",
+          "Modular frame (DS-DN46C2M/F + DS-DN46C2M/B)"
+        ],
+        "wall_requirement": "Reinforced concrete or steel stud wall",
+        "load_calculation": "Total_weight = (unit_weight \u00d7 number_of_units) + (bracket_weight \u00d7 number_of_brackets)",
+        "safety_factor": 2.0,
+        "alignment": "Brackets provide fine adjustment for bezel alignment (critical for 1.8mm seam)",
+        "depth_from_wall_mm": "100-200 typical (for ventilation and cable access)"
+      },
+      "led_mounting": {
+        "bracket_types": [
+          "DS-DL116033W (1x1)",
+          "DS-DL126033W (1x2)",
+          "DS-DL226033W (2x2)"
+        ],
+        "bracket_material": "AL6063 Aluminum with electrostatic spray coating",
+        "load_calculation": "Total_weight = (module_weight \u00d7 number_of_modules) + (bracket_weight)",
+        "front_access": "LED modules are front-serviceable \u2014 no rear access needed",
+        "depth_from_wall_mm": "80-120 typical"
+      },
+      "seismic_note": "In seismic zones (IBC/ASCE 7), video wall mounting must include anti-tip safety restraints"
+    },
+    "8_power_infrastructure": {
+      "standard": "IEC 60364 / NEC",
+      "principle": "Dedicated circuits with UPS for video wall systems",
+      "lcd_power_sizing": {
+        "per_panel_max_w": "187-250W depending on size",
+        "formula": "Total_power = sum(panel_watts) \u00d7 1.25 safety_factor + controller_watts",
+        "example_3x3_55inch": "9 \u00d7 187W \u00d7 1.25 = 2,104W \u2192 1x 16A 230V circuit adequate",
+        "ups_recommendation": "Online UPS, minimum 15 min runtime, sized for total load + 20%"
+      },
+      "led_power_sizing": {
+        "per_sqm_peak_w": 375,
+        "per_sqm_average_w": 125,
+        "formula": "Total_peak = total_area_m2 \u00d7 375 + controller_watts",
+        "formula_average": "Total_avg = total_area_m2 \u00d7 125 + controller_watts",
+        "example_8x8_p25": "64 modules \u00d7 0.2025m\u00b2 = 12.96m\u00b2 \u2192 Peak: 4,860W, Avg: 1,620W",
+        "note": "Size circuit breakers for peak consumption, UPS for average"
+      },
+      "heat_dissipation": {
+        "formula": "BTU/hr = Total_watts \u00d7 3.412",
+        "note": "Add to room HVAC load calculation. Video walls are significant heat sources."
+      }
+    },
+    "9_signal_distribution": {
+      "standard": "HDMI Spec / HDBaseT / IP-based",
+      "principle": "Signal path must support resolution at required distance without degradation",
+      "lcd_signal_options": [
+        {
+          "method": "HDMI daisy-chain (loop-out)",
+          "max_screens": 30,
+          "max_cable_m": 15,
+          "resolution": "1080p",
+          "note": "Built into Hikvision LCD panels. Simplest cabling."
+        },
+        {
+          "method": "DP daisy-chain",
+          "max_screens": 30,
+          "max_cable_m": 3,
+          "resolution": "4K@60Hz",
+          "note": "Short cable runs only"
+        },
+        {
+          "method": "Video wall processor + HDMI",
+          "max_screens": "Unlimited",
+          "max_cable_m": 15,
+          "resolution": "4K input, 1080p per output",
+          "note": "Required for complex layouts and windowing"
+        },
+        {
+          "method": "HDBaseT extenders",
+          "max_screens": "Unlimited",
+          "max_cable_m": 100,
+          "resolution": "4K@60Hz",
+          "note": "Uses Cat6a cabling. Best for long runs."
+        },
+        {
+          "method": "Hikvision NVR/Decoder direct",
+          "max_screens": "Unlimited",
+          "max_cable_m": "Network",
+          "resolution": "Varies",
+          "note": "For surveillance-only video walls via iVMS/HikCentral"
+        }
+      ],
+      "led_signal": {
+        "method": "DS-D42C08-H controller \u2192 Gigabit Ethernet \u2192 LED modules",
+        "cable_type": "Cat6 Ethernet",
+        "max_cable_m": 100,
+        "cascade": "Multiple controllers for walls exceeding 5MP"
+      }
+    },
+    "10_environmental_and_ventilation": {
+      "standard": "TIA-942 / ASHRAE / ISO 11064-6",
+      "principle": "Video walls generate significant heat and require planned ventilation",
+      "requirements": {
+        "lcd_rear_clearance_mm": {
+          "min": 100,
+          "recommended": 200,
+          "note": "For passive cooling and maintenance access"
+        },
+        "led_rear_clearance_mm": {
+          "min": 50,
+          "recommended": 100,
+          "note": "LED front-serviceable requires less rear space"
+        },
+        "ambient_temperature_c": {
+          "min": 0,
+          "max": 40,
+          "recommended_max": 35
+        },
+        "humidity_pct": {
+          "min": 10,
+          "max": 80
+        },
+        "airflow": "Ensure air circulation behind LCD panels. Avoid enclosed cavities without ventilation.",
+        "hvac_load": "Add full video wall power consumption to room cooling calculation"
+      }
+    },
+    "11_compliance_standards": {
+      "principle": "All video wall components must meet applicable standards",
+      "mandatory": [
+        {
+          "standard": "IEC 62368-1:2023",
+          "scope": "Safety of AV/IT equipment"
+        },
+        {
+          "standard": "EN 55032 Class A",
+          "scope": "EMC emissions (commercial/industrial)"
+        },
+        {
+          "standard": "EN 55035",
+          "scope": "EMC immunity"
+        },
+        {
+          "standard": "RoHS 2011/65/EU",
+          "scope": "Hazardous substance restriction"
+        },
+        {
+          "standard": "ErP Lot 6",
+          "scope": "Standby power \u22640.5W"
+        },
+        {
+          "standard": "IP60 (LED front)",
+          "scope": "Dust protection for LED modules (IEC 60529)"
+        }
+      ],
+      "video_wall_specific": [
+        {
+          "standard": "EN 50132-7 / BS EN 62676-4",
+          "scope": "CCTV monitor requirements for surveillance video walls"
+        },
+        {
+          "standard": "ISO 11064 (all parts)",
+          "scope": "Control centre ergonomic design \u2014 display layout, viewing distances, operator stations"
+        }
+      ]
+    }
+  }
+}

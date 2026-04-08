@@ -1,0 +1,771 @@
+{
+  "database_info": {
+    "name": "Hikvision Network Switches Database",
+    "version": "1.0",
+    "manufacturer": "Hikvision",
+    "category": "Network Switches & PoE Switches",
+    "currency": "USD",
+    "last_updated": "2026-04-05",
+    "data_source": "Official Hikvision Datasheets & Product Pages",
+    "model_naming": {
+      "DS-3E0": "Unmanaged Switch",
+      "DS-3E1": "Managed Switch (Smart/L2)",
+      "05": "5-port",
+      "06": "6-port",
+      "08": "8-port",
+      "09": "9-port (8+1 uplink)",
+      "10": "10-port (8+2 uplink)",
+      "18": "18-port (16+2 uplink)",
+      "26": "26-port (24+2 uplink)",
+      "D": "Desktop (no PoE)",
+      "P": "PoE",
+      "05D": "5-port desktop non-PoE",
+      "05P": "5-port PoE",
+      "suffix_E": "Standard",
+      "suffix_E/M": "100Mbps Fast Ethernet",
+      "suffix_E(B/C)": "Variant revision",
+      "suffix_EI": "Intelligent managed (web GUI)",
+      "suffix_EI/M": "Intelligent managed 100Mbps",
+      "suffix_SI": "Smart managed (L2+ features)",
+      "05xx": "100Mbps ports",
+      "E prefix_0": "Unmanaged 100Mbps",
+      "E prefix_5": "Unmanaged Gigabit",
+      "EI prefix_1": "Managed 100Mbps",
+      "EI prefix_5": "Managed Gigabit"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "DS-3E0105D-E",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged Desktop (Non-PoE)",
+      "total_ports": 5,
+      "poe_ports": 0,
+      "poe_budget_w": 0,
+      "uplink_ports": 0,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "notes": "Bundled/project"
+    },
+    {
+      "id": 2,
+      "model": "DS-3E0108D-E",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged Desktop (Non-PoE)",
+      "total_ports": 8,
+      "poe_ports": 0,
+      "poe_budget_w": 0,
+      "uplink_ports": 0,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 4.75,
+        "si": 5
+      }
+    },
+    {
+      "id": 3,
+      "model": "DS-3E0505D-E",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged Desktop Gigabit (Non-PoE)",
+      "total_ports": 5,
+      "poe_ports": 0,
+      "poe_budget_w": 0,
+      "uplink_ports": 0,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 8.75,
+        "si": 9.75
+      }
+    },
+    {
+      "id": 4,
+      "model": "DS-3E0508D-E",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged Desktop Gigabit (Non-PoE)",
+      "total_ports": 8,
+      "poe_ports": 0,
+      "poe_budget_w": 0,
+      "uplink_ports": 0,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 14,
+        "si": 14.75
+      }
+    },
+    {
+      "id": 5,
+      "model": "DS-3E0524-E",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged Rackmount Gigabit (Non-PoE)",
+      "total_ports": 24,
+      "poe_ports": 0,
+      "poe_budget_w": 0,
+      "uplink_ports": 0,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 45,
+        "si": 45
+      }
+    },
+    {
+      "id": 6,
+      "model": "DS-3E0105P-E/M",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE 100Mbps",
+      "total_ports": 5,
+      "poe_ports": 4,
+      "poe_budget_w": 60,
+      "uplink_ports": 1,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 15,
+        "si": 16
+      },
+      "notes": "4 PoE + 1 uplink"
+    },
+    {
+      "id": 7,
+      "model": "DS-3E0106P-E/M",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE 100Mbps",
+      "total_ports": 6,
+      "poe_ports": 4,
+      "poe_budget_w": 60,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 18,
+        "si": 19
+      },
+      "notes": "4 PoE + 2 uplink"
+    },
+    {
+      "id": 8,
+      "model": "DS-3E0109P-E/M",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE 100Mbps",
+      "total_ports": 9,
+      "poe_ports": 8,
+      "poe_budget_w": 110,
+      "uplink_ports": 1,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 25,
+        "si": 25
+      },
+      "notes": "8 PoE + 1 uplink"
+    },
+    {
+      "id": 9,
+      "model": "DS-3E0310P-E/M",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE 100Mbps",
+      "total_ports": 10,
+      "poe_ports": 8,
+      "poe_budget_w": 110,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 28,
+        "si": 28
+      },
+      "notes": "8 PoE + 2 uplink"
+    },
+    {
+      "id": 10,
+      "model": "DS-3E0318P-E/M",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE 100Mbps",
+      "total_ports": 18,
+      "poe_ports": 16,
+      "poe_budget_w": 230,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 67,
+        "si": 68
+      },
+      "notes": "16 PoE + 2 uplink"
+    },
+    {
+      "id": 11,
+      "model": "DS-3E0326P-E/M",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE 100Mbps",
+      "total_ports": 26,
+      "poe_ports": 24,
+      "poe_budget_w": 370,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 90,
+        "si": 93
+      },
+      "notes": "24 PoE + 2 uplink"
+    },
+    {
+      "id": 12,
+      "model": "DS-3E0105P-E(B)",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE 100Mbps (Rev B)",
+      "total_ports": 5,
+      "poe_ports": 4,
+      "poe_budget_w": 60,
+      "uplink_ports": 1,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "notes": "Bundled/project"
+    },
+    {
+      "id": 13,
+      "model": "DS-3E0109P-E(C)",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE 100Mbps (Rev C)",
+      "total_ports": 9,
+      "poe_ports": 8,
+      "poe_budget_w": 110,
+      "uplink_ports": 1,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "notes": "Bundled/project"
+    },
+    {
+      "id": 14,
+      "model": "DS-3E0318P-E(C)",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE 100Mbps (Rev C)",
+      "total_ports": 18,
+      "poe_ports": 16,
+      "poe_budget_w": 230,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "notes": "Bundled/project"
+    },
+    {
+      "id": 15,
+      "model": "DS-3E0326P-E(C)",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE 100Mbps (Rev C)",
+      "total_ports": 26,
+      "poe_ports": 24,
+      "poe_budget_w": 370,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 110,
+        "si": 110
+      }
+    },
+    {
+      "id": 16,
+      "model": "DS-3E0505P-E",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE Gigabit",
+      "total_ports": 5,
+      "poe_ports": 4,
+      "poe_budget_w": 60,
+      "uplink_ports": 1,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "notes": "Bundled/project"
+    },
+    {
+      "id": 17,
+      "model": "DS-3E0510P-E",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE Gigabit",
+      "total_ports": 10,
+      "poe_ports": 8,
+      "poe_budget_w": 110,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "notes": "Bundled/project"
+    },
+    {
+      "id": 18,
+      "model": "DS-3E0505P-E/M",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE Gigabit",
+      "total_ports": 5,
+      "poe_ports": 4,
+      "poe_budget_w": 60,
+      "uplink_ports": 1,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 19,
+        "si": 20
+      }
+    },
+    {
+      "id": 19,
+      "model": "DS-3E0510P-E/M",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE Gigabit",
+      "total_ports": 10,
+      "poe_ports": 8,
+      "poe_budget_w": 110,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 32,
+        "si": 33
+      }
+    },
+    {
+      "id": 20,
+      "model": "DS-3E0518P-E/M",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE Gigabit",
+      "total_ports": 18,
+      "poe_ports": 16,
+      "poe_budget_w": 230,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 85,
+        "si": 88
+      }
+    },
+    {
+      "id": 21,
+      "model": "DS-3E0526P-E/M",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE Gigabit",
+      "total_ports": 26,
+      "poe_ports": 24,
+      "poe_budget_w": 370,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 125,
+        "si": 125
+      }
+    },
+    {
+      "id": 22,
+      "model": "DS-3E0518P-E",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE Gigabit",
+      "total_ports": 18,
+      "poe_ports": 16,
+      "poe_budget_w": 230,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 95,
+        "si": 98
+      }
+    },
+    {
+      "id": 23,
+      "model": "DS-3E0526P-E",
+      "category": "Network Switch",
+      "sub_category": "Unmanaged PoE Gigabit",
+      "total_ports": 26,
+      "poe_ports": 24,
+      "poe_budget_w": 370,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Unmanaged",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "notes": "Bundled/project"
+    },
+    {
+      "id": 24,
+      "model": "DS-3E1105P-EI/M",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE 100Mbps",
+      "total_ports": 5,
+      "poe_ports": 4,
+      "poe_budget_w": 60,
+      "uplink_ports": 1,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 17,
+        "si": 17
+      }
+    },
+    {
+      "id": 25,
+      "model": "DS-3E1106P-EI/M",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE 100Mbps",
+      "total_ports": 6,
+      "poe_ports": 4,
+      "poe_budget_w": 60,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 20,
+        "si": 21
+      }
+    },
+    {
+      "id": 26,
+      "model": "DS-3E1309P-EI/M",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE 100Mbps",
+      "total_ports": 9,
+      "poe_ports": 8,
+      "poe_budget_w": 110,
+      "uplink_ports": 1,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 27,
+        "si": 29
+      },
+      "notes": "8 PoE + 1 Gigabit uplink"
+    },
+    {
+      "id": 27,
+      "model": "DS-3E1310P-EI/M",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE 100Mbps",
+      "total_ports": 10,
+      "poe_ports": 8,
+      "poe_budget_w": 110,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 30,
+        "si": 32
+      },
+      "notes": "8 PoE + 2 Gigabit uplink"
+    },
+    {
+      "id": 28,
+      "model": "DS-3E1318P-EI/M",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE 100Mbps",
+      "total_ports": 18,
+      "poe_ports": 16,
+      "poe_budget_w": 230,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 68,
+        "si": 69
+      }
+    },
+    {
+      "id": 29,
+      "model": "DS-3E1326P-EI/M",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE 100Mbps",
+      "total_ports": 26,
+      "poe_ports": 24,
+      "poe_budget_w": 370,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 93,
+        "si": 93
+      }
+    },
+    {
+      "id": 30,
+      "model": "DS-3E1309P-EI",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE 100Mbps",
+      "total_ports": 9,
+      "poe_ports": 8,
+      "poe_budget_w": 110,
+      "uplink_ports": 1,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 32,
+        "si": 32
+      }
+    },
+    {
+      "id": 31,
+      "model": "DS-3E1318P-EI",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE 100Mbps",
+      "total_ports": 18,
+      "poe_ports": 16,
+      "poe_budget_w": 230,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 85,
+        "si": 85
+      }
+    },
+    {
+      "id": 32,
+      "model": "DS-3E1326P-EI",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE 100Mbps",
+      "total_ports": 26,
+      "poe_ports": 24,
+      "poe_budget_w": 370,
+      "uplink_ports": 2,
+      "port_speed": "10/100Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 120,
+        "si": 120
+      }
+    },
+    {
+      "id": 33,
+      "model": "DS-3E1505P-EI/M",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE Gigabit",
+      "total_ports": 5,
+      "poe_ports": 4,
+      "poe_budget_w": 60,
+      "uplink_ports": 1,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 18.5,
+        "si": 19.5
+      }
+    },
+    {
+      "id": 34,
+      "model": "DS-3E1510P-EI/M",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE Gigabit",
+      "total_ports": 10,
+      "poe_ports": 8,
+      "poe_budget_w": 110,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 34,
+        "si": 35
+      }
+    },
+    {
+      "id": 35,
+      "model": "DS-3E1510P-EI/M-8P2F",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE Gigabit + SFP",
+      "total_ports": 10,
+      "poe_ports": 8,
+      "poe_budget_w": 110,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 2,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 38,
+        "si": 38
+      },
+      "notes": "8 PoE + 2 SFP uplinks"
+    },
+    {
+      "id": 36,
+      "model": "DS-3E1518P-EI/M",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE Gigabit",
+      "total_ports": 18,
+      "poe_ports": 16,
+      "poe_budget_w": 230,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 85,
+        "si": 87
+      }
+    },
+    {
+      "id": 37,
+      "model": "DS-3E1526P-EI/M",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE Gigabit",
+      "total_ports": 26,
+      "poe_ports": 24,
+      "poe_budget_w": 370,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 117,
+        "si": 120
+      }
+    },
+    {
+      "id": 38,
+      "model": "DS-3E1505P-EI",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE Gigabit",
+      "total_ports": 5,
+      "poe_ports": 4,
+      "poe_budget_w": 60,
+      "uplink_ports": 1,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 25,
+        "si": 26
+      }
+    },
+    {
+      "id": 39,
+      "model": "DS-3E1518P-EI",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE Gigabit",
+      "total_ports": 18,
+      "poe_ports": 16,
+      "poe_budget_w": 230,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 100,
+        "si": 105
+      }
+    },
+    {
+      "id": 40,
+      "model": "DS-3E1526P-EI",
+      "category": "Network Switch",
+      "sub_category": "Managed PoE Gigabit",
+      "total_ports": 26,
+      "poe_ports": 24,
+      "poe_budget_w": 370,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Managed (Web)",
+      "pricing": {
+        "dpp": 158,
+        "si": 162
+      }
+    },
+    {
+      "id": 41,
+      "model": "DS-3E1518P-SI",
+      "category": "Network Switch",
+      "sub_category": "Smart Managed PoE Gigabit (L2+)",
+      "total_ports": 18,
+      "poe_ports": 16,
+      "poe_budget_w": 230,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Smart Managed (L2+)",
+      "pricing": {
+        "dpp": 148,
+        "si": 150
+      },
+      "notes": "VLAN, QoS, IGMP snooping, STP, port mirroring, ACL"
+    },
+    {
+      "id": 42,
+      "model": "DS-3E1526P-SI",
+      "category": "Network Switch",
+      "sub_category": "Smart Managed PoE Gigabit (L2+)",
+      "total_ports": 26,
+      "poe_ports": 24,
+      "poe_budget_w": 370,
+      "uplink_ports": 2,
+      "port_speed": "10/100/1000Mbps",
+      "sfp_ports": 0,
+      "managed": "Smart Managed (L2+)",
+      "pricing": {
+        "dpp": 195,
+        "si": 200
+      },
+      "notes": "VLAN, QoS, IGMP snooping, STP, port mirroring, ACL"
+    }
+  ]
+}

@@ -1,0 +1,349 @@
+{
+  "database_info": {
+    "name": "Turbo HD Analog Camera Selection Theory - Standards Based",
+    "version": "1.0",
+    "purpose": "Engineering design tool for analog camera selection",
+    "last_updated": "2026-04-05"
+  },
+  "selection_criteria": {
+    "1_resolution_selection": {
+      "standard": "EN 62676-4 / Application Requirements",
+      "principle": "Resolution determines detail level and pixel density at target distance",
+      "tiers": [
+        {
+          "resolution": "2MP (1080p)",
+          "pixel_density_ppm": 1920,
+          "best_for": "General overview, wide area, budget",
+          "ppf_at_10m_2_8mm": 67,
+          "note": "Minimum for modern installations"
+        },
+        {
+          "resolution": "5MP",
+          "pixel_density_ppm": 2560,
+          "best_for": "Enhanced detail, face recognition at closer range, license plates",
+          "ppf_at_10m_2_8mm": 89,
+          "note": "Good balance of detail vs storage"
+        },
+        {
+          "resolution": "8MP (4K)",
+          "pixel_density_ppm": 3840,
+          "best_for": "Wide area with high detail, forensic quality, large open spaces",
+          "ppf_at_10m_2_8mm": 134,
+          "note": "Requires HUHI DVR and more storage"
+        }
+      ],
+      "ppf_requirements": {
+        "standard": "EN 62676-4 / IEC 62676-4",
+        "detection": "25 PPM (pixels per meter) \u2014 detect presence of person",
+        "observation": "62 PPM \u2014 determine actions/behavior",
+        "recognition": "125 PPM \u2014 recognize known individual",
+        "identification": "250 PPM \u2014 identify unknown individual (court evidence quality)"
+      }
+    },
+    "2_form_factor_selection": {
+      "standard": "Application / Installation Environment",
+      "principle": "Camera form determines mounting, aesthetics, and vandal resistance",
+      "types": [
+        {
+          "form": "Turret (Eyeball)",
+          "models": "76xx, 70xx, 72xx, 78xx, 79xx",
+          "advantages": "Compact, versatile angle, no IR reflection on dome cover, easy aim adjustment",
+          "disadvantages": "Less vandal-resistant than dome",
+          "best_for": "Indoor ceilings, eaves, soffits, residential",
+          "typical_ip": "IP67 (outdoor models)"
+        },
+        {
+          "form": "Bullet",
+          "models": "16xx, 10xx, 12xx, 17xx, 19xx",
+          "advantages": "Long IR range, visible deterrent, wall/ceiling mount, built-in sun shade",
+          "disadvantages": "More visible/obtrusive, catches dust/spider webs",
+          "best_for": "Outdoor perimeter, parking lots, building facades, long corridors",
+          "typical_ip": "IP67"
+        },
+        {
+          "form": "Dome",
+          "models": "56xx, 57xx",
+          "advantages": "Discrete, vandal-resistant (IK10), difficult to determine aim direction",
+          "disadvantages": "IR reflection on dome cover possible, harder to aim",
+          "best_for": "Vandal-prone areas, public spaces, retail, elevators",
+          "typical_ip": "IP67, IK10 (vandal models)"
+        }
+      ]
+    },
+    "3_lens_selection": {
+      "standard": "Optical Design / Scene Requirements",
+      "principle": "Lens focal length determines field of view and detail at distance",
+      "fixed_lenses": [
+        {
+          "focal_length_mm": 2.4,
+          "hfov_deg": 110,
+          "best_for": "Ultra-wide: small rooms, corridors, elevators"
+        },
+        {
+          "focal_length_mm": 2.8,
+          "hfov_deg": 102,
+          "best_for": "Standard wide: rooms, entrances, retail \u2014 MOST COMMON"
+        },
+        {
+          "focal_length_mm": 3.6,
+          "hfov_deg": 80,
+          "best_for": "Medium: parking lots, hallways, building perimeter \u2014 MOST COMMON"
+        },
+        {
+          "focal_length_mm": 6,
+          "hfov_deg": 54,
+          "best_for": "Narrow: long corridors, fence lines, specific targets"
+        }
+      ],
+      "varifocal_lenses": [
+        {
+          "focal_length_mm": "2.8-12mm",
+          "type": "Manual varifocal",
+          "best_for": "Adjustable scene framing on site",
+          "models": "VFIR3F, VFIRF"
+        },
+        {
+          "focal_length_mm": "2.7-13.5mm",
+          "type": "Motorized zoom",
+          "best_for": "Remote zoom adjustment, flexible coverage",
+          "models": "IT3ZF, AIT3ZF"
+        }
+      ],
+      "selection_rule": "2.8mm for areas up to 15m wide. 3.6mm for areas 10-25m deep. 6mm for 25-50m corridors. Motorized for uncertain scenes."
+    },
+    "4_ir_range_selection": {
+      "standard": "Manufacturer / Scene Requirements",
+      "principle": "IR range must exceed maximum target distance in complete darkness",
+      "ranges": [
+        {
+          "ir_range_m": 20,
+          "suffix": "ITPF/EXIPF/PF",
+          "best_for": "Indoor rooms, doorways, small areas"
+        },
+        {
+          "ir_range_m": 30,
+          "suffix": "IT1F/ITMF",
+          "best_for": "Standard outdoor, parking bays, building entrances"
+        },
+        {
+          "ir_range_m": 40,
+          "suffix": "VFIR3F/F",
+          "best_for": "Medium outdoor, small parking lots"
+        },
+        {
+          "ir_range_m": 60,
+          "suffix": "IT3F",
+          "best_for": "Long perimeter, large parking lots, fence lines"
+        },
+        {
+          "ir_range_m": 80,
+          "suffix": "IT5F",
+          "best_for": "Very long range, industrial perimeter, open fields"
+        }
+      ],
+      "exir_technology": "Hikvision EXIR provides uniform IR illumination without hot spots. EXIR 2.0 offers even longer range and lower power."
+    },
+    "5_colorvu_vs_standard_ir": {
+      "standard": "Application / Lighting Conditions",
+      "principle": "ColorVu provides full-color 24/7 using white LEDs. Standard uses IR for B&W night vision.",
+      "comparison": [
+        {
+          "technology": "Standard EXIR",
+          "night_image": "Black & white",
+          "light_source": "IR LEDs (invisible)",
+          "min_illumination_lux": 0.01,
+          "advantage": "Covert, no visible light",
+          "disadvantage": "No color at night, harder to identify clothing/vehicle color",
+          "models": "D0T, H0T, U0T, U1T series"
+        },
+        {
+          "technology": "ColorVu",
+          "night_image": "Full color",
+          "light_source": "White LEDs (visible warm light)",
+          "min_illumination_lux": 0.0005,
+          "advantage": "Full color 24/7, better evidence quality, identifies colors",
+          "disadvantage": "Visible white light may cause light pollution",
+          "models": "DF0T, KF0T, UF3T series"
+        },
+        {
+          "technology": "Smart Hybrid Light",
+          "night_image": "IR default, white LED on motion",
+          "light_source": "IR + White LEDs (switchable)",
+          "min_illumination_lux": 0.001,
+          "advantage": "Best of both \u2014 covert monitoring + color on events",
+          "disadvantage": "Slightly higher cost",
+          "models": "K0T-EXLPF series"
+        },
+        {
+          "technology": "Ultra Low Light",
+          "night_image": "Color in very low light",
+          "light_source": "Enhanced sensor (no supplemental light)",
+          "min_illumination_lux": 0.003,
+          "advantage": "Natural color in low light without LEDs",
+          "disadvantage": "Premium price",
+          "models": "H8T, D3T series"
+        }
+      ],
+      "recommendation": "For evidence quality (clothing/vehicle color) \u2192 ColorVu. For covert surveillance \u2192 Standard IR. For mixed \u2192 Smart Hybrid Light."
+    },
+    "6_cable_and_power": {
+      "standard": "EN 50173 / Manufacturer",
+      "principle": "Turbo HD cameras use coaxial cable for video and separate power",
+      "cabling": {
+        "coaxial": {
+          "type": "RG59 or RG6",
+          "max_distance_m": {
+            "2MP": 500,
+            "5MP": 300,
+            "8MP": 200
+          },
+          "impedance_ohm": 75,
+          "connector": "BNC"
+        },
+        "utp_with_balun": {
+          "type": "Cat5e/Cat6 UTP with video balun",
+          "max_distance_m": 200,
+          "note": "Use passive balun up to 200m for 1080p. Active balun for longer."
+        },
+        "poc": {
+          "type": "Power over Coax",
+          "models": "UF3T-E suffix, HTHI DVR",
+          "max_distance_m": 200,
+          "note": "Power + video on single coax. Requires PoC-compatible DVR (HTHI series)."
+        }
+      },
+      "power": {
+        "standard_power": "12VDC \u00b125%, separate PSU or centralized power supply",
+        "typical_consumption_w": {
+          "standard_ir": 4,
+          "colorvu": 7,
+          "motorized": 7,
+          "ptz": 24
+        },
+        "cable": "2-core 0.75-1.0mm\u00b2 for power",
+        "voltage_drop": "Calculate voltage drop for runs >30m. Use thicker cable or higher voltage (24VAC) for long runs."
+      }
+    },
+    "7_weatherproofing_and_vandal": {
+      "standard": "IEC 60529 (IP) / IEC 62262 (IK)",
+      "principle": "IP and IK ratings must match installation environment",
+      "ratings": {
+        "IP67": {
+          "dust": "Dust-tight (6)",
+          "water": "Temporary submersion 1m/30min (7)",
+          "use": "Standard outdoor \u2014 rain, snow, dust"
+        },
+        "IP66": {
+          "dust": "Dust-tight (6)",
+          "water": "Powerful water jets (6)",
+          "use": "Outdoor \u2014 heavy rain, car wash areas"
+        },
+        "IK10": {
+          "impact": "20 joules (5kg from 40cm)",
+          "use": "Vandal-prone areas, public spaces, prisons"
+        },
+        "IK08": {
+          "impact": "5 joules",
+          "use": "Semi-public areas"
+        }
+      },
+      "housing_material": {
+        "plastic": "Budget, indoor or sheltered outdoor. UV-rated for outdoor models.",
+        "metal": "Pro series. Better heat dissipation, vandal resistance, durability. Metal housing models indicated by M suffix or Pro series."
+      }
+    },
+    "8_field_of_view_calculation": {
+      "standard": "Optical Geometry",
+      "principle": "Calculate scene coverage to ensure target area is fully covered",
+      "formula": {
+        "horizontal_coverage_m": "2 \u00d7 distance_m \u00d7 tan(HFOV/2)",
+        "examples_at_10m": [
+          {
+            "lens": "2.8mm",
+            "hfov": "102\u00b0",
+            "coverage_m": 18.4
+          },
+          {
+            "lens": "3.6mm",
+            "hfov": "80\u00b0",
+            "coverage_m": 11.9
+          },
+          {
+            "lens": "6mm",
+            "hfov": "54\u00b0",
+            "coverage_m": 10.2
+          }
+        ]
+      },
+      "overlap_rule": "Design for 10-15% overlap between adjacent camera fields of view to eliminate blind spots."
+    },
+    "9_dvr_compatibility": {
+      "standard": "Manufacturer",
+      "principle": "Camera resolution must not exceed DVR maximum supported resolution",
+      "compatibility_matrix": [
+        {
+          "camera_res": "2MP (1080p)",
+          "dvr_required": "HGHI (minimum), HQHI, HUHI",
+          "note": "Any DVR supports 2MP"
+        },
+        {
+          "camera_res": "5MP",
+          "dvr_required": "HQHI (minimum), HUHI",
+          "note": "HGHI does NOT support 5MP"
+        },
+        {
+          "camera_res": "8MP (4K)",
+          "dvr_required": "HUHI only",
+          "note": "Only 8MP-capable DVRs"
+        },
+        {
+          "camera_res": "PoC cameras",
+          "dvr_required": "HTHI only",
+          "note": "Power over Coax requires HTHI DVR"
+        }
+      ],
+      "ip_channel_note": "All Turbo HD DVRs also support IP cameras on additional channels (typically +2 or +4 IP channels)"
+    },
+    "10_compliance_standards": {
+      "principle": "Cameras must meet safety, EMC, and environmental standards",
+      "standards": [
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety of camera electronics"
+        },
+        {
+          "standard": "EN 55032 Class A",
+          "scope": "EMC emissions"
+        },
+        {
+          "standard": "EN 62676-1-1",
+          "scope": "Video surveillance \u2014 system requirements"
+        },
+        {
+          "standard": "EN 62676-2-1",
+          "scope": "Video surveillance \u2014 video transmission"
+        },
+        {
+          "standard": "EN 62676-4",
+          "scope": "Application guidelines (PPM requirements)"
+        },
+        {
+          "standard": "IEC 60529",
+          "scope": "IP rating (IP66/IP67)"
+        },
+        {
+          "standard": "IEC 62262",
+          "scope": "IK rating (vandal resistance)"
+        },
+        {
+          "standard": "RoHS",
+          "scope": "Hazardous substance restriction"
+        },
+        {
+          "standard": "CE / FCC",
+          "scope": "Regional compliance marking"
+        }
+      ]
+    }
+  }
+}

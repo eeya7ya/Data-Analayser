@@ -1,0 +1,561 @@
+{
+  "database_info": {
+    "name": "DSPPA Conference System Database",
+    "version": "1.0",
+    "manufacturer": "DSPPA",
+    "category": "Digital Conference System \u2014 Discussion, Microphones, Interpretation",
+    "currency": "USD",
+    "last_updated": "2026-04-06",
+    "price_tiers": {
+      "dpp": "DPP",
+      "si": "Installer",
+      "end_user": "End User"
+    },
+    "integration_notes": {
+      "amplifier_db": "dsppa_amplifiers_db.json \u2014 Conference audio output to amplifier for ceiling speakers",
+      "speaker_db": "dsppa_speakers_db.json \u2014 Conference room ceiling/wall speakers",
+      "ip_network_db": "dsppa_ip_network_db.json \u2014 IP-based conference expansion"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "D5821",
+      "category": "Conference Unit",
+      "sub_category": "Chairman Unit",
+      "pricing": {
+        "dpp": 280,
+        "si": 290,
+        "end_user": 319
+      },
+      "specs": {
+        "type": "Digital conference chairman unit",
+        "microphone": "Gooseneck condenser",
+        "voting": true,
+        "priority": true
+      }
+    },
+    {
+      "id": 2,
+      "model": "D5822",
+      "category": "Conference Unit",
+      "sub_category": "Delegate Unit",
+      "pricing": {
+        "dpp": 285,
+        "si": 295,
+        "end_user": 324.5
+      }
+    },
+    {
+      "id": 3,
+      "model": "D5824",
+      "category": "Conference Unit",
+      "sub_category": "Delegate Unit (Enhanced)",
+      "pricing": {
+        "dpp": 295,
+        "si": 310,
+        "end_user": 341
+      }
+    },
+    {
+      "id": 4,
+      "model": "D5841",
+      "category": "Conference Unit",
+      "sub_category": "Chairman Unit (Premium)",
+      "pricing": {
+        "dpp": 450,
+        "si": 475,
+        "end_user": 522.5
+      },
+      "specs": {
+        "type": "Premium digital chairman",
+        "touch_screen": true
+      }
+    },
+    {
+      "id": 5,
+      "model": "D5842",
+      "category": "Conference Unit",
+      "sub_category": "Delegate Unit (Premium)",
+      "pricing": {
+        "dpp": 450,
+        "si": 475,
+        "end_user": 522.5
+      }
+    },
+    {
+      "id": 6,
+      "model": "D5843",
+      "category": "Conference Unit",
+      "sub_category": "Delegate Unit (Premium, Voting)",
+      "pricing": {
+        "dpp": 450,
+        "si": 475,
+        "end_user": 522.5
+      }
+    },
+    {
+      "id": 7,
+      "model": "D5844",
+      "category": "Conference Unit",
+      "sub_category": "Delegate Unit (Premium, Interpretation)",
+      "pricing": {
+        "dpp": 450,
+        "si": 475,
+        "end_user": 522.5
+      }
+    },
+    {
+      "id": 8,
+      "model": "D6284",
+      "category": "Conference Controller",
+      "sub_category": "Conference Main Controller",
+      "pricing": {
+        "dpp": 650,
+        "si": 680,
+        "end_user": 748
+      },
+      "specs": {
+        "function": "Central controller for D58xx/D68xx units",
+        "max_units": 128
+      }
+    },
+    {
+      "id": 9,
+      "model": "HD8107",
+      "category": "Conference Controller",
+      "sub_category": "HD Conference Controller (Premium)",
+      "pricing": {
+        "dpp": 1550,
+        "si": 1650,
+        "end_user": 1815
+      }
+    },
+    {
+      "id": 10,
+      "model": "D7700",
+      "category": "Conference Controller",
+      "sub_category": "Conference Controller (Advanced)",
+      "pricing": {
+        "dpp": 1450,
+        "si": 1550,
+        "end_user": 1705
+      }
+    },
+    {
+      "id": 11,
+      "model": "D7701",
+      "category": "Conference Controller",
+      "sub_category": "Conference Controller (Standard)",
+      "pricing": {
+        "dpp": 690,
+        "si": 710,
+        "end_user": 781
+      }
+    },
+    {
+      "id": 12,
+      "model": "D7706",
+      "category": "Conference Accessory",
+      "sub_category": "Conference Extension Hub",
+      "pricing": {
+        "dpp": 135,
+        "si": 145,
+        "end_user": 159.5
+      }
+    },
+    {
+      "id": 13,
+      "model": "D7201",
+      "category": "Conference Controller",
+      "sub_category": "Conference Controller (Full Feature)",
+      "pricing": {
+        "dpp": 1150,
+        "si": 1250,
+        "end_user": 1375
+      }
+    },
+    {
+      "id": 14,
+      "model": "D6801",
+      "category": "Conference Controller",
+      "sub_category": "Conference Main Unit (D68 Series)",
+      "pricing": {
+        "dpp": 1050,
+        "si": 1150,
+        "end_user": 1265
+      }
+    },
+    {
+      "id": 15,
+      "model": "D6802L",
+      "category": "Conference Unit",
+      "sub_category": "Conference Discussion Unit (D68)",
+      "pricing": {
+        "dpp": 235,
+        "si": 250,
+        "end_user": 275
+      }
+    },
+    {
+      "id": 16,
+      "model": "D6803L",
+      "category": "Conference Unit",
+      "sub_category": "Conference Delegate Unit (D68)",
+      "pricing": {
+        "dpp": 235,
+        "si": 250,
+        "end_user": 275
+      }
+    },
+    {
+      "id": 17,
+      "model": "CM30",
+      "category": "Microphone",
+      "sub_category": "Condenser Gooseneck Microphone",
+      "pricing": {
+        "dpp": 43,
+        "si": 48,
+        "end_user": 52.8
+      }
+    },
+    {
+      "id": 18,
+      "model": "CM62",
+      "category": "Microphone",
+      "sub_category": "Conference Microphone",
+      "pricing": {
+        "dpp": 45,
+        "si": 55,
+        "end_user": 60.5
+      }
+    },
+    {
+      "id": 19,
+      "model": "CM60",
+      "category": "Microphone",
+      "sub_category": "Conference Microphone (Standard)",
+      "pricing": {
+        "dpp": 100,
+        "si": 110,
+        "end_user": 121
+      }
+    },
+    {
+      "id": 20,
+      "model": "CM61",
+      "category": "Microphone",
+      "sub_category": "Conference Microphone",
+      "pricing": {
+        "dpp": 95,
+        "si": 100,
+        "end_user": 110
+      }
+    },
+    {
+      "id": 21,
+      "model": "CM10",
+      "category": "Microphone",
+      "sub_category": "Professional Condenser Mic",
+      "pricing": {
+        "dpp": 90,
+        "si": 95,
+        "end_user": 104.5
+      }
+    },
+    {
+      "id": 22,
+      "model": "CM12",
+      "category": "Microphone",
+      "sub_category": "Professional Condenser Mic (Premium)",
+      "pricing": {
+        "dpp": 160,
+        "si": 165,
+        "end_user": 181.5
+      }
+    },
+    {
+      "id": 23,
+      "model": "DM30",
+      "category": "Microphone",
+      "sub_category": "Desktop Microphone",
+      "pricing": {
+        "dpp": 38,
+        "si": 42,
+        "end_user": 46.2
+      }
+    },
+    {
+      "id": 24,
+      "model": "RM20",
+      "category": "Microphone",
+      "sub_category": "Rack Mount Microphone/Paging Station",
+      "pricing": {
+        "dpp": 95,
+        "si": 98,
+        "end_user": 107.8
+      }
+    },
+    {
+      "id": 25,
+      "model": "DSP2103",
+      "category": "Conference Accessory",
+      "sub_category": "Conference Speaker",
+      "pricing": {
+        "dpp": 155,
+        "si": 165,
+        "end_user": 181.5
+      }
+    },
+    {
+      "id": 26,
+      "model": "DSP2102",
+      "category": "Conference Accessory",
+      "sub_category": "Conference Speaker",
+      "pricing": {
+        "dpp": 170,
+        "si": 180,
+        "end_user": 198
+      }
+    },
+    {
+      "id": 27,
+      "model": "D103",
+      "category": "Conference Accessory",
+      "sub_category": "Conference Processor",
+      "pricing": {
+        "dpp": 140,
+        "si": 145,
+        "end_user": 159.5
+      }
+    },
+    {
+      "id": 28,
+      "model": "DSP2020A",
+      "category": "Conference Accessory",
+      "sub_category": "Conference Audio Processor",
+      "pricing": {
+        "dpp": 125,
+        "si": 135,
+        "end_user": 148.5
+      }
+    },
+    {
+      "id": 29,
+      "model": "DSP2021A",
+      "category": "Conference Accessory",
+      "sub_category": "Conference Audio Processor",
+      "pricing": {
+        "dpp": 125,
+        "si": 135,
+        "end_user": 148.5
+      }
+    },
+    {
+      "id": 30,
+      "model": "DSP2020B",
+      "category": "Conference Accessory",
+      "sub_category": "Conference Audio Processor (B)",
+      "pricing": {
+        "dpp": 125,
+        "si": 135,
+        "end_user": 148.5
+      }
+    },
+    {
+      "id": 31,
+      "model": "D950",
+      "category": "Conference Accessory",
+      "sub_category": "Conference Accessory",
+      "pricing": {
+        "dpp": 70,
+        "si": 75,
+        "end_user": 82.5
+      }
+    },
+    {
+      "id": 32,
+      "model": "HD8105",
+      "category": "Conference Accessory",
+      "sub_category": "Conference Cable/Accessory",
+      "pricing": {
+        "dpp": 10,
+        "si": 10,
+        "end_user": 11
+      }
+    },
+    {
+      "id": 33,
+      "model": "DSP9313",
+      "category": "Conference Accessory",
+      "sub_category": "Conference Cable",
+      "pricing": {
+        "dpp": 10,
+        "si": 10,
+        "end_user": 11
+      }
+    },
+    {
+      "id": 34,
+      "model": "HD8014",
+      "category": "Conference Accessory",
+      "sub_category": "Conference Cable",
+      "pricing": {
+        "dpp": 10,
+        "si": 10,
+        "end_user": 11
+      }
+    },
+    {
+      "id": 35,
+      "model": "DW01",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless Handheld Mic",
+      "pricing": {
+        "dpp": 90,
+        "si": 110,
+        "end_user": 121
+      }
+    },
+    {
+      "id": 36,
+      "model": "DW15",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless Mic System",
+      "pricing": {
+        "dpp": 110,
+        "si": 125,
+        "end_user": 137.5
+      }
+    },
+    {
+      "id": 37,
+      "model": "DW0235",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless Dual Mic System",
+      "pricing": {
+        "dpp": 140,
+        "si": 155,
+        "end_user": 170.5
+      }
+    },
+    {
+      "id": 38,
+      "model": "DW0250",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless Mic System (Premium)",
+      "pricing": {
+        "dpp": 165,
+        "si": 175,
+        "end_user": 192.5
+      }
+    },
+    {
+      "id": 39,
+      "model": "D7101",
+      "category": "Conference Unit",
+      "sub_category": "Conference Unit (Legacy)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Discontinued"
+    },
+    {
+      "id": 40,
+      "model": "D7121",
+      "category": "Conference Unit",
+      "sub_category": "Conference Unit (Legacy)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Discontinued"
+    },
+    {
+      "id": 41,
+      "model": "D7122",
+      "category": "Conference Unit",
+      "sub_category": "Conference Unit (Legacy)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Discontinued"
+    },
+    {
+      "id": 42,
+      "model": "D6271",
+      "category": "Conference Unit",
+      "sub_category": "Conference Unit (Legacy)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Discontinued"
+    },
+    {
+      "id": 43,
+      "model": "D6272",
+      "category": "Conference Unit",
+      "sub_category": "Conference Unit (Legacy)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Discontinued"
+    },
+    {
+      "id": 44,
+      "model": "D7222A",
+      "category": "Conference Unit",
+      "sub_category": "Conference Unit (Legacy)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Discontinued"
+    },
+    {
+      "id": 45,
+      "model": "D7221A",
+      "category": "Conference Unit",
+      "sub_category": "Conference Unit (Legacy)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Discontinued"
+    },
+    {
+      "id": 46,
+      "model": "BM828RII",
+      "category": "Microphone",
+      "sub_category": "Boundary Microphone",
+      "pricing": {
+        "dpp": 200,
+        "si": 210,
+        "end_user": 231
+      }
+    },
+    {
+      "id": 47,
+      "model": "D815RIIW",
+      "category": "Conference Accessory",
+      "sub_category": "Wireless Conference Unit",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Discontinued"
+    }
+  ]
+}

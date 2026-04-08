@@ -1,0 +1,1248 @@
+{
+  "database_info": {
+    "name": "Hikvision Access Control & Time Attendance Database",
+    "version": "1.0",
+    "manufacturer": "Hikvision",
+    "category": "Access Control & Time Attendance",
+    "currency": "USD",
+    "last_updated": "2026-04-05",
+    "data_source": "Official Hikvision Datasheets & Product Pages",
+    "model_naming": {
+      "M": "Mifare card support",
+      "MF": "Mifare + Fingerprint",
+      "MK": "Mifare + Keypad",
+      "AMF": "Advanced Mifare + Fingerprint",
+      "W": "Wi-Fi",
+      "X": "Extended features",
+      "B": "With body indicator / enhanced version",
+      "F": "Fingerprint",
+      "QR": "QR code support",
+      "E1": "Economy variant",
+      "L": "Left direction",
+      "R": "Right direction"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "DS-KAS261 (KIT)",
+      "category": "Access Control Kit",
+      "sub_category": "Standalone Kit",
+      "pricing": {
+        "dpp": 75,
+        "si": 80
+      },
+      "features": [
+        "Standalone access control kit",
+        "Card reader + controller + lock + accessories"
+      ],
+      "available_models": [
+        "DS-KAS261"
+      ]
+    },
+    {
+      "id": 2,
+      "model": "DS-KAS541 (KIT)",
+      "category": "Access Control Kit",
+      "sub_category": "Fingerprint Kit",
+      "pricing": {
+        "dpp": 160,
+        "si": 165
+      },
+      "features": [
+        "Fingerprint access control kit",
+        "Fingerprint terminal + lock + power supply + accessories"
+      ],
+      "available_models": [
+        "DS-KAS541"
+      ]
+    },
+    {
+      "id": 3,
+      "model": "DS-K1A8503MF",
+      "category": "Time Attendance Terminal",
+      "sub_category": "Fingerprint Time Attendance",
+      "pricing": {
+        "dpp": 34,
+        "si": 35
+      },
+      "features": [
+        "Fingerprint + Mifare card",
+        "2.4-inch TFT screen",
+        "Time attendance standalone"
+      ],
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "screen": "2.4-inch TFT",
+        "communication": "TCP/IP, USB",
+        "capacity_fingerprints": 3000,
+        "capacity_cards": 10000,
+        "capacity_events": 100000
+      },
+      "available_models": [
+        "DS-K1A8503MF"
+      ]
+    },
+    {
+      "id": 4,
+      "model": "DS-K1A8503MF-B",
+      "category": "Time Attendance Terminal",
+      "sub_category": "Fingerprint Time Attendance",
+      "pricing": {
+        "dpp": 36,
+        "si": 38
+      },
+      "features": [
+        "Fingerprint + Mifare card",
+        "2.4-inch TFT screen",
+        "Enhanced version with battery backup"
+      ],
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "screen": "2.4-inch TFT",
+        "communication": "TCP/IP, USB",
+        "battery_backup": true
+      },
+      "available_models": [
+        "DS-K1A8503MF-B"
+      ]
+    },
+    {
+      "id": 5,
+      "model": "DS-K1T8003MF",
+      "category": "Access Terminal",
+      "sub_category": "Fingerprint Access Terminal",
+      "pricing": {
+        "dpp": 42,
+        "si": 45
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "screen": "2.4-inch TFT",
+        "communication": "TCP/IP",
+        "power": "12VDC"
+      }
+    },
+    {
+      "id": 6,
+      "model": "DS-K1T804BMF",
+      "category": "Access Terminal",
+      "sub_category": "Fingerprint Access Terminal",
+      "pricing": {
+        "dpp": 65,
+        "si": 68
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "screen": "4-inch LCD",
+        "communication": "TCP/IP"
+      }
+    },
+    {
+      "id": 7,
+      "model": "DS-K1T804AMF",
+      "category": "Access Terminal",
+      "sub_category": "Fingerprint Access Terminal",
+      "pricing": {
+        "dpp": 65,
+        "si": 68
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "screen": "4-inch LCD",
+        "communication": "TCP/IP"
+      }
+    },
+    {
+      "id": 8,
+      "model": "DS-K1T331W",
+      "category": "Access Terminal",
+      "sub_category": "Card Access Terminal",
+      "pricing": {
+        "dpp": 65,
+        "si": 68
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": false,
+        "wifi": true,
+        "screen": "3.5-inch LCD"
+      }
+    },
+    {
+      "id": 9,
+      "model": "DS-K1T341AM",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card",
+      "series": "341 Series",
+      "pricing": {
+        "dpp": 125,
+        "si": 128
+      },
+      "features": [
+        "Deep learning face recognition",
+        "4.3-inch LCD touch screen",
+        "2MP wide-angle lens",
+        "Mifare card",
+        "Mask detection",
+        "Voice prompt"
+      ],
+      "specs": {
+        "screen": "4.3-inch color LCD touch",
+        "camera": "2MP CMOS wide-angle",
+        "card_type": "Mifare",
+        "fingerprint": false,
+        "face_capacity": 1500,
+        "card_capacity": 3000,
+        "event_capacity": 100000,
+        "communication": "TCP/IP, Wi-Fi",
+        "power": "12VDC / PoE",
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        }
+      }
+    },
+    {
+      "id": 10,
+      "model": "DS-K1T341AMF",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card + Fingerprint",
+      "series": "341 Series",
+      "pricing": {
+        "dpp": 130,
+        "si": 135
+      },
+      "features": [
+        "Deep learning face recognition",
+        "4.3-inch LCD touch screen",
+        "2MP wide-angle lens",
+        "Mifare card + Fingerprint",
+        "Mask detection",
+        "Voice prompt"
+      ],
+      "specs": {
+        "screen": "4.3-inch color LCD touch",
+        "camera": "2MP CMOS wide-angle",
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "fingerprint_capacity": 3000,
+        "face_capacity": 1500,
+        "card_capacity": 3000,
+        "event_capacity": 100000,
+        "communication": "TCP/IP",
+        "power": "12VDC",
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        }
+      }
+    },
+    {
+      "id": 11,
+      "model": "DS-K1T341CM",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card",
+      "series": "341 Series",
+      "pricing": {
+        "dpp": 120,
+        "si": 125
+      },
+      "specs": {
+        "screen": "4.3-inch color LCD touch",
+        "camera": "2MP CMOS",
+        "card_type": "Mifare",
+        "fingerprint": false
+      }
+    },
+    {
+      "id": 12,
+      "model": "DS-K1T341CMF",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card + Fingerprint",
+      "series": "341 Series",
+      "pricing": {
+        "dpp": 120,
+        "si": 125
+      },
+      "specs": {
+        "screen": "4.3-inch color LCD touch",
+        "camera": "2MP CMOS",
+        "card_type": "Mifare",
+        "fingerprint": true
+      }
+    },
+    {
+      "id": 13,
+      "model": "DS-K1T341CMFW",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card + Fingerprint + WiFi",
+      "series": "341 Series",
+      "pricing": {
+        "dpp": 130,
+        "si": 135
+      },
+      "specs": {
+        "screen": "4.3-inch color LCD touch",
+        "camera": "2MP CMOS",
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "wifi": true
+      }
+    },
+    {
+      "id": 14,
+      "model": "DS-K1T342MFWX",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card + Fingerprint + WiFi",
+      "series": "342 Value Series",
+      "pricing": {
+        "dpp": 120,
+        "si": 125
+      },
+      "features": [
+        "Deep learning face recognition",
+        "4.3-inch LCD touch screen",
+        "2MP wide-angle lens",
+        "Mifare + Fingerprint + Wi-Fi",
+        "Mask detection",
+        "Two-way audio",
+        "PoE support"
+      ],
+      "specs": {
+        "screen": "4.3-inch LCD touch",
+        "camera": "2MP CMOS wide-angle",
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "wifi": true,
+        "face_capacity": 1500,
+        "fingerprint_capacity": 3000,
+        "card_capacity": 3000,
+        "communication": "TCP/IP, Wi-Fi, RS-485",
+        "power": "12VDC / PoE",
+        "working_temp_c": {
+          "min": -10,
+          "max": 55
+        },
+        "ip_rating": "IP65"
+      }
+    },
+    {
+      "id": 15,
+      "model": "DS-K1T342MFWX-E1",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card + Fingerprint + WiFi (Economy)",
+      "series": "342 Value Series",
+      "pricing": {
+        "dpp": 100,
+        "si": 105
+      },
+      "specs": {
+        "screen": "4.3-inch LCD touch",
+        "camera": "2MP CMOS",
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "wifi": true,
+        "face_capacity": 1500,
+        "fingerprint_capacity": 3000,
+        "card_capacity": 3000,
+        "note": "Economy variant with reduced feature set"
+      }
+    },
+    {
+      "id": 16,
+      "model": "DS-K1T343MFWX",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card + Fingerprint + WiFi",
+      "series": "343 Series",
+      "pricing": {
+        "dpp": 75,
+        "si": 80
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "wifi": true
+      }
+    },
+    {
+      "id": 17,
+      "model": "DS-K1T642MF",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card + Fingerprint",
+      "series": "642 Series",
+      "pricing": {
+        "dpp": 140,
+        "si": 150
+      },
+      "features": [
+        "7-inch LCD touch screen",
+        "Deep learning face recognition",
+        "Large capacity"
+      ],
+      "specs": {
+        "screen": "7-inch LCD touch",
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "face_capacity": 6000
+      }
+    },
+    {
+      "id": 18,
+      "model": "DS-K1T320MFWX",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Compact Face Terminal",
+      "series": "320 Series",
+      "pricing": {
+        "dpp": 43,
+        "si": 45
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "wifi": true,
+        "screen": "2.4-inch"
+      }
+    },
+    {
+      "id": 19,
+      "model": "DS-K1T320MFWX-B",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Compact Face Terminal Enhanced",
+      "series": "320 Series",
+      "pricing": {
+        "dpp": 53,
+        "si": 55
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "wifi": true,
+        "screen": "2.4-inch",
+        "enhanced": true
+      }
+    },
+    {
+      "id": 20,
+      "model": "DS-K1T321MFWX",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Compact Face Terminal",
+      "series": "321 Series",
+      "pricing": {
+        "dpp": 58,
+        "si": 60
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "wifi": true
+      }
+    },
+    {
+      "id": 21,
+      "model": "DS-K1T342MFX-E1",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card + Fingerprint (Economy)",
+      "series": "342 Series",
+      "pricing": {
+        "dpp": 85,
+        "si": 90
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "wifi": false
+      }
+    },
+    {
+      "id": 22,
+      "model": "DS-K1T344MBWX-QRE1",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card + QR Code",
+      "series": "344 Series",
+      "pricing": {
+        "dpp": 130,
+        "si": 135
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": false,
+        "wifi": true,
+        "qr_code": true
+      }
+    },
+    {
+      "id": 23,
+      "model": "DS-K1T502DBWX",
+      "category": "Face Recognition Terminal",
+      "sub_category": "MinMoe Face Terminal",
+      "series": "502 Series",
+      "pricing": {
+        "dpp": 85,
+        "si": 85
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": false,
+        "wifi": true
+      }
+    },
+    {
+      "id": 24,
+      "model": "DS-K1T502DBFWX",
+      "category": "Face Recognition Terminal",
+      "sub_category": "MinMoe Face + Fingerprint",
+      "series": "502 Series",
+      "pricing": {
+        "dpp": 110,
+        "si": 115
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "wifi": true
+      }
+    },
+    {
+      "id": 25,
+      "model": "DS-K1T805MBWX",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card",
+      "series": "805 Series",
+      "pricing": {
+        "dpp": 45,
+        "si": 48
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": false,
+        "wifi": true
+      }
+    },
+    {
+      "id": 26,
+      "model": "DS-K1T805MBFWX",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card + Fingerprint",
+      "series": "805 Series",
+      "pricing": {
+        "dpp": 55,
+        "si": 58
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "wifi": true
+      }
+    },
+    {
+      "id": 27,
+      "model": "DS-K1T808MFWX-B",
+      "category": "Face Recognition Terminal",
+      "sub_category": "Face + Card + Fingerprint Enhanced",
+      "series": "808 Series",
+      "pricing": {
+        "dpp": 53,
+        "si": 55
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "wifi": true,
+        "enhanced": true
+      }
+    },
+    {
+      "id": 28,
+      "model": "DS-K1T801E",
+      "category": "Access Terminal",
+      "sub_category": "Card Access Terminal",
+      "pricing": {
+        "dpp": 18,
+        "si": 19
+      },
+      "specs": {
+        "card_type": "EM",
+        "fingerprint": false,
+        "screen": "None/LED"
+      }
+    },
+    {
+      "id": 29,
+      "model": "DS-K1T802M",
+      "category": "Access Terminal",
+      "sub_category": "Card Access Terminal",
+      "pricing": {
+        "dpp": 32,
+        "si": 34
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": false
+      }
+    },
+    {
+      "id": 30,
+      "model": "DS-K2802",
+      "category": "Access Controller",
+      "sub_category": "2-Door Network Controller",
+      "series": "K2800 Value Series",
+      "pricing": {
+        "dpp": 75,
+        "si": 80
+      },
+      "features": [
+        "32-bit processor",
+        "TCP/IP + RS-485 uplink",
+        "Wiegand W26/W34 downlink",
+        "10,000 cards, 50,000 events",
+        "Online/offline operation",
+        "Encrypted communication",
+        "Tamper-proof alarm",
+        "First card, super card, duress card"
+      ],
+      "specs": {
+        "doors": 2,
+        "card_readers": 2,
+        "card_capacity": 10000,
+        "event_capacity": 50000,
+        "power": "DC 12V",
+        "power_consumption_w": 3.5,
+        "processor": "32-bit",
+        "ram": "8M",
+        "communication_uplink": "TCP/IP, RS-485",
+        "communication_downlink": "Wiegand W26/W34",
+        "alarm_inputs": 2,
+        "alarm_outputs": 2,
+        "door_magnetic": 2,
+        "door_switch": 2,
+        "working_temp_c": {
+          "min": -20,
+          "max": 65
+        },
+        "ip_rating": null
+      }
+    },
+    {
+      "id": 31,
+      "model": "DS-K2804",
+      "category": "Access Controller",
+      "sub_category": "4-Door Network Controller",
+      "series": "K2800 Value Series",
+      "pricing": {
+        "dpp": 85,
+        "si": 90
+      },
+      "features": [
+        "32-bit processor",
+        "TCP/IP + RS-485 uplink",
+        "Wiegand W26/W34 downlink",
+        "10,000 cards, 50,000 events",
+        "Online/offline operation",
+        "4 doors control"
+      ],
+      "specs": {
+        "doors": 4,
+        "card_readers": 4,
+        "card_capacity": 10000,
+        "event_capacity": 50000,
+        "power": "DC 12V",
+        "power_consumption_w": 3.5,
+        "processor": "32-bit",
+        "ram": "8M",
+        "communication_uplink": "TCP/IP, RS-485",
+        "communication_downlink": "Wiegand W26/W34",
+        "alarm_inputs": 4,
+        "alarm_outputs": 4,
+        "door_magnetic": 4,
+        "door_switch": 4,
+        "working_temp_c": {
+          "min": -20,
+          "max": 65
+        }
+      }
+    },
+    {
+      "id": 32,
+      "model": "DS-K2210",
+      "category": "Access Controller",
+      "sub_category": "Elevator Controller",
+      "pricing": {
+        "dpp": 168,
+        "si": 175
+      },
+      "specs": {
+        "function": "Elevator floor access control",
+        "floors_supported": "Up to 128 floors"
+      }
+    },
+    {
+      "id": 33,
+      "model": "DS-K2604T MAIN BOARD",
+      "category": "Access Controller",
+      "sub_category": "4-Door Multi-ID Controller (Main Board)",
+      "series": "K2600 Pro Series",
+      "pricing": {
+        "dpp": 80,
+        "si": 85
+      },
+      "features": [
+        "Multi-ID: Face, Fingerprint, Card, QR, PIN",
+        "4-door controller",
+        "TCP/IP + RS-485",
+        "4 Wiegand + 8 RS-485 readers",
+        "No enclosure (main board only)",
+        "iVMS-4200 compatible"
+      ],
+      "specs": {
+        "doors": 4,
+        "wiegand_readers": 4,
+        "rs485_readers": 8,
+        "authentication": "Face, Fingerprint, Card, QR, PIN",
+        "communication": "TCP/IP, RS-485",
+        "note": "Main board only \u2014 no enclosure"
+      }
+    },
+    {
+      "id": 34,
+      "model": "DS-K2621X",
+      "category": "Access Controller",
+      "sub_category": "1-Door Pro Controller",
+      "series": "K2600X Pro Series",
+      "pricing": {
+        "dpp": 118,
+        "si": 125
+      },
+      "specs": {
+        "doors": 1
+      }
+    },
+    {
+      "id": 35,
+      "model": "DS-K2622X",
+      "category": "Access Controller",
+      "sub_category": "2-Door Pro Controller",
+      "series": "K2600X Pro Series",
+      "pricing": {
+        "dpp": 125,
+        "si": 130
+      },
+      "specs": {
+        "doors": 2
+      }
+    },
+    {
+      "id": 36,
+      "model": "DS-K2624X",
+      "category": "Access Controller",
+      "sub_category": "4-Door Pro Controller",
+      "series": "K2600X Pro Series",
+      "pricing": {
+        "dpp": 135,
+        "si": 140
+      },
+      "specs": {
+        "doors": 4
+      }
+    },
+    {
+      "id": 37,
+      "model": "DS-K1T105AM",
+      "category": "Access Terminal",
+      "sub_category": "Fingerprint Access Terminal",
+      "pricing": {
+        "dpp": 55,
+        "si": 58
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true
+      }
+    },
+    {
+      "id": 38,
+      "model": "DS-K1801M",
+      "category": "Card Reader",
+      "sub_category": "Mifare Card Reader",
+      "series": "1801 Series",
+      "pricing": {
+        "dpp": 13,
+        "si": 13
+      },
+      "features": [
+        "Mifare 13.56MHz",
+        "Wiegand output",
+        "Slim design",
+        "No keypad"
+      ],
+      "specs": {
+        "card_type": "Mifare 13.56MHz",
+        "keypad": false,
+        "communication": "Wiegand",
+        "reading_distance_mm": 50,
+        "power": "12VDC",
+        "ip_rating": "IP64",
+        "material": "PC+ABS",
+        "working_temp_c": {
+          "min": -40,
+          "max": 70
+        }
+      }
+    },
+    {
+      "id": 39,
+      "model": "DS-K1801MK",
+      "category": "Card Reader",
+      "sub_category": "Mifare Card Reader + Keypad",
+      "series": "1801 Series",
+      "pricing": {
+        "dpp": 15,
+        "si": 15
+      },
+      "specs": {
+        "card_type": "Mifare 13.56MHz",
+        "keypad": true,
+        "keypad_keys": 12,
+        "communication": "Wiegand",
+        "reading_distance_mm": 50,
+        "power": "12VDC",
+        "ip_rating": "IP64",
+        "material": "PC+ABS",
+        "working_temp_c": {
+          "min": -40,
+          "max": 70
+        }
+      }
+    },
+    {
+      "id": 40,
+      "model": "DS-K1101M",
+      "category": "Card Reader",
+      "sub_category": "Mifare Card Reader",
+      "series": "1101 Series",
+      "pricing": {
+        "dpp": 17,
+        "si": 17
+      },
+      "features": [
+        "32-bit processor",
+        "Mifare 13.56MHz",
+        "Wiegand + RS-485",
+        "LED indicator",
+        "Beeper",
+        "Tamper-proof"
+      ],
+      "specs": {
+        "card_type": "Mifare 13.56MHz",
+        "keypad": false,
+        "communication": "Wiegand, RS-485",
+        "reading_distance_mm": 50,
+        "power": "12VDC",
+        "power_consumption_w": 6,
+        "current_ma": 500,
+        "ip_rating": "IP64",
+        "material": "PC+ABS",
+        "dimensions_mm": {
+          "w": 92.3,
+          "h": 132.0,
+          "d": 20.5
+        },
+        "weight_kg": 0.14,
+        "working_temp_c": {
+          "min": -40,
+          "max": 70
+        },
+        "gang_box": "120 gang box",
+        "certifications": [
+          "FCC",
+          "CE"
+        ]
+      }
+    },
+    {
+      "id": 41,
+      "model": "DS-K1101MK",
+      "category": "Card Reader",
+      "sub_category": "Mifare Card Reader + Keypad",
+      "series": "1101 Series",
+      "pricing": {
+        "dpp": 18,
+        "si": 18
+      },
+      "specs": {
+        "card_type": "Mifare 13.56MHz",
+        "keypad": true,
+        "keypad_keys": 12,
+        "communication": "Wiegand, RS-485",
+        "reading_distance_mm": 50,
+        "power": "12VDC",
+        "ip_rating": "IP64",
+        "material": "PC+ABS",
+        "gang_box": "120 gang box"
+      }
+    },
+    {
+      "id": 42,
+      "model": "DS-K1102AMK",
+      "category": "Card Reader",
+      "sub_category": "Mifare Card Reader + Keypad (Waterproof)",
+      "series": "1102 Series",
+      "pricing": {
+        "dpp": 24,
+        "si": 24
+      },
+      "specs": {
+        "card_type": "Mifare 13.56MHz",
+        "keypad": true,
+        "communication": "Wiegand, RS-485",
+        "ip_rating": "IP65",
+        "material": "PC+ABS"
+      }
+    },
+    {
+      "id": 43,
+      "model": "DS-K1103M",
+      "category": "Card Reader",
+      "sub_category": "Mifare Card Reader",
+      "series": "1103 Series",
+      "pricing": {
+        "dpp": 19,
+        "si": 19
+      },
+      "specs": {
+        "card_type": "Mifare 13.56MHz",
+        "keypad": false,
+        "communication": "Wiegand, RS-485",
+        "ip_rating": "IP65",
+        "material": "PC+ABS"
+      }
+    },
+    {
+      "id": 44,
+      "model": "DS-K1103MK",
+      "category": "Card Reader",
+      "sub_category": "Mifare Card Reader + Keypad",
+      "series": "1103 Series",
+      "pricing": {
+        "dpp": 24,
+        "si": 24
+      },
+      "specs": {
+        "card_type": "Mifare 13.56MHz",
+        "keypad": true,
+        "communication": "Wiegand, RS-485",
+        "ip_rating": "IP65"
+      }
+    },
+    {
+      "id": 45,
+      "model": "DS-K1104MK",
+      "category": "Card Reader",
+      "sub_category": "Vandal-Proof Mifare + Keypad",
+      "series": "1104 Pro Series",
+      "pricing": {
+        "dpp": 45,
+        "si": 45
+      },
+      "features": [
+        "PC+zinc-alloy shell",
+        "IK10 vandal-proof",
+        "IP65 weatherproof",
+        "DIP switch configurable"
+      ],
+      "specs": {
+        "card_type": "Mifare 13.56MHz",
+        "keypad": true,
+        "keypad_keys": 12,
+        "communication": "Wiegand, RS-485",
+        "reading_distance_mm": 50,
+        "power": "12VDC",
+        "power_consumption_w": 6,
+        "current_ma": 500,
+        "ip_rating": "IP65",
+        "ik_rating": "IK10",
+        "material": "PC + Zinc-alloy",
+        "dimensions_mm": {
+          "w": 76,
+          "h": 118,
+          "d": 23
+        },
+        "weight_kg": 0.52,
+        "working_temp_c": {
+          "min": -40,
+          "max": 70
+        },
+        "gang_box": "86 & 120 gang box",
+        "certifications": [
+          "FCC",
+          "CE"
+        ]
+      }
+    },
+    {
+      "id": 46,
+      "model": "DS-K1108AMK",
+      "category": "Card Reader",
+      "sub_category": "Mifare Card Reader + Keypad",
+      "series": "1108 Series",
+      "pricing": {
+        "dpp": 21,
+        "si": 22
+      },
+      "specs": {
+        "card_type": "Mifare 13.56MHz",
+        "keypad": true,
+        "communication": "Wiegand, RS-485"
+      }
+    },
+    {
+      "id": 47,
+      "model": "DS-K1109DKB",
+      "category": "Fingerprint Reader",
+      "sub_category": "Fingerprint + Card Reader",
+      "pricing": {
+        "dpp": 37,
+        "si": 39
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "keypad": true
+      }
+    },
+    {
+      "id": 48,
+      "model": "DS-K1109DKFB",
+      "category": "Fingerprint Reader",
+      "sub_category": "Fingerprint + Card + Keypad",
+      "pricing": {
+        "dpp": 47,
+        "si": 49
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "keypad": true
+      }
+    },
+    {
+      "id": 49,
+      "model": "DS-K1109DKFB-QR",
+      "category": "Fingerprint Reader",
+      "sub_category": "Fingerprint + Card + Keypad + QR",
+      "pricing": {
+        "dpp": 56,
+        "si": 58
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true,
+        "keypad": true,
+        "qr_code": true
+      }
+    },
+    {
+      "id": 50,
+      "model": "DS-K7P08",
+      "category": "Power Supply",
+      "sub_category": "Access Control Power Supply",
+      "pricing": {
+        "dpp": 6.5,
+        "si": 7
+      },
+      "specs": {
+        "output": "12VDC",
+        "function": "Power supply for access control devices"
+      }
+    },
+    {
+      "id": 51,
+      "model": "DS-K4DC103",
+      "category": "Door Lock",
+      "sub_category": "Electric Strike",
+      "pricing": {
+        "dpp": 18,
+        "si": 18
+      },
+      "specs": {
+        "type": "Electric strike",
+        "voltage": "12VDC"
+      }
+    },
+    {
+      "id": 52,
+      "model": "DS-K4DC105",
+      "category": "Door Lock",
+      "sub_category": "Electric Strike",
+      "pricing": {
+        "dpp": 25,
+        "si": 25
+      },
+      "specs": {
+        "type": "Electric strike",
+        "voltage": "12VDC",
+        "enhanced": true
+      }
+    },
+    {
+      "id": 53,
+      "model": "DS-K4H255-LZ",
+      "category": "Door Lock",
+      "sub_category": "Magnetic Lock Bracket",
+      "pricing": {
+        "dpp": 6,
+        "si": 7
+      },
+      "specs": {
+        "type": "L/Z bracket for magnetic lock"
+      }
+    },
+    {
+      "id": 54,
+      "model": "DS-K1F100-D8E",
+      "category": "Enrollment Station",
+      "sub_category": "Card Enrollment Station",
+      "pricing": {
+        "dpp": 25,
+        "si": 28
+      },
+      "specs": {
+        "function": "Card enrollment and issuing station",
+        "connection": "USB",
+        "compatible_cards": "EM, Mifare"
+      }
+    },
+    {
+      "id": 55,
+      "model": "DS-K1F820-F",
+      "category": "Enrollment Station",
+      "sub_category": "Fingerprint Enrollment Station",
+      "pricing": {
+        "dpp": 35,
+        "si": 35
+      },
+      "specs": {
+        "function": "Fingerprint enrollment station",
+        "connection": "USB",
+        "optical_sensor": true
+      }
+    },
+    {
+      "id": 56,
+      "model": "DS-K7M-AW24",
+      "category": "Power Supply",
+      "sub_category": "Access Control Power Supply",
+      "pricing": {
+        "dpp": 23,
+        "si": 25
+      },
+      "specs": {
+        "function": "Power supply module for door locks and controllers"
+      }
+    },
+    {
+      "id": 57,
+      "model": "DS-PM-WO2",
+      "category": "Accessory",
+      "sub_category": "Wiegand Output Module",
+      "pricing": {
+        "dpp": 10,
+        "si": 10
+      },
+      "specs": {
+        "function": "Wiegand output converter module"
+      }
+    },
+    {
+      "id": 58,
+      "model": "DS-K1201AMF",
+      "category": "Access Terminal",
+      "sub_category": "Fingerprint Access Terminal",
+      "pricing": {
+        "dpp": 33.75,
+        "si": 35
+      },
+      "specs": {
+        "card_type": "Mifare",
+        "fingerprint": true
+      }
+    },
+    {
+      "id": 59,
+      "model": "DS-K4H258S",
+      "category": "Door Lock",
+      "sub_category": "Magnetic Lock (Single)",
+      "pricing": {
+        "dpp": 16,
+        "si": 18
+      },
+      "specs": {
+        "type": "Electromagnetic lock",
+        "holding_force_kg": 280,
+        "voltage": "12/24VDC"
+      }
+    },
+    {
+      "id": 60,
+      "model": "DS-K4H258-LZ",
+      "category": "Door Lock",
+      "sub_category": "Magnetic Lock Bracket",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "specs": {
+        "type": "L/Z bracket for DS-K4H258S"
+      },
+      "note": "Bundled/project pricing"
+    },
+    {
+      "id": 61,
+      "model": "DS-K4H250D",
+      "category": "Door Lock",
+      "sub_category": "Magnetic Lock (Double)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "specs": {
+        "type": "Double electromagnetic lock"
+      },
+      "note": "Bundled/project pricing"
+    },
+    {
+      "id": 62,
+      "model": "DS-K4H450S",
+      "category": "Door Lock",
+      "sub_category": "Magnetic Lock (Heavy Duty)",
+      "pricing": {
+        "dpp": 58,
+        "si": 62
+      },
+      "specs": {
+        "type": "Electromagnetic lock",
+        "holding_force_kg": 450,
+        "voltage": "12/24VDC"
+      }
+    },
+    {
+      "id": 63,
+      "model": "DS-K7102-M",
+      "category": "Accessory",
+      "sub_category": "Mifare Key Fob",
+      "pricing": {
+        "dpp": 0.75,
+        "si": 1
+      },
+      "specs": {
+        "type": "Mifare key fob/tag",
+        "frequency_mhz": 13.56
+      }
+    }
+  ]
+}

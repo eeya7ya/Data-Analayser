@@ -1,0 +1,270 @@
+{
+  "database_info": {
+    "name": "Yeastar IP PBX Selection Theory",
+    "version": "1.0",
+    "manufacturer": "Yeastar",
+    "last_updated": "2026-04-07"
+  },
+  "selection_criteria": {
+    "1_pbx_sizing": {
+      "standard": "System Design",
+      "principle": "PBX model must support required users and concurrent calls with growth margin",
+      "guide": [
+        {
+          "model": "S20",
+          "users": 20,
+          "concurrent_calls": 10,
+          "pstn_lines": "2-4 (via O2 modules)",
+          "best_for": "SOHO, very small office (1-10 staff)",
+          "price": "$235"
+        },
+        {
+          "model": "P550",
+          "users": 50,
+          "concurrent_calls": 25,
+          "pstn_lines": "Up to 8",
+          "best_for": "Small business (10-40 staff)",
+          "price": "$540"
+        },
+        {
+          "model": "P560",
+          "users": "100-200",
+          "concurrent_calls": "30-60",
+          "pstn_lines": "Up to 8 (+E1)",
+          "best_for": "Medium business (40-150 staff), hotel, school",
+          "price": "$790"
+        },
+        {
+          "model": "P570",
+          "users": "300-500",
+          "concurrent_calls": "60-120",
+          "pstn_lines": "Up to 16 (+2\u00d7E1)",
+          "best_for": "Enterprise (150-400+ staff), campus, hospital",
+          "price": "$1,490"
+        }
+      ],
+      "sizing_rule": "Users = total phone extensions needed (include soft phones, conference rooms, common areas). Concurrent calls = peak simultaneous calls (typically 15-25% of total users). Add 30% growth margin."
+    },
+    "2_module_planning": {
+      "standard": "System Design",
+      "principle": "Telephony modules add analog/digital line connectivity to PBX",
+      "modules": {
+        "O2": {
+          "function": "2\u00d7 FXO ports \u2014 connects 2 analog PSTN lines",
+          "use": "Keep existing analog phone lines, failover to PSTN",
+          "price": "$65"
+        },
+        "S2": {
+          "function": "2\u00d7 FXS ports \u2014 connects 2 analog devices",
+          "use": "Legacy analog phones, fax machines, analog door intercom, DSPPA PA2S paging adapter",
+          "price": "$65"
+        },
+        "EX08": {
+          "function": "Expansion board with 4 module slots (8 ports)",
+          "use": "Add telephony modules to P560/P570",
+          "price": "$60",
+          "compatible": "P560 (1), P570 (2)"
+        }
+      },
+      "examples": [
+        {
+          "scenario": "Small office, 2 PSTN lines",
+          "pbx": "P550",
+          "modules": "1\u00d7 O2 (2 FXO)",
+          "total_cost": "$540 + $65 = $605"
+        },
+        {
+          "scenario": "Medium office, 4 PSTN lines + 2 fax",
+          "pbx": "P560",
+          "modules": "EX08 + 2\u00d7 O2 + 1\u00d7 S2",
+          "total_cost": "$790 + $60 + $130 + $65 = $1,045"
+        },
+        {
+          "scenario": "Hotel, 4 PSTN + E1 trunk",
+          "pbx": "P570",
+          "modules": "EX08 + 2\u00d7 O2 + EX30 (E1)",
+          "note": "EX30 not in current price list \u2014 quote separately"
+        }
+      ]
+    },
+    "3_sip_trunk_vs_pstn": {
+      "standard": "Telecom Design",
+      "principle": "SIP trunks provide lines via internet; PSTN via analog/digital copper",
+      "comparison": [
+        {
+          "type": "SIP Trunk (VoIP)",
+          "connection": "Internet (Ethernet)",
+          "capacity": "Unlimited lines (concurrent call limited by PBX)",
+          "cost": "Lower per-line cost",
+          "quality": "Depends on internet quality",
+          "failover": "Requires internet",
+          "module": "None \u2014 built-in SIP"
+        },
+        {
+          "type": "Analog PSTN (FXO)",
+          "connection": "Copper pair per line",
+          "capacity": "1 call per line",
+          "cost": "Higher per-line",
+          "quality": "Reliable, carrier-grade",
+          "failover": "Works without internet",
+          "module": "O2 module or TA410/TA810 gateway"
+        },
+        {
+          "type": "E1/PRI (Digital)",
+          "connection": "E1 copper/fiber",
+          "capacity": "30 simultaneous calls per E1",
+          "cost": "Moderate per-channel",
+          "quality": "Carrier-grade",
+          "failover": "Independent of internet",
+          "module": "EX30 expansion board"
+        }
+      ],
+      "recommendation": "Use SIP trunk as primary (cost effective, scalable). Keep 2-4 analog PSTN lines via O2 module as failover for when internet is down."
+    },
+    "4_fanvil_phone_integration": {
+      "standard": "SIP Auto-Provisioning",
+      "principle": "Yeastar PBX auto-provisions Fanvil phones for zero-touch deployment",
+      "supported_fanvil": [
+        "X303, X305, X210i (business)",
+        "V50-V67 (full V series)",
+        "H1-H603 (hotel series)",
+        "A320/A320i (Android)",
+        "CA400 (conference)",
+        "i60-i67 (door phones)",
+        "i504-i507 (indoor stations)"
+      ],
+      "auto_provisioning": {
+        "method": "DHCP Option 66 or manual provisioning URL",
+        "url_format": "http://<PBX_IP>:8088/provisioning/{mac}.cfg",
+        "features": [
+          "Extension auto-assigned",
+          "Codec auto-configured",
+          "BLF keys auto-populated",
+          "Phonebook sync",
+          "Firmware update"
+        ]
+      },
+      "door_phone_integration": "Register Fanvil i-series door phone as SIP extension on Yeastar. Configure inbound rule to ring reception/guard extensions. Door relay triggered via DTMF from phone during call."
+    },
+    "5_gateway_selection": {
+      "standard": "Telecom Integration",
+      "principle": "Gateways bridge analog PSTN lines to SIP network externally",
+      "when_to_use": "When PBX has no module slots available, or PSTN lines are in different location from PBX, or using non-Yeastar PBX",
+      "models": {
+        "TA410": {
+          "fxo_ports": 4,
+          "use": "4 analog PSTN lines \u2192 SIP trunk to PBX",
+          "price": "$180"
+        },
+        "TA810": {
+          "fxo_ports": 8,
+          "use": "8 analog PSTN lines \u2192 SIP trunk to PBX",
+          "price": "$300"
+        }
+      },
+      "vs_modules": "O2 modules are cheaper per line ($32.50/line) vs TA410 ($45/line), but require PBX module slot. Gateways are external and location-independent."
+    },
+    "6_call_center_features": {
+      "standard": "UC Feature",
+      "principle": "P-Series includes built-in call center features without additional licenses",
+      "features": [
+        "IVR (Interactive Voice Response) \u2014 multi-level auto-attendant",
+        "ACD (Automatic Call Distribution) \u2014 skill-based routing",
+        "Queue management with position announcements",
+        "Wallboard \u2014 real-time call center dashboard",
+        "Agent login/logout/break",
+        "Call recording (requires HDD on P560/P570 or USB on P550)",
+        "Supervisor monitoring (listen, whisper, barge)",
+        "Operator Panel \u2014 drag-and-drop call management",
+        "Callback in queue"
+      ],
+      "agent_capacity": {
+        "P550": 50,
+        "P560": "100-200",
+        "P570": "300-500"
+      }
+    },
+    "7_hotel_pms_integration": {
+      "standard": "Hospitality",
+      "principle": "Yeastar P-Series integrates with hotel PMS for room management",
+      "features": [
+        "Check-in/check-out syncs phone extension status",
+        "Wake-up call scheduling",
+        "Room status (clean/dirty/occupied) via phone",
+        "Minibar billing integration",
+        "Guest name display on phone"
+      ],
+      "compatible_pms": "Opera, Protel, Hotelogix, and others via FIAS/TAPI protocol",
+      "phone_recommendation": "Fanvil H-series (H2U for bathroom, H3/H4 for standard room, H5/H6 for suite, H603W for reception)"
+    },
+    "8_multi_site_interconnect": {
+      "standard": "Enterprise",
+      "principle": "Multiple Yeastar PBXs can interconnect via SIP trunk for inter-office calling",
+      "method": "Create peer SIP trunk between PBXs using internal IP or FQDN over VPN",
+      "example": "HQ (P570) \u2190SIP trunk over VPN\u2192 Branch (P550). Extension 1xxx = HQ, 2xxx = Branch. Dial directly.",
+      "requirement": "Site-to-site VPN (IPSec/OpenVPN) recommended for security and quality."
+    },
+    "9_paging_integration_with_dsppa": {
+      "standard": "System Integration",
+      "principle": "Yeastar PBX paging reaches DSPPA speakers via multiple paths",
+      "methods": [
+        {
+          "method": "SIP Multicast Paging \u2192 Fanvil A-series/CS speakers",
+          "path": "PBX \u2192 SIP multicast \u2192 Fanvil speakers (PoE, self-amplified)",
+          "best_for": "Small deployments, per-room paging, no existing PA"
+        },
+        {
+          "method": "SIP \u2192 Fanvil PA2S \u2192 DSPPA Amplifier \u2192 100V Speakers",
+          "path": "PBX \u2192 SIP page \u2192 PA2S (line out) \u2192 DSPPA MP/MA amplifier AUX input \u2192 ceiling/horn speakers",
+          "best_for": "Integrating VoIP paging with existing traditional PA system"
+        },
+        {
+          "method": "FXS Port \u2192 DSPPA Amplifier",
+          "path": "PBX S2 module FXS \u2192 DSPPA amplifier mic/aux input (with impedance matching)",
+          "best_for": "Simple direct connection, analog audio quality"
+        },
+        {
+          "method": "Yeastar PBX \u2192 SIP trunk \u2192 DSPPA MAG808 IP PA",
+          "path": "PBX SIP trunk \u2192 MAG808 server \u2192 MAG network terminals",
+          "best_for": "Large campus with both VoIP and IP PA systems"
+        }
+      ]
+    },
+    "10_compliance": {
+      "standards": [
+        {
+          "standard": "SIP RFC 3261",
+          "scope": "Session Initiation Protocol"
+        },
+        {
+          "standard": "ITU-T G.711/G.722/G.729",
+          "scope": "Audio codecs"
+        },
+        {
+          "standard": "T.38",
+          "scope": "Fax over IP"
+        },
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety of IT equipment"
+        },
+        {
+          "standard": "EN 55032",
+          "scope": "EMC emissions"
+        },
+        {
+          "standard": "CE / FCC / RoHS",
+          "scope": "Regional compliance"
+        },
+        {
+          "standard": "SRTP/TLS",
+          "scope": "Encrypted voice and signaling"
+        },
+        {
+          "standard": "GDPR",
+          "scope": "Call recording and data privacy compliance"
+        }
+      ]
+    }
+  }
+}

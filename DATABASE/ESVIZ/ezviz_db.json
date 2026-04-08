@@ -1,0 +1,876 @@
+{
+  "database_info": {
+    "name": "EZVIZ Smart Home Security Database",
+    "version": "1.0",
+    "manufacturer": "EZVIZ (Hikvision Consumer Brand)",
+    "category": "Smart Home Cameras, Doorbells, Locks, Sensors, Accessories",
+    "currency": "USD",
+    "last_updated": "2026-04-07",
+    "price_tiers": {
+      "dpp": "DPP/Distributor",
+      "si": "SI (range shown as min-max)"
+    },
+    "model_naming": {
+      "CS-DB": "Video Doorbell (wired/battery)",
+      "CS-DP": "Peephole Doorbell",
+      "CS-HP": "Peephole Viewer / Home Panel",
+      "CS-EP": "Battery Video Doorbell (Pro/Dual lens)",
+      "CS-H": "Indoor/Outdoor Wi-Fi Camera",
+      "CS-C": "Outdoor Wi-Fi Camera",
+      "CS-CB": "Battery Outdoor Camera",
+      "CS-EB": "Battery Camera (Enhanced)",
+      "CS-HB": "Battery Camera (Hub-based)",
+      "CS-BC": "Battery Camera System (Base station kit)",
+      "CS-SD": "Solar-Powered Camera",
+      "CS-C8PF": "Pan-Tilt Outdoor Camera",
+      "CS-CP": "Compact Pan-Tilt Camera",
+      "CS-L2S": "Smart Lock",
+      "CS-DL": "Smart Door Lock",
+      "CS-RC": "Robot Vacuum Cleaner",
+      "CS-RS": "Robot Vacuum (Premium)",
+      "CS-CMT-Solar": "Solar Panel Accessory",
+      "CS-PBC": "Battery Charging Station",
+      "CS-C1T": "Action Camera / Sensor",
+      "CS-LC": "Smart Light / Controller",
+      "CS-BM": "Baby Monitor",
+      "VEMAR": "Accessory/Mount",
+      "EU-STD": "European Standard (power plug/frequency)",
+      "Mul": "Multi-language / Multi-region"
+    },
+    "integration_notes": {
+      "ezviz_app": "All EZVIZ devices managed via EZVIZ App (iOS/Android)",
+      "hikvision": "EZVIZ is Hikvision's consumer brand. EZVIZ cameras do NOT integrate with Hikvision NVR/iVMS \u2014 they use EZVIZ Cloud only.",
+      "smart_home": "Works with Google Assistant, Amazon Alexa, Apple HomeKit (select models)",
+      "storage": "MicroSD card (local) or EZVIZ CloudPlay (subscription)"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "CS-DB2C-A0-1E3WPBR(EU)(Mul)(Bundle)",
+      "category": "Video Doorbell",
+      "sub_category": "DB2C Battery Video Doorbell Kit (2K)",
+      "pricing": {
+        "dpp": 53,
+        "si": "55-57"
+      },
+      "specs": {
+        "resolution": "2K (3MP)",
+        "battery_mah": 5200,
+        "fov_deg": 176,
+        "night_vision": "IR 5m",
+        "chime": "Included",
+        "storage": "MicroSD up to 256GB",
+        "wifi": true,
+        "two_way_audio": true,
+        "pir": true,
+        "ip_rating": "IP65"
+      }
+    },
+    {
+      "id": 2,
+      "model": "CS-DP2C-A0-6E2WPFBS(EU-STD)(Silver)",
+      "category": "Peephole Doorbell",
+      "sub_category": "DP2C Peephole Doorbell (1080p, Silver)",
+      "pricing": {
+        "dpp": 76,
+        "si": "80-84"
+      },
+      "specs": {
+        "resolution": "1080p",
+        "screen": "4.3\" indoor color",
+        "battery_mah": 4600,
+        "fov_deg": 155,
+        "standby_days": 90,
+        "night_vision": "IR 5m",
+        "pir": true,
+        "storage": "MicroSD up to 512GB"
+      }
+    },
+    {
+      "id": 3,
+      "model": "CS-DP2-R100-6E3WPFBS",
+      "category": "Peephole Doorbell",
+      "sub_category": "DP2 Peephole Doorbell (2K)",
+      "pricing": {
+        "dpp": 95,
+        "si": 110
+      },
+      "specs": {
+        "resolution": "2K",
+        "screen": "4.3\" touch"
+      }
+    },
+    {
+      "id": 4,
+      "model": "CS-EP3x-R100-6E32WPDL(O-STD)(32G)",
+      "category": "Video Doorbell",
+      "sub_category": "EP3x Dual-Lens Video Doorbell Kit (2K+1080p)",
+      "pricing": {
+        "dpp": 56,
+        "si": "59-62"
+      },
+      "specs": {
+        "resolution": "2K + 1080p (dual lens)",
+        "front_camera": "2K",
+        "bottom_camera": "1080p",
+        "fov_deg": 162,
+        "storage": "32GB built-in eMMC",
+        "solar_compatible": true,
+        "battery": true,
+        "chime": "Included (CH1)",
+        "color_night_vision": true,
+        "package_detection": true
+      }
+    },
+    {
+      "id": 5,
+      "model": "CS-HP2-R100-6E2WB",
+      "category": "Peephole Viewer",
+      "sub_category": "HP2 Wire-Free Peephole Viewer (1080p)",
+      "pricing": {
+        "dpp": 45,
+        "si": 48
+      },
+      "specs": {
+        "resolution": "1080p",
+        "type": "Peephole door viewer"
+      }
+    },
+    {
+      "id": 6,
+      "model": "CS-HP4-R100-6E2WPFBS",
+      "category": "Peephole Viewer",
+      "sub_category": "HP4 Peephole Viewer",
+      "pricing": {
+        "dpp": 51,
+        "si": 54
+      }
+    },
+    {
+      "id": 7,
+      "model": "CS-HP5-R100-1W2TFC",
+      "category": "Peephole Viewer",
+      "sub_category": "HP5 Peephole Viewer (Premium)",
+      "pricing": {
+        "dpp": 93,
+        "si": 95
+      }
+    },
+    {
+      "id": 8,
+      "model": "CS-HP7-R105-1W2TFC",
+      "category": "Peephole Viewer",
+      "sub_category": "HP7 Peephole Viewer (Flagship)",
+      "pricing": {
+        "dpp": 107,
+        "si": "113-118"
+      }
+    },
+    {
+      "id": 9,
+      "model": "CS-EP7-E100-1W2HTFC",
+      "category": "Video Doorbell",
+      "sub_category": "EP7 Video Doorbell (Premium)",
+      "pricing": {
+        "dpp": 137,
+        "si": "144-150"
+      }
+    },
+    {
+      "id": 10,
+      "model": "CS-BC1-B1(EU-STD)",
+      "category": "Battery Camera Kit",
+      "sub_category": "BC1 Base + 1 Camera Kit",
+      "pricing": {
+        "dpp": 85,
+        "si": 85
+      },
+      "specs": {
+        "cameras": 1,
+        "base_station": true,
+        "storage": "MicroSD in base"
+      }
+    },
+    {
+      "id": 11,
+      "model": "CS-BC1-B2(EU-STD)",
+      "category": "Battery Camera Kit",
+      "sub_category": "BC1 Base + 2 Camera Kit",
+      "pricing": {
+        "dpp": 130,
+        "si": 135
+      },
+      "specs": {
+        "cameras": 2
+      }
+    },
+    {
+      "id": 12,
+      "model": "CS-BC1-B3(EU-STD)",
+      "category": "Battery Camera Kit",
+      "sub_category": "BC1 Base + 3 Camera Kit",
+      "pricing": {
+        "dpp": 175,
+        "si": 175
+      },
+      "specs": {
+        "cameras": 3
+      }
+    },
+    {
+      "id": 13,
+      "model": "CS-BC1-B1(4MP,W1)(EU-STD)",
+      "category": "Battery Camera Kit",
+      "sub_category": "BC1 4MP Base + 1 Camera Kit",
+      "pricing": {
+        "dpp": 95,
+        "si": 95
+      },
+      "specs": {
+        "cameras": 1,
+        "resolution": "4MP"
+      }
+    },
+    {
+      "id": 14,
+      "model": "CS-BC1-B2(4MP,W1)(EU-STD)",
+      "category": "Battery Camera Kit",
+      "sub_category": "BC1 4MP Base + 2 Camera Kit",
+      "pricing": {
+        "dpp": 140,
+        "si": 140
+      },
+      "specs": {
+        "cameras": 2,
+        "resolution": "4MP"
+      }
+    },
+    {
+      "id": 15,
+      "model": "CS-BC1-B3(4MP,W1)(EU-STD)",
+      "category": "Battery Camera Kit",
+      "sub_category": "BC1 4MP Base + 3 Camera Kit",
+      "pricing": {
+        "dpp": 195,
+        "si": 195
+      },
+      "specs": {
+        "cameras": 3,
+        "resolution": "4MP"
+      }
+    },
+    {
+      "id": 16,
+      "model": "CS-BC1-A0-2C2WPBL(EU-STD)",
+      "category": "Battery Camera",
+      "sub_category": "BC1 Add-on Camera",
+      "pricing": {
+        "dpp": 50,
+        "si": 50
+      },
+      "specs": {
+        "type": "Add-on battery camera for BC1 base"
+      }
+    },
+    {
+      "id": 17,
+      "model": "CS-BC1C-A0-2C4WPBDL(EU-STD)(Mul)",
+      "category": "Battery Camera",
+      "sub_category": "BC1C Add-on Camera (4MP, Color)",
+      "pricing": {
+        "dpp": 85,
+        "si": 88
+      },
+      "specs": {
+        "resolution": "4MP",
+        "color_night_vision": true
+      }
+    },
+    {
+      "id": 18,
+      "model": "CS-BC1C-B0-2C2WPBDL(EU-STD)",
+      "category": "Battery Camera",
+      "sub_category": "BC1C Camera",
+      "pricing": {
+        "dpp": 78,
+        "si": 82
+      }
+    },
+    {
+      "id": 19,
+      "model": "CS-BC2-A0-2C2WPFB(EU-STD)",
+      "category": "Battery Camera",
+      "sub_category": "BC2 Standalone Battery Camera",
+      "pricing": {
+        "dpp": 38.75,
+        "si": "41-43"
+      }
+    },
+    {
+      "id": 20,
+      "model": "CS-H1c-R101-1G2WR",
+      "category": "Indoor Camera",
+      "sub_category": "H1c Indoor Wi-Fi Camera (1080p)",
+      "pricing": {
+        "dpp": 12.75,
+        "si": "13.5-14"
+      },
+      "specs": {
+        "resolution": "1080p",
+        "type": "Indoor pan/tilt",
+        "wifi": true,
+        "two_way_audio": true,
+        "tracking": false
+      }
+    },
+    {
+      "id": 21,
+      "model": "CS-H7c-R100-8G44WF(EU-STD)(Mul)",
+      "category": "Indoor Camera",
+      "sub_category": "H7c Indoor Wi-Fi Camera (2K)",
+      "pricing": {
+        "dpp": 35.5,
+        "si": "37.5-39"
+      },
+      "specs": {
+        "resolution": "2K (4MP)",
+        "type": "Indoor pan/tilt",
+        "wifi": true,
+        "auto_tracking": true
+      }
+    },
+    {
+      "id": 22,
+      "model": "CS-H9c-R100-8G55WKFL(E-STD)(Mul)",
+      "category": "Indoor Camera",
+      "sub_category": "H9c Indoor Camera (2K+, Premium)",
+      "pricing": {
+        "dpp": 60,
+        "si": "63-66"
+      },
+      "specs": {
+        "resolution": "2K+",
+        "auto_tracking": true,
+        "color_night_vision": true
+      }
+    },
+    {
+      "id": 23,
+      "model": "CS-CP1-A0-2C3WF",
+      "category": "Indoor Camera",
+      "sub_category": "CP1 Compact Pan-Tilt Camera",
+      "pricing": {
+        "dpp": 20,
+        "si": 23
+      },
+      "specs": {
+        "resolution": "2K",
+        "type": "Compact indoor PT"
+      }
+    },
+    {
+      "id": 24,
+      "model": "CS-C1C-F0-1E2WF(EU-STD)(Mul)",
+      "category": "Outdoor Camera",
+      "sub_category": "C1C Outdoor Camera (1080p)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "notes": "Bundled/discontinued"
+    },
+    {
+      "id": 25,
+      "model": "CS-CV248-B0-32WFR(EU-STD)",
+      "category": "Outdoor Camera",
+      "sub_category": "CV248 Outdoor Camera",
+      "pricing": {
+        "dpp": 28,
+        "si": 28
+      }
+    },
+    {
+      "id": 26,
+      "model": "CS-C6W-A0-3H4WF(EU-STD)",
+      "category": "Outdoor Camera",
+      "sub_category": "C6W Outdoor Camera (2K)",
+      "pricing": {
+        "dpp": 36,
+        "si": 38
+      },
+      "specs": {
+        "resolution": "2K (4MP)",
+        "type": "Outdoor pan/tilt",
+        "wifi": true,
+        "ip_rating": "IP65",
+        "color_night_vision": true
+      }
+    },
+    {
+      "id": 27,
+      "model": "CS-C6-A0-8C4WF(4mm)(Mul)(EU-STD)",
+      "category": "Outdoor Camera",
+      "sub_category": "C6 Outdoor Camera (4MP, 4mm)",
+      "pricing": {
+        "dpp": 45,
+        "si": 45
+      },
+      "specs": {
+        "resolution": "4MP",
+        "lens": "4mm"
+      }
+    },
+    {
+      "id": 28,
+      "model": "CS-C8PF-A0-6E22WFR",
+      "category": "Outdoor Camera",
+      "sub_category": "C8PF Dual-Lens Outdoor PT Camera",
+      "pricing": {
+        "dpp": 75,
+        "si": 90
+      },
+      "specs": {
+        "resolution": "2K",
+        "type": "Dual-lens outdoor pan/tilt",
+        "optical_zoom": true,
+        "features": [
+          "Dual lens",
+          "Pan/tilt",
+          "AI detection"
+        ]
+      }
+    },
+    {
+      "id": 29,
+      "model": "CS-H4-R201-1H3WKFL",
+      "category": "Outdoor Camera",
+      "sub_category": "H4 Outdoor Camera (2K)",
+      "pricing": {
+        "dpp": 36.5,
+        "si": "39-40"
+      },
+      "specs": {
+        "resolution": "2K",
+        "color_night_vision": true
+      }
+    },
+    {
+      "id": 30,
+      "model": "CS-H8c-R100-1K2WKFL(4mm)",
+      "category": "Outdoor Camera",
+      "sub_category": "H8c Outdoor PT Camera (4MP, 4mm)",
+      "pricing": {
+        "dpp": 45,
+        "si": 49
+      },
+      "specs": {
+        "resolution": "4MP",
+        "type": "Pan/tilt outdoor"
+      }
+    },
+    {
+      "id": 31,
+      "model": "CS-H8c-R100-1K3WKF",
+      "category": "Outdoor Camera",
+      "sub_category": "H8c Outdoor PT Camera (3K)",
+      "pricing": {
+        "dpp": 31.5,
+        "si": "33-35"
+      },
+      "specs": {
+        "resolution": "3K"
+      }
+    },
+    {
+      "id": 32,
+      "model": "CS-H8c-R100-1J4WKF",
+      "category": "Outdoor Camera",
+      "sub_category": "H8c Outdoor PT Camera (4K)",
+      "pricing": {
+        "dpp": null,
+        "si": null
+      },
+      "notes": "Price TBD"
+    },
+    {
+      "id": 33,
+      "model": "CS-H8-R100-1J5WKFL",
+      "category": "Outdoor Camera",
+      "sub_category": "H8 Outdoor PT Camera (5MP)",
+      "pricing": {
+        "dpp": 65,
+        "si": 75
+      },
+      "specs": {
+        "resolution": "5MP"
+      }
+    },
+    {
+      "id": 34,
+      "model": "CS-H8c-R200-1K3KFL4GA",
+      "category": "Outdoor Camera",
+      "sub_category": "H8c 4G Outdoor PT Camera",
+      "pricing": {
+        "dpp": 75,
+        "si": 85
+      },
+      "specs": {
+        "resolution": "3K",
+        "4g_cellular": true
+      }
+    },
+    {
+      "id": 35,
+      "model": "CS-H6c-R105-1L2WF",
+      "category": "Outdoor Camera",
+      "sub_category": "H6c Outdoor Camera (2MP)",
+      "pricing": {
+        "dpp": 14.75,
+        "si": 16.5
+      },
+      "specs": {
+        "resolution": "2MP"
+      }
+    },
+    {
+      "id": 36,
+      "model": "CS-H6c-R105-1J4WF",
+      "category": "Outdoor Camera",
+      "sub_category": "H6c Outdoor Camera (4MP)",
+      "pricing": {
+        "dpp": 19.75,
+        "si": 21
+      },
+      "specs": {
+        "resolution": "4MP"
+      }
+    },
+    {
+      "id": 37,
+      "model": "CS-H6-R100-1J5WF",
+      "category": "Outdoor Camera",
+      "sub_category": "H6 Outdoor Camera (5MP)",
+      "pricing": {
+        "dpp": 45,
+        "si": 48
+      },
+      "specs": {
+        "resolution": "5MP"
+      }
+    },
+    {
+      "id": 38,
+      "model": "CS-H3c-R100-1K2WFL(4mm)(M)(EU-STD)",
+      "category": "Outdoor Camera",
+      "sub_category": "H3c Outdoor Camera (2K, 4mm)",
+      "pricing": {
+        "dpp": 27.5,
+        "si": "29-30"
+      },
+      "specs": {
+        "resolution": "2K",
+        "lens": "4mm"
+      }
+    },
+    {
+      "id": 39,
+      "model": "CS-H3c-R100-1K3WFL(4mm)(M)(EU-STD)",
+      "category": "Outdoor Camera",
+      "sub_category": "H3c Outdoor Camera (3K, 4mm)",
+      "pricing": {
+        "dpp": 30,
+        "si": "31.5-33"
+      },
+      "specs": {
+        "resolution": "3K"
+      }
+    },
+    {
+      "id": 40,
+      "model": "CS-H3c-R100-1J4WKFL(4mm)(M)(EU-STD)",
+      "category": "Outdoor Camera",
+      "sub_category": "H3c Outdoor Camera (4K, 4mm)",
+      "pricing": {
+        "dpp": 34,
+        "si": "36-37"
+      },
+      "specs": {
+        "resolution": "4K"
+      }
+    },
+    {
+      "id": 41,
+      "model": "CS-H3-R100-1J5WKFL",
+      "category": "Outdoor Camera",
+      "sub_category": "H3 Outdoor Camera (5MP)",
+      "pricing": {
+        "dpp": 36.5,
+        "si": "38.5-40"
+      },
+      "specs": {
+        "resolution": "5MP"
+      }
+    },
+    {
+      "id": 42,
+      "model": "CS-H3C-R100-1J5WKFL",
+      "category": "Outdoor Camera",
+      "sub_category": "H3C Outdoor Camera (5MP)",
+      "pricing": {
+        "dpp": 36.5,
+        "si": 39
+      }
+    },
+    {
+      "id": 43,
+      "model": "CS-H5-R201-1H3KFL4GA",
+      "category": "Outdoor Camera",
+      "sub_category": "H5 4G Outdoor Camera",
+      "pricing": {
+        "dpp": 48,
+        "si": 55
+      },
+      "specs": {
+        "4g_cellular": true
+      }
+    },
+    {
+      "id": 44,
+      "model": "CS-SD7-R100-1WTC",
+      "category": "Solar Camera",
+      "sub_category": "SD7 Solar-Powered Camera",
+      "pricing": {
+        "dpp": 58,
+        "si": 60
+      },
+      "specs": {
+        "type": "Solar battery camera",
+        "solar": true
+      }
+    },
+    {
+      "id": 45,
+      "model": "CS-EB8-R100-1K3FL4GA",
+      "category": "Battery Camera",
+      "sub_category": "EB8 4G Battery Camera (3K)",
+      "pricing": {
+        "dpp": 125,
+        "si": "130-135"
+      },
+      "specs": {
+        "resolution": "3K",
+        "4g_cellular": true,
+        "battery": true
+      }
+    },
+    {
+      "id": 46,
+      "model": "CS-HB8-R100-2C4WDL(EU-STD)",
+      "category": "Battery Camera",
+      "sub_category": "HB8 Battery Camera (4MP)",
+      "pricing": {
+        "dpp": 110,
+        "si": 116
+      },
+      "specs": {
+        "resolution": "4MP"
+      }
+    },
+    {
+      "id": 47,
+      "model": "CS-CB1-R100-1K2WF",
+      "category": "Battery Camera",
+      "sub_category": "CB1 Battery Camera (2K)",
+      "pricing": {
+        "dpp": 28.5,
+        "si": "31-32"
+      },
+      "specs": {
+        "resolution": "2K",
+        "battery": true
+      }
+    },
+    {
+      "id": 48,
+      "model": "CS-CB8-R100-2C3WFL(EU-STD)",
+      "category": "Battery Camera",
+      "sub_category": "CB8 Battery Camera (3MP)",
+      "pricing": {
+        "dpp": 98,
+        "si": "103-108"
+      }
+    },
+    {
+      "id": 49,
+      "model": "CS-CB3-R100-2D2WFL(EU-STD)",
+      "category": "Battery Camera",
+      "sub_category": "CB3 Battery Camera",
+      "pricing": {
+        "dpp": 57,
+        "si": "60-63"
+      }
+    },
+    {
+      "id": 50,
+      "model": "CS-EB3-R100-2C3WFL(EU-STD)",
+      "category": "Battery Camera",
+      "sub_category": "EB3 Battery Camera",
+      "pricing": {
+        "dpp": 57,
+        "si": "60-63"
+      }
+    },
+    {
+      "id": 51,
+      "model": "CS-EB8-SP",
+      "category": "Battery Camera",
+      "sub_category": "EB8 Solar Panel Kit",
+      "pricing": {
+        "dpp": 155,
+        "si": 165
+      }
+    },
+    {
+      "id": 52,
+      "model": "CS-L2S",
+      "category": "Smart Lock",
+      "sub_category": "L2S Smart Door Lock (Fingerprint)",
+      "pricing": {
+        "dpp": 145,
+        "si": 155
+      },
+      "specs": {
+        "type": "Smart lock",
+        "fingerprint": true,
+        "pin_code": true,
+        "rfid_card": true,
+        "app_unlock": true,
+        "wifi": true
+      }
+    },
+    {
+      "id": 53,
+      "model": "CS-DL05-R200-WBCP-GR",
+      "category": "Smart Lock",
+      "sub_category": "DL05 Smart Lock (Green)",
+      "pricing": {
+        "dpp": 90,
+        "si": 95
+      }
+    },
+    {
+      "id": 54,
+      "model": "CS-RC3P-TWT5(EN-STD)",
+      "category": "Robot Vacuum",
+      "sub_category": "RC3 Plus Robot Vacuum (Premium)",
+      "pricing": {
+        "dpp": 178,
+        "si": 185
+      }
+    },
+    {
+      "id": 55,
+      "model": "CS-RC3-TWT5(EN-STD)",
+      "category": "Robot Vacuum",
+      "sub_category": "RC3 Robot Vacuum",
+      "pricing": {
+        "dpp": 125,
+        "si": 135
+      }
+    },
+    {
+      "id": 56,
+      "model": "CS-RS2-TWT5( EN-STD )",
+      "category": "Robot Vacuum",
+      "sub_category": "RS2 Robot Vacuum (Flagship)",
+      "pricing": {
+        "dpp": 520,
+        "si": 530
+      }
+    },
+    {
+      "id": 57,
+      "model": "CS-CMT-Solar Panel-D(E-STD)",
+      "category": "Accessory",
+      "sub_category": "Solar Panel for EZVIZ Cameras",
+      "pricing": {
+        "dpp": 18,
+        "si": 20
+      }
+    },
+    {
+      "id": 58,
+      "model": "CS-PBC12R100-10A",
+      "category": "Accessory",
+      "sub_category": "Battery Charging Station",
+      "pricing": {
+        "dpp": 46,
+        "si": "49-50"
+      }
+    },
+    {
+      "id": 59,
+      "model": "CS-C1T",
+      "category": "Accessory",
+      "sub_category": "Camera Sensor / Action Cam",
+      "pricing": {
+        "dpp": 16.5,
+        "si": 17
+      }
+    },
+    {
+      "id": 60,
+      "model": "CS-LC3",
+      "category": "Accessory",
+      "sub_category": "Smart Light Controller",
+      "pricing": {
+        "dpp": 75,
+        "si": 80
+      }
+    },
+    {
+      "id": 61,
+      "model": "CS-BM1",
+      "category": "Baby Monitor",
+      "sub_category": "BM1 Baby Monitor Camera",
+      "pricing": {
+        "dpp": 56,
+        "si": "59-62"
+      },
+      "specs": {
+        "type": "Dedicated baby monitor with lullabies, temperature sensor"
+      }
+    },
+    {
+      "id": 62,
+      "model": "CS-CMT-CARDT32G-D",
+      "category": "Accessory",
+      "sub_category": "MicroSD Card 32GB",
+      "pricing": {
+        "dpp": 3.25,
+        "si": 3.5
+      }
+    },
+    {
+      "id": 63,
+      "model": "CS-CMT-CARDT64G-D",
+      "category": "Accessory",
+      "sub_category": "MicroSD Card 64GB",
+      "pricing": {
+        "dpp": 3.5,
+        "si": 3.75
+      }
+    },
+    {
+      "id": 64,
+      "model": "VEMAR",
+      "category": "Accessory",
+      "sub_category": "Camera Mount/Bracket",
+      "pricing": {
+        "dpp": 25,
+        "si": 25
+      }
+    }
+  ]
+}

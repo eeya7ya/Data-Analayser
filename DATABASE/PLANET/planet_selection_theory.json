@@ -1,0 +1,259 @@
+{
+  "database_info": {
+    "name": "PLANET Networking Selection Theory",
+    "version": "1.0",
+    "manufacturer": "PLANET",
+    "last_updated": "2026-04-07"
+  },
+  "selection_criteria": {
+    "1_product_tier_selection": {
+      "standard": "Network Design",
+      "principle": "PLANET offers budget to enterprise-grade switches with consistent quality",
+      "tiers": [
+        {
+          "tier": "Unmanaged Desktop",
+          "models": "SW-504/804, GSD-504/804",
+          "managed": false,
+          "best_for": "Simple small networks, home office",
+          "price": "$8-19"
+        },
+        {
+          "tier": "Unmanaged PoE",
+          "models": "FSD-604HP/1008HP, GSD-604HP/1008HP",
+          "managed": false,
+          "best_for": "Small camera installations, plug-and-play PoE",
+          "price": "$26-70"
+        },
+        {
+          "tier": "Web-Smart PoE",
+          "models": "GSD-2022P, GSW-1820HP/2620HP/2824P",
+          "managed": "Web-Smart",
+          "best_for": "Medium installations needing basic VLAN/QoS",
+          "price": "$142-215"
+        },
+        {
+          "tier": "L2 Managed",
+          "models": "GS-4210 series, FGSW-HPS series",
+          "managed": "L2",
+          "best_for": "Enterprise VLAN, QoS, SNMP, security ACL",
+          "price": "$78-385"
+        },
+        {
+          "tier": "L2+/L3 Managed",
+          "models": "GS-5220, SGS-5240, SGS-6310",
+          "managed": "L2+/L3",
+          "best_for": "Core/distribution, inter-VLAN routing, 10G backbone",
+          "price": "$245-590"
+        },
+        {
+          "tier": "Industrial",
+          "models": "IGS-1020PTF, IGS-5225, ISW-514PTF, IFGS-1022HPT",
+          "managed": "L2/L2+",
+          "best_for": "Factory, outdoor, harsh environment, DIN rail",
+          "price": "$140-255"
+        }
+      ]
+    },
+    "2_planet_vs_hikvision_vs_tenda_vs_aruba": {
+      "standard": "Product Comparison",
+      "comparison": [
+        {
+          "brand": "Tenda",
+          "strength": "Lowest cost",
+          "weakness": "Limited management, no industrial",
+          "best_for": "Budget residential/SMB"
+        },
+        {
+          "brand": "Hikvision",
+          "strength": "Surveillance-optimized, long-range PoE",
+          "weakness": "Limited to security network",
+          "best_for": "Dedicated camera network"
+        },
+        {
+          "brand": "PLANET",
+          "strength": "Full range: desktop to enterprise to industrial, SFP/10G, long-range PoE, competitive pricing",
+          "weakness": "Less brand recognition than HPE",
+          "best_for": "Professional IT/security installations, industrial, fiber backbone"
+        },
+        {
+          "brand": "HPE Aruba",
+          "strength": "Cloud management, enterprise support, lifetime warranty",
+          "weakness": "Higher cost",
+          "best_for": "Corporate/hotel/campus with cloud management needs"
+        }
+      ]
+    },
+    "3_gs4210_for_camera_networks": {
+      "standard": "Surveillance Network Design",
+      "principle": "GS-4210 series is ideal for professional camera networks",
+      "recommended_models": [
+        {
+          "cameras": "1-8",
+          "model": "GS-4210-8P2S ($135)",
+          "notes": "8 PoE + 2 SFP uplinks"
+        },
+        {
+          "cameras": "9-16",
+          "model": "GS-4210-16P2S ($225)",
+          "notes": "16 PoE + 2 SFP"
+        },
+        {
+          "cameras": "17-24",
+          "model": "GS-4210-24P2S ($270) or GS-4210-24P4C ($295)",
+          "notes": "24 PoE + SFP/Combo uplinks"
+        },
+        {
+          "cameras": "Long range",
+          "model": "GS-4210-24PL4C ($325-350)",
+          "notes": "250m PoE extend mode for remote cameras"
+        }
+      ],
+      "vlan_config": "Configure Camera VLAN (tagged) on all PoE ports, NVR VLAN on uplink, management VLAN for switch access."
+    },
+    "4_industrial_switch_selection": {
+      "standard": "Industrial Network Design",
+      "principle": "Industrial switches for harsh environments: factories, outdoor, transportation",
+      "features": [
+        "DIN rail mounting",
+        "Extended temperature: -40\u00b0C to +75\u00b0C",
+        "Redundant power input (dual 48VDC)",
+        "Ring protection (ERPS/SHP) for network redundancy",
+        "IP30 rated housing",
+        "Vibration and shock resistant"
+      ],
+      "models": {
+        "IGS-1020PTF": "10-port Gigabit PoE + 2 SFP, DIN rail, L2 managed \u2014 best for industrial camera networks",
+        "IGS-5225-4P2S": "6-port Gigabit PoE L2+, DIN rail \u2014 small industrial nodes",
+        "ISW-514PTF": "5-port FE PoE + SFP, industrial \u2014 compact nodes",
+        "IFGS-1022HPT": "10-port FE PoE 240W, industrial \u2014 high power for outdoor PTZ cameras"
+      }
+    },
+    "5_sfp_module_selection": {
+      "standard": "IEEE 802.3z / 802.3ae",
+      "principle": "SFP modules provide fiber connectivity in managed switches",
+      "guide": [
+        {
+          "model": "MGB-SX",
+          "speed": "1G",
+          "fiber": "Multi-mode",
+          "distance": "550m",
+          "price": "$18",
+          "use": "Within building, data center"
+        },
+        {
+          "model": "MGB-LX",
+          "speed": "1G",
+          "fiber": "Single-mode",
+          "distance": "10km",
+          "price": "$18",
+          "use": "Between buildings, campus backbone"
+        },
+        {
+          "model": "MTB-SR",
+          "speed": "10G",
+          "fiber": "Multi-mode",
+          "distance": "300m",
+          "price": "$42",
+          "use": "10G backbone within building"
+        },
+        {
+          "model": "MTB-LR",
+          "speed": "10G",
+          "fiber": "Single-mode",
+          "distance": "10km",
+          "price": "$42",
+          "use": "10G long-distance backbone"
+        },
+        {
+          "model": "MGB-TSX/TLX",
+          "speed": "1G",
+          "fiber": "Industrial temp",
+          "distance": "Varies",
+          "price": "$21",
+          "use": "Industrial environments (-40 to 85\u00b0C)"
+        }
+      ],
+      "compatibility": "PLANET SFP modules follow MSA standard \u2014 compatible with any MSA-compliant switch (PLANET, HPE, Cisco, etc.)"
+    },
+    "6_poe_extend_mode": {
+      "standard": "PLANET Long-Range PoE",
+      "principle": "PLANET switches support 250m PoE extend mode at 10Mbps",
+      "models": [
+        "GS-4210-24PL4C",
+        "Selected FSD/GSD models"
+      ],
+      "specs": {
+        "standard_poe_m": 100,
+        "extend_mode_m": 250,
+        "extend_speed": "10Mbps (sufficient for 2MP H.265 camera)"
+      },
+      "use_case": "Remote cameras beyond 100m without adding PoE extender or fiber. Enable extend mode per-port via switch management."
+    },
+    "7_poe_extender_planning": {
+      "standard": "IEEE 802.3af/at",
+      "principle": "PoE extenders cascade PoE beyond 100m",
+      "models": {
+        "POE-E201": "Extends 1 port by 100m (total 200m)",
+        "POE-E202": "Extends by 100m + adds 1 extra port (2 outputs)"
+      },
+      "daisy_chain": "Up to 3\u00d7 POE-E201 in series = 400m total PoE reach. Data speed remains Gigabit (unlike extend mode which drops to 10Mbps)."
+    },
+    "8_10g_backbone_design": {
+      "standard": "Network Design",
+      "principle": "10G SFP+ uplinks connect distribution switches to core",
+      "architecture": "Access (GS-4210 PoE) \u2192 10G SFP+ uplink \u2192 Core (SGS-6310/GS-5220) \u2192 Server/NVR",
+      "models_with_10g": [
+        "GS-5220-24T4XVR (4\u00d7 10G SFP+)",
+        "SGS-6310-24T4X (4\u00d7 10G)",
+        "SGS-6310-48T6X (6\u00d7 10G)",
+        "SGS-5240-24P4X (4\u00d7 10G, stackable)",
+        "GSD-1121XP (1\u00d7 10G)"
+      ]
+    },
+    "9_metro_fiber_switches": {
+      "standard": "Metro Ethernet",
+      "principle": "Metro switches for fiber-heavy deployments (ISP, campus backbone)",
+      "models": {
+        "MGSD-10080F": "10-port (8 SFP + 2 copper) \u2014 small fiber backbone",
+        "MGSW-24160F": "24-port (16 SFP + 8 copper) \u2014 large fiber backbone"
+      },
+      "use": "Campus backbone with fiber to each building, ISP aggregation, metro Ethernet"
+    },
+    "10_compliance": {
+      "standards": [
+        {
+          "standard": "IEEE 802.3af/at/bt",
+          "scope": "PoE power standards"
+        },
+        {
+          "standard": "IEEE 802.1Q",
+          "scope": "VLAN"
+        },
+        {
+          "standard": "IEEE 802.1X",
+          "scope": "Port security (RADIUS)"
+        },
+        {
+          "standard": "IEEE 802.3ad",
+          "scope": "LACP link aggregation"
+        },
+        {
+          "standard": "IEEE 802.1D/w/s",
+          "scope": "STP/RSTP/MSTP"
+        },
+        {
+          "standard": "ITU-T G.8032",
+          "scope": "ERPS ring protection (industrial)"
+        },
+        {
+          "standard": "IEC 61850-3",
+          "scope": "Industrial switch EMC immunity"
+        },
+        {
+          "standard": "CE / FCC / RoHS",
+          "scope": "Regional compliance"
+        }
+      ]
+    }
+  }
+}

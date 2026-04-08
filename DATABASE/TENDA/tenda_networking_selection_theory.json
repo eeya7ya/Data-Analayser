@@ -1,0 +1,254 @@
+{
+  "database_info": {
+    "name": "Tenda & HPE Aruba Networking Selection Theory",
+    "version": "1.0",
+    "last_updated": "2026-04-07"
+  },
+  "selection_criteria": {
+    "1_brand_positioning": {
+      "principle": "Tenda = budget/SMB networking. HPE Aruba = enterprise managed networking.",
+      "guide": [
+        {
+          "brand": "Tenda",
+          "tier": "Budget/SMB",
+          "managed": "Unmanaged or basic L2",
+          "support": "Limited",
+          "best_for": "Small office, residential, cost-sensitive projects, basic camera PoE",
+          "warranty": "Standard"
+        },
+        {
+          "brand": "HPE Aruba Instant On",
+          "tier": "Enterprise",
+          "managed": "L2+/L3, cloud managed",
+          "support": "HPE enterprise support",
+          "best_for": "Corporate, hotel, campus, managed Wi-Fi, VLAN networks",
+          "warranty": "Limited Lifetime"
+        }
+      ]
+    },
+    "2_switch_selection_by_camera_count": {
+      "principle": "Match switch ports, PoE budget, and speed to camera requirements",
+      "guide": [
+        {
+          "cameras": "1-4",
+          "switch": "TEF1105P-4-63W ($15.5) or TEG1105P-4-63W ($24)",
+          "notes": "63W budget sufficient for 4 cameras"
+        },
+        {
+          "cameras": "5-8",
+          "switch": "TEF1109P-8-102W ($29) or TEG1110PF-8-102W ($38)",
+          "notes": "102W for 8\u00d7 PoE cameras"
+        },
+        {
+          "cameras": "9-16",
+          "switch": "TEF1118P-16-150W ($63) or TEG1116P-16-150W ($85)",
+          "notes": "150W budget"
+        },
+        {
+          "cameras": "17-24",
+          "switch": "TEF1126P-24-250W ($85) or TEG1124P-24-250W ($120)",
+          "notes": "250W for 24 cameras"
+        },
+        {
+          "cameras": "24+ (high power)",
+          "switch": "TEG1126P-24-410W ($185)",
+          "notes": "410W for PTZ/high-power cameras"
+        },
+        {
+          "cameras": "Enterprise/managed",
+          "switch": "HPE Aruba JL683A ($275) or TEG2228P ($175)",
+          "notes": "VLAN, QoS, SNMP monitoring"
+        }
+      ]
+    },
+    "3_100mbps_vs_gigabit_switches": {
+      "principle": "Fast Ethernet (TEF) for budget 2MP cameras. Gigabit (TEG) for 4MP+ and future-proof.",
+      "comparison": {
+        "tef_fast_ethernet": {
+          "speed": "10/100Mbps",
+          "prefix": "TEF",
+          "best_for": "2MP cameras, basic IP phones",
+          "cost": "Lower"
+        },
+        "teg_gigabit": {
+          "speed": "10/100/1000Mbps",
+          "prefix": "TEG",
+          "best_for": "4MP+ cameras, 4K NVR, future-proof",
+          "cost": "15-30% more"
+        }
+      }
+    },
+    "4_router_selection": {
+      "principle": "Router tier based on users and coverage",
+      "guide": [
+        {
+          "tier": "Basic (1-5 users)",
+          "models": "N301 ($8), F3 ($9.5)",
+          "wifi": "300Mbps 2.4GHz"
+        },
+        {
+          "tier": "Standard (5-15 users)",
+          "models": "AC5 ($15), AC8 ($19), A18 ($16.5)",
+          "wifi": "AC1200-1900"
+        },
+        {
+          "tier": "Wi-Fi 6 (10-30 users)",
+          "models": "TX2Pro ($30), TX9 ($40), TX12 Pro ($52)",
+          "wifi": "AX1500-3000"
+        },
+        {
+          "tier": "Wi-Fi 6E (20-50 users)",
+          "models": "TE6L Pro ($62)",
+          "wifi": "6GHz tri-band"
+        },
+        {
+          "tier": "Mesh (whole home/office)",
+          "models": "MW6 2-pack ($45), MW5G 3-pack ($60)",
+          "coverage": "250-350m\u00b2"
+        }
+      ]
+    },
+    "5_enterprise_wifi_aruba": {
+      "principle": "HPE Aruba APs for professional Wi-Fi with central cloud management",
+      "models": [
+        {
+          "model": "AP11",
+          "wifi": "Wi-Fi 5",
+          "best_for": "Budget enterprise indoor",
+          "price": "$69"
+        },
+        {
+          "model": "AP21/AP22",
+          "wifi": "Wi-Fi 6",
+          "best_for": "Standard enterprise indoor",
+          "price": "$78-92"
+        },
+        {
+          "model": "AP32",
+          "wifi": "Wi-Fi 6E",
+          "best_for": "High-density, future-proof",
+          "price": "$185"
+        },
+        {
+          "model": "AP17/AP27",
+          "wifi": "Wi-Fi 6",
+          "best_for": "Outdoor enterprise",
+          "price": "$185-225"
+        }
+      ],
+      "management": "All Aruba Instant On APs managed via cloud portal or mobile app. Zero-touch provisioning."
+    },
+    "6_outdoor_wireless_bridges": {
+      "principle": "Point-to-point bridges connect remote buildings without fiber",
+      "models": {
+        "O8": {
+          "frequency": "5GHz",
+          "range": "Up to 20km",
+          "speed": "Up to 300Mbps",
+          "price": "$85-95",
+          "best_for": "Long-range building-to-building link"
+        },
+        "OS3": {
+          "frequency": "2.4GHz",
+          "range": "Shorter range",
+          "price": "$65-75"
+        },
+        "OAP1200": {
+          "type": "Outdoor AP (not bridge)",
+          "best_for": "Outdoor Wi-Fi coverage, not point-to-point"
+        }
+      }
+    },
+    "7_4g_5g_connectivity": {
+      "principle": "Cellular routers for locations without wired internet",
+      "models": {
+        "4G03 PRO": {
+          "type": "4G LTE",
+          "price": "$32",
+          "best_for": "Backup internet, temporary sites"
+        },
+        "4G185": {
+          "type": "4G LTE",
+          "price": "$33"
+        },
+        "5G01": {
+          "type": "5G indoor CPE",
+          "price": "$125",
+          "best_for": "Primary 5G broadband"
+        },
+        "5G03": {
+          "type": "5G outdoor CPE",
+          "price": "$185",
+          "best_for": "Fixed wireless 5G, rural/remote"
+        }
+      }
+    },
+    "8_media_converters": {
+      "principle": "Convert copper Ethernet to fiber for long-distance links",
+      "models": {
+        "TFC100A/B": {
+          "speed": "10/100Mbps",
+          "price": "$18-22",
+          "use": "Basic fiber link"
+        },
+        "TFC300A/B": {
+          "speed": "Gigabit",
+          "price": "$22-25",
+          "use": "Gigabit fiber link"
+        }
+      },
+      "note": "Always buy in A+B pairs (one for each end of fiber link)"
+    },
+    "9_managed_vs_unmanaged": {
+      "principle": "Managed switches essential for VLAN, QoS, and monitoring in professional installations",
+      "tenda_tiers": [
+        {
+          "tier": "Unmanaged",
+          "models": "S105-S108, SG105M-SG108M, TEF1016D, TEG1024G",
+          "features": "Plug-and-play only",
+          "best_for": "Simple small networks"
+        },
+        {
+          "tier": "Smart L2",
+          "models": "i24-i29, TEG2216D-TEG2228P",
+          "features": "VLAN, QoS, LACP, IGMP, SNMP",
+          "best_for": "Camera networks needing VLAN isolation"
+        },
+        {
+          "tier": "L3 Managed",
+          "models": "TEM2010F",
+          "features": "L3 routing, OSPF, inter-VLAN routing",
+          "best_for": "Multi-subnet enterprise"
+        }
+      ]
+    },
+    "10_compliance": {
+      "standards": [
+        {
+          "standard": "IEEE 802.3af/at/bt",
+          "scope": "PoE power standards"
+        },
+        {
+          "standard": "IEEE 802.11ax/ac/n",
+          "scope": "Wi-Fi standards"
+        },
+        {
+          "standard": "IEEE 802.1Q",
+          "scope": "VLAN tagging (managed switches)"
+        },
+        {
+          "standard": "IEEE 802.3ad",
+          "scope": "Link aggregation (LACP)"
+        },
+        {
+          "standard": "CE / FCC / RoHS",
+          "scope": "Regional compliance"
+        },
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety of networking equipment"
+        }
+      ]
+    }
+  }
+}

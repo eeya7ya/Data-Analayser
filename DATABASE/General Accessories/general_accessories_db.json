@@ -1,0 +1,2869 @@
+{
+  "database_info": {
+    "name": "General Accessories, AV Equipment & Consumables Database (Complete)",
+    "version": "2.0",
+    "category": "Security Accessories, Power Supplies, AV Equipment, Connectors, Brackets, Testers, HDMI/VGA Distribution",
+    "currency": "USD",
+    "last_updated": "2026-04-07",
+    "price_tiers": {
+      "dpp": "DPP/Distributor",
+      "installer": "Installer"
+    },
+    "brands": "Mixed OEM/Generic",
+    "integration_notes": {
+      "hikvision": "Power supplies, BNC connectors, baluns, brackets, and testers all support Hikvision camera installations",
+      "dsppa": "12V power supplies can power small DSPPA amplifiers and accessories",
+      "access_control": "Sirens, panic buttons, door sensors, and batteries support SIB/Hikvision access control and alarm systems"
+    },
+    "NOTE": "This is the consolidated accessories database covering: alarm accessories, power supplies, connectors, brackets, HDMI distribution, microphones, budget amplifiers, extension sockets, testers, and misc items."
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "Siren Wired",
+      "category": "Alarm",
+      "sub_category": "Wired Siren (Blue/Red pair)",
+      "pricing": {
+        "dpp": 23,
+        "installer": 24
+      }
+    },
+    {
+      "id": 2,
+      "model": "Siren Wireless 315MHz",
+      "category": "Alarm",
+      "sub_category": "Wireless Siren 315MHz",
+      "pricing": {
+        "dpp": 28,
+        "installer": 29
+      }
+    },
+    {
+      "id": 3,
+      "model": "Siren 30W",
+      "category": "Alarm",
+      "sub_category": "Siren 30W (2-sound)",
+      "pricing": {
+        "dpp": 10,
+        "installer": 10
+      },
+      "specs": {
+        "power_w": 30
+      }
+    },
+    {
+      "id": 4,
+      "model": "Siren 626",
+      "category": "Alarm",
+      "sub_category": "Black Siren",
+      "pricing": {
+        "dpp": 5,
+        "installer": 6
+      }
+    },
+    {
+      "id": 5,
+      "model": "Siren Small",
+      "category": "Alarm",
+      "sub_category": "Mini Siren",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 3
+      }
+    },
+    {
+      "id": 6,
+      "model": "Siren Medium",
+      "category": "Alarm",
+      "sub_category": "Siren (Medium)",
+      "pricing": {
+        "dpp": 4,
+        "installer": 5
+      }
+    },
+    {
+      "id": 7,
+      "model": "Panic Button (Wire)",
+      "category": "Alarm",
+      "sub_category": "Wired Panic Button",
+      "pricing": {
+        "dpp": 2,
+        "installer": 3
+      }
+    },
+    {
+      "id": 8,
+      "model": "Panic Button (Premium)",
+      "category": "Alarm",
+      "sub_category": "Premium Panic Button",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 5
+      }
+    },
+    {
+      "id": 9,
+      "model": "GSM Alarm Module",
+      "category": "Alarm",
+      "sub_category": "GSM Motion Alarm Module",
+      "pricing": {
+        "dpp": 55,
+        "installer": 60
+      }
+    },
+    {
+      "id": 10,
+      "model": "Motion Detector",
+      "category": "Alarm",
+      "sub_category": "Wired PIR Motion Detector",
+      "pricing": {
+        "dpp": 4,
+        "installer": 5
+      }
+    },
+    {
+      "id": 11,
+      "model": "Dialer 2G",
+      "category": "Alarm",
+      "sub_category": "GSM Dialer (2G)",
+      "pricing": {
+        "dpp": 52,
+        "installer": 55
+      }
+    },
+    {
+      "id": 12,
+      "model": "Dialer 4G",
+      "category": "Alarm",
+      "sub_category": "GSM Dialer (4G)",
+      "pricing": {
+        "dpp": 75,
+        "installer": 80
+      }
+    },
+    {
+      "id": 13,
+      "model": "GSM Controller 2G",
+      "category": "Alarm",
+      "sub_category": "GSM Relay Controller 1CH (2G)",
+      "pricing": {
+        "dpp": 32,
+        "installer": 35
+      }
+    },
+    {
+      "id": 14,
+      "model": "GSM Controller 4G",
+      "category": "Alarm",
+      "sub_category": "GSM Relay Controller 1CH (4G)",
+      "pricing": {
+        "dpp": 48,
+        "installer": 50
+      }
+    },
+    {
+      "id": 15,
+      "model": "Vibration Detector",
+      "category": "Alarm",
+      "sub_category": "Vibration/Shock Detector (Paradox-type)",
+      "pricing": {
+        "dpp": 20,
+        "installer": 22
+      }
+    },
+    {
+      "id": 16,
+      "model": "Gate Switch 2CH",
+      "category": "Alarm",
+      "sub_category": "Gate Switch Module 2CH (DC12-48V)",
+      "pricing": {
+        "dpp": 6,
+        "installer": 6
+      }
+    },
+    {
+      "id": 17,
+      "model": "Remote 433MHz",
+      "category": "Alarm",
+      "sub_category": "433MHz Remote Control",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 3
+      }
+    },
+    {
+      "id": 18,
+      "model": "Door Sensor Plastic",
+      "category": "Alarm",
+      "sub_category": "Wired Door Sensor (NO/NC/COM, Plastic)",
+      "pricing": {
+        "dpp": 4,
+        "installer": 5
+      }
+    },
+    {
+      "id": 19,
+      "model": "Smoke Detector Standalone+433",
+      "category": "Alarm",
+      "sub_category": "Standalone + Wireless Smoke Detector 433MHz",
+      "pricing": {
+        "dpp": 8,
+        "installer": 8
+      }
+    },
+    {
+      "id": 20,
+      "model": "PB-28 Button",
+      "category": "Alarm",
+      "sub_category": "Wired Push Button (NO/NC/COM)",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 21,
+      "model": "BR-09 Button",
+      "category": "Alarm",
+      "sub_category": "Wired Push Button (NO/NC/COM)",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 22,
+      "model": "Smoke Detector 12V Wire",
+      "category": "Alarm",
+      "sub_category": "12V Wired Smoke Detector (NO/NC/COM)",
+      "pricing": {
+        "dpp": 6,
+        "installer": 6
+      }
+    },
+    {
+      "id": 23,
+      "model": "Smoke Detector 12V (LH)",
+      "category": "Alarm",
+      "sub_category": "12V Wired Smoke Detector Premium (LH)",
+      "pricing": {
+        "dpp": 12,
+        "installer": 12
+      }
+    },
+    {
+      "id": 24,
+      "model": "Water Detector Metal",
+      "category": "Alarm",
+      "sub_category": "Water Leak Detector (Metal)",
+      "pricing": {
+        "dpp": 10,
+        "installer": 10
+      }
+    },
+    {
+      "id": 25,
+      "model": "Heat Detector 12V",
+      "category": "Alarm",
+      "sub_category": "12V Wired Heat Detector (NO/NC/COM)",
+      "pricing": {
+        "dpp": 7,
+        "installer": 8
+      }
+    },
+    {
+      "id": 26,
+      "model": "Doorbell Wired",
+      "category": "Alarm",
+      "sub_category": "Wired Doorbell",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 3
+      }
+    },
+    {
+      "id": 27,
+      "model": "Warning Light 12V",
+      "category": "Alarm",
+      "sub_category": "12V Red Warning Light/Strobe",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 3
+      }
+    },
+    {
+      "id": 28,
+      "model": "Call Button 433MHz",
+      "category": "Alarm",
+      "sub_category": "Wireless Call Button 433MHz",
+      "pricing": {
+        "dpp": 8,
+        "installer": 10
+      }
+    },
+    {
+      "id": 29,
+      "model": "Calling System 99CH",
+      "category": "Alarm",
+      "sub_category": "433MHz Calling System (99 channels)",
+      "pricing": {
+        "dpp": 50,
+        "installer": 55
+      }
+    },
+    {
+      "id": 30,
+      "model": "Battery CR123A",
+      "category": "Battery",
+      "sub_category": "CR123A Lithium Battery",
+      "pricing": {
+        "dpp": 2,
+        "installer": 2
+      }
+    },
+    {
+      "id": 31,
+      "model": "Battery CR1220",
+      "category": "Battery",
+      "sub_category": "CR1220 Coin Battery",
+      "pricing": {
+        "dpp": 1.25,
+        "installer": 1.5
+      }
+    },
+    {
+      "id": 32,
+      "model": "Battery 12V 7Ah",
+      "category": "Battery",
+      "sub_category": "12V 7Ah Sealed Lead-Acid Battery",
+      "pricing": {
+        "dpp": 8,
+        "installer": 10
+      }
+    },
+    {
+      "id": 33,
+      "model": "Battery 12V 5Ah",
+      "category": "Battery",
+      "sub_category": "12V 5Ah Battery",
+      "pricing": {
+        "dpp": 7,
+        "installer": 9
+      }
+    },
+    {
+      "id": 34,
+      "model": "Battery 12V 1.2Ah",
+      "category": "Battery",
+      "sub_category": "12V 1.2Ah Battery",
+      "pricing": {
+        "dpp": 6,
+        "installer": 6
+      }
+    },
+    {
+      "id": 35,
+      "model": "Beam 100M",
+      "category": "Beam Sensor",
+      "sub_category": "IR Beam Sensor 100m (Single Beam)",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      }
+    },
+    {
+      "id": 36,
+      "model": "Beam 2-Light 10M",
+      "category": "Beam Sensor",
+      "sub_category": "IR Beam 10m (2 Beams)",
+      "pricing": {
+        "dpp": 18,
+        "installer": 20
+      }
+    },
+    {
+      "id": 37,
+      "model": "Beam 4-Light 10M",
+      "category": "Beam Sensor",
+      "sub_category": "IR Beam 10m (4 Beams)",
+      "pricing": {
+        "dpp": 28,
+        "installer": 30
+      }
+    },
+    {
+      "id": 38,
+      "model": "Beam 6-Light 10M",
+      "category": "Beam Sensor",
+      "sub_category": "IR Beam 10m (6 Beams)",
+      "pricing": {
+        "dpp": 38,
+        "installer": 40
+      }
+    },
+    {
+      "id": 39,
+      "model": "12V 1A Mini",
+      "category": "Power Supply",
+      "sub_category": "12V 1A Adapter (Extreme Mini)",
+      "pricing": {
+        "dpp": 1.25,
+        "installer": 1.5
+      }
+    },
+    {
+      "id": 40,
+      "model": "12V 1A DVE-type",
+      "category": "Power Supply",
+      "sub_category": "12V 1A Adapter (DVE-style)",
+      "pricing": {
+        "dpp": 1.5,
+        "installer": 2
+      }
+    },
+    {
+      "id": 41,
+      "model": "12V 2A",
+      "category": "Power Supply",
+      "sub_category": "12V 2A Adapter",
+      "pricing": {
+        "dpp": 0.85,
+        "installer": 1
+      }
+    },
+    {
+      "id": 42,
+      "model": "12V 2A HP",
+      "category": "Power Supply",
+      "sub_category": "12V 2A Adapter (HP brand)",
+      "pricing": {
+        "dpp": 1.75,
+        "installer": 2
+      }
+    },
+    {
+      "id": 43,
+      "model": "12V 2A Standard",
+      "category": "Power Supply",
+      "sub_category": "12V 2A Adapter (Standard)",
+      "pricing": {
+        "dpp": 2,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 44,
+      "model": "12V 3A Huntkey",
+      "category": "Power Supply",
+      "sub_category": "12V 3A Adapter (Huntkey)",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 45,
+      "model": "12V 3A HP",
+      "category": "Power Supply",
+      "sub_category": "12V 3A Adapter (HP brand)",
+      "pricing": {
+        "dpp": 2.75,
+        "installer": 3
+      }
+    },
+    {
+      "id": 46,
+      "model": "12V 3A Standard",
+      "category": "Power Supply",
+      "sub_category": "12V 3A Adapter",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 3
+      }
+    },
+    {
+      "id": 47,
+      "model": "12V 5A Adapter",
+      "category": "Power Supply",
+      "sub_category": "12V 5A Adapter",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 2.75
+      }
+    },
+    {
+      "id": 48,
+      "model": "12V 2A DVR",
+      "category": "Power Supply",
+      "sub_category": "12V 2A DVR Heavy-Duty Adapter",
+      "pricing": {
+        "dpp": 6,
+        "installer": 10
+      }
+    },
+    {
+      "id": 49,
+      "model": "5V 2A",
+      "category": "Power Supply",
+      "sub_category": "5V 2A USB Adapter",
+      "pricing": {
+        "dpp": 1,
+        "installer": 1
+      }
+    },
+    {
+      "id": 50,
+      "model": "24V 2A",
+      "category": "Power Supply",
+      "sub_category": "24V 2A Adapter",
+      "pricing": {
+        "dpp": 2,
+        "installer": 3
+      }
+    },
+    {
+      "id": 51,
+      "model": "24V 3A",
+      "category": "Power Supply",
+      "sub_category": "24V 3A Adapter",
+      "pricing": {
+        "dpp": 2,
+        "installer": 3
+      }
+    },
+    {
+      "id": 52,
+      "model": "12V 5A Slim",
+      "category": "Power Supply",
+      "sub_category": "12V 5A Slim Metal PSU",
+      "pricing": {
+        "dpp": 2.75,
+        "installer": 3
+      }
+    },
+    {
+      "id": 53,
+      "model": "12V 8.5A Slim",
+      "category": "Power Supply",
+      "sub_category": "12V 8.5A Slim Metal PSU (102W)",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 3.75
+      }
+    },
+    {
+      "id": 54,
+      "model": "12V 12.5A Slim",
+      "category": "Power Supply",
+      "sub_category": "12V 12.5A Slim Metal PSU (150W)",
+      "pricing": {
+        "dpp": 3.75,
+        "installer": 4.5
+      }
+    },
+    {
+      "id": 55,
+      "model": "12V 16.7A Slim",
+      "category": "Power Supply",
+      "sub_category": "12V 16.7A Slim Metal PSU (200W)",
+      "pricing": {
+        "dpp": 5.5,
+        "installer": 6
+      }
+    },
+    {
+      "id": 56,
+      "model": "12V 20A Slim",
+      "category": "Power Supply",
+      "sub_category": "12V 20A Slim Metal PSU (240W)",
+      "pricing": {
+        "dpp": 6.5,
+        "installer": 6.5
+      }
+    },
+    {
+      "id": 57,
+      "model": "12V 5A Box 4CH",
+      "category": "Power Supply",
+      "sub_category": "12V 5A Centralized PSU (4-Channel Box)",
+      "pricing": {
+        "dpp": 5,
+        "installer": 5.5
+      },
+      "specs": {
+        "channels": 4
+      }
+    },
+    {
+      "id": 58,
+      "model": "12V 10A Box 9CH",
+      "category": "Power Supply",
+      "sub_category": "12V 10A Centralized PSU (9-Channel Box)",
+      "pricing": {
+        "dpp": 7.25,
+        "installer": 7.5
+      },
+      "specs": {
+        "channels": 9
+      }
+    },
+    {
+      "id": 59,
+      "model": "12V 15A Box 9CH",
+      "category": "Power Supply",
+      "sub_category": "12V 15A Centralized PSU (9-Channel Box)",
+      "pricing": {
+        "dpp": 8,
+        "installer": 8.5
+      },
+      "specs": {
+        "channels": 9
+      }
+    },
+    {
+      "id": 60,
+      "model": "12V 20A Box 18CH",
+      "category": "Power Supply",
+      "sub_category": "12V 20A Centralized PSU (18-Channel Box)",
+      "pricing": {
+        "dpp": 10,
+        "installer": 11
+      },
+      "specs": {
+        "channels": 18
+      }
+    },
+    {
+      "id": 61,
+      "model": "12V 30A Box 18CH",
+      "category": "Power Supply",
+      "sub_category": "12V 30A Centralized PSU (18-Channel Box)",
+      "pricing": {
+        "dpp": 13,
+        "installer": 14
+      },
+      "specs": {
+        "channels": 18
+      }
+    },
+    {
+      "id": 62,
+      "model": "12V 5A Open",
+      "category": "Power Supply",
+      "sub_category": "12V 5A Open Frame PSU",
+      "pricing": {
+        "dpp": 2.75,
+        "installer": 2.75
+      }
+    },
+    {
+      "id": 63,
+      "model": "12V 10A Open",
+      "category": "Power Supply",
+      "sub_category": "12V 10A Open Frame PSU",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3.5
+      }
+    },
+    {
+      "id": 64,
+      "model": "12V 15A Open",
+      "category": "Power Supply",
+      "sub_category": "12V 15A Open Frame PSU",
+      "pricing": {
+        "dpp": 4,
+        "installer": 4.5
+      }
+    },
+    {
+      "id": 65,
+      "model": "12V 20A Open",
+      "category": "Power Supply",
+      "sub_category": "12V 20A Open Frame PSU",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 5
+      }
+    },
+    {
+      "id": 66,
+      "model": "12V 30A Open",
+      "category": "Power Supply",
+      "sub_category": "12V 30A Open Frame PSU",
+      "pricing": {
+        "dpp": 5.5,
+        "installer": 6
+      }
+    },
+    {
+      "id": 67,
+      "model": "FY01 Balun",
+      "category": "Balun",
+      "sub_category": "Video Balun (Basic)",
+      "pricing": {
+        "dpp": 0.65,
+        "installer": 0.75
+      }
+    },
+    {
+      "id": 68,
+      "model": "FY03/JY03 Balun",
+      "category": "Balun",
+      "sub_category": "Video Balun (Standard)",
+      "pricing": {
+        "dpp": 0.85,
+        "installer": 1
+      }
+    },
+    {
+      "id": 69,
+      "model": "FY08 Balun",
+      "category": "Balun",
+      "sub_category": "Video Balun (Enhanced)",
+      "pricing": {
+        "dpp": 1.45,
+        "installer": 1.75
+      }
+    },
+    {
+      "id": 70,
+      "model": "Balun RJ45",
+      "category": "Balun",
+      "sub_category": "Video Balun with RJ45 Connector",
+      "pricing": {
+        "dpp": 2,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 71,
+      "model": "BNC Gold Solder-Free",
+      "category": "Connector",
+      "sub_category": "BNC Connector Gold (Solder-Free)",
+      "pricing": {
+        "dpp": 0.12,
+        "installer": 0.15
+      }
+    },
+    {
+      "id": 72,
+      "model": "BNC Plastic",
+      "category": "Connector",
+      "sub_category": "BNC Connector Plastic",
+      "pricing": {
+        "dpp": 0.13,
+        "installer": 0.15
+      }
+    },
+    {
+      "id": 73,
+      "model": "BNC Budget",
+      "category": "Connector",
+      "sub_category": "BNC Connector (Budget)",
+      "pricing": {
+        "dpp": 0.1,
+        "installer": 0.1
+      }
+    },
+    {
+      "id": 74,
+      "model": "BNC Cable",
+      "category": "Connector",
+      "sub_category": "BNC Cable Connector (Good)",
+      "pricing": {
+        "dpp": 0.13,
+        "installer": 0.15
+      }
+    },
+    {
+      "id": 75,
+      "model": "BNC High Quality",
+      "category": "Connector",
+      "sub_category": "BNC Connector (High Quality Solder-Free)",
+      "pricing": {
+        "dpp": 0.5,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 76,
+      "model": "BNC Compression",
+      "category": "Connector",
+      "sub_category": "BNC Compression Connector",
+      "pricing": {
+        "dpp": 0.35,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 77,
+      "model": "DC Male",
+      "category": "Connector",
+      "sub_category": "DC Male Connector (Black)",
+      "pricing": {
+        "dpp": 0.12,
+        "installer": 0.13
+      }
+    },
+    {
+      "id": 78,
+      "model": "DC Female",
+      "category": "Connector",
+      "sub_category": "DC Female Connector (Black)",
+      "pricing": {
+        "dpp": 0.12,
+        "installer": 0.13
+      }
+    },
+    {
+      "id": 79,
+      "model": "DC Splitter 1-2",
+      "category": "Connector",
+      "sub_category": "DC Power Splitter 1-to-2",
+      "pricing": {
+        "dpp": 0.5,
+        "installer": 0.6
+      }
+    },
+    {
+      "id": 80,
+      "model": "DC Splitter 1-4",
+      "category": "Connector",
+      "sub_category": "DC Power Splitter 1-to-4",
+      "pricing": {
+        "dpp": 0.7,
+        "installer": 0.75
+      }
+    },
+    {
+      "id": 81,
+      "model": "DC Splitter 1-8",
+      "category": "Connector",
+      "sub_category": "DC Power Splitter 1-to-8",
+      "pricing": {
+        "dpp": 0.75,
+        "installer": 0.8
+      }
+    },
+    {
+      "id": 82,
+      "model": "Cable Ties 5\u00d7250",
+      "category": "Cable Tie",
+      "sub_category": "Cable Ties 5\u00d7250mm (Pack)",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 83,
+      "model": "Cable Ties 3\u00d7150",
+      "category": "Cable Tie",
+      "sub_category": "Cable Ties 3\u00d7150mm (Pack)",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 84,
+      "model": "Cable Ties 3\u00d7100",
+      "category": "Cable Tie",
+      "sub_category": "Cable Ties 3\u00d7100mm (Pack)",
+      "pricing": {
+        "dpp": 2.75,
+        "installer": 3
+      }
+    },
+    {
+      "id": 85,
+      "model": "Cable Ties 5\u00d7300",
+      "category": "Cable Tie",
+      "sub_category": "Cable Ties 5\u00d7300mm (Pack)",
+      "pricing": {
+        "dpp": 2.75,
+        "installer": 3
+      }
+    },
+    {
+      "id": 86,
+      "model": "BNC+DC Cable 5M",
+      "category": "Pre-Made Cable",
+      "sub_category": "BNC+DC Pre-Made Cable 5M",
+      "pricing": {
+        "dpp": 0.5,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 87,
+      "model": "BNC+DC Cable 10M",
+      "category": "Pre-Made Cable",
+      "sub_category": "BNC+DC Pre-Made Cable 10M",
+      "pricing": {
+        "dpp": 0.5,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 88,
+      "model": "BNC+DC Cable 15M",
+      "category": "Pre-Made Cable",
+      "sub_category": "BNC+DC Pre-Made Cable 15M",
+      "pricing": {
+        "dpp": 0.75,
+        "installer": 0.75
+      }
+    },
+    {
+      "id": 89,
+      "model": "BNC+DC Cable 20M",
+      "category": "Pre-Made Cable",
+      "sub_category": "BNC+DC Pre-Made Cable 20M",
+      "pricing": {
+        "dpp": 1,
+        "installer": 1
+      }
+    },
+    {
+      "id": 90,
+      "model": "BNC+DC Cable 30M",
+      "category": "Pre-Made Cable",
+      "sub_category": "BNC+DC Pre-Made Cable 30M",
+      "pricing": {
+        "dpp": 1.25,
+        "installer": 1.25
+      }
+    },
+    {
+      "id": 91,
+      "model": "BNC+DC Cable 40M",
+      "category": "Pre-Made Cable",
+      "sub_category": "BNC+DC Pre-Made Cable 40M",
+      "pricing": {
+        "dpp": 1.5,
+        "installer": 1.5
+      }
+    },
+    {
+      "id": 92,
+      "model": "BNC+DC Cable 50M",
+      "category": "Pre-Made Cable",
+      "sub_category": "BNC+DC Pre-Made Cable 50M",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 2.5
+      }
+    },
+    {
+      "id": 93,
+      "model": "PoE 24V 100M Pair",
+      "category": "PoE Injector",
+      "sub_category": "Passive PoE 24V 100Mbps (Pair)",
+      "pricing": {
+        "dpp": 2.75,
+        "installer": 3
+      }
+    },
+    {
+      "id": 94,
+      "model": "PoE 48V 100M",
+      "category": "PoE Injector",
+      "sub_category": "Passive PoE 48V 100Mbps",
+      "pricing": {
+        "dpp": 2.75,
+        "installer": 3
+      }
+    },
+    {
+      "id": 95,
+      "model": "PoE Desktop 48V 0.5A",
+      "category": "PoE Injector",
+      "sub_category": "Desktop PoE 48V 0.5A",
+      "pricing": {
+        "dpp": 4,
+        "installer": 4.5
+      }
+    },
+    {
+      "id": 96,
+      "model": "PoE 48V 100M Waterproof",
+      "category": "PoE Injector",
+      "sub_category": "Passive PoE 48V 100M (Waterproof)",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3
+      }
+    },
+    {
+      "id": 97,
+      "model": "Bracket 30-60 I",
+      "category": "Camera Bracket",
+      "sub_category": "Wall Bracket for Small Bullet/Turret (I-type)",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 4
+      }
+    },
+    {
+      "id": 98,
+      "model": "Bracket 30-60 L",
+      "category": "Camera Bracket",
+      "sub_category": "Wall Bracket for Small Bullet/Turret (L-type)",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 4
+      }
+    },
+    {
+      "id": 99,
+      "model": "Bracket 60-1.2 I",
+      "category": "Camera Bracket",
+      "sub_category": "Wall Bracket for Large Bullet (I-type, Big)",
+      "pricing": {
+        "dpp": 6,
+        "installer": 6.5
+      }
+    },
+    {
+      "id": 100,
+      "model": "Bracket 60-1.2 L",
+      "category": "Camera Bracket",
+      "sub_category": "Wall Bracket for Large Bullet (L-type, Big)",
+      "pricing": {
+        "dpp": 6,
+        "installer": 6.5
+      }
+    },
+    {
+      "id": 101,
+      "model": "Bracket I 1-2M Big",
+      "category": "Camera Bracket",
+      "sub_category": "Ceiling/Extension Bracket (I-type, 1.2m)",
+      "pricing": {
+        "dpp": 7,
+        "installer": 8
+      }
+    },
+    {
+      "id": 102,
+      "model": "Bracket L 1-2M Big",
+      "category": "Camera Bracket",
+      "sub_category": "Ceiling/Extension Bracket (L-type, 1.2m)",
+      "pricing": {
+        "dpp": 7,
+        "installer": 8
+      }
+    },
+    {
+      "id": 103,
+      "model": "PTZ Wall Bracket",
+      "category": "Camera Bracket",
+      "sub_category": "PTZ Speed Dome Wall Mount Bracket",
+      "pricing": {
+        "dpp": 6,
+        "installer": 8
+      }
+    },
+    {
+      "id": 104,
+      "model": "PTZ Ceiling Bracket",
+      "category": "Camera Bracket",
+      "sub_category": "PTZ Speed Dome Ceiling Pendant",
+      "pricing": {
+        "dpp": 6,
+        "installer": 8
+      }
+    },
+    {
+      "id": 105,
+      "model": "Back Box Plastic",
+      "category": "Camera Bracket",
+      "sub_category": "Camera Junction Back Box (Plastic)",
+      "pricing": {
+        "dpp": 0.9,
+        "installer": 1
+      }
+    },
+    {
+      "id": 106,
+      "model": "Back Box Metal Round",
+      "category": "Camera Bracket",
+      "sub_category": "Camera Junction Back Box (Metal, Round)",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 2.75
+      }
+    },
+    {
+      "id": 107,
+      "model": "Back Box Metal Dome",
+      "category": "Camera Bracket",
+      "sub_category": "Camera Junction Back Box (Metal, Dome)",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 5
+      }
+    },
+    {
+      "id": 108,
+      "model": "Bracket 320 L",
+      "category": "Camera Bracket",
+      "sub_category": "Bracket 320mm L-type",
+      "pricing": {
+        "dpp": 2.75,
+        "installer": 3
+      }
+    },
+    {
+      "id": 109,
+      "model": "Bracket 500 L",
+      "category": "Camera Bracket",
+      "sub_category": "Bracket 500mm L-type",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3.5
+      }
+    },
+    {
+      "id": 110,
+      "model": "Bracket 400 U",
+      "category": "Camera Bracket",
+      "sub_category": "Bracket 400mm U-type",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 4
+      }
+    },
+    {
+      "id": 111,
+      "model": "PFA-150",
+      "category": "Camera Bracket",
+      "sub_category": "Camera Bracket PFA-150",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3
+      }
+    },
+    {
+      "id": 112,
+      "model": "Pole 0.3M PTZ",
+      "category": "Camera Bracket",
+      "sub_category": "Vertical Pole 0.3m for Mini PTZ",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 2.75
+      }
+    },
+    {
+      "id": 113,
+      "model": "Pole 0.6M PTZ",
+      "category": "Camera Bracket",
+      "sub_category": "Vertical Pole 0.6m for Mini PTZ",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3.5
+      }
+    },
+    {
+      "id": 114,
+      "model": "Pole 1M PTZ",
+      "category": "Camera Bracket",
+      "sub_category": "Vertical Pole 1m for PTZ",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 5
+      }
+    },
+    {
+      "id": 115,
+      "model": "35# Bracket 30-60 I White",
+      "category": "Camera Bracket",
+      "sub_category": "35# Bracket for 30-60mm Camera (I, White)",
+      "pricing": {
+        "dpp": 4.75,
+        "installer": 5
+      }
+    },
+    {
+      "id": 116,
+      "model": "35# Bracket 30-60 I Black",
+      "category": "Camera Bracket",
+      "sub_category": "35# Bracket for 30-60mm Camera (I, Black)",
+      "pricing": {
+        "dpp": 4.75,
+        "installer": 5
+      }
+    },
+    {
+      "id": 117,
+      "model": "35# Bracket 60-1.2 I White",
+      "category": "Camera Bracket",
+      "sub_category": "35# Bracket for 60-1.2m Camera (I, White)",
+      "pricing": {
+        "dpp": 6.5,
+        "installer": 7
+      }
+    },
+    {
+      "id": 118,
+      "model": "35# Bracket 60-1.2 L White",
+      "category": "Camera Bracket",
+      "sub_category": "35# Bracket for 60-1.2m Camera (L, White)",
+      "pricing": {
+        "dpp": 6.5,
+        "installer": 7
+      }
+    },
+    {
+      "id": 119,
+      "model": "IR 8-LED",
+      "category": "IR Illuminator",
+      "sub_category": "IR Illuminator 8-LED",
+      "pricing": {
+        "dpp": 6,
+        "installer": 7
+      }
+    },
+    {
+      "id": 120,
+      "model": "IR 15-LED",
+      "category": "IR Illuminator",
+      "sub_category": "IR Illuminator 15-LED",
+      "pricing": {
+        "dpp": 9,
+        "installer": 10
+      }
+    },
+    {
+      "id": 121,
+      "model": "IR 20-LED",
+      "category": "IR Illuminator",
+      "sub_category": "IR Illuminator 20-LED",
+      "pricing": {
+        "dpp": 12,
+        "installer": 13
+      }
+    },
+    {
+      "id": 122,
+      "model": "IR 30-LED",
+      "category": "IR Illuminator",
+      "sub_category": "IR Illuminator 30-LED",
+      "pricing": {
+        "dpp": 15,
+        "installer": 16
+      }
+    },
+    {
+      "id": 123,
+      "model": "BNC Crimping Tool",
+      "category": "Tool",
+      "sub_category": "BNC Compression Crimping Tool",
+      "pricing": {
+        "dpp": 5.5,
+        "installer": 6.5
+      }
+    },
+    {
+      "id": 124,
+      "model": "RG58 Crimp Die",
+      "category": "Tool",
+      "sub_category": "Cold Press Die for RG58",
+      "pricing": {
+        "dpp": 0.25,
+        "installer": 0.35
+      }
+    },
+    {
+      "id": 125,
+      "model": "RG59 Crimp Die",
+      "category": "Tool",
+      "sub_category": "Cold Press Die for RG59",
+      "pricing": {
+        "dpp": 0.25,
+        "installer": 0.35
+      }
+    },
+    {
+      "id": 126,
+      "model": "Cold Press Crimper",
+      "category": "Tool",
+      "sub_category": "Cold Press Crimping Pliers",
+      "pricing": {
+        "dpp": 7,
+        "installer": 8
+      }
+    },
+    {
+      "id": 127,
+      "model": "NF-308 Network Tester",
+      "category": "Tool",
+      "sub_category": "Network Cable Tester NF-308",
+      "pricing": {
+        "dpp": 43,
+        "installer": 45
+      }
+    },
+    {
+      "id": 128,
+      "model": "Metal Detector GP3003",
+      "category": "Tool",
+      "sub_category": "Handheld Metal Detector",
+      "pricing": {
+        "dpp": 8,
+        "installer": 10
+      }
+    },
+    {
+      "id": 129,
+      "model": "Endoscope 5M",
+      "category": "Tool",
+      "sub_category": "USB Endoscope Camera 5M",
+      "pricing": {
+        "dpp": 10,
+        "installer": 10
+      }
+    },
+    {
+      "id": 130,
+      "model": "Endoscope 10M",
+      "category": "Tool",
+      "sub_category": "USB Endoscope Camera 10M",
+      "pricing": {
+        "dpp": 12,
+        "installer": 12
+      }
+    },
+    {
+      "id": 131,
+      "model": "Junction Box 100\u00d7100\u00d770",
+      "category": "Tool",
+      "sub_category": "PVC Junction Box (100\u00d7100\u00d770mm)",
+      "pricing": {
+        "dpp": 0.85,
+        "installer": 1
+      }
+    },
+    {
+      "id": 132,
+      "model": "M-HD102 1\u00d72 1080p",
+      "category": "HDMI Splitter",
+      "sub_category": "HDMI Splitter 1-in-2-out (1080p)",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 3.75
+      }
+    },
+    {
+      "id": 133,
+      "model": "M-HD104L 1\u00d74 1080p",
+      "category": "HDMI Splitter",
+      "sub_category": "HDMI Splitter 1-in-4-out (1080p)",
+      "pricing": {
+        "dpp": 3.75,
+        "installer": 4.5
+      }
+    },
+    {
+      "id": 134,
+      "model": "M-HD108 1\u00d78 1080p",
+      "category": "HDMI Splitter",
+      "sub_category": "HDMI Splitter 1-in-8-out (1080p)",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      }
+    },
+    {
+      "id": 135,
+      "model": "M-UHD102 1\u00d72 4K30",
+      "category": "HDMI Splitter",
+      "sub_category": "HDMI Splitter 1\u00d72 (4K@30Hz)",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 4
+      }
+    },
+    {
+      "id": 136,
+      "model": "M-UHD104L 1\u00d74 4K30",
+      "category": "HDMI Splitter",
+      "sub_category": "HDMI Splitter 1\u00d74 (4K@30Hz)",
+      "pricing": {
+        "dpp": 3.75,
+        "installer": 4.5
+      }
+    },
+    {
+      "id": 137,
+      "model": "M-HD108 1\u00d78 4K30",
+      "category": "HDMI Splitter",
+      "sub_category": "HDMI Splitter 1\u00d78 (4K@30Hz)",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      }
+    },
+    {
+      "id": 138,
+      "model": "M-SP102 1\u00d72 4K60",
+      "category": "HDMI Splitter",
+      "sub_category": "HDMI Splitter 1\u00d72 (4K@60Hz)",
+      "pricing": {
+        "dpp": 8,
+        "installer": 10
+      }
+    },
+    {
+      "id": 139,
+      "model": "M-SP104 1\u00d74 4K60",
+      "category": "HDMI Splitter",
+      "sub_category": "HDMI Splitter 1\u00d74 (4K@60Hz)",
+      "pricing": {
+        "dpp": 11,
+        "installer": 13
+      }
+    },
+    {
+      "id": 140,
+      "model": "M-SP108 1\u00d78 4K60",
+      "category": "HDMI Splitter",
+      "sub_category": "HDMI Splitter 1\u00d78 (4K@60Hz)",
+      "pricing": {
+        "dpp": 28,
+        "installer": 30
+      }
+    },
+    {
+      "id": 141,
+      "model": "M-HD30 30M",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI Extender 30m over Cat6 (No Power)",
+      "pricing": {
+        "dpp": 5.5,
+        "installer": 6
+      }
+    },
+    {
+      "id": 142,
+      "model": "M-HD30U 30M USB",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI+USB Extender 30m over Cat6",
+      "pricing": {
+        "dpp": 8.5,
+        "installer": 10
+      }
+    },
+    {
+      "id": 143,
+      "model": "M-HD60A 60M IR",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI Extender 60m over Cat6 (IR)",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      }
+    },
+    {
+      "id": 144,
+      "model": "M-HK100A 100M 4K",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI Extender 100m (4K@30Hz)",
+      "pricing": {
+        "dpp": 24,
+        "installer": 25
+      }
+    },
+    {
+      "id": 145,
+      "model": "M-HD100 150M IR",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI Extender 150m over Cat6 (IR)",
+      "pricing": {
+        "dpp": 42,
+        "installer": 45
+      }
+    },
+    {
+      "id": 146,
+      "model": "M-HD250 150M IR",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI Extender 250m over Cat6",
+      "pricing": {
+        "dpp": 40,
+        "installer": 42
+      }
+    },
+    {
+      "id": 147,
+      "model": "M-HD60U USB",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI+USB Extender 60m (KVM)",
+      "pricing": {
+        "dpp": 28,
+        "installer": 33
+      }
+    },
+    {
+      "id": 148,
+      "model": "M-HD100U 150M USB",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI+USB Extender 150m (KVM)",
+      "pricing": {
+        "dpp": 45,
+        "installer": 48
+      }
+    },
+    {
+      "id": 149,
+      "model": "M-HD200U 200M USB",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI+USB Extender 200m (KVM)",
+      "pricing": {
+        "dpp": 45,
+        "installer": 48
+      }
+    },
+    {
+      "id": 150,
+      "model": "M-HD250U 250M USB",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI+USB Extender 250m (KVM)",
+      "pricing": {
+        "dpp": 55,
+        "installer": 60
+      }
+    },
+    {
+      "id": 151,
+      "model": "M-HD200U-4K",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI+USB Extender 200m (4K@30Hz KVM)",
+      "pricing": {
+        "dpp": 68,
+        "installer": 75
+      }
+    },
+    {
+      "id": 152,
+      "model": "M-HK200U",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI+USB Extender 150m (4K KVM)",
+      "pricing": {
+        "dpp": 125,
+        "installer": 130
+      }
+    },
+    {
+      "id": 153,
+      "model": "M-HF300U Fiber",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI+KVM Fiber Extender 3km",
+      "pricing": {
+        "dpp": 50,
+        "installer": 55
+      }
+    },
+    {
+      "id": 154,
+      "model": "M-HF100U Fiber",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI Fiber Extender 20km (KVM)",
+      "pricing": {
+        "dpp": 65,
+        "installer": 70
+      }
+    },
+    {
+      "id": 155,
+      "model": "M-HD300 Coax",
+      "category": "HDMI Extender",
+      "sub_category": "HDMI Extender 300m over Coax",
+      "pricing": {
+        "dpp": 55,
+        "installer": 65
+      }
+    },
+    {
+      "id": 156,
+      "model": "M-UHD301 3\u00d71 4K",
+      "category": "HDMI Switcher",
+      "sub_category": "HDMI Switcher 3-in-1-out (4K@30Hz)",
+      "pricing": {
+        "dpp": 3.75,
+        "installer": 4
+      }
+    },
+    {
+      "id": 157,
+      "model": "M-UHD501 5\u00d71 4K",
+      "category": "HDMI Switcher",
+      "sub_category": "HDMI Switcher 5-in-1-out (4K@30Hz)",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 5
+      }
+    },
+    {
+      "id": 158,
+      "model": "M-HDSW301 3\u00d71 4K",
+      "category": "HDMI Switcher",
+      "sub_category": "HDMI Switcher 3\u00d71 (4K, Powered)",
+      "pricing": {
+        "dpp": 12,
+        "installer": 13
+      }
+    },
+    {
+      "id": 159,
+      "model": "M-HDSW501 5\u00d71 4K",
+      "category": "HDMI Switcher",
+      "sub_category": "HDMI Switcher 5\u00d71 (4K, Powered)",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      }
+    },
+    {
+      "id": 160,
+      "model": "M-CF02 XLR Fiber 2CH",
+      "category": "Audio Extender",
+      "sub_category": "2-CH XLR Audio Fiber Extender 20km",
+      "pricing": {
+        "dpp": 50,
+        "installer": 55
+      }
+    },
+    {
+      "id": 161,
+      "model": "M-AF02 RCA Fiber",
+      "category": "Audio Extender",
+      "sub_category": "RCA Audio Fiber Extender 20km",
+      "pricing": {
+        "dpp": 35,
+        "installer": 40
+      }
+    },
+    {
+      "id": 162,
+      "model": "M-A202 RCA Bi-dir",
+      "category": "Audio Extender",
+      "sub_category": "2-Way Bi-directional RCA Audio Extender",
+      "pricing": {
+        "dpp": 50,
+        "installer": 55
+      }
+    },
+    {
+      "id": 163,
+      "model": "M-XLRB Stereo",
+      "category": "Audio Extender",
+      "sub_category": "Dual XLR Stereo Audio Transmitter",
+      "pricing": {
+        "dpp": 45,
+        "installer": 50
+      }
+    },
+    {
+      "id": 164,
+      "model": "M-CF04 XLR Fiber 4CH",
+      "category": "Audio Extender",
+      "sub_category": "4-CH XLR Audio Fiber Extender 20km",
+      "pricing": {
+        "dpp": 55,
+        "installer": 60
+      }
+    },
+    {
+      "id": 165,
+      "model": "M-DACon",
+      "category": "Video Converter",
+      "sub_category": "Digital to Analog Audio Converter (DAC)",
+      "pricing": {
+        "dpp": 4,
+        "installer": 4.5
+      }
+    },
+    {
+      "id": 166,
+      "model": "HDMI2AV",
+      "category": "Video Converter",
+      "sub_category": "HDMI to AV (RCA) Converter",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3
+      }
+    },
+    {
+      "id": 167,
+      "model": "AV2HDMI",
+      "category": "Video Converter",
+      "sub_category": "AV (RCA) to HDMI Converter",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3
+      }
+    },
+    {
+      "id": 168,
+      "model": "VGA2HDMI",
+      "category": "Video Converter",
+      "sub_category": "VGA to HDMI Converter",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3
+      }
+    },
+    {
+      "id": 169,
+      "model": "VGA Splitter 2P",
+      "category": "Video Converter",
+      "sub_category": "VGA Splitter 1-to-2 (250MHz)",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 4.5
+      }
+    },
+    {
+      "id": 170,
+      "model": "VGA Splitter 4P",
+      "category": "Video Converter",
+      "sub_category": "VGA Splitter 1-to-4 (250MHz)",
+      "pricing": {
+        "dpp": 5.5,
+        "installer": 5.5
+      }
+    },
+    {
+      "id": 171,
+      "model": "VGA Extender 60M",
+      "category": "Video Converter",
+      "sub_category": "VGA Extender 60m over Cat5",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 4.5
+      }
+    },
+    {
+      "id": 172,
+      "model": "VGA Extender 100M",
+      "category": "Video Converter",
+      "sub_category": "VGA Extender 100m over Cat5",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      }
+    },
+    {
+      "id": 173,
+      "model": "HD 4\u00d71 Quad",
+      "category": "Multi-Viewer",
+      "sub_category": "HD 4-Input Quad Multi-Viewer",
+      "pricing": {
+        "dpp": 23,
+        "installer": 25
+      }
+    },
+    {
+      "id": 174,
+      "model": "HD 8\u00d71 Quad",
+      "category": "Multi-Viewer",
+      "sub_category": "HD 8-Input Multi-Viewer",
+      "pricing": {
+        "dpp": 45,
+        "installer": 48
+      }
+    },
+    {
+      "id": 175,
+      "model": "KVM Switch",
+      "category": "KVM",
+      "sub_category": "KVM Switch (2-port)",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3
+      }
+    },
+    {
+      "id": 176,
+      "model": "HD KVM 60M",
+      "category": "KVM",
+      "sub_category": "HDMI KVM Extender 60m",
+      "pricing": {
+        "dpp": 14,
+        "installer": 16
+      }
+    },
+    {
+      "id": 177,
+      "model": "4K KVM 120M",
+      "category": "KVM",
+      "sub_category": "4K HDMI KVM Extender 120m",
+      "pricing": {
+        "dpp": 23,
+        "installer": 24
+      }
+    },
+    {
+      "id": 178,
+      "model": "HD KVM 200M",
+      "category": "KVM",
+      "sub_category": "HDMI KVM Extender 200m (H.264)",
+      "pricing": {
+        "dpp": 28,
+        "installer": 30
+      }
+    },
+    {
+      "id": 179,
+      "model": "4K 2\u00d72 Video Wall",
+      "category": "Video Wall",
+      "sub_category": "4K 2\u00d72 Video Wall Controller",
+      "pricing": {
+        "dpp": 35,
+        "installer": 38
+      }
+    },
+    {
+      "id": 180,
+      "model": "Multi-Viewer",
+      "category": "Multi-Viewer",
+      "sub_category": "Multi-Viewer Processor",
+      "pricing": {
+        "dpp": 45,
+        "installer": 50
+      }
+    },
+    {
+      "id": 181,
+      "model": "USB Extender 50M",
+      "category": "Extender",
+      "sub_category": "USB Extender 50m over Coax",
+      "pricing": {
+        "dpp": 40,
+        "installer": 45
+      }
+    },
+    {
+      "id": 182,
+      "model": "USB Extender 120M",
+      "category": "Extender",
+      "sub_category": "USB Extender 120m over Cat6",
+      "pricing": {
+        "dpp": 12,
+        "installer": 14
+      }
+    },
+    {
+      "id": 183,
+      "model": "IPC9800ADHPlus+",
+      "category": "CCTV Tester",
+      "sub_category": "7\" IPS 4K IP/AHD/CVI/TVI/Analog Tester (HDMI I/O)",
+      "pricing": {
+        "dpp": 250,
+        "installer": 270
+      },
+      "specs": {
+        "screen": "7\" IPS touch",
+        "resolution": "4K",
+        "protocols": "H.265/H.264, AHD, CVI, TVI, IP, Analog",
+        "hdmi": "Input + Output"
+      }
+    },
+    {
+      "id": 184,
+      "model": "IPC9310Plus",
+      "category": "CCTV Tester",
+      "sub_category": "4.3\" IPS 4K IP/AHD/CVI/TVI Tester",
+      "pricing": {
+        "dpp": 150,
+        "installer": 155
+      },
+      "specs": {
+        "screen": "4.3\" IPS touch"
+      }
+    },
+    {
+      "id": 185,
+      "model": "IPC9310NPlus",
+      "category": "CCTV Tester",
+      "sub_category": "4.3\" IPS 4K Tester + Cable Tracer",
+      "pricing": {
+        "dpp": 170,
+        "installer": 175
+      },
+      "specs": {
+        "cable_tracer": true
+      }
+    },
+    {
+      "id": 186,
+      "model": "430BACT",
+      "category": "CCTV Tester",
+      "sub_category": "4.3\" AHD/TVI/CVI/Analog Tester (Budget)",
+      "pricing": {
+        "dpp": 30,
+        "installer": 30
+      }
+    },
+    {
+      "id": 187,
+      "model": "IPC1800ADHPlus",
+      "category": "CCTV Tester",
+      "sub_category": "4\" IP+AHD+CVI+TVI+Analog Tester (PoE)",
+      "pricing": {
+        "dpp": 125,
+        "installer": 135
+      },
+      "specs": {
+        "poe_output": true
+      }
+    },
+    {
+      "id": 188,
+      "model": "5900ACT-PTZ",
+      "category": "CCTV Tester",
+      "sub_category": "5\" AHD/TVI/CVI Tester + PTZ Control",
+      "pricing": {
+        "dpp": 55,
+        "installer": 60
+      },
+      "specs": {
+        "ptz_control": true
+      }
+    },
+    {
+      "id": 189,
+      "model": "1016IPS",
+      "category": "Monitor",
+      "sub_category": "10.1\" IPS Monitor (HDMI+VGA+BNC)",
+      "pricing": {
+        "dpp": 50,
+        "installer": 55
+      },
+      "specs": {
+        "screen": "10.1\"",
+        "inputs": "HDMI, VGA, BNC"
+      }
+    },
+    {
+      "id": 190,
+      "model": "700D",
+      "category": "Monitor",
+      "sub_category": "7\" Monitor (HDMI+VGA+AV)",
+      "pricing": {
+        "dpp": 40,
+        "installer": 45
+      },
+      "specs": {
+        "screen": "7\""
+      }
+    },
+    {
+      "id": 191,
+      "model": "HD Video Capture",
+      "category": "Streaming",
+      "sub_category": "HD Video Capture Card (USB)",
+      "pricing": {
+        "dpp": 6,
+        "installer": 6
+      }
+    },
+    {
+      "id": 192,
+      "model": "Anycast M9 Plus",
+      "category": "Streaming",
+      "sub_category": "Wireless Display Dongle (Miracast)",
+      "pricing": {
+        "dpp": 4,
+        "installer": 4.25
+      }
+    },
+    {
+      "id": 193,
+      "model": "USB WiFi Adapter",
+      "category": "Networking",
+      "sub_category": "USB Wi-Fi Adapter",
+      "pricing": {
+        "dpp": 1.5,
+        "installer": 1.5
+      }
+    },
+    {
+      "id": 194,
+      "model": "MM-701",
+      "category": "Microphone",
+      "sub_category": "Wired Microphone MM-701",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      }
+    },
+    {
+      "id": 195,
+      "model": "WN-H04",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless Mic 1-Mic System WN-H04",
+      "pricing": {
+        "dpp": 12,
+        "installer": 15
+      }
+    },
+    {
+      "id": 196,
+      "model": "WN-H072",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless Mic 2-Mic System WN-H072",
+      "pricing": {
+        "dpp": 22,
+        "installer": 24
+      }
+    },
+    {
+      "id": 197,
+      "model": "WN-H05",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless Mic 1-Mic WN-H05",
+      "pricing": {
+        "dpp": 18,
+        "installer": 20
+      }
+    },
+    {
+      "id": 198,
+      "model": "K-2500",
+      "category": "Microphone",
+      "sub_category": "Wired Microphone K-2500",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      }
+    },
+    {
+      "id": 199,
+      "model": "E845S",
+      "category": "Microphone",
+      "sub_category": "Wired Microphone E845S",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      }
+    },
+    {
+      "id": 200,
+      "model": "SP-882A",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless 2-Mic System SP-882A",
+      "pricing": {
+        "dpp": 75,
+        "installer": 80
+      }
+    },
+    {
+      "id": 201,
+      "model": "UK88",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless 2-Mic System UK88",
+      "pricing": {
+        "dpp": 48,
+        "installer": 55
+      }
+    },
+    {
+      "id": 202,
+      "model": "SKM9000",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless 2-Mic System SKM9000 (Premium)",
+      "pricing": {
+        "dpp": 180,
+        "installer": 195
+      }
+    },
+    {
+      "id": 203,
+      "model": "WN-811",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless 1-Mic System WN-811",
+      "pricing": {
+        "dpp": 35,
+        "installer": 38
+      }
+    },
+    {
+      "id": 204,
+      "model": "WN-812",
+      "category": "Wireless Microphone",
+      "sub_category": "Wireless 2-Mic System WN-812",
+      "pricing": {
+        "dpp": 60,
+        "installer": 65
+      }
+    },
+    {
+      "id": 205,
+      "model": "MM-193",
+      "category": "Microphone",
+      "sub_category": "Wired Mic 6.35mm 5m Cable MM-193",
+      "pricing": {
+        "dpp": 12,
+        "installer": 15
+      }
+    },
+    {
+      "id": 206,
+      "model": "T-28",
+      "category": "Paging Microphone",
+      "sub_category": "Calling/Paging Microphone T-28",
+      "pricing": {
+        "dpp": 10,
+        "installer": 10
+      }
+    },
+    {
+      "id": 207,
+      "model": "ASM-4403",
+      "category": "Paging Microphone",
+      "sub_category": "Calling Mic with Music ASM-4403",
+      "pricing": {
+        "dpp": 25,
+        "installer": 25
+      }
+    },
+    {
+      "id": 208,
+      "model": "D-26",
+      "category": "Paging Microphone",
+      "sub_category": "Calling Mic with Music D-26",
+      "pricing": {
+        "dpp": 18,
+        "installer": 25
+      }
+    },
+    {
+      "id": 209,
+      "model": "NB-200",
+      "category": "Mic Stand",
+      "sub_category": "Microphone Floor Stand NB-200",
+      "pricing": {
+        "dpp": 15,
+        "installer": 18
+      }
+    },
+    {
+      "id": 210,
+      "model": "101A Stand",
+      "category": "Mic Stand",
+      "sub_category": "Desktop Mic Stand 101A",
+      "pricing": {
+        "dpp": 5,
+        "installer": 8
+      }
+    },
+    {
+      "id": 211,
+      "model": "NB201",
+      "category": "Mic Stand",
+      "sub_category": "Desktop Mic Stand NB201",
+      "pricing": {
+        "dpp": 8,
+        "installer": 8
+      }
+    },
+    {
+      "id": 212,
+      "model": "NB206",
+      "category": "Mic Stand",
+      "sub_category": "Desktop Mic Stand NB206",
+      "pricing": {
+        "dpp": 8,
+        "installer": 10
+      }
+    },
+    {
+      "id": 213,
+      "model": "NB201A",
+      "category": "Mic Stand",
+      "sub_category": "Desktop Mic Stand NB201A",
+      "pricing": {
+        "dpp": 8,
+        "installer": 10
+      }
+    },
+    {
+      "id": 214,
+      "model": "NB908",
+      "category": "Speaker Stand",
+      "sub_category": "Wall Speaker Stand NB908",
+      "pricing": {
+        "dpp": 12,
+        "installer": 12
+      }
+    },
+    {
+      "id": 215,
+      "model": "BY-801",
+      "category": "Speaker Stand",
+      "sub_category": "Pro Speaker Floor Stand BY-801",
+      "pricing": {
+        "dpp": 20,
+        "installer": 25
+      }
+    },
+    {
+      "id": 216,
+      "model": "V8 Voice Changer",
+      "category": "Audio Accessory",
+      "sub_category": "Voice Changer V8",
+      "pricing": {
+        "dpp": 15,
+        "installer": 18
+      }
+    },
+    {
+      "id": 217,
+      "model": "DA-228 Voice Changer",
+      "category": "Audio Accessory",
+      "sub_category": "Voice Changer DA-228",
+      "pricing": {
+        "dpp": 25,
+        "installer": 28
+      }
+    },
+    {
+      "id": 218,
+      "model": "BL-50BT 50W",
+      "category": "Budget Amplifier",
+      "sub_category": "50W Amplifier BT/USB/MIC/AUX",
+      "pricing": {
+        "dpp": 25,
+        "installer": 28
+      },
+      "specs": {
+        "power_w": 50,
+        "bluetooth": true,
+        "usb": true
+      }
+    },
+    {
+      "id": 219,
+      "model": "BL-60BT 60W 2-Zone",
+      "category": "Budget Amplifier",
+      "sub_category": "60W 2-Zone Amplifier BT/USB/FM",
+      "pricing": {
+        "dpp": 45,
+        "installer": 50
+      },
+      "specs": {
+        "power_w": 60,
+        "zones": 2,
+        "bluetooth": true
+      }
+    },
+    {
+      "id": 220,
+      "model": "DL-1206 120W 6-Zone",
+      "category": "Budget Amplifier",
+      "sub_category": "120W 6-Zone Amplifier BT/USB",
+      "pricing": {
+        "dpp": 85,
+        "installer": 90
+      },
+      "specs": {
+        "power_w": 120,
+        "zones": 6,
+        "bluetooth": true
+      }
+    },
+    {
+      "id": 221,
+      "model": "Mixer 4-Zone FB-4USB",
+      "category": "Budget Mixer",
+      "sub_category": "4-Zone Audio Mixer FB-4USB",
+      "pricing": {
+        "dpp": 55,
+        "installer": 60
+      },
+      "specs": {
+        "zones": 4
+      }
+    },
+    {
+      "id": 222,
+      "model": "Mixer 7-Zone FB-7USB",
+      "category": "Budget Mixer",
+      "sub_category": "7-Zone Audio Mixer FB-7USB",
+      "pricing": {
+        "dpp": 90,
+        "installer": 95
+      },
+      "specs": {
+        "zones": 7
+      }
+    },
+    {
+      "id": 223,
+      "model": "Audio Cast M5",
+      "category": "Smart Device",
+      "sub_category": "Audio Cast M5 (Wi-Fi Audio Streamer)",
+      "pricing": {
+        "dpp": 45,
+        "installer": 50
+      }
+    },
+    {
+      "id": 224,
+      "model": "PA-209 Gas Detector",
+      "category": "Smart Sensor",
+      "sub_category": "Gas Detector 433MHz PA-209",
+      "pricing": {
+        "dpp": 25,
+        "installer": 25
+      },
+      "specs": {
+        "frequency": "433MHz"
+      }
+    },
+    {
+      "id": 225,
+      "model": "WiFi Switch 1CH",
+      "category": "Smart Device",
+      "sub_category": "Wi-Fi Relay Switch 1-Channel",
+      "pricing": {
+        "dpp": 7,
+        "installer": 8
+      }
+    },
+    {
+      "id": 226,
+      "model": "Sonoff",
+      "category": "Smart Device",
+      "sub_category": "Sonoff Wi-Fi Smart Switch",
+      "pricing": {
+        "dpp": 12,
+        "installer": 13
+      }
+    },
+    {
+      "id": 227,
+      "model": "DP to HDMI Mini",
+      "category": "Adapter",
+      "sub_category": "Mini DisplayPort to HDMI Adapter",
+      "pricing": {
+        "dpp": 5,
+        "installer": 5
+      }
+    },
+    {
+      "id": 228,
+      "model": "Type-C 65W Adapter",
+      "category": "Power Supply",
+      "sub_category": "USB-C 65W Power Adapter",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      }
+    },
+    {
+      "id": 229,
+      "model": "DB-1201000CE",
+      "category": "Power Supply",
+      "sub_category": "12V 1A Adapter (CE)",
+      "pricing": {
+        "dpp": 1.75,
+        "installer": 2
+      }
+    },
+    {
+      "id": 230,
+      "model": "Extension 3-Way",
+      "category": "Extension Socket",
+      "sub_category": "Universal Extension Socket 3-Way (3m)",
+      "pricing": {
+        "dpp": 3.25,
+        "installer": 3.75
+      },
+      "specs": {
+        "outlets": 3,
+        "cable_m": 3,
+        "rating": "2500W/10A"
+      }
+    },
+    {
+      "id": 231,
+      "model": "Extension 5-Way",
+      "category": "Extension Socket",
+      "sub_category": "Universal Extension Socket 5-Way (3m)",
+      "pricing": {
+        "dpp": 5,
+        "installer": 6
+      },
+      "specs": {
+        "outlets": 5
+      }
+    },
+    {
+      "id": 232,
+      "model": "Extension 3-Way+2USB",
+      "category": "Extension Socket",
+      "sub_category": "Extension Socket 3-Way + 2 USB (3m)",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 5.5
+      },
+      "specs": {
+        "outlets": 3,
+        "usb": 2
+      }
+    },
+    {
+      "id": 233,
+      "model": "Extension 3-Way Individual",
+      "category": "Extension Socket",
+      "sub_category": "Extension 3-Way Individual Switches (Copper, 3m)",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 5.5
+      },
+      "specs": {
+        "individual_switches": true,
+        "conductor": "Copper"
+      }
+    },
+    {
+      "id": 234,
+      "model": "Extension 5-Way Individual",
+      "category": "Extension Socket",
+      "sub_category": "Extension 5-Way Individual Switches (Copper, 3m)",
+      "pricing": {
+        "dpp": 7.5,
+        "installer": 8
+      }
+    },
+    {
+      "id": 235,
+      "model": "Extension 3-Way+2USB+C",
+      "category": "Extension Socket",
+      "sub_category": "Extension 3-Way + 2 USB + Type-C (Copper)",
+      "pricing": {
+        "dpp": 8,
+        "installer": 8.75
+      },
+      "specs": {
+        "usb": 2,
+        "type_c": true
+      }
+    },
+    {
+      "id": 236,
+      "model": "Extension 4-Way+2USB+C",
+      "category": "Extension Socket",
+      "sub_category": "Extension 4-Way + 2 USB + Type-C (Copper)",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      }
+    },
+    {
+      "id": 237,
+      "model": "Power Tower",
+      "category": "Extension Socket",
+      "sub_category": "Tower Extension Socket",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      }
+    },
+    {
+      "id": 238,
+      "model": "DS160 Door Controller",
+      "category": "Security",
+      "sub_category": "Security Door Controller DS160",
+      "pricing": {
+        "dpp": 45,
+        "installer": 48
+      }
+    },
+    {
+      "id": 239,
+      "model": "Schrack Base 95.05",
+      "category": "Relay Base",
+      "sub_category": "Schrack Relay Base Type 95.05",
+      "pricing": {
+        "dpp": 10,
+        "installer": 10
+      }
+    },
+    {
+      "id": 240,
+      "model": "RT78726 Base",
+      "category": "Relay Base",
+      "sub_category": "Relay Base RT78726",
+      "pricing": {
+        "dpp": 10,
+        "installer": 10
+      }
+    },
+    {
+      "id": 241,
+      "model": "Terminal 16mm 10A",
+      "category": "Accessory",
+      "sub_category": "Terminal Block 16mm 10A",
+      "pricing": {
+        "dpp": 0.5,
+        "installer": 0.65
+      }
+    },
+    {
+      "id": 242,
+      "model": "Solar Panel SE-4018",
+      "category": "Solar",
+      "sub_category": "Solar Panel for Camera SE-4018",
+      "pricing": {
+        "dpp": 95,
+        "installer": 95
+      }
+    },
+    {
+      "id": 243,
+      "model": "Pro'sKit PK-7028",
+      "category": "Tool Kit",
+      "sub_category": "Pro'sKit Tool Kit PK-7028",
+      "pricing": {
+        "dpp": 65,
+        "installer": 65
+      }
+    },
+    {
+      "id": 244,
+      "model": "Wire Cross DL02",
+      "category": "Accessory",
+      "sub_category": "Wire Cross Connector DL02",
+      "pricing": {
+        "dpp": 5,
+        "installer": 5
+      }
+    },
+    {
+      "id": 245,
+      "model": "GSM Controller 2G",
+      "category": "Smart Device",
+      "sub_category": "GSM Controller (2G)",
+      "pricing": {
+        "dpp": 65,
+        "installer": 65
+      }
+    },
+    {
+      "id": 246,
+      "model": "Remote 55",
+      "category": "Remote Control",
+      "sub_category": "Remote Control System (Premium)",
+      "pricing": {
+        "dpp": 55,
+        "installer": 65
+      }
+    },
+    {
+      "id": 247,
+      "model": "IPC9800Pro",
+      "category": "CCTV Tester",
+      "sub_category": "7\" IP + Analog Tester (Pro)",
+      "pricing": {
+        "dpp": 175,
+        "installer": 185
+      }
+    },
+    {
+      "id": 248,
+      "model": "IPC9800ADHPro",
+      "category": "CCTV Tester",
+      "sub_category": "7\" IP/AHD/CVI/TVI Tester (ADH Pro)",
+      "pricing": {
+        "dpp": 270,
+        "installer": 280
+      }
+    },
+    {
+      "id": 249,
+      "model": "IPC9800ADHSPro",
+      "category": "CCTV Tester",
+      "sub_category": "7\" IP/AHD/CVI/TVI/SDI Tester + HDMI I/O + VGA",
+      "pricing": {
+        "dpp": 270,
+        "installer": 275
+      }
+    },
+    {
+      "id": 250,
+      "model": "IPC5100Plus",
+      "category": "CCTV Tester",
+      "sub_category": "IPC5100 Plus Tester",
+      "pricing": {
+        "dpp": 145,
+        "installer": 150
+      }
+    },
+    {
+      "id": 251,
+      "model": "IPC5200Plus",
+      "category": "CCTV Tester",
+      "sub_category": "5.4\" IP/AHD/CVI/TVI/SDI Tester + HDMI + VGA",
+      "pricing": {
+        "dpp": 165,
+        "installer": 185
+      }
+    },
+    {
+      "id": 252,
+      "model": "IPC9800ADHCPro",
+      "category": "CCTV Tester",
+      "sub_category": "7\" Tester + Digital Cable Tracer",
+      "pricing": {
+        "dpp": 275,
+        "installer": 285
+      }
+    },
+    {
+      "id": 253,
+      "model": "5200ACT-PTZ",
+      "category": "CCTV Tester",
+      "sub_category": "5\" AHD/CVI/TVI Tester + PTZ",
+      "pricing": {
+        "dpp": 45,
+        "installer": 45
+      }
+    },
+    {
+      "id": 254,
+      "model": "KPT-258S/T+",
+      "category": "CCTV Tester",
+      "sub_category": "Satellite/Signal Tester KPT-258S",
+      "pricing": {
+        "dpp": 95,
+        "installer": 95
+      }
+    },
+    {
+      "id": 255,
+      "model": "Y-123-2M",
+      "category": "Audio Cable",
+      "sub_category": "Audio Cable Y-123 (2m)",
+      "pricing": {
+        "dpp": 7,
+        "installer": 10
+      }
+    },
+    {
+      "id": 256,
+      "model": "Y-122B-2M",
+      "category": "Audio Cable",
+      "sub_category": "Audio Cable Y-122B (2m)",
+      "pricing": {
+        "dpp": 7,
+        "installer": 10
+      }
+    },
+    {
+      "id": 257,
+      "model": "S001-2M (M-RCA)",
+      "category": "Audio Cable",
+      "sub_category": "Audio Cable S001 RCA (2m)",
+      "pricing": {
+        "dpp": 4,
+        "installer": 5
+      }
+    },
+    {
+      "id": 258,
+      "model": "S-001",
+      "category": "Pro Audio Cable",
+      "sub_category": "Pro Audio Cable S-001",
+      "pricing": {
+        "dpp": 50,
+        "installer": 60
+      }
+    },
+    {
+      "id": 259,
+      "model": "S-225L",
+      "category": "Pro Audio Cable",
+      "sub_category": "Pro Speaker Cable S-225L",
+      "pricing": {
+        "dpp": 120,
+        "installer": 135
+      }
+    },
+    {
+      "id": 260,
+      "model": "S-215L",
+      "category": "Pro Audio Cable",
+      "sub_category": "Pro Speaker Cable S-215L",
+      "pricing": {
+        "dpp": 95,
+        "installer": 100
+      }
+    },
+    {
+      "id": 261,
+      "model": "Battery 12V 7Ah (Alt)",
+      "category": "Battery",
+      "sub_category": "12V 7Ah Battery",
+      "pricing": {
+        "dpp": 11,
+        "installer": 12
+      }
+    },
+    {
+      "id": 262,
+      "model": "Battery 12V 9Ah",
+      "category": "Battery",
+      "sub_category": "12V 9Ah Battery",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      }
+    },
+    {
+      "id": 263,
+      "model": "Pole Bracket 0.6M",
+      "category": "Camera Bracket",
+      "sub_category": "Corner/Pole Bracket 0.6m",
+      "pricing": {
+        "dpp": 8,
+        "installer": 10
+      }
+    },
+    {
+      "id": 264,
+      "model": "Pole Bracket 1M",
+      "category": "Camera Bracket",
+      "sub_category": "Corner/Pole Bracket 1m",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      }
+    },
+    {
+      "id": 265,
+      "model": "Big 3M 2-Arms",
+      "category": "Camera Bracket",
+      "sub_category": "Heavy Pole Bracket 3m (2 Arms)",
+      "pricing": {
+        "dpp": null,
+        "installer": 45
+      }
+    },
+    {
+      "id": 266,
+      "model": "Big 4M 2-Arms",
+      "category": "Camera Bracket",
+      "sub_category": "Heavy Pole Bracket 4m (2 Arms)",
+      "pricing": {
+        "dpp": null,
+        "installer": 55
+      }
+    },
+    {
+      "id": 267,
+      "model": "Big 5M 2-Arms",
+      "category": "Camera Bracket",
+      "sub_category": "Heavy Pole Bracket 5m (2 Arms)",
+      "pricing": {
+        "dpp": null,
+        "installer": 60
+      }
+    },
+    {
+      "id": 268,
+      "model": "Double Bracket",
+      "category": "Camera Bracket",
+      "sub_category": "Double Camera Bracket",
+      "pricing": {
+        "dpp": null,
+        "installer": 28
+      }
+    },
+    {
+      "id": 269,
+      "model": "DZ-04P",
+      "category": "Camera Bracket",
+      "sub_category": "Camera Bracket DZ-04P",
+      "pricing": {
+        "dpp": null,
+        "installer": 18
+      }
+    },
+    {
+      "id": 270,
+      "model": "DZ-02P",
+      "category": "Camera Bracket",
+      "sub_category": "Camera Bracket DZ-02P",
+      "pricing": {
+        "dpp": null,
+        "installer": 16
+      }
+    },
+    {
+      "id": 271,
+      "model": "DJ-02P",
+      "category": "Camera Bracket",
+      "sub_category": "Camera Bracket DJ-02P",
+      "pricing": {
+        "dpp": null,
+        "installer": 16
+      }
+    },
+    {
+      "id": 272,
+      "model": "YD1500",
+      "category": "AV Equipment",
+      "sub_category": "Motorized Screen/Mount YD1500",
+      "pricing": {
+        "dpp": null,
+        "installer": 45
+      }
+    },
+    {
+      "id": 273,
+      "model": "AVA1500",
+      "category": "AV Equipment",
+      "sub_category": "AV Mount/Screen AVA1500",
+      "pricing": {
+        "dpp": null,
+        "installer": 65
+      }
+    },
+    {
+      "id": 274,
+      "model": "2100A",
+      "category": "AV Equipment",
+      "sub_category": "AV Equipment 2100A",
+      "pricing": {
+        "dpp": null,
+        "installer": 85
+      }
+    },
+    {
+      "id": 275,
+      "model": "1800",
+      "category": "AV Equipment",
+      "sub_category": "AV Equipment 1800",
+      "pricing": {
+        "dpp": null,
+        "installer": 55
+      }
+    },
+    {
+      "id": 276,
+      "model": "1CH Dimmer",
+      "category": "AV Equipment",
+      "sub_category": "1-Channel Controller",
+      "pricing": {
+        "dpp": null,
+        "installer": 16
+      }
+    }
+  ]
+}
