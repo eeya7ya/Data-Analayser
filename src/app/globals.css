@@ -40,9 +40,8 @@ body {
   flex-direction: column;
 }
 
-.quotation-sheet .footer-address {
-  margin-top: auto;
-}
+/* Footer styling is defined below — the `margin-top: auto` there pushes
+ * the footer to the bottom of every flex-column sheet. */
 
 /* Force a hard page break after every sheet except the last one. */
 .quotation-sheet.page-break-after {
@@ -99,7 +98,10 @@ body {
   padding: 8px;
   font-weight: 600;
   border: 1px solid #cfbebc;
-  margin-top: 16px;
+  /* Push the footer to the very bottom of the sheet, regardless of content. */
+  margin-top: auto;
+  font-size: 10.5px;
+  line-height: 1.4;
 }
 
 @media print {
