@@ -458,14 +458,14 @@ export default function Designer({
       setPriceStatus("No items to adjust.");
       return;
     }
+    const divisor = 1 + pct / 100;
     if (
       !confirm(
-        `Strip ${pct}% embedded TAX from every unit price (divide each by 1 + ${pct / 100})? TAX will then be added back via the header tax %.`,
+        `Strip ${pct}% embedded TAX from every unit price (divide each by ${divisor})? TAX will then be added back via the header tax %.`,
       )
     ) {
       return;
     }
-    const divisor = 1 + pct / 100;
     setItems(
       items.map((it) => ({
         ...it,
