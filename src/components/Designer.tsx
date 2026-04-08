@@ -41,6 +41,11 @@ export default function Designer({
   const [brief, setBrief] = useState(
     "Kempinski Hotel Aqaba Red Sea — 10× indoor industry dashcam, SD cards, mobile surveillance base, full install.",
   );
+  // Conversation history — filled after AI asks follow-up questions so the
+  // second call has context about what the AI already asked.
+  const [convHistory, setConvHistory] = useState<
+    Array<{ role: "user" | "assistant"; content: string }>
+  >([]);
   const [projectName, setProjectName] = useState("Kempinski Hotel Aqaba Red Sea");
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -69,12 +74,25 @@ export default function Designer({
     setLoading(true);
     setResult(null);
     try {
+      // When the user is answering follow-up questions, build a clear answers
+      // message and include the stored history so the AI remembers what it asked.
+      const hasAnswers =
+        convHistory.length > 0 && Object.keys(answers).length > 0;
+      const userBrief = hasAnswers
+        ? `Here are my answers to your follow-up questions:\n${Object.entries(
+            answers,
+          )
+            .map(([k, v]) => `• ${k}: ${v}`)
+            .join("\n")}\n\nPlease now generate the complete BoQ.`
+        : brief;
+
       const res = await fetch("/api/groq/design", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           systemId: systemId || undefined,
-          userBrief: brief,
+          userBrief,
+          history: hasAnswers ? convHistory : [],
           answers,
           model: designModel,
         }),
@@ -83,6 +101,17 @@ export default function Designer({
       if (!res.ok) throw new Error(data.error || "design failed");
       const r = data.result as DesignResult;
       setResult(r);
+
+      if (!r.ready && r.followup_questions?.length) {
+        // Store history so the next call (with answers) has context.
+        setConvHistory([
+          { role: "user", content: brief },
+          { role: "assistant", content: JSON.stringify(r) },
+        ]);
+      } else {
+        setConvHistory([]);
+      }
+
       if (r.ready && r.items) {
         setItems(
           r.items.map((it, i) => ({
@@ -200,7 +229,11 @@ export default function Designer({
           <textarea
             rows={4}
             value={brief}
-            onChange={(e) => setBrief(e.target.value)}
+            onChange={(e) => {
+              setBrief(e.target.value);
+              setConvHistory([]);
+              setAnswers({});
+            }}
             className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
             placeholder="e.g. 20 IP bullet cameras 4MP ColorVu for a warehouse, with NVR and 4TB storage"
           />
