@@ -206,7 +206,7 @@ export default function QuotationPreview({
                 return (
                   <tr key={g.system + i}>
                     <td>{i + 1}</td>
-                    <td className="text-left font-semibold">{g.system}</td>
+                    <td className="font-semibold">{g.system}</td>
                     <td className="font-semibold">{money(sub)}</td>
                   </tr>
                 );
@@ -253,6 +253,9 @@ function QuotationPage({
   isLast?: boolean;
   children: React.ReactNode;
 }) {
+  // The repo ships the Magic Tech brand as /public/logo-placeholder.svg —
+  // fall back to it so every sheet renders the real logo, not the text hack.
+  const effectiveLogo = logoUrl || "/logo-placeholder.svg";
   return (
     <div
       className={`quotation-sheet text-[11px] ${isLast ? "" : "page-break-after"}`}
@@ -260,18 +263,8 @@ function QuotationPage({
       {/* Top brand strip */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="MagicTech" className="h-12" />
-          ) : (
-            <div>
-              <div className="text-xs text-magic-ink/60">سحر التقنية</div>
-              <div className="flex items-center gap-1">
-                <span className="text-2xl font-black text-magic-red">Magic</span>
-                <span className="text-2xl font-black text-magic-ink">Tech</span>
-              </div>
-            </div>
-          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={effectiveLogo} alt="MagicTech" className="h-14" />
         </div>
         <div className="text-right">
           <div className="text-3xl font-black">
@@ -284,9 +277,9 @@ function QuotationPage({
         </div>
       </div>
 
-      {/* Info header */}
+      {/* Info header — both columns left-aligned */}
       <div className="grid grid-cols-2 gap-4 mb-3 text-[10.5px]">
-        <div>
+        <div className="text-left">
           <div className="font-bold">
             {header.date || new Date().toLocaleDateString("en-GB")}
           </div>
@@ -303,7 +296,7 @@ function QuotationPage({
             <b>Phone:</b> {header.client_phone || "—"}
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-left">
           <div>
             <b>Ref:</b> {header.ref}
           </div>
@@ -428,20 +421,18 @@ function SystemTable({
                 item.model
               )}
             </td>
-            <td className="text-left align-top">
+            <td>
               {editable ? (
                 <textarea
                   rows={3}
-                  className="w-full bg-transparent text-[10.5px]"
+                  className="w-full bg-transparent text-[10.5px] text-center"
                   value={item.description}
                   onChange={(e) =>
                     onUpdate(globalIndex, { description: e.target.value })
                   }
                 />
               ) : (
-                <div className="whitespace-pre-wrap text-left">
-                  {item.description}
-                </div>
+                <div className="whitespace-pre-wrap">{item.description}</div>
               )}
             </td>
             {showPictures && (

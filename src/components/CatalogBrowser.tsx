@@ -300,22 +300,18 @@ export default function CatalogBrowser({
           />
         </div>
 
-        <div className="pt-5 flex gap-2">
+        <div className="pt-5">
           <button
-            onClick={addSelectedAndGo}
-            disabled={selected.size === 0}
-            className="rounded-lg bg-magic-ink text-white px-4 py-2 text-sm font-semibold hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Move every ticked product to the designer in one shot"
-          >
-            Move {selected.size > 0 ? `${selected.size} ` : ""}selected →
-            designer
-          </button>
-          <button
-            onClick={() => router.push("/designer")}
+            onClick={() => {
+              if (selected.size > 0) addSelectedAndGo();
+              else router.push("/designer");
+            }}
             className="relative rounded-lg bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700"
           >
-            Open designer
-            {draftCount > 0 && (
+            {selected.size > 0
+              ? `Move ${selected.size} to designer →`
+              : "Open designer"}
+            {selected.size === 0 && draftCount > 0 && (
               <span className="absolute -top-2 -right-2 bg-white text-magic-red border border-magic-red text-[10px] rounded-full w-5 h-5 flex items-center justify-center font-bold">
                 {draftCount}
               </span>
@@ -325,14 +321,9 @@ export default function CatalogBrowser({
       </div>
 
       <p className="text-[11px] text-magic-ink/60 -mt-2">
-        Tick the checkboxes to batch‑select products, then press{" "}
-        <b>Move selected → designer</b> to push them all at once. You can also
-        click <b>+</b> on a single row to jump straight into the designer, or
-        hold{" "}
-        <kbd className="px-1 py-0.5 rounded bg-magic-soft border border-magic-border">
-          Shift
-        </kbd>{" "}
-        while clicking <b>+</b> to add one without leaving the catalog.
+        Tick products in the list, then press{" "}
+        <b>Move N to designer</b> to send them all at once. With nothing
+        ticked, the same button just opens the designer.
       </p>
 
       {/* ── Product table ── */}
