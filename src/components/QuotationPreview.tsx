@@ -35,6 +35,7 @@ interface Props {
   header: QuotationHeader;
   items: QuotationItem[];
   setItems?: (items: QuotationItem[]) => void;
+  setHeader?: (patch: Partial<QuotationHeader>) => void;
   editable?: boolean;
   logoUrl?: string;
   showPictures?: boolean;
@@ -75,6 +76,7 @@ export default function QuotationPreview({
   header,
   items,
   setItems,
+  setHeader,
   editable = false,
   logoUrl,
   showPictures = false,
@@ -138,7 +140,13 @@ export default function QuotationPreview({
   return (
     <div className="quotation-doc">
       {systemPages.length === 0 && (
-        <QuotationPage header={header} logoUrl={logoUrl} isLast={!editable}>
+        <QuotationPage
+          header={header}
+          setHeader={setHeader}
+          editable={editable}
+          logoUrl={logoUrl}
+          isLast={!editable}
+        >
           <p className="py-8 text-center text-magic-ink/50 text-xs">
             No items yet. Add products from the Catalog or use the AI Designer.
           </p>
@@ -149,6 +157,8 @@ export default function QuotationPreview({
         <QuotationPage
           key={group.system + pageIdx}
           header={header}
+          setHeader={setHeader}
+          editable={editable}
           logoUrl={logoUrl}
           pageLabel={`Page ${pageIdx + 1} of ${systemPages.length + 1}`}
           isLast={false}
@@ -181,6 +191,8 @@ export default function QuotationPreview({
       {systemPages.length > 0 && (
         <QuotationPage
           header={header}
+          setHeader={setHeader}
+          editable={editable}
           logoUrl={logoUrl}
           pageLabel={`Page ${systemPages.length + 1} of ${systemPages.length + 1}`}
           isLast
@@ -219,12 +231,16 @@ export default function QuotationPreview({
 
 function QuotationPage({
   header,
+  setHeader,
+  editable = false,
   logoUrl,
   pageLabel,
   isLast,
   children,
 }: {
   header: QuotationHeader;
+  setHeader?: (patch: Partial<QuotationHeader>) => void;
+  editable?: boolean;
   logoUrl?: string;
   pageLabel?: string;
   isLast?: boolean;
@@ -277,28 +293,85 @@ function QuotationPage({
       <div className="flex justify-between items-start gap-4 mb-3 text-[10.5px]">
         <div className="inline-grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
           <div className="col-span-2 font-bold">
-            {header.date || new Date().toLocaleDateString("en-GB")}
+            <HeaderField
+              value={header.date || new Date().toLocaleDateString("en-GB")}
+              editable={editable && !!setHeader}
+              onChange={(v) => setHeader?.({ date: v })}
+              bold
+            />
           </div>
           <div className="text-left font-bold">Project:</div>
-          <div className="text-left">{header.project_name || "—"}</div>
+          <div className="text-left">
+            <HeaderField
+              value={header.project_name}
+              placeholder="—"
+              editable={editable && !!setHeader}
+              onChange={(v) => setHeader?.({ project_name: v })}
+            />
+          </div>
           <div className="text-left font-bold">Client:</div>
-          <div className="text-left">{header.client_name || "—"}</div>
+          <div className="text-left">
+            <HeaderField
+              value={header.client_name || ""}
+              placeholder="—"
+              editable={editable && !!setHeader}
+              onChange={(v) => setHeader?.({ client_name: v })}
+            />
+          </div>
           <div className="text-left font-bold">EMAIL:</div>
-          <div className="text-left">{header.client_email || "—"}</div>
+          <div className="text-left">
+            <HeaderField
+              value={header.client_email || ""}
+              placeholder="—"
+              editable={editable && !!setHeader}
+              onChange={(v) => setHeader?.({ client_email: v })}
+            />
+          </div>
           <div className="text-left font-bold">Phone:</div>
-          <div className="text-left">{header.client_phone || "—"}</div>
+          <div className="text-left">
+            <HeaderField
+              value={header.client_phone || ""}
+              placeholder="—"
+              editable={editable && !!setHeader}
+              onChange={(v) => setHeader?.({ client_phone: v })}
+            />
+          </div>
         </div>
         <div className="inline-grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
           <div className="text-left font-bold">Ref:</div>
-          <div className="text-left">{header.ref}</div>
+          <div className="text-left">
+            <HeaderField
+              value={header.ref}
+              editable={editable && !!setHeader}
+              onChange={(v) => setHeader?.({ ref: v })}
+            />
+          </div>
           <div className="text-left font-bold">Prepared By:</div>
-          <div className="text-left">{header.prepared_by || "—"}</div>
+          <div className="text-left">
+            <HeaderField
+              value={header.prepared_by || ""}
+              placeholder="—"
+              editable={editable && !!setHeader}
+              onChange={(v) => setHeader?.({ prepared_by: v })}
+            />
+          </div>
           <div className="text-left font-bold">Phone:</div>
           <div className="text-left">
-            {header.sales_phone || "+962 795172566"}
+            <HeaderField
+              value={header.sales_phone || "+962 795172566"}
+              editable={editable && !!setHeader}
+              onChange={(v) => setHeader?.({ sales_phone: v })}
+            />
           </div>
           <div className="text-left font-bold">Sales Engineer:</div>
-          <div className="text-left">{header.sales_engineer || "—"}</div>
+          <div className="text-left">
+            <HeaderField
+              value={header.sales_engineer || ""}
+              placeholder="—"
+              editable={editable && !!setHeader}
+              onChange={(v) => setHeader?.({ sales_engineer: v })}
+            />
+          </div>
         </div>
       </div>
 
@@ -310,6 +383,40 @@ function QuotationPage({
         Fax: +962 65560275
       </div>
     </div>
+  );
+}
+
+// ─── Header field (inline editable) ──────────────────────────────────────────
+
+function HeaderField({
+  value,
+  onChange,
+  editable,
+  placeholder,
+  bold,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  editable: boolean;
+  placeholder?: string;
+  bold?: boolean;
+}) {
+  if (!editable) {
+    return (
+      <span className={bold ? "font-bold" : undefined}>
+        {value || placeholder || ""}
+      </span>
+    );
+  }
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={`w-full bg-transparent outline-none border-b border-dotted border-magic-border focus:border-magic-red ${
+        bold ? "font-bold" : ""
+      }`}
+    />
   );
 }
 
