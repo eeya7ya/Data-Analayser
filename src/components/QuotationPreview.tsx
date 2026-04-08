@@ -271,9 +271,9 @@ function QuotationPage({
         </div>
       </div>
 
-      {/* Info header */}
-      <div className="grid grid-cols-2 gap-4 mb-3 text-[10.5px]">
-        <div>
+      {/* Info header — left column on the left edge, right column on the right edge. */}
+      <div className="flex justify-between items-start gap-4 mb-3 text-[10.5px]">
+        <div className="text-left">
           <div className="font-bold">
             {header.date || new Date().toLocaleDateString("en-GB")}
           </div>
@@ -290,7 +290,7 @@ function QuotationPage({
             <b>Phone:</b> {header.client_phone || "—"}
           </div>
         </div>
-        <div className="text-left">
+        <div className="text-right">
           <div>
             <b>Ref:</b> {header.ref}
           </div>
@@ -308,9 +308,10 @@ function QuotationPage({
 
       {children}
 
-      {/* Footer: location / site */}
+      {/* Footer: company address — pinned to the bottom of every sheet. */}
       <div className="footer-address">
-        {header.site_name || "SITE"}
+        Address: Amman- Gardens street- Khawaja Complex No.65- Tel: +962 65560272
+        Fax: +962 65560275
       </div>
     </div>
   );

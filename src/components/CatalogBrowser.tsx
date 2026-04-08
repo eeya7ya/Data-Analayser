@@ -93,15 +93,30 @@ export default function CatalogBrowser({
   const [loading, setLoading] = useState(false);
   const [sortKey, setSortKey] = useState("model");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  // Override the destination "page" name on add. When empty, we
-  // fall back to vendor + category (the previous behaviour).
-  const [destPage, setDestPage] = useState("");
 
-  // ── Draft summary (items already in the designer) ────────────────────────
+  // ── Page-picker modal state ──────────────────────────────────────────────
+  // When a product is clicked we park it here and pop a modal asking the
+  // user which quotation page it should be added to. The user stays on the
+  // catalog and only goes to the designer when they explicitly click the
+  // "Open designer" button in the header.
+  const [pendingItem, setPendingItem] = useState<HitWithSystem | null>(null);
+  const [lastUsedPage, setLastUsedPage] = useState("");
+
+  // ── Draft summary (items + existing page names already in the designer) ──
   const [draftCount, setDraftCount] = useState(0);
-  useEffect(() => {
-    setDraftCount(loadDraft().items.length);
+  const [existingPages, setExistingPages] = useState<string[]>([]);
+  const refreshDraftSummary = useCallback(() => {
+    const d = loadDraft();
+    setDraftCount(d.items.length);
+    const set = new Set<string>();
+    for (const it of d.items) {
+      if (it.system) set.add(it.system);
+    }
+    setExistingPages([...set]);
   }, []);
+  useEffect(() => {
+    refreshDraftSummary();
+  }, [refreshDraftSummary]);
 
   // ── Debounce search ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -179,28 +194,28 @@ export default function CatalogBrowser({
     }
   }
 
-  // ── Add item → push to draft, then go straight to the designer ───────────
-  const addAndGoToDesigner = useCallback(
-    (h: HitWithSystem, qty = 1) => {
-      const sys = systems.find((s) => s.id === systemId) || h.system;
-      const item = toQuotationItem(h, sys, qty);
-      if (destPage.trim()) item.system = destPage.trim();
-      appendItem(item);
-      router.push("/designer");
-    },
-    [router, systemId, systems, destPage],
-  );
+  // ── Open the page-picker modal for a selected product ───────────────────
+  const openPagePicker = useCallback((h: HitWithSystem) => {
+    setPendingItem(h);
+  }, []);
 
-  // ── Add without navigating (for accumulating multiple in one trip) ───────
-  const addSilently = useCallback(
-    (h: HitWithSystem, qty = 1) => {
-      const sys = systems.find((s) => s.id === systemId) || h.system;
-      const item = toQuotationItem(h, sys, qty);
-      if (destPage.trim()) item.system = destPage.trim();
-      const d = appendItem(item);
-      setDraftCount(d.items.length);
+  // ── Confirm the pending item's destination page and add it to the draft ─
+  // Never navigates away — the user can keep selecting products.
+  const confirmAddToPage = useCallback(
+    (pageName: string, qty: number) => {
+      if (!pendingItem) return;
+      const trimmed = pageName.trim();
+      if (!trimmed) return;
+      const sys =
+        systems.find((s) => s.id === systemId) || pendingItem.system;
+      const item = toQuotationItem(pendingItem, sys, qty);
+      item.system = trimmed;
+      appendItem(item);
+      setLastUsedPage(trimmed);
+      setPendingItem(null);
+      refreshDraftSummary();
     },
-    [systemId, systems, destPage],
+    [pendingItem, systems, systemId, refreshDraftSummary],
   );
 
   // ── Systems grouped by vendor ─────────────────────────────────────────────
@@ -259,28 +274,16 @@ export default function CatalogBrowser({
           />
         </div>
 
-        <div className="flex-1 min-w-48">
-          <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
-            Push to page <span className="text-magic-ink/40 normal-case">(optional)</span>
-          </label>
-          <input
-            value={destPage}
-            onChange={(e) => setDestPage(e.target.value)}
-            placeholder="e.g. CCTV, Sound System, Networking…"
-            list="dest-page-suggestions"
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
-          />
-          <datalist id="dest-page-suggestions">
-            {PAGE_SUGGESTIONS.map((p) => (
-              <option key={p} value={p} />
-            ))}
-          </datalist>
-        </div>
-
         <div className="pt-5">
           <button
             onClick={() => router.push("/designer")}
-            className="relative rounded-lg bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700"
+            disabled={draftCount === 0}
+            className="relative rounded-lg bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={
+              draftCount === 0
+                ? "Select at least one product first"
+                : "Finish and open the designer"
+            }
           >
             Open designer
             {draftCount > 0 && (
@@ -293,14 +296,9 @@ export default function CatalogBrowser({
       </div>
 
       <p className="text-[11px] text-magic-ink/60 -mt-2">
-        Click <b>+</b> to send a product straight to the designer. Hold{" "}
-        <kbd className="px-1 py-0.5 rounded bg-magic-soft border border-magic-border">
-          Shift
-        </kbd>{" "}
-        while clicking to add without navigating away. Use{" "}
-        <b>Push to page</b> to merge categories — e.g. set it to{" "}
-        <i>CCTV</i> while adding DVR, NVR, Cameras and HDD so they all land
-        on the same quotation page.
+        Click <b>+</b> on any product to pick which page it should go to. You
+        stay on the catalog while you select — when you&apos;re done, click{" "}
+        <b>Open designer</b> to review and edit the quotation.
       </p>
 
       {/* ── Product table ── */}
@@ -321,6 +319,17 @@ export default function CatalogBrowser({
           <div className="rounded-2xl border border-magic-border bg-white p-12 text-center text-magic-ink/40 text-sm">
             No products found{search ? ` for "${search}"` : ""}.
           </div>
+        )}
+
+        {pendingItem && (
+          <PagePickerModal
+            product={pendingItem}
+            existingPages={existingPages}
+            suggestions={PAGE_SUGGESTIONS}
+            defaultPage={lastUsedPage}
+            onCancel={() => setPendingItem(null)}
+            onConfirm={confirmAddToPage}
+          />
         )}
 
         {sortedHits.length > 0 && (
@@ -368,11 +377,8 @@ export default function CatalogBrowser({
                       >
                         <td className="px-2 py-1.5">
                           <button
-                            onClick={(e) => {
-                              if (e.shiftKey) addSilently(h);
-                              else addAndGoToDesigner(h);
-                            }}
-                            title="Add to designer (Shift+click to stay on catalog)"
+                            onClick={() => openPagePicker(h)}
+                            title="Select which page to add this product to"
                             className="w-6 h-6 rounded-full bg-magic-red text-white flex items-center justify-center text-base leading-none hover:bg-red-700 font-bold"
                           >
                             +
@@ -427,6 +433,177 @@ export default function CatalogBrowser({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Page picker modal ───────────────────────────────────────────────────────
+// Pops up when the user clicks "+" on a product. Lets them pick one of the
+// existing quotation pages, one of the suggested names, or type a new page
+// name. Stays on the catalog after confirming so the user can keep picking.
+
+function PagePickerModal({
+  product,
+  existingPages,
+  suggestions,
+  defaultPage,
+  onCancel,
+  onConfirm,
+}: {
+  product: HitWithSystem;
+  existingPages: string[];
+  suggestions: string[];
+  defaultPage: string;
+  onCancel: () => void;
+  onConfirm: (pageName: string, qty: number) => void;
+}) {
+  const seeded =
+    defaultPage || existingPages[0] || "";
+  const [selected, setSelected] = useState(seeded);
+  const [custom, setCustom] = useState("");
+  const [qty, setQty] = useState(1);
+
+  // Merge existing pages and suggestions (existing first, no dupes).
+  const quickOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ name: string; existing: boolean }> = [];
+    for (const p of existingPages) {
+      if (!seen.has(p)) {
+        seen.add(p);
+        out.push({ name: p, existing: true });
+      }
+    }
+    for (const p of suggestions) {
+      if (!seen.has(p)) {
+        seen.add(p);
+        out.push({ name: p, existing: false });
+      }
+    }
+    return out;
+  }, [existingPages, suggestions]);
+
+  const resolvedName = custom.trim() || selected;
+  const canSubmit = resolvedName.length > 0 && qty > 0;
+
+  function submit() {
+    if (!canSubmit) return;
+    onConfirm(resolvedName, qty);
+  }
+
+  // Close on Escape.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-lg font-bold text-magic-ink">Add to which page?</h2>
+        <p className="mt-1 text-xs text-magic-ink/60">
+          <b>{String(product.product.model ?? "Product")}</b> will be added to
+          the page you pick. You&apos;ll stay on the catalog so you can keep
+          selecting.
+        </p>
+
+        <div className="mt-4">
+          <div className="text-[10px] font-semibold uppercase text-magic-ink/60 mb-2">
+            Pick a page
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {quickOptions.length === 0 && (
+              <div className="text-[11px] text-magic-ink/40">
+                No pages yet — type a name below.
+              </div>
+            )}
+            {quickOptions.map((opt) => {
+              const active = !custom && selected === opt.name;
+              return (
+                <button
+                  key={opt.name}
+                  type="button"
+                  onClick={() => {
+                    setSelected(opt.name);
+                    setCustom("");
+                  }}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                    active
+                      ? "bg-magic-red text-white border-magic-red"
+                      : "bg-white border-magic-border hover:bg-magic-soft"
+                  }`}
+                >
+                  {opt.name}
+                  {opt.existing && (
+                    <span
+                      className={`ml-1 text-[9px] ${
+                        active ? "text-white/80" : "text-magic-ink/40"
+                      }`}
+                    >
+                      (existing)
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
+            Or type a new page name
+          </label>
+          <input
+            autoFocus
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            placeholder="e.g. Main Lobby CCTV"
+            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+          />
+        </div>
+
+        <div className="mt-4">
+          <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
+            Quantity
+          </label>
+          <input
+            type="number"
+            min={1}
+            value={qty}
+            onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
+            className="w-24 rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg px-4 py-2 text-sm text-magic-ink/70 hover:bg-magic-soft"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canSubmit}
+            className="rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Add to page
+          </button>
+        </div>
       </div>
     </div>
   );
