@@ -1,0 +1,426 @@
+{
+  "database_info": {
+    "name": "Alarm System Selection Theory - Standards Based",
+    "version": "1.0",
+    "purpose": "Engineering design tool for intrusion alarm system selection",
+    "last_updated": "2026-04-05"
+  },
+  "selection_criteria": {
+    "1_system_type_selection": {
+      "standard": "EN 50131-1 / Application Requirements",
+      "principle": "System type is selected based on premises size, wiring feasibility, and security grade",
+      "comparison": [
+        {
+          "type": "Wireless AX PRO (DS-PWA64/96)",
+          "zones": "64/96",
+          "wiring": "No wiring (433MHz wireless)",
+          "installation_time": "Fast (1-2 hours)",
+          "battery_life": "3-5 years (detectors)",
+          "best_for": "Residential, small retail, offices, retrofit, rental properties",
+          "grade": "EN 50131 Grade 2",
+          "limitations": "Battery replacement, potential wireless interference"
+        },
+        {
+          "type": "Wired Hybrid (DS-PHA20/48/64)",
+          "zones": "20/48/64",
+          "wiring": "4-8 on-board wired zones + wireless expansion",
+          "installation_time": "Medium (4-8 hours)",
+          "best_for": "Larger premises, mixed wired+wireless needs, commercial",
+          "grade": "EN 50131 Grade 2-3",
+          "advantages": "No battery for wired zones, higher reliability, RS-485 expansion"
+        },
+        {
+          "type": "AX Hybrid Pro (DS-PHA64-LP)",
+          "zones": 64,
+          "wiring": "8 on-board wired + wireless",
+          "installation_time": "Medium-Long",
+          "best_for": "Professional installations, large commercial, Grade 3 requirements",
+          "grade": "EN 50131 Grade 3",
+          "advantages": "Full feature set, 8 partitions, 4 cameras, ARC reporting"
+        }
+      ]
+    },
+    "2_detector_selection_by_room": {
+      "standard": "EN 50131-2 / Application Design",
+      "principle": "Detector type must match the room characteristics and threat type",
+      "room_guide": [
+        {
+          "room": "Entry doors/windows",
+          "detector": "Magnetic contact",
+          "wireless": "DS-PDMC-EG2-WB",
+          "wired": "DS-PD1-MC-MS / DS-PD1-MC-WS",
+          "placement": "On door/window frame, magnet on moving part"
+        },
+        {
+          "room": "Living room / office",
+          "detector": "Standard PIR",
+          "wireless": "DS-PDP15P-EG2-WB",
+          "wired": "DS-PDP18-EG2",
+          "placement": "Corner mount, 2.1-2.4m height, facing entry path"
+        },
+        {
+          "room": "Hallway / corridor",
+          "detector": "Curtain PIR",
+          "wireless": "DS-PDC15-EG2-WB",
+          "wired": "DS-PDC15-EG2",
+          "placement": "Creates invisible detection curtain across passage"
+        },
+        {
+          "room": "Room with pets",
+          "detector": "Pet-immune PIR or Dual PIR",
+          "wireless": "DS-PDP15P-EG2-WB (pet immune) or DS-PDD12P-EG2-WB",
+          "wired": "DS-PDD12P-EG2",
+          "placement": "Height-adjusted to ignore pets up to 25kg"
+        },
+        {
+          "room": "Glass doors/windows",
+          "detector": "Glass break or PIR+Glass break",
+          "wireless": "DS-PDBG8-EG2-WB or DS-PDPG12P-EG2-WB",
+          "wired": "DS-PDBG8-EG2",
+          "placement": "Within 8m of protected glass, ceiling or wall mount"
+        },
+        {
+          "room": "High-security area",
+          "detector": "Tri-tech (PIR+MW+AI)",
+          "wireless": "DS-PDTT15AM-LM-WB",
+          "wired": "DS-PDTT15AM-LM-WB",
+          "placement": "Anti-masking, AI false alarm filtering"
+        },
+        {
+          "room": "Garage / warehouse",
+          "detector": "Dual-tech PIR+MW",
+          "wireless": "DS-PDC10DM-EG2-WB",
+          "wired": "DS-PDC10DM-VG3",
+          "placement": "Dual verification reduces false alarms in harsh environments"
+        },
+        {
+          "room": "Kitchen",
+          "detector": "Smoke detector + CO detector",
+          "wireless": "DS-PDSMK-S-WB + DS-PDCO-E-WB",
+          "wired": "DS-PDSMK-4",
+          "placement": "Ceiling mount, center of room"
+        },
+        {
+          "room": "Bathroom / basement",
+          "detector": "Water leak detector",
+          "wireless": "DS-PDWL-E-WB",
+          "wired": "N/A",
+          "placement": "Floor level near water sources"
+        },
+        {
+          "room": "Server room / wine cellar",
+          "detector": "Temperature/humidity",
+          "wireless": "DS-PDHT-E-WB",
+          "wired": "N/A",
+          "placement": "Wall mount at equipment level"
+        },
+        {
+          "room": "Perimeter fence gate",
+          "detector": "Shock/vibration sensor",
+          "wireless": "N/A",
+          "wired": "DS-PDSK-P / DS-PDSKM-VG3",
+          "placement": "Mounted on fence panel or gate"
+        }
+      ]
+    },
+    "3_pir_detection_pattern_selection": {
+      "standard": "EN 50131-2-2 / Manufacturer",
+      "principle": "PIR detection pattern must match the protection area geometry",
+      "patterns": [
+        {
+          "pattern": "Wide angle (standard PIR)",
+          "coverage": "90-110\u00b0 horizontal, 12-18m range",
+          "models": "DS-PDP15P, DS-PDP18",
+          "use_case": "Open rooms, living areas"
+        },
+        {
+          "pattern": "Curtain (narrow vertical)",
+          "coverage": "10-15\u00b0 horizontal, 12-15m range",
+          "models": "DS-PDC15, DS-PDCL12",
+          "use_case": "Hallways, corridors, window protection, door curtain"
+        },
+        {
+          "pattern": "Long range",
+          "coverage": "15-25m narrow beam",
+          "models": "DS-PD2-P25-W",
+          "use_case": "Long corridors, warehouses"
+        },
+        {
+          "pattern": "Ceiling mount",
+          "coverage": "360\u00b0 from above, 6-12m diameter",
+          "models": "DS-PDP18-HM",
+          "use_case": "Open plan offices, retail floor, rooms with wall obstructions"
+        },
+        {
+          "pattern": "Dual-tech (PIR+MW)",
+          "coverage": "10m, verified detection",
+          "models": "DS-PDC10DM-EG2",
+          "use_case": "High false-alarm environments, warehouses, areas with air movement"
+        },
+        {
+          "pattern": "Tri-tech (PIR+MW+AI)",
+          "coverage": "15m, triple verified",
+          "models": "DS-PDTT15AM-LM",
+          "use_case": "Critical areas, Grade 3 installations, police-response zones"
+        }
+      ]
+    },
+    "4_panel_sizing": {
+      "standard": "EN 50131-3 / System Design",
+      "principle": "Panel must have sufficient zones for all detectors + 20% spare capacity",
+      "sizing_guide": [
+        {
+          "premises": "Small apartment (1-2 bed)",
+          "zones_needed": "4-8",
+          "recommended_panel": "DS-PWA64-Kit-WB",
+          "detectors_typical": "2 PIR + 3 door contacts + 1 smoke"
+        },
+        {
+          "premises": "Large house (3-5 bed)",
+          "zones_needed": "10-20",
+          "recommended_panel": "DS-PWA64-Kit-WB or DS-PHA20-W2P",
+          "detectors_typical": "4 PIR + 6 door contacts + 2 smoke + 1 glass break"
+        },
+        {
+          "premises": "Small retail / office",
+          "zones_needed": "8-16",
+          "recommended_panel": "DS-PWA64-Kit-WB",
+          "detectors_typical": "4 PIR + 4 door contacts + 1 smoke + panic button"
+        },
+        {
+          "premises": "Medium commercial",
+          "zones_needed": "16-48",
+          "recommended_panel": "DS-PHA48-EB or DS-PWA96-Kit-WB",
+          "detectors_typical": "8 PIR + 10 contacts + smoke + glass break + expansion"
+        },
+        {
+          "premises": "Large commercial / warehouse",
+          "zones_needed": "48-96",
+          "recommended_panel": "DS-PHA64-LP or DS-PWA96-Kit-WB",
+          "detectors_typical": "Multiple areas with full perimeter + volumetric protection"
+        }
+      ],
+      "expansion_rule": "Always select panel with minimum 20% spare zone capacity for future expansion"
+    },
+    "5_siren_and_notification": {
+      "standard": "EN 50131-4 / EN 50136",
+      "principle": "Alarm notification must include local deterrent + remote signaling",
+      "local_deterrent": {
+        "external_siren": {
+          "model": "DS-PS1-E-WB",
+          "level_db": 110,
+          "placement": "High on external wall, 3m+ height, tamper-protected, visible"
+        },
+        "internal_siren": {
+          "model": "DS-PS1-I-WB",
+          "level_db": 90,
+          "placement": "Inside premises, hallway or landing"
+        },
+        "wired_siren": {
+          "models": "DS-PS1-B (blue), DS-PS1-R (red)",
+          "placement": "Wired connection to panel siren output"
+        }
+      },
+      "remote_signaling": {
+        "options": [
+          {
+            "method": "Hik-Connect App",
+            "standard": "Proprietary",
+            "notification": "Push notification to smartphone",
+            "verification": "PIRCAM video clip"
+          },
+          {
+            "method": "ARC (Alarm Receiving Centre)",
+            "standard": "EN 50136 / DC-09 / SIA-CID",
+            "notification": "Professional monitoring station",
+            "note": "Requires ARC subscription"
+          },
+          {
+            "method": "SMS",
+            "standard": "N/A",
+            "notification": "SMS to up to 8 phone numbers",
+            "note": "Requires cellular module"
+          }
+        ]
+      }
+    },
+    "6_wireless_range_and_repeaters": {
+      "standard": "Manufacturer / EN 50131",
+      "principle": "Wireless range must cover entire premises with signal margin",
+      "ax_pro_wireless": {
+        "frequency": "433MHz (WB) / 868MHz (WE)",
+        "typical_indoor_range_m": 300,
+        "typical_outdoor_range_m": 800,
+        "encryption": "AES-128 with frequency hopping",
+        "two_way": true,
+        "supervision_interval_s": 90,
+        "jamming_detection": true
+      },
+      "repeater_ds_pr1_wb": {
+        "function": "Extends wireless range",
+        "max_repeaters": 4,
+        "placement": "Mid-point between panel and furthest detector",
+        "note": "Each repeater approximately doubles the coverage area"
+      },
+      "range_planning": "Perform site survey with panel in final position. Test each detector location. Add repeater if signal < 2 bars."
+    },
+    "7_wiring_for_hybrid_systems": {
+      "standard": "EN 50131 / Manufacturer",
+      "principle": "Wired zones use 4-core alarm cable from panel to detector",
+      "cable_specifications": {
+        "detector_cable": "4-core 0.22mm\u00b2 alarm cable (2 cores signal + 2 cores power/tamper)",
+        "siren_cable": "2-core 1.0mm\u00b2 (for powered sirens)",
+        "rs485_bus": "Shielded twisted pair 0.5mm\u00b2, max 1200m, for keypads and expansion modules",
+        "max_detector_run_m": 300,
+        "eol_resistor": "Required: End-of-line resistor on each wired zone (typically 2.2k\u03a9 or 4.7k\u03a9 as per panel spec)"
+      },
+      "zone_types": {
+        "NC": "Normally Closed \u2014 most common for magnetic contacts and PIRs",
+        "NO": "Normally Open \u2014 used for some sensors",
+        "EOL": "End-of-Line resistor \u2014 required for tamper detection per EN 50131 Grade 2+",
+        "DEOL": "Double EOL \u2014 required for Grade 3 (distinguishes alarm, tamper, and fault)"
+      }
+    },
+    "8_partition_design": {
+      "standard": "EN 50131-3 / Application",
+      "principle": "Partitions allow independent arming/disarming of different areas",
+      "use_cases": [
+        {
+          "scenario": "Shop with living quarters above",
+          "partitions": 2,
+          "p1": "Shop floor (armed at night)",
+          "p2": "Living area (armed when out)"
+        },
+        {
+          "scenario": "Office with reception + server room",
+          "partitions": 2,
+          "p1": "General office (armed after hours)",
+          "p2": "Server room (24/7 armed)"
+        },
+        {
+          "scenario": "Warehouse with multiple tenants",
+          "partitions": "4-8",
+          "note": "Each tenant has independent arm/disarm control"
+        },
+        {
+          "scenario": "Large commercial with perimeter + interior",
+          "partitions": 2,
+          "p1": "Perimeter (armed at close)",
+          "p2": "Interior (armed after last staff leave)"
+        }
+      ],
+      "panel_partitions": {
+        "DS-PWA64": 4,
+        "DS-PWA96": 8,
+        "DS-PHA20": 4,
+        "DS-PHA64": 8
+      }
+    },
+    "9_compliance_standards": {
+      "principle": "Alarm systems must meet national and European security grading standards",
+      "standards": [
+        {
+          "standard": "EN 50131-1:2006+A3:2020",
+          "scope": "Alarm systems \u2014 General requirements, security grades 1-4"
+        },
+        {
+          "standard": "EN 50131-2-2:2017",
+          "scope": "PIR detector requirements and test methods"
+        },
+        {
+          "standard": "EN 50131-2-4:2020",
+          "scope": "Combined/dual-tech detector requirements"
+        },
+        {
+          "standard": "EN 50131-2-7:2012",
+          "scope": "Glass break detector requirements"
+        },
+        {
+          "standard": "EN 50131-3:2009",
+          "scope": "Control and indicating equipment (panel requirements)"
+        },
+        {
+          "standard": "EN 50131-4:2019",
+          "scope": "Warning device (siren) requirements"
+        },
+        {
+          "standard": "EN 50131-5-3:2017",
+          "scope": "Interconnections \u2014 wireless requirements"
+        },
+        {
+          "standard": "EN 50131-6:2017",
+          "scope": "Power supply requirements (battery backup)"
+        },
+        {
+          "standard": "EN 50136-1:2012+A1:2018",
+          "scope": "Alarm transmission systems \u2014 ARC communication requirements"
+        },
+        {
+          "standard": "PD 6662:2017 (UK)",
+          "scope": "Application of EN 50131 \u2014 police response requirements"
+        },
+        {
+          "standard": "EN 14604:2005+AC:2008",
+          "scope": "Smoke alarm devices (standalone smoke detectors)"
+        },
+        {
+          "standard": "EN 50291-1:2018",
+          "scope": "CO detector requirements"
+        }
+      ],
+      "security_grades": {
+        "grade_1": {
+          "description": "Low risk \u2014 basic deterrence",
+          "typical": "Self-monitored residential",
+          "detector": "Single-tech PIR"
+        },
+        "grade_2": {
+          "description": "Low-medium risk \u2014 informed intruder",
+          "typical": "Monitored residential and small commercial",
+          "detector": "PIR with tamper + EOL",
+          "panel": "Supervised wireless with encryption"
+        },
+        "grade_3": {
+          "description": "Medium-high risk \u2014 experienced intruder",
+          "typical": "Police-response commercial, jewellers, pharmacies",
+          "detector": "Dual-tech or Tri-tech with DEOL + anti-masking",
+          "panel": "Dual-path signaling to ARC"
+        },
+        "grade_4": {
+          "description": "High risk \u2014 professional intruder",
+          "typical": "Banks, military, critical infrastructure",
+          "note": "Typically requires specialist systems beyond standard Hikvision range"
+        }
+      }
+    },
+    "10_battery_and_power_backup": {
+      "standard": "EN 50131-6 / EN 50131-1",
+      "principle": "Alarm system must operate during mains power failure",
+      "requirements_by_grade": [
+        {
+          "grade": "Grade 1",
+          "mains_fail_backup_hours": 12,
+          "note": "12 hours standby + 15 min alarm"
+        },
+        {
+          "grade": "Grade 2",
+          "mains_fail_backup_hours": 12,
+          "note": "12 hours standby + 15 min alarm"
+        },
+        {
+          "grade": "Grade 3",
+          "mains_fail_backup_hours": 60,
+          "note": "60 hours standby + 15 min alarm"
+        },
+        {
+          "grade": "Grade 4",
+          "mains_fail_backup_hours": 60,
+          "note": "60 hours standby + 15 min alarm"
+        }
+      ],
+      "ax_pro_battery": "Built-in rechargeable Li-ion battery in panel (hours depend on model)",
+      "hybrid_battery": "12V 7Ah sealed lead-acid battery in metal enclosure (panel charges battery automatically)",
+      "detector_battery_life": "Wireless detectors: 3-5 years typical on CR123A or AA lithium batteries. Panel monitors battery level and alerts on low battery."
+    }
+  }
+}

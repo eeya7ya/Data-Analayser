@@ -1,0 +1,328 @@
+{
+  "database_info": {
+    "name": "DVR & NVR Selection Theory - Standards Based",
+    "version": "1.0",
+    "purpose": "Engineering design tool for video recorder selection",
+    "last_updated": "2026-04-05"
+  },
+  "selection_criteria": {
+    "1_dvr_vs_nvr_selection": {
+      "standard": "System Architecture / Application",
+      "principle": "DVR for analog/coaxial cameras, NVR for IP network cameras",
+      "comparison": [
+        {
+          "type": "DVR (Digital Video Recorder)",
+          "camera_type": "HDTVI / AHD / CVI / CVBS (coaxial)",
+          "cabling": "RG59/RG6 coaxial or UTP via baluns",
+          "max_cable_m": 500,
+          "power_to_camera": "Separate PSU or PoC (Power over Coax)",
+          "ip_addition": "Supports additional IP cameras in enhanced mode",
+          "best_for": "Retrofit/upgrade existing coaxial, cost-sensitive, simple installation"
+        },
+        {
+          "type": "NVR (Network Video Recorder)",
+          "camera_type": "IP cameras (network)",
+          "cabling": "Cat5e/Cat6 Ethernet",
+          "max_cable_m": "100 (PoE), extendable via switch",
+          "power_to_camera": "PoE (Power over Ethernet) built-in",
+          "ip_addition": "All channels are IP",
+          "best_for": "New installations, megapixel+ cameras, scalable systems, long cable runs with switches"
+        }
+      ]
+    },
+    "2_resolution_tier_selection": {
+      "standard": "Application Requirements / Camera Resolution",
+      "principle": "Recorder resolution must match or exceed camera resolution",
+      "dvr_tiers": [
+        {
+          "tier": "HGHI (2MP)",
+          "max_res": "1080p Lite",
+          "cameras": "720p/1080p analog",
+          "best_for": "Basic surveillance, budget, existing 720p cameras",
+          "typical_models": "DS-7104/7208/7216HGHI-M1"
+        },
+        {
+          "tier": "HQHI (4MP)",
+          "max_res": "4MP",
+          "cameras": "Up to 4MP analog",
+          "best_for": "Enhanced detail, license plate recognition at close range",
+          "typical_models": "DS-7104/7208/7216HQHI-M1/S"
+        },
+        {
+          "tier": "HUHI (5MP/8MP)",
+          "max_res": "8MP (5MP native)",
+          "cameras": "Up to 8MP TVI / 5MP AHD",
+          "best_for": "High-detail surveillance, large area coverage",
+          "typical_models": "DS-7204/7208/7216HUHI-M2/S"
+        },
+        {
+          "tier": "HTHI (4K/8MP)",
+          "max_res": "8MP (True 4K)",
+          "cameras": "4K TVI cameras",
+          "best_for": "Maximum detail, forensic evidence quality",
+          "typical_models": "DS-7204/7208HTHI-K2"
+        }
+      ],
+      "nvr_tiers": [
+        {
+          "tier": "NI-Q (6MP)",
+          "max_res": "6MP",
+          "bandwidth": "40-80 Mbps",
+          "best_for": "Basic IP systems, 2-4MP cameras",
+          "typical_models": "DS-7104/7608/7616NI-Q1"
+        },
+        {
+          "tier": "NI-K / NXI-K (8MP)",
+          "max_res": "8MP",
+          "bandwidth": "80-160 Mbps",
+          "best_for": "Standard IP systems, 4-8MP cameras, AcuSense AI",
+          "typical_models": "DS-7604/7608/7616NXI-K1/K2"
+        },
+        {
+          "tier": "NI-I / NXI-I (12MP)",
+          "max_res": "12MP",
+          "bandwidth": "Up to 256 Mbps",
+          "best_for": "High-end IP systems, 8-12MP cameras, large deployments",
+          "typical_models": "DS-7608/7716/7732NXI-I2/I4"
+        },
+        {
+          "tier": "NI-M (12MP+)",
+          "max_res": "12MP+",
+          "bandwidth": "Up to 256 Mbps",
+          "best_for": "Latest generation, maximum performance",
+          "typical_models": "DS-7608/7616/7716/7732NI-M2/M4"
+        },
+        {
+          "tier": "9600 Series",
+          "max_res": "12MP+",
+          "bandwidth": "Up to 400 Mbps",
+          "best_for": "Enterprise, data center, 64-256 channels",
+          "typical_models": "DS-9632/9664/96128/96256NI"
+        }
+      ]
+    },
+    "3_channel_count_sizing": {
+      "standard": "System Design",
+      "principle": "Select channel count to cover all cameras + 20% expansion",
+      "sizing_guide": [
+        {
+          "cameras": "1-4",
+          "dvr": "4-ch (DS-7104)",
+          "nvr": "4-ch (DS-7104NI-Q1 or DS-7604NXI-K1)"
+        },
+        {
+          "cameras": "5-8",
+          "dvr": "8-ch (DS-7208)",
+          "nvr": "8-ch (DS-7608NXI-K1)"
+        },
+        {
+          "cameras": "9-16",
+          "dvr": "16-ch (DS-7216)",
+          "nvr": "16-ch (DS-7616NXI-K2)"
+        },
+        {
+          "cameras": "17-32",
+          "dvr": "32-ch (DS-7232)",
+          "nvr": "32-ch (DS-7632NXI-K2 or DS-7732NI-M4)"
+        },
+        {
+          "cameras": "33-64",
+          "dvr": "N/A (use NVR)",
+          "nvr": "64-ch (DS-9664NI-M8)"
+        },
+        {
+          "cameras": "65-128",
+          "dvr": "N/A",
+          "nvr": "128-ch (DS-96128NI-M8/M16)"
+        },
+        {
+          "cameras": "129-256",
+          "dvr": "N/A",
+          "nvr": "256-ch (DS-96256NI-I16/I24)"
+        }
+      ],
+      "rule": "Always choose next size up \u2014 a 12-camera system should use 16-ch, not 8-ch + 4-ch"
+    },
+    "4_storage_calculation": {
+      "standard": "Industry Practice / EN 62676-4",
+      "principle": "Storage must retain recordings for required retention period",
+      "formula": {
+        "storage_gb": "bitrate_mbps \u00d7 3600 \u00d7 recording_hours_per_day \u00d7 retention_days \u00d7 num_cameras / 8000",
+        "example": "4Mbps \u00d7 3600 \u00d7 24h \u00d7 30d \u00d7 16cam / 8000 = 20,736 GB \u2248 21 TB"
+      },
+      "typical_bitrates_mbps": {
+        "1080p_h265": 2,
+        "4mp_h265": 3,
+        "5mp_h265": 4,
+        "4k_h265": 8,
+        "1080p_h264": 4,
+        "4k_h264": 16
+      },
+      "hdd_bay_guide": [
+        {
+          "bays": 1,
+          "max_storage_tb": 10,
+          "typical_cameras": "4-8 at 1080p, 14-day retention"
+        },
+        {
+          "bays": 2,
+          "max_storage_tb": 20,
+          "typical_cameras": "8-16 at 1080p, 30-day retention"
+        },
+        {
+          "bays": 4,
+          "max_storage_tb": 40,
+          "typical_cameras": "16-32 at 4MP, 30-day retention"
+        },
+        {
+          "bays": 8,
+          "max_storage_tb": 80,
+          "typical_cameras": "32-64 at 4K, 30-day retention"
+        },
+        {
+          "bays": 16,
+          "max_storage_tb": 160,
+          "typical_cameras": "64-128 at 4K, 30-day retention"
+        },
+        {
+          "bays": 24,
+          "max_storage_tb": 240,
+          "typical_cameras": "128-256, enterprise retention"
+        }
+      ],
+      "recommended_hdd": "WD Purple (WD surveillance grade) or Seagate SkyHawk",
+      "retention_periods": {
+        "residential": "7-14 days typical",
+        "commercial": "30 days minimum (common requirement)",
+        "banking_finance": "90 days (regulatory)",
+        "government": "30-90 days (varies by jurisdiction)",
+        "casino_gaming": "7-30 days (regulatory)"
+      }
+    },
+    "5_poe_switch_selection": {
+      "standard": "IEEE 802.3af/at / System Design",
+      "principle": "Built-in PoE simplifies wiring \u2014 no separate camera power supply needed",
+      "poe_options": [
+        {
+          "type": "Built-in PoE NVR",
+          "designation": "/4P, /8P, /16P, /24P suffix",
+          "advantage": "Single cable to camera (power+data), simplified wiring",
+          "limitation": "100m max per camera, fixed PoE budget"
+        },
+        {
+          "type": "Non-PoE NVR + External PoE Switch",
+          "designation": "No /P suffix",
+          "advantage": "Flexible, scalable, higher PoE budget, managed switch features",
+          "use_when": "Cameras > 100m (with PoE extenders), or when central switch infrastructure exists"
+        }
+      ],
+      "poe_power_budget": {
+        "per_camera_typical_w": {
+          "dome": 12,
+          "bullet": 15,
+          "ptz": 60,
+          "fisheye": 12
+        },
+        "formula": "Total PoE = sum(camera_watts) \u00d7 1.2 safety margin",
+        "note": "Ensure NVR or switch PoE budget exceeds total camera power draw"
+      }
+    },
+    "6_bandwidth_calculation": {
+      "standard": "System Design",
+      "principle": "Total camera bitrate must not exceed recorder incoming bandwidth",
+      "formula": "Total_bandwidth = sum(camera_bitrate_mbps) for all channels",
+      "nvr_bandwidth_limits": {
+        "NI-Q": "40-80 Mbps",
+        "NI-K / NXI-K": "80-160 Mbps",
+        "NI-I / NXI-I / NI-M": "Up to 256 Mbps",
+        "9600": "Up to 400 Mbps"
+      },
+      "example": "16 cameras \u00d7 4Mbps (4MP H.265) = 64 Mbps \u2192 NI-K series sufficient (80 Mbps limit)"
+    },
+    "7_acusense_vs_standard": {
+      "standard": "Manufacturer Feature / Application",
+      "principle": "AcuSense uses deep learning AI for intelligent event filtering",
+      "comparison": {
+        "standard": {
+          "prefix": "DS-",
+          "features": "Basic motion detection, manual search",
+          "false_alarms": "High (animals, shadows, foliage)",
+          "search": "Manual timeline/event search"
+        },
+        "acusense": {
+          "prefix": "iDS- or NXI",
+          "features": "Human/vehicle classification, deep learning perimeter protection, smart search by target type",
+          "false_alarms": "Greatly reduced (AI filters non-human/vehicle)",
+          "search": "Search by human, vehicle, or event type"
+        }
+      },
+      "recommendation": "AcuSense recommended for all new installations \u2014 small price premium for significant operational improvement"
+    },
+    "8_output_and_display": {
+      "standard": "Manufacturer",
+      "principle": "Video output must match connected monitor resolution",
+      "outputs": {
+        "value_series": "1x HDMI (up to 4K) + 1x VGA (1080p)",
+        "pro_series": "2x HDMI (4K + 1080p) + 1x VGA",
+        "9600_series": "2x HDMI (4K) + 1x VGA",
+        "note": "HDMI output resolution must be set to match monitor. 4K HDMI requires HDMI 1.4+ cable."
+      }
+    },
+    "9_redundancy_and_reliability": {
+      "standard": "EN 62676-4 / Best Practice",
+      "principle": "Critical surveillance systems require storage and power redundancy",
+      "features": {
+        "anr": {
+          "description": "Automatic Network Replenishment \u2014 camera records to SD card during network failure, syncs to NVR when restored",
+          "available": "NI-I, NXI-I, NI-M, 9600 series"
+        },
+        "raid": {
+          "description": "RAID 1/5/6/10 for HDD redundancy \u2014 protects against single disk failure",
+          "available": "9600 series only"
+        },
+        "redundant_power": {
+          "description": "Dual power supply for failover",
+          "available": "DS-9632NI-M8/R, DS-9664NI-M8/R"
+        },
+        "hot_spare": {
+          "description": "Standby NVR takes over if primary fails",
+          "available": "Enterprise deployment with HikCentral"
+        },
+        "ups_recommendation": "Online UPS with 15-30 min runtime for all recorders"
+      }
+    },
+    "10_compliance_and_standards": {
+      "principle": "Video recording systems must meet evidence and data protection standards",
+      "standards": [
+        {
+          "standard": "EN 62676-1-1:2014",
+          "scope": "Video surveillance systems \u2014 system requirements"
+        },
+        {
+          "standard": "EN 62676-2-2:2014",
+          "scope": "Video transmission \u2014 IP requirements"
+        },
+        {
+          "standard": "EN 62676-4:2014",
+          "scope": "Application guidelines \u2014 recording, storage, retention"
+        },
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety of recording equipment"
+        },
+        {
+          "standard": "ONVIF Profile S/G/T",
+          "scope": "IP camera interoperability (NVRs)"
+        },
+        {
+          "standard": "GDPR / Data Protection",
+          "scope": "Video surveillance data is personal data \u2014 requires lawful basis, retention limits, access controls"
+        },
+        {
+          "standard": "H.265+ / H.265 / H.264",
+          "scope": "ITU-T video compression standards \u2014 H.265+ reduces bandwidth by up to 70% vs H.264"
+        }
+      ]
+    }
+  }
+}

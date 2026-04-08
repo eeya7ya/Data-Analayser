@@ -1,0 +1,285 @@
+{
+  "database_info": {
+    "name": "EZVIZ Smart Home Selection Theory",
+    "version": "1.0",
+    "manufacturer": "EZVIZ",
+    "last_updated": "2026-04-07"
+  },
+  "selection_criteria": {
+    "1_camera_type_selection": {
+      "standard": "Application",
+      "principle": "Camera type must match location, power source, and feature needs",
+      "guide": [
+        {
+          "type": "Indoor Wi-Fi (H1c, H7c, H9c, CP1)",
+          "power": "AC plug",
+          "connectivity": "Wi-Fi",
+          "best_for": "Living room, nursery, office, pet monitoring",
+          "features": "Pan/tilt, auto-tracking, two-way audio",
+          "price_range": "$12-66"
+        },
+        {
+          "type": "Outdoor Wi-Fi (H3c, H4, H6c, C6W, C8PF)",
+          "power": "AC wired",
+          "connectivity": "Wi-Fi",
+          "best_for": "Garden, driveway, entrance, perimeter",
+          "features": "IP65, color night vision, AI detection",
+          "price_range": "$14-90"
+        },
+        {
+          "type": "Battery Outdoor (CB1, CB3, EB3, EB8, BC1 kit)",
+          "power": "Rechargeable battery",
+          "connectivity": "Wi-Fi",
+          "best_for": "No-wire locations, rental, temporary, remote areas",
+          "features": "Wire-free, solar compatible, long standby",
+          "price_range": "$28-155"
+        },
+        {
+          "type": "4G Cellular (H8c-4GA, EB8-4GA, H5-4GA)",
+          "power": "Battery or wired",
+          "connectivity": "4G SIM",
+          "best_for": "No Wi-Fi: farms, construction sites, remote property",
+          "features": "Works without internet, SIM card required",
+          "price_range": "$48-135"
+        },
+        {
+          "type": "Solar Camera (SD7)",
+          "power": "Solar + battery",
+          "connectivity": "Wi-Fi",
+          "best_for": "Always-on outdoor without wiring",
+          "price_range": "$58-60"
+        }
+      ]
+    },
+    "2_doorbell_selection": {
+      "standard": "Application",
+      "principle": "Doorbell type depends on door style and wiring availability",
+      "guide": [
+        {
+          "type": "Battery Video Doorbell (DB2C)",
+          "mounting": "Wall mount beside door",
+          "power": "Battery (5200mAh)",
+          "screen": "Via app only",
+          "best_for": "House entrance, no existing wiring",
+          "price": "$53"
+        },
+        {
+          "type": "Peephole Doorbell (DP2C, DP2)",
+          "mounting": "Replaces existing peephole",
+          "power": "Battery (4600mAh)",
+          "screen": "4.3\" indoor color screen",
+          "best_for": "Apartments with existing peephole hole",
+          "price": "$76-110"
+        },
+        {
+          "type": "Dual-Lens Doorbell (EP3x)",
+          "mounting": "Wall mount",
+          "power": "Battery + solar",
+          "screen": "Via app + CH1 chime",
+          "best_for": "Package delivery monitoring, head-to-toe view",
+          "price": "$56-62"
+        },
+        {
+          "type": "Premium Doorbell (EP7, HP7)",
+          "mounting": "Varies",
+          "power": "Battery/wired",
+          "best_for": "Premium homes, maximum features",
+          "price": "$107-150"
+        }
+      ]
+    },
+    "3_battery_camera_kit_selection": {
+      "standard": "System Design",
+      "principle": "BC1 kits include base station for multi-camera battery systems",
+      "guide": [
+        {
+          "kit": "BC1-B1",
+          "cameras": 1,
+          "best_for": "Single camera, front door or back garden"
+        },
+        {
+          "kit": "BC1-B2",
+          "cameras": 2,
+          "best_for": "Front + back coverage"
+        },
+        {
+          "kit": "BC1-B3",
+          "cameras": 3,
+          "best_for": "Full perimeter: front, back, side"
+        },
+        {
+          "add_on": "BC1-A0 / BC1C-A0",
+          "function": "Add extra cameras to existing base",
+          "note": "Up to 4 cameras per base station"
+        }
+      ],
+      "4mp_upgrade": "Models with (4MP,W1) suffix offer 4MP resolution vs standard 2MP. Recommended for larger areas."
+    },
+    "4_resolution_guide": {
+      "standard": "Application",
+      "principle": "Higher resolution = more detail but more storage and bandwidth",
+      "tiers": [
+        {
+          "resolution": "1080p (2MP)",
+          "models": "H1c, HP2, C1C",
+          "best_for": "Basic monitoring, baby cam, indoor overview",
+          "storage_per_day_gb": 4
+        },
+        {
+          "resolution": "2K (3-4MP)",
+          "models": "H3c, H4, H7c, C6W, DB2C, EP3x, CB1",
+          "best_for": "Standard outdoor/indoor, face detail",
+          "storage_per_day_gb": 8
+        },
+        {
+          "resolution": "3K (5MP)",
+          "models": "H3, H6, H8c",
+          "best_for": "Enhanced detail, wider coverage",
+          "storage_per_day_gb": 12
+        },
+        {
+          "resolution": "4K (8MP)",
+          "models": "H3c-4K, H8c-4K variant",
+          "best_for": "Maximum detail, large area",
+          "storage_per_day_gb": 20
+        }
+      ]
+    },
+    "5_storage_options": {
+      "standard": "System Design",
+      "options": [
+        {
+          "type": "MicroSD Card",
+          "capacity": "Up to 256-512GB per camera",
+          "cost": "One-time purchase ($3-4 for 32/64GB)",
+          "access": "Local \u2014 via app when camera is online",
+          "best_for": "Budget, privacy-conscious users"
+        },
+        {
+          "type": "EZVIZ CloudPlay",
+          "capacity": "Cloud-based, subscription plans",
+          "cost": "Monthly/annual fee",
+          "access": "Anywhere, even if camera is stolen",
+          "best_for": "Critical recordings, multi-camera homes"
+        },
+        {
+          "type": "Built-in eMMC (EP3x)",
+          "capacity": "32GB built-in",
+          "cost": "Included \u2014 no card needed",
+          "best_for": "Set-and-forget doorbell recording"
+        }
+      ]
+    },
+    "6_smart_home_integration": {
+      "standard": "IoT",
+      "principle": "EZVIZ devices integrate with major smart home ecosystems",
+      "platforms": {
+        "google_assistant": "Voice control, live view on Google Hub/Chromecast",
+        "amazon_alexa": "Voice control, live view on Echo Show",
+        "apple_homekit": "Select models only \u2014 check compatibility"
+      },
+      "note": "EZVIZ app is always the primary control interface. Smart home platforms provide supplementary voice/display access."
+    },
+    "7_ezviz_vs_hikvision": {
+      "standard": "Product Positioning",
+      "principle": "EZVIZ = consumer/residential. Hikvision = professional/commercial.",
+      "comparison": {
+        "ezviz": {
+          "target": "Home users, small retail",
+          "app": "EZVIZ App",
+          "recording": "MicroSD or EZVIZ Cloud",
+          "nvr_support": "No NVR \u2014 cloud/SD only",
+          "installation": "DIY \u2014 plug and play, Wi-Fi",
+          "poe": "No (Wi-Fi or battery)",
+          "price": "Budget-friendly"
+        },
+        "hikvision": {
+          "target": "Enterprise, commercial, government",
+          "app": "Hik-Connect / iVMS-4200 / HikCentral",
+          "recording": "NVR with HDD (terabytes)",
+          "nvr_support": "Full NVR ecosystem",
+          "installation": "Professional \u2014 PoE, structured cabling",
+          "poe": "Yes (IEEE 802.3af/at)",
+          "price": "Professional pricing"
+        }
+      },
+      "warning": "EZVIZ cameras CANNOT be added to Hikvision NVRs. They are separate ecosystems. Do not mix in professional installations."
+    },
+    "8_smart_lock_selection": {
+      "standard": "Access Control",
+      "principle": "EZVIZ smart locks provide keyless entry for residential use",
+      "models": {
+        "CS-L2S": {
+          "unlock_methods": [
+            "Fingerprint",
+            "PIN code",
+            "RFID card",
+            "App (Wi-Fi)",
+            "Mechanical key"
+          ],
+          "best_for": "Front door, main entrance",
+          "price": "$145-155"
+        },
+        "CS-DL05": {
+          "best_for": "Secondary door, budget",
+          "price": "$90-95"
+        }
+      }
+    },
+    "9_solar_and_battery_planning": {
+      "standard": "Power Design",
+      "principle": "Battery cameras need recharging plan; solar extends battery life",
+      "guide": {
+        "battery_life_typical": "2-6 months depending on activity and settings",
+        "extend_battery": [
+          "Reduce detection sensitivity",
+          "Set recording schedule",
+          "Use detection zones",
+          "Add solar panel (CS-CMT-Solar Panel)"
+        ],
+        "solar_panel": "CS-CMT-Solar Panel ($18-20) \u2014 extends battery indefinitely in sunny locations (>4 hours direct sunlight/day)",
+        "charging_station": "CS-PBC12R100 ($46-50) \u2014 charge multiple batteries simultaneously"
+      }
+    },
+    "10_compliance": {
+      "standards": [
+        {
+          "standard": "FCC / CE / IC",
+          "scope": "Wireless radio compliance"
+        },
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety of IT/AV equipment"
+        },
+        {
+          "standard": "IP65/IP67",
+          "scope": "Weather resistance for outdoor cameras"
+        },
+        {
+          "standard": "ISO/IEC 27001",
+          "scope": "EZVIZ information security certification"
+        },
+        {
+          "standard": "ISO/IEC 27701",
+          "scope": "EZVIZ personal data protection"
+        },
+        {
+          "standard": "CSA STAR",
+          "scope": "EZVIZ cloud security certification"
+        },
+        {
+          "standard": "GDPR",
+          "scope": "Data privacy compliance (EU)"
+        },
+        {
+          "standard": "Wi-Fi 802.11b/g/n/ac",
+          "scope": "Wireless connectivity"
+        },
+        {
+          "standard": "Bluetooth 4.2/5.0",
+          "scope": "Local pairing (locks, sensors)"
+        }
+      ]
+    }
+  }
+}

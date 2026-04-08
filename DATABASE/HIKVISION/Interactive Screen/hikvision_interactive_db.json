@@ -1,0 +1,412 @@
+{
+  "database_info": {
+    "name": "Hikvision Interactive Display & Digital Signage Database",
+    "version": "1.0",
+    "manufacturer": "Hikvision",
+    "category": "Interactive Flat Panels, Digital Signage & Accessories",
+    "currency": "USD",
+    "last_updated": "2026-04-05",
+    "data_source": "Official Hikvision Datasheets & Product Pages",
+    "model_naming": {
+      "DS-D5B": "Performance Series Interactive Flat Panel (IFP)",
+      "DS-D5C": "Ultra Series Interactive Flat Panel (IFP)",
+      "DS-D60": "Digital Signage Player/Box",
+      "DS-D6055FL": "Digital Signage Display (Freestanding)",
+      "DS-D5SC3B": "Wireless Screen Share Dongle",
+      "DS-D5AC": "OPS (Open Pluggable Specification) PC Module",
+      "DS-D5ABKY": "IFP Wall Mount Bracket",
+      "DS-U04": "USB Camera/Peripheral",
+      "RB": "Interactive panel base model",
+      "EL": "Standard/Education variant",
+      "B": "Business/Conference variant",
+      "65/75/86/98": "Screen size in inches",
+      "SL": "Slim bracket",
+      "S": "Small size bracket (55-65-75\")",
+      "M": "Medium size bracket (75-86\")"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "DS-D60C-B",
+      "category": "Digital Signage Player",
+      "sub_category": "Signage Box (Standard)",
+      "pricing": {
+        "dpp": 95,
+        "si": 110
+      },
+      "specs": {
+        "os": "Android 8.1.0",
+        "cpu": "Cortex-A17, 4-core, 1.6GHz",
+        "ram_gb": 2,
+        "storage_gb": 16,
+        "storage_type": "EMMC",
+        "max_resolution": "3840x2160 @60Hz",
+        "output": "HDMI OUT x1",
+        "audio": "Audio IN x1, Audio OUT x1",
+        "network": "10/100M Ethernet",
+        "wifi": false,
+        "bluetooth": false,
+        "usb": "USB 2.0 x2"
+      }
+    },
+    {
+      "id": 2,
+      "model": "DS-D60E-B",
+      "category": "Digital Signage Player",
+      "sub_category": "Signage Box (Enhanced)",
+      "pricing": {
+        "dpp": 145,
+        "si": 145
+      },
+      "specs": {
+        "os": "Android 8.1.0",
+        "cpu": "Cortex-A17, 4-core, 1.6GHz",
+        "ram_gb": 2,
+        "storage_gb": 16,
+        "storage_type": "EMMC",
+        "max_resolution": "3840x2160 @60Hz",
+        "output": "HDMI OUT x1",
+        "audio": "Audio IN x1, Audio OUT x1",
+        "network": "10/100M Ethernet",
+        "wifi": true,
+        "bluetooth": "4.0",
+        "usb": "USB 2.0 x2"
+      }
+    },
+    {
+      "id": 3,
+      "model": "DS-D5B65RB/EL",
+      "category": "Interactive Flat Panel",
+      "sub_category": "65\" Performance Series IFP",
+      "series": "Performance (B)",
+      "pricing": {
+        "dpp": 750,
+        "si": 790
+      },
+      "features": [
+        "4K UHD 3840x2160",
+        "Anti-glare tempered glass",
+        "40-point infrared touch",
+        "Android OS built-in",
+        "Dual system (Android + Windows OPS optional)",
+        "Built-in whiteboard software",
+        "Screen mirroring",
+        "HDMI/VGA/USB-C input",
+        "Built-in speakers",
+        "50,000 hour backlight life"
+      ],
+      "specs": {
+        "screen_size_inch": 65,
+        "resolution": "3840x2160",
+        "panel_type": "VA",
+        "pixel_pitch_mm": "0.124(H)\u00d70.372(V)",
+        "brightness_cdm2": 350,
+        "contrast_ratio": "4000:1",
+        "viewing_angle": "178\u00b0/178\u00b0",
+        "touch_points": 40,
+        "touch_type": "Infrared",
+        "touch_precision_mm": 1,
+        "response_time_ms": 8,
+        "os": "Android",
+        "windows_ops": "Optional (DS-D5AC12T5-8S2)",
+        "speakers": "Built-in",
+        "hdmi_in": 3,
+        "vga_in": 1,
+        "usb": 6,
+        "usb_c": 1,
+        "lan": "RJ45",
+        "wifi": "Built-in",
+        "backlight_life_hours": 50000,
+        "power": "AC 100-240V",
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        }
+      }
+    },
+    {
+      "id": 4,
+      "model": "DS-D5B75RB/EL",
+      "category": "Interactive Flat Panel",
+      "sub_category": "75\" Performance Series IFP",
+      "series": "Performance (B)",
+      "pricing": {
+        "dpp": 990,
+        "si": 1050
+      },
+      "specs": {
+        "screen_size_inch": 75,
+        "resolution": "3840x2160",
+        "panel_type": "VA",
+        "touch_points": 40,
+        "touch_type": "Infrared",
+        "brightness_cdm2": 350,
+        "contrast_ratio": "4000:1",
+        "viewing_angle": "178\u00b0/178\u00b0",
+        "os": "Android",
+        "windows_ops": "Optional"
+      }
+    },
+    {
+      "id": 5,
+      "model": "DS-D5B86RB/EL",
+      "category": "Interactive Flat Panel",
+      "sub_category": "86\" Performance Series IFP",
+      "series": "Performance (B)",
+      "pricing": {
+        "dpp": 1350,
+        "si": 1390
+      },
+      "specs": {
+        "screen_size_inch": 86,
+        "resolution": "3840x2160",
+        "panel_type": "VA",
+        "touch_points": 40,
+        "touch_type": "Infrared",
+        "brightness_cdm2": 350,
+        "contrast_ratio": "4000:1",
+        "viewing_angle": "178\u00b0/178\u00b0",
+        "os": "Android",
+        "windows_ops": "Optional"
+      }
+    },
+    {
+      "id": 6,
+      "model": "DS-D5C65RB/B",
+      "category": "Interactive Flat Panel",
+      "sub_category": "65\" Ultra Series IFP",
+      "series": "Ultra (C)",
+      "pricing": {
+        "dpp": 1250,
+        "si": 1300
+      },
+      "features": [
+        "Ultra 4K UHD 3840x2160",
+        "Anti-glare zero-lamination glass",
+        "50-point infrared touch",
+        "Android 13",
+        "8GB RAM",
+        "Built-in whiteboard + annotation",
+        "Auto framing camera (optional)",
+        "Speaker tracking",
+        "NFC screen mirroring",
+        "Smart meeting features"
+      ],
+      "specs": {
+        "screen_size_inch": 65,
+        "resolution": "3840x2160",
+        "touch_points": 50,
+        "touch_type": "Infrared",
+        "os": "Android 13",
+        "ram_gb": 8,
+        "brightness_cdm2": 400,
+        "contrast_ratio": "5000:1",
+        "viewing_angle": "178\u00b0/178\u00b0",
+        "zero_lamination": true,
+        "nfc": true,
+        "windows_ops": "Optional",
+        "smart_features": [
+          "Auto framing",
+          "Speaker tracking",
+          "Whiteboard",
+          "Annotation",
+          "Screen sharing"
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "model": "DS-D5C75RB/B",
+      "category": "Interactive Flat Panel",
+      "sub_category": "75\" Ultra Series IFP",
+      "series": "Ultra (C)",
+      "pricing": {
+        "dpp": 1550,
+        "si": 1600
+      },
+      "specs": {
+        "screen_size_inch": 75,
+        "resolution": "3840x2160",
+        "touch_points": 50,
+        "os": "Android 13",
+        "ram_gb": 8,
+        "brightness_cdm2": 400,
+        "contrast_ratio": "5000:1",
+        "zero_lamination": true
+      }
+    },
+    {
+      "id": 8,
+      "model": "DS-D5C86RB/B",
+      "category": "Interactive Flat Panel",
+      "sub_category": "86\" Ultra Series IFP",
+      "series": "Ultra (C)",
+      "pricing": {
+        "dpp": 1990,
+        "si": 2050
+      },
+      "specs": {
+        "screen_size_inch": 86,
+        "resolution": "3840x2160",
+        "touch_points": 50,
+        "os": "Android 13",
+        "ram_gb": 8,
+        "brightness_cdm2": 400,
+        "contrast_ratio": "5000:1",
+        "zero_lamination": true
+      }
+    },
+    {
+      "id": 9,
+      "model": "DS-D5C98RB/B",
+      "category": "Interactive Flat Panel",
+      "sub_category": "98\" Ultra Series IFP",
+      "series": "Ultra (C)",
+      "pricing": {
+        "dpp": 3990,
+        "si": 4100
+      },
+      "specs": {
+        "screen_size_inch": 98,
+        "resolution": "3840x2160",
+        "touch_points": 50,
+        "os": "Android 13",
+        "ram_gb": 8,
+        "brightness_cdm2": 400,
+        "zero_lamination": true,
+        "note": "Flagship 98-inch model"
+      }
+    },
+    {
+      "id": 10,
+      "model": "DS-D5SC3B-B",
+      "category": "IFP Accessory",
+      "sub_category": "Wireless Screen Share Dongle (Black)",
+      "pricing": {
+        "dpp": 78,
+        "si": 85
+      },
+      "specs": {
+        "function": "Wireless screen mirroring dongle for IFP",
+        "color": "Black",
+        "connection": "USB dongle \u2192 wireless projection to IFP",
+        "compatible": "All DS-D5B and DS-D5C series"
+      }
+    },
+    {
+      "id": 11,
+      "model": "DS-D5SC3B-W",
+      "category": "IFP Accessory",
+      "sub_category": "Wireless Screen Share Dongle (White)",
+      "pricing": {
+        "dpp": 78,
+        "si": 85
+      },
+      "specs": {
+        "function": "Wireless screen mirroring dongle",
+        "color": "White",
+        "compatible": "All DS-D5B and DS-D5C series"
+      }
+    },
+    {
+      "id": 12,
+      "model": "DS-D5AC12T5-8S2",
+      "category": "IFP Accessory",
+      "sub_category": "OPS PC Module (i5)",
+      "pricing": {
+        "dpp": 448,
+        "si": 478
+      },
+      "specs": {
+        "function": "OPS (Open Pluggable Specification) PC module",
+        "cpu": "Intel Core i5 12th Gen",
+        "ram_gb": 8,
+        "storage": "SSD",
+        "os": "Windows (license required)",
+        "slot": "OPS slot in IFP panel",
+        "note": "Adds Windows PC capability to IFP panel"
+      }
+    },
+    {
+      "id": 13,
+      "model": "DS-U04",
+      "category": "IFP Accessory",
+      "sub_category": "USB Conference Camera",
+      "pricing": {
+        "dpp": 35,
+        "si": 40
+      },
+      "specs": {
+        "function": "USB webcam/conference camera for IFP",
+        "connection": "USB",
+        "compatible": "Any USB-compatible display or PC"
+      }
+    },
+    {
+      "id": 14,
+      "model": "DS-D5ABKY3-SL",
+      "category": "IFP Accessory",
+      "sub_category": "Wall Mount Bracket (Slim)",
+      "pricing": {
+        "dpp": 85,
+        "si": 95
+      },
+      "specs": {
+        "function": "Slim wall mount bracket for IFP",
+        "type": "Fixed slim mount",
+        "compatible": "55-86 inch IFP panels"
+      }
+    },
+    {
+      "id": 15,
+      "model": "DS-D5ABKY2-S",
+      "category": "IFP Accessory",
+      "sub_category": "Wall Mount Bracket (55-65-75\")",
+      "pricing": {
+        "dpp": 110,
+        "si": 120
+      },
+      "specs": {
+        "function": "Wall mount bracket",
+        "compatible_sizes": "55, 65, 75 inch",
+        "type": "Standard wall mount"
+      }
+    },
+    {
+      "id": 16,
+      "model": "DS-D5ABKY2-M",
+      "category": "IFP Accessory",
+      "sub_category": "Wall Mount Bracket (75-86\")",
+      "pricing": {
+        "dpp": 130,
+        "si": 140
+      },
+      "specs": {
+        "function": "Wall mount bracket",
+        "compatible_sizes": "75, 86 inch",
+        "type": "Standard wall mount"
+      }
+    },
+    {
+      "id": 17,
+      "model": "DS-D6055FL-B/S",
+      "category": "Digital Signage Display",
+      "sub_category": "55\" Freestanding Digital Signage",
+      "pricing": {
+        "dpp": 1375,
+        "si": 1450
+      },
+      "specs": {
+        "screen_size_inch": 55,
+        "resolution": "1920x1080",
+        "type": "Freestanding floor-standing LCD",
+        "brightness_cdm2": 700,
+        "orientation": "Portrait/Landscape",
+        "os": "Android",
+        "network": "LAN + Wi-Fi",
+        "use_case": "Retail, lobby, reception, wayfinding"
+      }
+    }
+  ]
+}

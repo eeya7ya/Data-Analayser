@@ -1,0 +1,1227 @@
+{
+  "database_info": {
+    "name": "Hikvision Turbo HD Analog Camera Database",
+    "version": "1.0",
+    "manufacturer": "Hikvision",
+    "category": "Turbo HD Analog Cameras",
+    "currency": "USD",
+    "last_updated": "2026-04-05",
+    "data_source": "Official Hikvision Datasheets & Product Pages",
+    "model_naming": {
+      "DS-2CE": "Turbo HD analog camera prefix",
+      "76": "Indoor Turret/Dome",
+      "16": "Outdoor Bullet",
+      "17": "Outdoor Bullet (Value+)",
+      "56": "Indoor Dome (Legacy)",
+      "57": "Indoor Dome (Vandal)",
+      "70": "Indoor Turret (ColorVu)",
+      "10": "Outdoor Bullet (ColorVu)",
+      "12": "Outdoor Bullet (Full-color)",
+      "72": "Indoor/Outdoor Turret (ColorVu)",
+      "78": "Indoor Turret (Advanced)",
+      "79": "Outdoor Turret (Motorized)",
+      "19": "Outdoor Bullet (Motorized)",
+      "D0T": "Value Series, 2MP",
+      "D3T": "Pro Series, 2MP",
+      "DF0T": "ColorVu Value, 2MP",
+      "DF3T": "ColorVu Pro, 2MP",
+      "H0T": "Value Series, 5MP",
+      "H8T": "Pro Series, 5MP (Ultra Low Light)",
+      "K0T": "Value Series, 5MP (Smart Hybrid Light)",
+      "KF0T": "ColorVu Value, 5MP",
+      "KF3T": "ColorVu Pro, 5MP",
+      "U0T": "Value Series, 8MP (4K)",
+      "U1T": "Pro Series, 8MP (4K)",
+      "UF3T": "ColorVu Pro, 8MP (4K)",
+      "ITPF": "EXIR Turret, plastic housing",
+      "ITF": "EXIR Bullet, fixed lens",
+      "IT1F": "EXIR Bullet, 30m IR",
+      "IT3F": "EXIR Bullet, 60m IR",
+      "IT5F": "EXIR Bullet, 80m IR",
+      "ITMF": "EXIR Turret, metal housing",
+      "VPITF": "Vandal-proof dome, EXIR",
+      "VFIR3F": "Varifocal, 40m IR",
+      "VFIRF": "Varifocal, IR dome",
+      "PF": "Fixed lens, plastic housing",
+      "F": "Fixed lens, full-color/ColorVu",
+      "EXIPF": "Economy EXIR indoor/outdoor plastic",
+      "EXLPF": "Economy Smart Hybrid Light",
+      "ZF": "Motorized varifocal zoom",
+      "AIT3ZF": "Motorized varifocal, 60m EXIR",
+      "E": "PoC (Power over Coax) suffix",
+      "LPF": "Low-light, plastic"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "DS-2CE76D0T-EXIPF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP HD Indoor Turret",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Turret",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 9.25,
+        "si": 9.75
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 2,
+      "model": "DS-2CE76D0T-EXIPF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP HD Indoor Turret",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Turret",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 9.25,
+        "si": 9.75
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 3,
+      "model": "DS-2CE16D0T-EXIPF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP HD Outdoor Bullet",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 9.25,
+        "si": 9.75
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 4,
+      "model": "DS-2CE16D0T-EXIPF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP HD Outdoor Bullet",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 9.25,
+        "si": 9.75
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 5,
+      "model": "DS-2CE16D0T-ITPF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP HD EXIR Bullet",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 25,
+      "pricing": {
+        "dpp": 9.25,
+        "si": 9.75
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 6,
+      "model": "DS-2CE16D0T-ITPF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP HD EXIR Bullet",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 25,
+      "pricing": {
+        "dpp": 9.25,
+        "si": 9.75
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 7,
+      "model": "DS-2CE17D0T-IT1F 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP HD EXIR Bullet 30m",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 12.5,
+        "si": 12.5
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 8,
+      "model": "DS-2CE17D0T-IT3F 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP HD EXIR Bullet 60m",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 60,
+      "pricing": {
+        "dpp": 12.75,
+        "si": 12.75
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 9,
+      "model": "DS-2CE76D3T-ITMF",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP Pro EXIR Turret Metal",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Turret",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 15,
+        "si": 15
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Metal",
+      "notes": "Pro series, Ultra Low Light"
+    },
+    {
+      "id": 10,
+      "model": "DS-2CE57D3T-VPITF",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP Pro Vandal Dome",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Dome",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 12.5,
+        "si": 12.5
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": true,
+      "poc": false,
+      "housing": "Metal"
+    },
+    {
+      "id": 11,
+      "model": "DS-2CE16D0T-VFIR3F",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP Varifocal Bullet 40m",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8-12mm VF",
+      "ir_range_m": 40,
+      "pricing": {
+        "dpp": 20,
+        "si": 20
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic",
+      "notes": "Manual varifocal"
+    },
+    {
+      "id": 12,
+      "model": "DS-2CE56D0T-VFIRF",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP Varifocal Dome",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Dome",
+      "lens_mm": "2.8-12mm VF",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 20,
+        "si": 20
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic",
+      "notes": "Manual varifocal"
+    },
+    {
+      "id": 13,
+      "model": "DS-2CE70DF0T-PF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP ColorVu Indoor Turret",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Turret",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 14,
+        "si": 14.5
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic",
+      "notes": "White light, full color 24/7"
+    },
+    {
+      "id": 14,
+      "model": "DS-2CE70DF0T-PF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP ColorVu Indoor Turret",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Turret",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 14,
+        "si": 14.5
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 15,
+      "model": "DS-2CE10DF0T-PF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP ColorVu Outdoor Bullet",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 14.5,
+        "si": 15
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 16,
+      "model": "DS-2CE10DF0T-PF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP ColorVu Outdoor Bullet",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 14.5,
+        "si": 15
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 17,
+      "model": "DS-2CE12DF3T-F 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP ColorVu Pro Bullet",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 40,
+      "pricing": {
+        "dpp": 24,
+        "si": 24
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Metal",
+      "notes": "Pro ColorVu, 40m white light"
+    },
+    {
+      "id": 18,
+      "model": "DS-2CE12DF0T-F 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP ColorVu Bullet",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 40,
+      "pricing": {
+        "dpp": 22.5,
+        "si": 23.5
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 19,
+      "model": "DS-2CE12DF0T-F 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "2MP ColorVu Bullet",
+      "resolution": "2MP (1080p)",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 40,
+      "pricing": {
+        "dpp": 22.5,
+        "si": 23.5
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 20,
+      "model": "DS-2CE76H0T-ITPF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP HD Indoor Turret",
+      "resolution": "5MP",
+      "form_factor": "Turret",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 14,
+        "si": 14.5
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 21,
+      "model": "DS-2CE76H0T-ITPF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP HD Indoor Turret",
+      "resolution": "5MP",
+      "form_factor": "Turret",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 14,
+        "si": 14.5
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 22,
+      "model": "DS-2CE16H0T-ITPF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP HD EXIR Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 25,
+      "pricing": {
+        "dpp": 14.5,
+        "si": 15
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 23,
+      "model": "DS-2CE16H0T-ITPF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP HD EXIR Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 25,
+      "pricing": {
+        "dpp": 14.5,
+        "si": 15
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 24,
+      "model": "DS-2CE16H0T-ITPF 2.4MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP HD EXIR Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "2.4mm",
+      "ir_range_m": 25,
+      "pricing": {
+        "dpp": 14.5,
+        "si": 15
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 25,
+      "model": "DS-2CE57H0T-VPITF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP Vandal Dome",
+      "resolution": "5MP",
+      "form_factor": "Dome",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 25,
+        "si": 25
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": true,
+      "poc": false,
+      "housing": "Metal"
+    },
+    {
+      "id": 26,
+      "model": "DS-2CE17H0T-IT1F 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP EXIR Bullet 30m",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 13.5,
+        "si": 14
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 27,
+      "model": "DS-2CE17H0T-IT3F 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP EXIR Bullet 60m",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 60,
+      "pricing": {
+        "dpp": 19,
+        "si": 20
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 28,
+      "model": "DS-2CE17H0T-IT3F 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP EXIR Bullet 60m",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 60,
+      "pricing": {
+        "dpp": 19,
+        "si": 20
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 29,
+      "model": "DS-2CE17H0T-IT3F 6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP EXIR Bullet 60m",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "6mm",
+      "ir_range_m": 60,
+      "pricing": {
+        "dpp": 19,
+        "si": 20
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 30,
+      "model": "DS-2CE79H0T-IT3ZF",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP Motorized Turret 60m",
+      "resolution": "5MP",
+      "form_factor": "Turret",
+      "lens_mm": "2.7-13.5mm MZ",
+      "ir_range_m": 60,
+      "pricing": {
+        "dpp": 38,
+        "si": 39
+      },
+      "colorvu": false,
+      "motorized_vf": true,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 31,
+      "model": "DS-2CE19H0T-AIT3ZF 2.7-13.5MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP Motorized Bullet 60m",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "2.7-13.5mm MZ",
+      "ir_range_m": 60,
+      "pricing": {
+        "dpp": 54,
+        "si": 55
+      },
+      "colorvu": false,
+      "motorized_vf": true,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 32,
+      "model": "DS-2CE16H8T-ITF",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP Ultra Low Light Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8/3.6mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 26,
+        "si": 28
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic",
+      "notes": "Ultra low light 0.003 lux"
+    },
+    {
+      "id": 33,
+      "model": "DS-2CE19H8T-(A)IT3ZF",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP Ultra Low Light MZ Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "2.7-13.5mm MZ",
+      "ir_range_m": 60,
+      "pricing": {
+        "dpp": 58,
+        "si": 60
+      },
+      "colorvu": false,
+      "motorized_vf": true,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic",
+      "notes": "Ultra low light, motorized"
+    },
+    {
+      "id": 34,
+      "model": "DS-2CE79H8T-(A)IT3ZF",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP Ultra Low Light MZ Turret",
+      "resolution": "5MP",
+      "form_factor": "Turret",
+      "lens_mm": "2.7-13.5mm MZ",
+      "ir_range_m": 60,
+      "pricing": {
+        "dpp": 58,
+        "si": 60
+      },
+      "colorvu": false,
+      "motorized_vf": true,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic",
+      "notes": "Ultra low light, motorized"
+    },
+    {
+      "id": 35,
+      "model": "DS-2CE76K0T-EXLPF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP Smart Hybrid Light Turret",
+      "resolution": "5MP",
+      "form_factor": "Turret",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 16,
+        "si": 16.5
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic",
+      "notes": "Smart Hybrid Light (IR + White LED)"
+    },
+    {
+      "id": 36,
+      "model": "DS-2CE76K0T-EXLPF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP Smart Hybrid Light Turret",
+      "resolution": "5MP",
+      "form_factor": "Turret",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 16,
+        "si": 16.5
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 37,
+      "model": "DS-2CE16K0T-EXLPF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP Smart Hybrid Light Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 16.5,
+        "si": 17
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 38,
+      "model": "DS-2CE16K0T-EXLPF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP Smart Hybrid Light Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 16.5,
+        "si": 17
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 39,
+      "model": "DS-2CE70KF0T-PF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP ColorVu Indoor Turret",
+      "resolution": "5MP",
+      "form_factor": "Turret",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 22,
+        "si": 23
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 40,
+      "model": "DS-2CE70KF0T-PF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP ColorVu Indoor Turret",
+      "resolution": "5MP",
+      "form_factor": "Turret",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 22,
+        "si": 23
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 41,
+      "model": "DS-2CE10KF0T-PF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP ColorVu Outdoor Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 22,
+        "si": 23
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 42,
+      "model": "DS-2CE10KF0T-PF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP ColorVu Outdoor Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 20,
+      "pricing": {
+        "dpp": 22,
+        "si": 23
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 43,
+      "model": "DS-2CE12KF0T-F 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP ColorVu Full-Color Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 40,
+      "pricing": {
+        "dpp": 25.5,
+        "si": 26
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 44,
+      "model": "DS-2CE12KF0T-F 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP ColorVu Full-Color Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 40,
+      "pricing": {
+        "dpp": 25.5,
+        "si": 26
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 45,
+      "model": "DS-2CE10KF3T 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "5MP ColorVu Pro Bullet",
+      "resolution": "5MP",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 40,
+      "pricing": {
+        "dpp": 28,
+        "si": 29
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Metal"
+    },
+    {
+      "id": 46,
+      "model": "DS-2CE76U0T-ITPF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Indoor Turret",
+      "resolution": "8MP (4K)",
+      "form_factor": "Turret",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 25,
+        "si": 26
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 47,
+      "model": "DS-2CE16U0T-ITF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Outdoor Bullet",
+      "resolution": "8MP (4K)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 25,
+        "si": 26
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 48,
+      "model": "DS-2CE16U1T-IT1F 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Pro Bullet 30m",
+      "resolution": "8MP (4K)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 25,
+        "si": 26
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 49,
+      "model": "DS-2CE16U1T-IT3F 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Pro Bullet 60m",
+      "resolution": "8MP (4K)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 60,
+      "pricing": {
+        "dpp": 26,
+        "si": 26
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 50,
+      "model": "DS-2CE16U1T-IT5F 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Pro Bullet 80m",
+      "resolution": "8MP (4K)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 80,
+      "pricing": {
+        "dpp": 35,
+        "si": 36
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 51,
+      "model": "DS-2CE78U1T-IT3F",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Pro Turret 60m",
+      "resolution": "8MP (4K)",
+      "form_factor": "Turret",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 60,
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic",
+      "notes": "Price TBC"
+    },
+    {
+      "id": 52,
+      "model": "DS-2CE19U1T-AIT3ZF",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Motorized Bullet 60m",
+      "resolution": "8MP (4K)",
+      "form_factor": "Bullet",
+      "lens_mm": "2.7-13.5mm MZ",
+      "ir_range_m": 60,
+      "pricing": {
+        "dpp": 55,
+        "si": 55
+      },
+      "colorvu": false,
+      "motorized_vf": true,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 53,
+      "model": "DS-2CE56U1T-ITZF",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Motorized Dome",
+      "resolution": "8MP (4K)",
+      "form_factor": "Dome",
+      "lens_mm": "2.8-12mm MZ",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 55,
+        "si": 55
+      },
+      "colorvu": false,
+      "motorized_vf": true,
+      "vandal_proof": true,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 54,
+      "model": "DS-2CE16U0T-LPF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Low-Light Bullet",
+      "resolution": "8MP (4K)",
+      "form_factor": "Bullet",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 25,
+        "si": 26
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic",
+      "notes": "Low light performance"
+    },
+    {
+      "id": 55,
+      "model": "DS-2CE16U0T-LPF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Low-Light Bullet",
+      "resolution": "8MP (4K)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 25,
+        "si": 26
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 56,
+      "model": "DS-2CE76U0T-LPF 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Low-Light Turret",
+      "resolution": "8MP (4K)",
+      "form_factor": "Turret",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 25,
+        "si": 26
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 57,
+      "model": "DS-2CE76U0T-LPF 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP Low-Light Turret",
+      "resolution": "8MP (4K)",
+      "form_factor": "Turret",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 30,
+      "pricing": {
+        "dpp": 25,
+        "si": 26
+      },
+      "colorvu": false,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": false,
+      "housing": "Plastic"
+    },
+    {
+      "id": 58,
+      "model": "DS-2CE10UF3T-E 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP ColorVu Pro Bullet PoC",
+      "resolution": "8MP (4K)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 40,
+      "pricing": {
+        "dpp": 52,
+        "si": 54
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": true,
+      "housing": "Metal"
+    },
+    {
+      "id": 59,
+      "model": "DS-2CE72UF3T-E 2.8MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP ColorVu Pro Turret PoC",
+      "resolution": "8MP (4K)",
+      "form_factor": "Turret",
+      "lens_mm": "2.8mm",
+      "ir_range_m": 40,
+      "pricing": {
+        "dpp": 62,
+        "si": 64
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": true,
+      "housing": "Metal"
+    },
+    {
+      "id": 60,
+      "model": "DS-2CE72UF3T-E 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP ColorVu Pro Turret PoC",
+      "resolution": "8MP (4K)",
+      "form_factor": "Turret",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 40,
+      "pricing": {
+        "dpp": 62,
+        "si": 64
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": true,
+      "housing": "Metal"
+    },
+    {
+      "id": 61,
+      "model": "DS-2CE12UF3T-E 3.6MM",
+      "category": "Turbo HD Camera",
+      "sub_category": "8MP ColorVu Pro Bullet PoC",
+      "resolution": "8MP (4K)",
+      "form_factor": "Bullet",
+      "lens_mm": "3.6mm",
+      "ir_range_m": 40,
+      "pricing": {
+        "dpp": 62,
+        "si": 64
+      },
+      "colorvu": true,
+      "motorized_vf": false,
+      "vandal_proof": false,
+      "poc": true,
+      "housing": "Metal"
+    }
+  ]
+}

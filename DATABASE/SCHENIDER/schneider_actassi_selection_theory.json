@@ -1,0 +1,294 @@
+{
+  "database_info": {
+    "name": "Schneider Electric Actassi Structured Cabling Selection Theory",
+    "version": "1.0",
+    "manufacturer": "Schneider Electric",
+    "purpose": "Engineering design tool for structured cabling, fiber, and network cabinet selection",
+    "last_updated": "2026-04-07"
+  },
+  "selection_criteria": {
+    "1_cabling_category_selection": {
+      "standard": "TIA-568.2-D / ISO 11801:2017",
+      "principle": "Cable category must support required bandwidth and application",
+      "comparison": [
+        {
+          "category": "Cat6 (ACT4P6U)",
+          "bandwidth_mhz": 250,
+          "data_rate": "1 Gbps (1000BASE-T)",
+          "10g_support": "Up to 55m only",
+          "best_for": "Standard LAN, PoE cameras, VoIP, general IT",
+          "schneider_models": "ACT4P6ULS3RBWE (LSZH White), ACT4P6UCM3RBBU4 (CM Blue)"
+        },
+        {
+          "category": "Cat6A (ACTTG4P6A)",
+          "bandwidth_mhz": 500,
+          "data_rate": "10 Gbps (10GBASE-T) full 100m",
+          "10g_support": "Full 100m",
+          "best_for": "Data centers, high-speed backbone, Wi-Fi 6/6E APs, 10G cameras",
+          "schneider_models": "ACTTG4P6AULS3RBU (LSZH Blue)"
+        }
+      ],
+      "recommendation": "Cat6 sufficient for 95% of surveillance/PA installations. Cat6A for future-proofing, data centers, or Wi-Fi 6E access points."
+    },
+    "2_jacket_rating_selection": {
+      "standard": "NEC / IEC / Local Fire Code",
+      "principle": "Cable jacket must meet fire safety requirements of installation location",
+      "ratings": [
+        {
+          "rating": "LSZH (Low Smoke Zero Halogen)",
+          "suffix": "LS",
+          "standard": "IEC 61034, IEC 60754",
+          "use": "Europe, Middle East, Asia \u2014 public buildings, tunnels, hospitals, data centers",
+          "schneider": "ACT4P6ULS3RBWE",
+          "note": "Mandatory in most Middle East building codes"
+        },
+        {
+          "rating": "CM (Communications Multipurpose)",
+          "suffix": "CM",
+          "standard": "UL 444",
+          "use": "US \u2014 general horizontal runs, non-riser, non-plenum",
+          "schneider": "ACT4P6UCM3RBBU4"
+        },
+        {
+          "rating": "CMR (Riser)",
+          "suffix": "CMR",
+          "standard": "UL 1666",
+          "use": "US \u2014 vertical risers between floors"
+        },
+        {
+          "rating": "CMP (Plenum)",
+          "suffix": "CMP",
+          "standard": "UL 910",
+          "use": "US \u2014 air handling spaces (above ceiling plenum)"
+        }
+      ],
+      "middle_east_rule": "LSZH is the standard requirement in Jordan, UAE, KSA, and most Middle East building codes. Always specify LSZH for commercial/public buildings."
+    },
+    "3_patch_cord_selection": {
+      "standard": "TIA-568.2-D",
+      "principle": "Patch cords connect equipment to patch panel and wall outlet to device",
+      "copper_patch_cords": [
+        {
+          "model_prefix": "ACTPC6UULS",
+          "type": "Cat6 UTP LSZH White",
+          "lengths": "0.5m, 1m, 3m",
+          "use": "Switch to patch panel, device to wall outlet"
+        },
+        {
+          "model_prefix": "ACTPC6UBCM",
+          "type": "Cat6 UTP CM Blue",
+          "lengths": "0.5m, 1m, 3m",
+          "use": "Same \u2014 blue color coding for camera/data distinction"
+        },
+        {
+          "model_prefix": "ACTPC6ASFLS",
+          "type": "Cat6A SFF LSZH White",
+          "lengths": "1m, 3m",
+          "use": "10G connections, data center"
+        }
+      ],
+      "color_coding": "Use White for standard data, Blue for camera/security network. Maintain consistent color scheme per TIA-606.",
+      "length_guide": "0.5m: same rack. 1m: adjacent rack units. 3m: cross-connect or desk to wall plate."
+    },
+    "4_face_plate_selection": {
+      "standard": "Installation / Aesthetic",
+      "principle": "Face plate style must match electrical system and port count",
+      "styles": [
+        {
+          "style": "Flat (ST943x)",
+          "form": "86\u00d786mm standard UK/EU plate",
+          "ports": "1 or 3",
+          "colors": "White (W) / Black (B)",
+          "best_for": "Standard commercial, office, visible wall outlet"
+        },
+        {
+          "style": "Angled (ST945x)",
+          "form": "45\u00d745mm European modular",
+          "ports": "1 or 3",
+          "colors": "White / Black",
+          "best_for": "European-style installations, Legrand/Schneider trunking"
+        },
+        {
+          "style": "Unica (ST943U/ST945U)",
+          "form": "Schneider Unica electrical system compatible",
+          "ports": "1 or 3",
+          "colors": "White / Black",
+          "best_for": "When using Schneider Unica electrical switches/sockets \u2014 matching aesthetics"
+        }
+      ],
+      "keystone_compatibility": "All Actassi face plates accept standard keystone modules (VDIEB/VDIB series)."
+    },
+    "5_keystone_jack_selection": {
+      "standard": "TIA-568.2-D",
+      "principle": "Keystone jacks terminate horizontal cable at the wall outlet",
+      "models": {
+        "VDIEB17266UWE": "Cat6 UTP \u2014 standard, tool-less termination, single unit",
+        "VDIB17366UWE": "Cat6 UTP \u2014 variant B, single unit",
+        "VDIB17726U12": "Cat6 UTP \u2014 12-pack (for patch panels or bulk projects)",
+        "VDIB1736XUWE": "Cat6 UTP \u2014 premium, single",
+        "VDIB11777XB24": "Cat6 UTP \u2014 24-pack",
+        "VDIB1772XB12": "Cat6 UTP \u2014 12-pack premium"
+      },
+      "termination": "T568A or T568B color code. Tool-less snap-in or 110-style punch-down. Must pass Cat6 channel test after termination."
+    },
+    "6_patch_panel_selection": {
+      "standard": "TIA-568 / EIA-310",
+      "principle": "Patch panel provides structured termination point in 19\" rack",
+      "models": [
+        {
+          "model": "VDIG112241U",
+          "type": "Cat6 UTP 24-port loaded, 1U",
+          "price_range": "$32-34",
+          "use": "Standard \u2014 most common choice"
+        },
+        {
+          "model": "VDIEG113241U60",
+          "type": "Cat6 UTP 24-port Evo loaded, 1U",
+          "price_range": "$42-45",
+          "use": "Premium \u2014 sliding design for easier access"
+        },
+        {
+          "model": "ACTPP6U24NSS_SE",
+          "type": "Cat6 UTP 24-port (SE variant)",
+          "use": "Standard loaded panel"
+        },
+        {
+          "model": "ACTPPS24NSU_E",
+          "type": "Cat6 Shielded 24-port",
+          "use": "Shielded environments (EMI protection)"
+        }
+      ],
+      "sizing": "1 patch panel (24 ports) per 24 cable runs. Label every port per TIA-606."
+    },
+    "7_network_cabinet_selection": {
+      "standard": "EIA-310 / IEC 60297",
+      "principle": "Cabinet size must accommodate all equipment with space for growth",
+      "wall_mount_cabinets": [
+        {
+          "model": "NSYKDB6U4F",
+          "size": "6U, 400mm deep",
+          "use": "1-2 switches, small IDF, residential"
+        },
+        {
+          "model": "NSYKDB9U4f",
+          "size": "9U, 400mm deep",
+          "use": "Small office, 1-2 switches + patch panel"
+        },
+        {
+          "model": "NSYKDB12U6F",
+          "size": "12U, 600mm deep",
+          "use": "Medium office, 2-3 switches + panels + UPS"
+        },
+        {
+          "model": "NSYKDB15U6F",
+          "size": "15U, 600mm deep",
+          "use": "Larger IDF, multiple switches and equipment"
+        }
+      ],
+      "open_rack": {
+        "model": "NSYOPB21U6F",
+        "size": "21U, 600mm deep",
+        "use": "Server room, open access for cooling"
+      },
+      "floor_standing": {
+        "model": "NSYVDA42U810B",
+        "size": "42U, 800\u00d71000mm",
+        "use": "MDF/server room, full-depth servers, large switch stacks",
+        "features": "Glass front door, perforated rear, 800kg load, casters"
+      },
+      "sizing_guide": "Equipment U-height + 30% spare + 1U cable management per 2U equipment = total U needed."
+    },
+    "8_fiber_optic_selection": {
+      "standard": "TIA-568.3-D / ISO 11801",
+      "principle": "Fiber type must match distance and bandwidth requirements",
+      "fiber_types": [
+        {
+          "type": "OM3 Multi-mode (50/125\u00b5m)",
+          "suffix": "M35M",
+          "wavelength": "850nm",
+          "max_10g_m": 300,
+          "max_40g_m": 100,
+          "color": "Aqua",
+          "use": "Within building, data center, short backbone",
+          "schneider_cables": "ACTFP2*M35M*"
+        },
+        {
+          "type": "OS2 Single-mode (9/125\u00b5m)",
+          "suffix": "S19S",
+          "wavelength": "1310/1550nm",
+          "max_10g_m": 10000,
+          "max_40g_m": 10000,
+          "color": "Yellow",
+          "use": "Between buildings, campus backbone, long distance",
+          "schneider_cables": "ACTFP2*S19S*, ACTUDSLLA*SM9"
+        }
+      ],
+      "connector_types": {
+        "LC": "Small form factor \u2014 most common for modern switches/SFP",
+        "SC": "Larger \u2014 legacy, some media converters"
+      },
+      "panel_modules": {
+        "ACTFM1UBLC48U": "LC 48-port fiber module",
+        "ACTFM1UBSC24U": "SC 24-port fiber module"
+      },
+      "rule": "OM3 for intra-building (<300m). OS2 for inter-building or >300m. Always use LC connectors for new installations."
+    },
+    "9_rj45_field_connector": {
+      "standard": "TIA-568 / Field Installation",
+      "principle": "Field-terminated RJ45 connectors for direct equipment connection",
+      "models": {
+        "ACTRJ1UCMPSC": "Cat6 RJ45 field connector (compact \u2014 for tight spaces)",
+        "ACTRJ1UCMPM": "Cat6 RJ45 field connector (medium \u2014 standard)"
+      },
+      "use_case": "Terminate cable directly to RJ45 plug without wall plate. Used for camera tails, temporary connections, equipment pigtails.",
+      "note": "Field connectors are slightly less reliable than keystone jack termination. Use keystone + patch cord where possible."
+    },
+    "10_compliance_and_warranty": {
+      "principle": "Schneider Actassi system provides certified end-to-end performance",
+      "standards": [
+        {
+          "standard": "TIA-568.2-D (Cat6) / TIA-568.2-D (Cat6A)",
+          "scope": "Copper cabling component and channel performance"
+        },
+        {
+          "standard": "TIA-568.3-D",
+          "scope": "Fiber optic cabling standards"
+        },
+        {
+          "standard": "ISO/IEC 11801:2017",
+          "scope": "International structured cabling standard"
+        },
+        {
+          "standard": "IEC 61156-5",
+          "scope": "Balanced cable test methods"
+        },
+        {
+          "standard": "IEC 61034",
+          "scope": "Smoke density test (LSZH cables)"
+        },
+        {
+          "standard": "IEC 60754",
+          "scope": "Halogen gas emission test (LSZH cables)"
+        },
+        {
+          "standard": "IEC 60332-1/3",
+          "scope": "Cable flame propagation"
+        },
+        {
+          "standard": "EIA-310-D",
+          "scope": "19-inch rack standard"
+        },
+        {
+          "standard": "TIA-606-C",
+          "scope": "Cable administration and labeling"
+        },
+        {
+          "standard": "TIA-569-D",
+          "scope": "Pathways and spaces"
+        }
+      ],
+      "warranty": "Schneider Actassi system offers up to 25-year system warranty when installed by certified installer using all Actassi components. Includes channel performance guarantee.",
+      "certification": "Third-party tested and certified by independent laboratories. Annual recertification."
+    }
+  }
+}

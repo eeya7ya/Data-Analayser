@@ -1,0 +1,1318 @@
+{
+  "database_info": {
+    "name": "SIB Access Control Hardware Database",
+    "version": "1.0",
+    "manufacturer": "SIB (Generic/OEM Access Control Hardware)",
+    "category": "Standalone Access Controllers, Magnetic Locks, Electric Bolts, Exit Buttons, RFID Cards, Brackets, Accessories",
+    "currency": "USD",
+    "last_updated": "2026-04-07",
+    "price_tiers": {
+      "dpp": "DPP/Distributor",
+      "installer": "Installer"
+    },
+    "model_naming": {
+      "S/K/T": "Standalone Keypad Access Controller",
+      "F": "Fingerprint Access Controller",
+      "TF": "Touch + Fingerprint",
+      "KF": "Keypad + Fingerprint",
+      "3D": "3D Facial Recognition",
+      "TB": "Bluetooth (TT Lock)",
+      "EM": "125KHz EM/RFID card",
+      "MF": "13.56MHz Mifare card",
+      "W": "Waterproof (IP65+)",
+      "Tuya": "Tuya smart home app integration (Wi-Fi)",
+      "L": "Magnetic Lock (electromagnetic)",
+      "L04/L03": "Electric Bolt/Drop Bolt Lock",
+      "L02": "Electric Strike Lock",
+      "OP": "Exit/Push Button",
+      "DC": "Door Closer",
+      "AR": "Break Glass / Emergency Release",
+      "UHF": "Ultra-High Frequency long-range reader"
+    },
+    "integration_notes": {
+      "hikvision_ac": "SIB standalone controllers are independent units. For integration with Hikvision access control (DS-K2600/K2800 controllers), use SIB magnetic locks and exit buttons with Hikvision readers/controllers via relay wiring.",
+      "fanvil_intercom": "SIB exit buttons and magnetic locks can be wired to Fanvil i-series door phone relay output for remote door release.",
+      "wiring": "Standard wiring: Access controller \u2192 Electric lock (12VDC) + Exit button (NO/COM) + Door sensor. Power supply: 12VDC 3-5A."
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "S603EM.e",
+      "category": "Access Controller",
+      "sub_category": "Standalone Keypad (No Waterproof)",
+      "pricing": {
+        "dpp": 15,
+        "installer": 17
+      },
+      "specs": {
+        "type": "Keypad + EM card reader",
+        "card": "125KHz EM",
+        "waterproof": false
+      }
+    },
+    {
+      "id": 2,
+      "model": "K5EM",
+      "category": "Access Controller",
+      "sub_category": "Standalone Keypad K5 (No Waterproof)",
+      "pricing": {
+        "dpp": 15,
+        "installer": 17
+      },
+      "specs": {
+        "card": "125KHz EM",
+        "waterproof": false
+      }
+    },
+    {
+      "id": 3,
+      "model": "K16EM",
+      "category": "Access Controller",
+      "sub_category": "Standalone Keypad K16 (No Waterproof)",
+      "pricing": {
+        "dpp": 15,
+        "installer": 17
+      },
+      "specs": {
+        "card": "125KHz EM"
+      }
+    },
+    {
+      "id": 4,
+      "model": "T6EM-W",
+      "category": "Access Controller",
+      "sub_category": "Touch Keypad (Waterproof)",
+      "pricing": {
+        "dpp": 18,
+        "installer": 22
+      },
+      "specs": {
+        "type": "Touch keypad + EM reader",
+        "card": "125KHz EM",
+        "waterproof": true
+      }
+    },
+    {
+      "id": 5,
+      "model": "T60EM-W",
+      "category": "Access Controller",
+      "sub_category": "Touch Keypad T60 (Waterproof)",
+      "pricing": {
+        "dpp": 18,
+        "installer": 22
+      },
+      "specs": {
+        "waterproof": true
+      }
+    },
+    {
+      "id": 6,
+      "model": "T15EM-W",
+      "category": "Access Controller",
+      "sub_category": "Touch Keypad T15 (Waterproof)",
+      "pricing": {
+        "dpp": 18,
+        "installer": 22
+      },
+      "specs": {
+        "waterproof": true
+      }
+    },
+    {
+      "id": 7,
+      "model": "T15EM-W Tuya",
+      "category": "Access Controller",
+      "sub_category": "Touch Keypad T15 (Waterproof, Tuya Wi-Fi)",
+      "pricing": {
+        "dpp": null,
+        "installer": null
+      },
+      "specs": {
+        "waterproof": true,
+        "tuya": true,
+        "wifi": true
+      },
+      "notes": "Price TBD"
+    },
+    {
+      "id": 8,
+      "model": "K1201EM",
+      "category": "Access Controller",
+      "sub_category": "Plastic Touch Keypad (No Waterproof)",
+      "pricing": {
+        "dpp": 8,
+        "installer": 10
+      },
+      "specs": {
+        "type": "Budget plastic keypad",
+        "waterproof": false
+      }
+    },
+    {
+      "id": 9,
+      "model": "F3EM.w",
+      "category": "Access Controller",
+      "sub_category": "Fingerprint Access Controller (Waterproof)",
+      "pricing": {
+        "dpp": 25,
+        "installer": 28
+      },
+      "specs": {
+        "type": "Fingerprint + EM card",
+        "fingerprint": true,
+        "card": "125KHz EM",
+        "waterproof": true
+      }
+    },
+    {
+      "id": 10,
+      "model": "TF501EM-LCD",
+      "category": "Access Controller",
+      "sub_category": "Touch Keypad + Screen (No Waterproof)",
+      "pricing": {
+        "dpp": 30,
+        "installer": 33
+      },
+      "specs": {
+        "type": "Touch keypad with LCD screen",
+        "lcd": true
+      }
+    },
+    {
+      "id": 11,
+      "model": "KF5EM-W",
+      "category": "Access Controller",
+      "sub_category": "Keypad + Fingerprint (Waterproof)",
+      "pricing": {
+        "dpp": 35,
+        "installer": 35
+      },
+      "specs": {
+        "fingerprint": true,
+        "waterproof": true
+      }
+    },
+    {
+      "id": 12,
+      "model": "TF1EM-AS LCD-W Tuya",
+      "category": "Access Controller",
+      "sub_category": "Touch Keypad LCD (Waterproof, Tuya)",
+      "pricing": {
+        "dpp": 28,
+        "installer": 30
+      },
+      "specs": {
+        "lcd": true,
+        "tuya": true,
+        "wifi": true,
+        "waterproof": true
+      }
+    },
+    {
+      "id": 13,
+      "model": "T12EM-W Tuya",
+      "category": "Access Controller",
+      "sub_category": "Touch Keypad (Waterproof, Tuya)",
+      "pricing": {
+        "dpp": 12,
+        "installer": 14
+      },
+      "specs": {
+        "tuya": true,
+        "waterproof": true
+      }
+    },
+    {
+      "id": 14,
+      "model": "T1201EM-W Tuya",
+      "category": "Access Controller",
+      "sub_category": "Touch Keypad (Waterproof, Tuya)",
+      "pricing": {
+        "dpp": 12,
+        "installer": 14
+      },
+      "specs": {
+        "tuya": true
+      }
+    },
+    {
+      "id": 15,
+      "model": "T8EM-W Tuya",
+      "category": "Access Controller",
+      "sub_category": "Touch Keypad T8 (Waterproof, Tuya)",
+      "pricing": {
+        "dpp": 22,
+        "installer": 25
+      },
+      "specs": {
+        "tuya": true,
+        "waterproof": true
+      }
+    },
+    {
+      "id": 16,
+      "model": "T1102EM-W Tuya",
+      "category": "Access Controller",
+      "sub_category": "Touch Keypad (Waterproof, Tuya)",
+      "pricing": {
+        "dpp": 22,
+        "installer": 25
+      },
+      "specs": {
+        "tuya": true
+      }
+    },
+    {
+      "id": 17,
+      "model": "T1101EM-W Tuya",
+      "category": "Access Controller",
+      "sub_category": "Touch Keypad (Waterproof, Tuya)",
+      "pricing": {
+        "dpp": 20,
+        "installer": 25
+      },
+      "specs": {
+        "tuya": true
+      }
+    },
+    {
+      "id": 18,
+      "model": "3D16EM-W Tuya",
+      "category": "Access Controller",
+      "sub_category": "3D Facial Recognition (Wi-Fi, Waterproof)",
+      "pricing": {
+        "dpp": null,
+        "installer": null
+      },
+      "specs": {
+        "type": "3D facial recognition + touch keypad",
+        "face_recognition": true,
+        "wifi": true,
+        "waterproof": true
+      },
+      "notes": "Price TBD"
+    },
+    {
+      "id": 19,
+      "model": "TB5MF-W(TT)",
+      "category": "Access Controller",
+      "sub_category": "Bluetooth Touch Keypad (TT Lock)",
+      "pricing": {
+        "dpp": null,
+        "installer": null
+      },
+      "specs": {
+        "bluetooth": true,
+        "tt_lock": true,
+        "waterproof": true
+      },
+      "notes": "Price TBD"
+    },
+    {
+      "id": 20,
+      "model": "T1203EM-W",
+      "category": "Access Controller",
+      "sub_category": "Plastic Touch Keypad (Waterproof)",
+      "pricing": {
+        "dpp": null,
+        "installer": null
+      }
+    },
+    {
+      "id": 21,
+      "model": "T1203EM-W Tuya",
+      "category": "Access Controller",
+      "sub_category": "Plastic Touch Keypad (Waterproof, Tuya)",
+      "pricing": {
+        "dpp": null,
+        "installer": null
+      }
+    },
+    {
+      "id": 22,
+      "model": "EM008",
+      "category": "RFID Card",
+      "sub_category": "EM 125KHz RFID Card (Thick)",
+      "pricing": {
+        "dpp": 0.25,
+        "installer": 0.5
+      },
+      "specs": {
+        "frequency": "125KHz",
+        "type": "EM proximity card",
+        "thickness": "Thick (1.8mm)"
+      }
+    },
+    {
+      "id": 23,
+      "model": "MF008",
+      "category": "RFID Card",
+      "sub_category": "Mifare 13.56MHz Card (Thick)",
+      "pricing": {
+        "dpp": 0.25,
+        "installer": 0.5
+      },
+      "specs": {
+        "frequency": "13.56MHz",
+        "type": "Mifare Classic 1K"
+      }
+    },
+    {
+      "id": 24,
+      "model": "AB001EM",
+      "category": "RFID Card",
+      "sub_category": "EM 125KHz Keyfob",
+      "pricing": {
+        "dpp": 0.25,
+        "installer": 0.5
+      },
+      "specs": {
+        "frequency": "125KHz",
+        "type": "Keyfob"
+      }
+    },
+    {
+      "id": 25,
+      "model": "AB001MF",
+      "category": "RFID Card",
+      "sub_category": "Mifare 13.56MHz Keyfob",
+      "pricing": {
+        "dpp": 0.25,
+        "installer": 0.5
+      },
+      "specs": {
+        "frequency": "13.56MHz"
+      }
+    },
+    {
+      "id": 26,
+      "model": "PV01EM",
+      "category": "RFID Card",
+      "sub_category": "EM 125KHz PVC Card",
+      "pricing": {
+        "dpp": 1,
+        "installer": 1
+      },
+      "specs": {
+        "frequency": "125KHz",
+        "type": "Printable PVC card"
+      }
+    },
+    {
+      "id": 27,
+      "model": "PV01MF",
+      "category": "RFID Card",
+      "sub_category": "Mifare 13.56MHz PVC Card",
+      "pricing": {
+        "dpp": 1,
+        "installer": 1
+      },
+      "specs": {
+        "frequency": "13.56MHz"
+      }
+    },
+    {
+      "id": 28,
+      "model": "WT001EM",
+      "category": "RFID Wristband",
+      "sub_category": "EM 125KHz Wristband",
+      "pricing": {
+        "dpp": 0.6,
+        "installer": 1
+      },
+      "specs": {
+        "frequency": "125KHz",
+        "type": "Silicone wristband"
+      }
+    },
+    {
+      "id": 29,
+      "model": "WT004EM",
+      "category": "RFID Wristband",
+      "sub_category": "EM 125KHz Wristband (Premium)",
+      "pricing": {
+        "dpp": 0.75,
+        "installer": 1
+      }
+    },
+    {
+      "id": 30,
+      "model": "OP25D (Wi-Fi)",
+      "category": "Exit Button",
+      "sub_category": "Wi-Fi Exit Button",
+      "pricing": {
+        "dpp": 8,
+        "installer": 8
+      },
+      "specs": {
+        "type": "Wi-Fi smart exit button"
+      }
+    },
+    {
+      "id": 31,
+      "model": "OP02H1-W",
+      "category": "Exit Button",
+      "sub_category": "Zinc Alloy Exit Button (Waterproof)",
+      "pricing": {
+        "dpp": 8,
+        "installer": 8
+      },
+      "specs": {
+        "material": "Zinc alloy",
+        "waterproof": true
+      }
+    },
+    {
+      "id": 32,
+      "model": "OP2603-W",
+      "category": "Exit Button",
+      "sub_category": "Exit Button (Waterproof)",
+      "pricing": {
+        "dpp": 8,
+        "installer": 8
+      }
+    },
+    {
+      "id": 33,
+      "model": "OP06",
+      "category": "Exit Button",
+      "sub_category": "Aluminium Exit Button (NO/COM)",
+      "pricing": {
+        "dpp": 4,
+        "installer": 5
+      },
+      "specs": {
+        "material": "Aluminium",
+        "contacts": "NO/COM",
+        "dimensions_mm": "86\u00d786\u00d733"
+      }
+    },
+    {
+      "id": 34,
+      "model": "OP03",
+      "category": "Exit Button",
+      "sub_category": "Stainless Steel Exit Button (Slim)",
+      "pricing": {
+        "dpp": 2,
+        "installer": 3
+      },
+      "specs": {
+        "material": "Stainless steel",
+        "contacts": "NO/COM",
+        "dimensions_mm": "90\u00d730\u00d724"
+      }
+    },
+    {
+      "id": 35,
+      "model": "OP02L",
+      "category": "Exit Button",
+      "sub_category": "Zinc Alloy Exit Button + LED (NO/NC/COM)",
+      "pricing": {
+        "dpp": 4,
+        "installer": 4
+      },
+      "specs": {
+        "material": "Zinc alloy",
+        "led": true,
+        "contacts": "NO/NC/COM"
+      }
+    },
+    {
+      "id": 36,
+      "model": "OP02",
+      "category": "Exit Button",
+      "sub_category": "Exit Button (No LED, NO/COM)",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 3
+      },
+      "specs": {
+        "contacts": "NO/COM"
+      }
+    },
+    {
+      "id": 37,
+      "model": "OP07",
+      "category": "Exit Button",
+      "sub_category": "Plastic Exit Button (Budget)",
+      "pricing": {
+        "dpp": 1.25,
+        "installer": 1.5
+      },
+      "specs": {
+        "material": "Plastic",
+        "dimensions_mm": "86\u00d786\u00d732"
+      }
+    },
+    {
+      "id": 38,
+      "model": "OP21B",
+      "category": "Exit Button",
+      "sub_category": "Touch Sensor Exit Button (50\u00d786mm)",
+      "pricing": {
+        "dpp": 4,
+        "installer": 4.5
+      },
+      "specs": {
+        "type": "Touch sensor",
+        "contacts": "+12V GND NO NC COM",
+        "dimensions_mm": "86\u00d750\u00d720"
+      }
+    },
+    {
+      "id": 39,
+      "model": "OP21D",
+      "category": "Exit Button",
+      "sub_category": "Touch Sensor Exit Button (86\u00d786mm)",
+      "pricing": {
+        "dpp": 4,
+        "installer": 4.5
+      },
+      "specs": {
+        "dimensions_mm": "86\u00d786\u00d720"
+      }
+    },
+    {
+      "id": 40,
+      "model": "OP16",
+      "category": "Exit Button",
+      "sub_category": "No-Touch Exit Button (SS, 115\u00d770mm)",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 4
+      },
+      "specs": {
+        "type": "No-touch infrared",
+        "material": "Stainless steel",
+        "dimensions_mm": "115\u00d770\u00d725"
+      }
+    },
+    {
+      "id": 41,
+      "model": "OP17",
+      "category": "Exit Button",
+      "sub_category": "No-Touch Exit Button (SS, 86\u00d786mm)",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 4
+      },
+      "specs": {
+        "dimensions_mm": "86\u00d786\u00d735"
+      }
+    },
+    {
+      "id": 42,
+      "model": "OP12",
+      "category": "Exit Button",
+      "sub_category": "No-Touch Exit Button (Plastic, 115\u00d770mm)",
+      "pricing": {
+        "dpp": 3.5,
+        "installer": 4
+      },
+      "specs": {
+        "material": "Plastic"
+      }
+    },
+    {
+      "id": 43,
+      "model": "OP24D",
+      "category": "Exit Button",
+      "sub_category": "No-Touch Exit Button (86\u00d786mm)",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 5
+      }
+    },
+    {
+      "id": 44,
+      "model": "L60B",
+      "category": "Magnetic Lock",
+      "sub_category": "60KG (100 lbs) Mini Mag Lock",
+      "pricing": {
+        "dpp": null,
+        "installer": null
+      },
+      "specs": {
+        "holding_force_kg": 60,
+        "voltage": "12VDC",
+        "dimensions_mm": "80\u00d738\u00d723"
+      }
+    },
+    {
+      "id": 45,
+      "model": "L180B",
+      "category": "Magnetic Lock",
+      "sub_category": "180KG (350 lbs) Magnetic Lock",
+      "pricing": {
+        "dpp": 9,
+        "installer": 10
+      },
+      "specs": {
+        "holding_force_kg": 180,
+        "voltage": "12VDC",
+        "current": "500mA",
+        "dimensions_mm": "180\u00d741\u00d721"
+      }
+    },
+    {
+      "id": 46,
+      "model": "L180B-5W",
+      "category": "Magnetic Lock",
+      "sub_category": "180KG Magnetic Lock (5-Wire, Signal)",
+      "pricing": {
+        "dpp": 12,
+        "installer": 13
+      },
+      "specs": {
+        "holding_force_kg": 180,
+        "wires": 5,
+        "door_position_signal": true
+      }
+    },
+    {
+      "id": 47,
+      "model": "L280M",
+      "category": "Magnetic Lock",
+      "sub_category": "280KG (600 lbs) Mortise Mag Lock",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      },
+      "specs": {
+        "holding_force_kg": 280,
+        "type": "Mortise mount",
+        "voltage": "12/24VDC",
+        "dimensions_mm": "194\u00d734\u00d723"
+      }
+    },
+    {
+      "id": 48,
+      "model": "L280B",
+      "category": "Magnetic Lock",
+      "sub_category": "280KG (600 lbs) Surface Mag Lock",
+      "pricing": {
+        "dpp": 12,
+        "installer": 14
+      },
+      "specs": {
+        "holding_force_kg": 280,
+        "voltage": "12/24VDC",
+        "dimensions_mm": "250\u00d746\u00d725"
+      }
+    },
+    {
+      "id": 49,
+      "model": "L280T",
+      "category": "Magnetic Lock",
+      "sub_category": "280KG Magnetic Lock (T variant)",
+      "pricing": {
+        "dpp": 9.75,
+        "installer": 10
+      }
+    },
+    {
+      "id": 50,
+      "model": "L280B-5W",
+      "category": "Magnetic Lock",
+      "sub_category": "280KG Magnetic Lock (5-Wire, Signal)",
+      "pricing": {
+        "dpp": 16,
+        "installer": 18
+      },
+      "specs": {
+        "holding_force_kg": 280,
+        "wires": 5
+      }
+    },
+    {
+      "id": 51,
+      "model": "L350B-5",
+      "category": "Magnetic Lock",
+      "sub_category": "350KG (800 lbs) Magnetic Lock (5-Wire)",
+      "pricing": {
+        "dpp": 20,
+        "installer": 25
+      },
+      "specs": {
+        "holding_force_kg": 350,
+        "wires": 5
+      }
+    },
+    {
+      "id": 52,
+      "model": "L350D",
+      "category": "Magnetic Lock",
+      "sub_category": "350KG Double Door Magnetic Lock",
+      "pricing": {
+        "dpp": 25,
+        "installer": 30
+      },
+      "specs": {
+        "holding_force_kg": 350,
+        "type": "Double door",
+        "dimensions_mm": "480\u00d755\u00d735"
+      }
+    },
+    {
+      "id": 53,
+      "model": "L500B-5W",
+      "category": "Magnetic Lock",
+      "sub_category": "500KG (1100 lbs) Magnetic Lock (5-Wire)",
+      "pricing": {
+        "dpp": 28,
+        "installer": 30
+      },
+      "specs": {
+        "holding_force_kg": 500,
+        "wires": 5
+      }
+    },
+    {
+      "id": 54,
+      "model": "L500B-5W-W",
+      "category": "Magnetic Lock",
+      "sub_category": "500KG Magnetic Lock (Waterproof)",
+      "pricing": {
+        "dpp": 45,
+        "installer": 48
+      },
+      "specs": {
+        "holding_force_kg": 500,
+        "waterproof": true
+      }
+    },
+    {
+      "id": 55,
+      "model": "L03A",
+      "category": "Electric Lock",
+      "sub_category": "Electric Lock (Standard)",
+      "pricing": {
+        "dpp": 15,
+        "installer": 17
+      }
+    },
+    {
+      "id": 56,
+      "model": "L04A",
+      "category": "Electric Bolt",
+      "sub_category": "Electric Bolt Lock (Low Temp)",
+      "pricing": {
+        "dpp": 15,
+        "installer": 20
+      },
+      "specs": {
+        "type": "Electric drop bolt",
+        "voltage": "12VDC",
+        "diameter_mm": 16,
+        "dimensions_mm": "200\u00d734\u00d742"
+      }
+    },
+    {
+      "id": 57,
+      "model": "L04S",
+      "category": "Electric Bolt",
+      "sub_category": "Electric Bolt Lock (Fail-safe/Fail-secure)",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      },
+      "specs": {
+        "type": "Electric bolt",
+        "voltage": "12VDC",
+        "fail_mode": "Configurable fail-safe/fail-secure"
+      }
+    },
+    {
+      "id": 58,
+      "model": "L02C-NO",
+      "category": "Electric Strike",
+      "sub_category": "Electric Strike Lock (NO, Zinc)",
+      "pricing": {
+        "dpp": 13,
+        "installer": 15
+      },
+      "specs": {
+        "type": "Electric strike",
+        "holding_kg": 500,
+        "voltage": "12VDC",
+        "material": "Zinc die-casting"
+      }
+    },
+    {
+      "id": 59,
+      "model": "L02B-NO",
+      "category": "Electric Strike",
+      "sub_category": "Electric Strike Lock (NO, Stainless)",
+      "pricing": {
+        "dpp": 13,
+        "installer": 15
+      },
+      "specs": {
+        "type": "Electric strike",
+        "material": "Stainless steel",
+        "voltage": "12VDC"
+      }
+    },
+    {
+      "id": 60,
+      "model": "L04A-C",
+      "category": "Electric Bolt",
+      "sub_category": "Electric Bolt for Frameless Glass Door",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      },
+      "specs": {
+        "type": "Glass door bolt",
+        "glass_thickness_mm": "10-15",
+        "opening": "180\u00b0"
+      }
+    },
+    {
+      "id": 61,
+      "model": "L04D-L",
+      "category": "Bracket",
+      "sub_category": "Left Bracket for Electric Bolt",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      }
+    },
+    {
+      "id": 62,
+      "model": "L04D-R",
+      "category": "Bracket",
+      "sub_category": "Right Bracket for Electric Bolt",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      }
+    },
+    {
+      "id": 63,
+      "model": "L180B-L",
+      "category": "Bracket",
+      "sub_category": "L-Bracket for 180KG Mag Lock",
+      "pricing": {
+        "dpp": 3,
+        "installer": 4
+      },
+      "specs": {
+        "for": "180KG magnetic lock",
+        "use": "Outward opening door",
+        "dimensions_mm": "175\u00d733\u00d720"
+      }
+    },
+    {
+      "id": 64,
+      "model": "L180B-ZL",
+      "category": "Bracket",
+      "sub_category": "ZL-Bracket for 180KG Mag Lock",
+      "pricing": {
+        "dpp": 5,
+        "installer": 6
+      },
+      "specs": {
+        "for": "180KG magnetic lock",
+        "use": "Inward opening door"
+      }
+    },
+    {
+      "id": 65,
+      "model": "L280B-L",
+      "category": "Bracket",
+      "sub_category": "L-Bracket for 280KG Mag Lock",
+      "pricing": {
+        "dpp": 5,
+        "installer": 6
+      },
+      "specs": {
+        "for": "280KG magnetic lock",
+        "use": "Outward opening door"
+      }
+    },
+    {
+      "id": 66,
+      "model": "L280B-U",
+      "category": "Bracket",
+      "sub_category": "U-Bracket for 280KG (Glass Door)",
+      "pricing": {
+        "dpp": 3,
+        "installer": 4
+      },
+      "specs": {
+        "for": "280KG magnetic lock",
+        "use": "Frameless glass door"
+      }
+    },
+    {
+      "id": 67,
+      "model": "L280B-ZL",
+      "category": "Bracket",
+      "sub_category": "ZL-Bracket for 280KG Mag Lock",
+      "pricing": {
+        "dpp": 5,
+        "installer": 6
+      },
+      "specs": {
+        "for": "280KG",
+        "use": "Inward opening door"
+      }
+    },
+    {
+      "id": 68,
+      "model": "L350B-L",
+      "category": "Bracket",
+      "sub_category": "L-Bracket for 350KG Mag Lock",
+      "pricing": {
+        "dpp": 4,
+        "installer": 5
+      }
+    },
+    {
+      "id": 69,
+      "model": "L350B-ZL",
+      "category": "Bracket",
+      "sub_category": "ZL-Bracket for 350KG Mag Lock",
+      "pricing": {
+        "dpp": 5,
+        "installer": 6
+      }
+    },
+    {
+      "id": 70,
+      "model": "L500B-ZL",
+      "category": "Bracket",
+      "sub_category": "ZL-Bracket for 500KG Mag Lock",
+      "pricing": {
+        "dpp": 12,
+        "installer": 15
+      }
+    },
+    {
+      "id": 71,
+      "model": "DC03",
+      "category": "Door Closer",
+      "sub_category": "Door Closer (60-80KG, Size 4)",
+      "pricing": {
+        "dpp": 14,
+        "installer": 15
+      },
+      "specs": {
+        "door_width_mm": "900-1300",
+        "door_weight_kg": "60-80",
+        "features": [
+          "Self-closing",
+          "Hold-open",
+          "2-speed adjustable"
+        ]
+      }
+    },
+    {
+      "id": 72,
+      "model": "DC04",
+      "category": "Door Closer",
+      "sub_category": "Door Closer (80-145KG, Size 6)",
+      "pricing": {
+        "dpp": 22,
+        "installer": 25
+      },
+      "specs": {
+        "door_width_mm": "1000-2000",
+        "door_weight_kg": "80-145",
+        "features": [
+          "Self-closing",
+          "Bearings",
+          "2-speed adjustable"
+        ]
+      }
+    },
+    {
+      "id": 73,
+      "model": "UHF-115",
+      "category": "UHF Reader",
+      "sub_category": "UHF Long-Range Reader (5-15m)",
+      "pricing": {
+        "dpp": 135,
+        "installer": 145
+      },
+      "specs": {
+        "type": "UHF RFID reader",
+        "frequency": "920-925MHz",
+        "range_m": "5-15",
+        "voltage": "12VDC",
+        "dimensions_mm": "450\u00d7450\u00d7120"
+      }
+    },
+    {
+      "id": 74,
+      "model": "C01-UHF",
+      "category": "UHF Card",
+      "sub_category": "UHF Card (860-960MHz)",
+      "pricing": {
+        "dpp": 1.5,
+        "installer": 1.75
+      },
+      "specs": {
+        "type": "UHF RFID card",
+        "frequency": "860-960MHz"
+      }
+    },
+    {
+      "id": 75,
+      "model": "LB01-UHF",
+      "category": "UHF Label",
+      "sub_category": "UHF Windshield Label",
+      "pricing": {
+        "dpp": 1.5,
+        "installer": 1.75
+      },
+      "specs": {
+        "type": "UHF windshield sticker",
+        "frequency": "860-960MHz",
+        "dimensions_mm": "96\u00d722"
+      }
+    },
+    {
+      "id": 76,
+      "model": "10A Relay Board",
+      "category": "Accessory",
+      "sub_category": "10A Relay Conversion Board",
+      "pricing": {
+        "dpp": null,
+        "installer": null
+      }
+    },
+    {
+      "id": 77,
+      "model": "AR01",
+      "category": "Accessory",
+      "sub_category": "Resettable Break Glass Emergency Release",
+      "pricing": {
+        "dpp": null,
+        "installer": null
+      },
+      "specs": {
+        "contacts": "2\u00d7NO/NC/COM",
+        "dimensions_mm": "86\u00d786\u00d750"
+      }
+    },
+    {
+      "id": 78,
+      "model": "AR1",
+      "category": "Accessory",
+      "sub_category": "Accessories Pack 1",
+      "pricing": {
+        "dpp": 3,
+        "installer": 4
+      }
+    },
+    {
+      "id": 79,
+      "model": "AR2",
+      "category": "Accessory",
+      "sub_category": "Accessories Pack 2",
+      "pricing": {
+        "dpp": 4,
+        "installer": 5
+      }
+    },
+    {
+      "id": 80,
+      "model": "UPS501",
+      "category": "Accessory",
+      "sub_category": "Access Control UPS/PSU",
+      "pricing": {
+        "dpp": 15,
+        "installer": 18
+      }
+    },
+    {
+      "id": 81,
+      "model": "DB01",
+      "category": "Accessory",
+      "sub_category": "Door Bracket/Accessory",
+      "pricing": {
+        "dpp": 4,
+        "installer": 4
+      }
+    },
+    {
+      "id": 82,
+      "model": "LD01",
+      "category": "Accessory",
+      "sub_category": "Single Loop Detector (Vehicle)",
+      "pricing": {
+        "dpp": 18,
+        "installer": 20
+      },
+      "specs": {
+        "type": "Inductive loop detector for vehicle sensing"
+      }
+    },
+    {
+      "id": 83,
+      "model": "MS03",
+      "category": "Accessory",
+      "sub_category": "Beam Sensor (IR Pair)",
+      "pricing": {
+        "dpp": 10,
+        "installer": 10
+      },
+      "specs": {
+        "type": "Infrared beam sensor pair"
+      }
+    },
+    {
+      "id": 84,
+      "model": "Strike Lock",
+      "category": "Electric Lock",
+      "sub_category": "Electric Strike Lock",
+      "pricing": {
+        "dpp": 13,
+        "installer": 14
+      }
+    },
+    {
+      "id": 85,
+      "model": "Door Sensor 55",
+      "category": "Accessory",
+      "sub_category": "Door Magnetic Sensor (55mm)",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 3
+      }
+    },
+    {
+      "id": 86,
+      "model": "Door Sensor 33",
+      "category": "Accessory",
+      "sub_category": "Door Magnetic Sensor (33mm)",
+      "pricing": {
+        "dpp": 1,
+        "installer": 1.25
+      }
+    },
+    {
+      "id": 87,
+      "model": "Door Sensor 56",
+      "category": "Accessory",
+      "sub_category": "Door Magnetic Sensor (56mm)",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 3
+      }
+    },
+    {
+      "id": 88,
+      "model": "MC 58",
+      "category": "Accessory",
+      "sub_category": "Magnetic Contact MC58",
+      "pricing": {
+        "dpp": 2.5,
+        "installer": 3
+      }
+    },
+    {
+      "id": 89,
+      "model": "Stents 280KG",
+      "category": "Bracket",
+      "sub_category": "Mounting Stent for 280KG Lock",
+      "pricing": {
+        "dpp": 22,
+        "installer": 23
+      }
+    },
+    {
+      "id": 90,
+      "model": "Break Glass",
+      "category": "Accessory",
+      "sub_category": "Emergency Break Glass",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3.5
+      }
+    },
+    {
+      "id": 91,
+      "model": "Door Closer AC",
+      "category": "Door Closer",
+      "sub_category": "Electric Door Closer (220V/12V AC)",
+      "pricing": {
+        "dpp": 18,
+        "installer": 20
+      }
+    },
+    {
+      "id": 92,
+      "model": "Remote + Receiver",
+      "category": "Accessory",
+      "sub_category": "Remote Control with Receiver",
+      "pricing": {
+        "dpp": 8,
+        "installer": 10
+      }
+    },
+    {
+      "id": 93,
+      "model": "Remote (Single)",
+      "category": "Accessory",
+      "sub_category": "Remote Control (Transmitter Only)",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3
+      }
+    },
+    {
+      "id": 94,
+      "model": "12V Transformer",
+      "category": "Power Supply",
+      "sub_category": "12V Transformer/Adapter",
+      "pricing": {
+        "dpp": 4.5,
+        "installer": 5
+      }
+    },
+    {
+      "id": 95,
+      "model": "12V Relay",
+      "category": "Accessory",
+      "sub_category": "12V Relay Module",
+      "pricing": {
+        "dpp": 2,
+        "installer": 2
+      }
+    },
+    {
+      "id": 96,
+      "model": "24V Relay",
+      "category": "Accessory",
+      "sub_category": "24V Relay Module",
+      "pricing": {
+        "dpp": 2,
+        "installer": 2
+      }
+    },
+    {
+      "id": 97,
+      "model": "EM Card Thin",
+      "category": "RFID Card",
+      "sub_category": "EM 125KHz Thin Card",
+      "pricing": {
+        "dpp": 0.25,
+        "installer": 0.5
+      }
+    },
+    {
+      "id": 98,
+      "model": "MF Card Thin",
+      "category": "RFID Card",
+      "sub_category": "Mifare 13.56MHz Thin Card",
+      "pricing": {
+        "dpp": 0.25,
+        "installer": 0.5
+      }
+    }
+  ]
+}

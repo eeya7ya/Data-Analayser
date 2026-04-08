@@ -1,0 +1,327 @@
+{
+  "database_info": {
+    "name": "HPE Aruba Instant On Database",
+    "version": "1.0",
+    "manufacturer": "HPE Aruba (Hewlett Packard Enterprise)",
+    "category": "Enterprise Managed Switches & Wi-Fi Access Points",
+    "currency": "USD",
+    "last_updated": "2026-04-07",
+    "price_tiers": {
+      "dpp": "DPP/Distributor",
+      "si": "System Integrator"
+    },
+    "model_naming": {
+      "JL680A-JL686B": "Aruba Instant On 1930/1960 Series Managed Switches",
+      "1930": "L2+ Managed Smart Switch (cloud + local)",
+      "1960": "L3 Managed Stackable Switch",
+      "AP11": "Instant On Indoor AP (Wi-Fi 5, 802.11ac)",
+      "AP21": "Instant On Indoor AP (Wi-Fi 6, entry)",
+      "AP22": "Instant On Indoor AP (Wi-Fi 6, standard)",
+      "AP27": "Instant On Outdoor AP (Wi-Fi 6)",
+      "AP17": "Instant On Outdoor AP (Wi-Fi 6, premium)",
+      "AP32": "Instant On Indoor AP (Wi-Fi 6E, tri-band)"
+    },
+    "integration_notes": {
+      "management": "All Aruba Instant On devices managed via Aruba Instant On cloud portal or mobile app",
+      "hikvision": "Aruba PoE switches power Hikvision IP cameras with VLAN isolation and QoS prioritization",
+      "fanvil": "Aruba PoE switches power Fanvil phones with voice VLAN support",
+      "schneider_legrand_cabling": "Aruba switches connect via Schneider Actassi or Legrand LCS structured cabling",
+      "tenda_comparison": "Aruba is the enterprise upgrade path from Tenda switches \u2014 use Aruba when VLAN, cloud management, and enterprise support are required"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "JL680A",
+      "category": "Managed Switch",
+      "sub_category": "Instant On 1930 8G Switch",
+      "pricing": {
+        "dpp": 110,
+        "si": 115
+      },
+      "specs": {
+        "series": "1930",
+        "ports": 8,
+        "speed": "Gigabit",
+        "poe": false,
+        "managed": "L2+ Smart Managed",
+        "features": [
+          "VLAN",
+          "QoS",
+          "LACP",
+          "STP/RSTP",
+          "IGMP snooping",
+          "SNMP",
+          "Cloud managed",
+          "Local web GUI"
+        ],
+        "uplink": "2\u00d7 SFP",
+        "rack": "Desktop",
+        "power": "External adapter"
+      }
+    },
+    {
+      "id": 2,
+      "model": "JL681A",
+      "category": "Managed PoE Switch",
+      "sub_category": "Instant On 1930 8G PoE Switch",
+      "pricing": {
+        "dpp": 198,
+        "si": 205
+      },
+      "specs": {
+        "series": "1930",
+        "ports": 8,
+        "poe_ports": 8,
+        "speed": "Gigabit",
+        "poe": true,
+        "poe_budget_w": 124,
+        "managed": "L2+ Smart Managed",
+        "uplink": "2\u00d7 SFP"
+      }
+    },
+    {
+      "id": 3,
+      "model": "JL682A",
+      "category": "Managed Switch",
+      "sub_category": "Instant On 1930 24G Switch",
+      "pricing": {
+        "dpp": 193,
+        "si": 200
+      },
+      "specs": {
+        "series": "1930",
+        "ports": 24,
+        "speed": "Gigabit",
+        "poe": false,
+        "managed": "L2+",
+        "uplink": "4\u00d7 SFP+",
+        "rack": "19\" 1U"
+      }
+    },
+    {
+      "id": 4,
+      "model": "JL683A",
+      "category": "Managed PoE Switch",
+      "sub_category": "Instant On 1930 24G PoE Switch",
+      "pricing": {
+        "dpp": 275,
+        "si": 285
+      },
+      "specs": {
+        "series": "1930",
+        "ports": 24,
+        "poe_ports": 24,
+        "speed": "Gigabit",
+        "poe": true,
+        "poe_budget_w": 195,
+        "managed": "L2+",
+        "uplink": "4\u00d7 SFP+",
+        "rack": "19\" 1U"
+      }
+    },
+    {
+      "id": 5,
+      "model": "JL684A",
+      "category": "Managed PoE Switch",
+      "sub_category": "Instant On 1930 48G PoE Switch",
+      "pricing": {
+        "dpp": 352,
+        "si": 368
+      },
+      "specs": {
+        "series": "1930",
+        "ports": 48,
+        "poe_ports": 48,
+        "speed": "Gigabit",
+        "poe": true,
+        "poe_budget_w": 370,
+        "managed": "L2+",
+        "uplink": "4\u00d7 SFP+",
+        "rack": "19\" 1U"
+      }
+    },
+    {
+      "id": 6,
+      "model": "JL685",
+      "category": "Managed Switch",
+      "sub_category": "Instant On 1930 48G Switch",
+      "pricing": {
+        "dpp": 288,
+        "si": 300
+      },
+      "specs": {
+        "series": "1930",
+        "ports": 48,
+        "speed": "Gigabit",
+        "poe": false,
+        "managed": "L2+",
+        "uplink": "4\u00d7 SFP+"
+      }
+    },
+    {
+      "id": 7,
+      "model": "JL686B",
+      "category": "Managed Switch",
+      "sub_category": "Instant On 1960 Stackable Switch",
+      "pricing": {
+        "dpp": 490,
+        "si": 510
+      },
+      "specs": {
+        "series": "1960",
+        "ports": 24,
+        "speed": "Gigabit",
+        "managed": "L3",
+        "features": [
+          "L3 static/dynamic routing",
+          "Stacking (up to 4)",
+          "10G SFP+ uplinks",
+          "ACL",
+          "DHCP server",
+          "Cloud managed",
+          "Zero-touch provisioning"
+        ],
+        "uplink": "2\u00d7 10G SFP+",
+        "rack": "19\" 1U"
+      }
+    },
+    {
+      "id": 8,
+      "model": "AP11",
+      "category": "Access Point",
+      "sub_category": "Instant On AP11 (Wi-Fi 5, Indoor)",
+      "pricing": {
+        "dpp": 69,
+        "si": 72
+      },
+      "specs": {
+        "wifi": "802.11ac Wave 2 (Wi-Fi 5)",
+        "speed_mbps": 1167,
+        "band": "2.4+5GHz",
+        "mimo": "2\u00d72",
+        "type": "Indoor ceiling mount",
+        "poe": "802.3af",
+        "management": "Cloud + App",
+        "features": [
+          "Cloud managed",
+          "App managed",
+          "Captive portal",
+          "Guest network",
+          "Mesh capable"
+        ],
+        "max_clients": 75,
+        "recommended_users": 50
+      }
+    },
+    {
+      "id": 9,
+      "model": "AP21",
+      "category": "Access Point",
+      "sub_category": "Instant On AP21 (Wi-Fi 6, Indoor)",
+      "pricing": {
+        "dpp": 78,
+        "si": 82
+      },
+      "specs": {
+        "wifi": "802.11ax (Wi-Fi 6)",
+        "speed_mbps": 1500,
+        "band": "2.4+5GHz",
+        "mimo": "2\u00d72",
+        "type": "Indoor ceiling mount",
+        "poe": "802.3af",
+        "max_clients": 100,
+        "recommended_users": 75,
+        "features": [
+          "OFDMA",
+          "BSS Coloring",
+          "Target Wake Time",
+          "MU-MIMO"
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "model": "AP22",
+      "category": "Access Point",
+      "sub_category": "Instant On AP22 (Wi-Fi 6, Indoor)",
+      "pricing": {
+        "dpp": 89,
+        "si": 92
+      },
+      "specs": {
+        "wifi": "802.11ax (Wi-Fi 6)",
+        "speed_mbps": 1774,
+        "band": "2.4+5GHz",
+        "mimo": "2\u00d72",
+        "poe": "802.3at",
+        "max_clients": 128,
+        "recommended_users": 100
+      }
+    },
+    {
+      "id": 11,
+      "model": "AP17",
+      "category": "Access Point",
+      "sub_category": "Instant On AP17 (Wi-Fi 6, Outdoor)",
+      "pricing": {
+        "dpp": 220,
+        "si": 225
+      },
+      "specs": {
+        "wifi": "802.11ax (Wi-Fi 6)",
+        "speed_mbps": 1774,
+        "band": "2.4+5GHz",
+        "type": "Outdoor",
+        "ip_rating": "IP67",
+        "poe": "802.3at",
+        "features": [
+          "IP67 weatherproof",
+          "Built-in antenna",
+          "Outdoor mesh capable"
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "model": "AP27",
+      "category": "Access Point",
+      "sub_category": "Instant On AP27 (Wi-Fi 6, Outdoor)",
+      "pricing": {
+        "dpp": 185,
+        "si": 195
+      },
+      "specs": {
+        "wifi": "802.11ax (Wi-Fi 6)",
+        "type": "Outdoor",
+        "ip_rating": "IP66",
+        "poe": "802.3at"
+      }
+    },
+    {
+      "id": 13,
+      "model": "AP32",
+      "category": "Access Point",
+      "sub_category": "Instant On AP32 (Wi-Fi 6E, Indoor)",
+      "pricing": {
+        "dpp": 185,
+        "si": 195
+      },
+      "specs": {
+        "wifi": "802.11ax (Wi-Fi 6E)",
+        "band": "2.4+5+6GHz",
+        "mimo": "2\u00d72",
+        "type": "Indoor ceiling mount",
+        "poe": "802.3at",
+        "features": [
+          "6GHz tri-band",
+          "Ultra-low latency",
+          "Highest density",
+          "Future-proof"
+        ],
+        "max_clients": 200,
+        "recommended_users": 150
+      }
+    }
+  ]
+}

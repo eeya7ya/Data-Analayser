@@ -1,0 +1,312 @@
+{
+  "database_info": {
+    "name": "Fanvil IP Communication Selection Theory",
+    "version": "1.0",
+    "manufacturer": "Fanvil",
+    "last_updated": "2026-04-07"
+  },
+  "selection_criteria": {
+    "1_phone_series_selection": {
+      "standard": "Application",
+      "principle": "Phone series matches deployment type and user profile",
+      "guide": [
+        {
+          "series": "X300 (X303)",
+          "tier": "Entry",
+          "sip_lines": "4",
+          "screen": "2.4\" color",
+          "best_for": "Small office, basic users, warehouses, shared desks",
+          "price_range": "$42"
+        },
+        {
+          "series": "V50/V60",
+          "tier": "Value",
+          "sip_lines": "2-4",
+          "best_for": "Reception, open plan, cost-sensitive deployments",
+          "price_range": "$37-47"
+        },
+        {
+          "series": "V61/V62",
+          "tier": "Mid-range",
+          "sip_lines": "6-12",
+          "best_for": "Standard office workers, supervisors, team leads",
+          "price_range": "$43-80"
+        },
+        {
+          "series": "V63/V64",
+          "tier": "Upper mid",
+          "sip_lines": "16",
+          "best_for": "Managers, power users, small call centers",
+          "price_range": "$90-115"
+        },
+        {
+          "series": "V65/V66/V66-PRO",
+          "tier": "Executive",
+          "sip_lines": "20",
+          "best_for": "Directors, executives, reception desks",
+          "price_range": "$160-195"
+        },
+        {
+          "series": "V67",
+          "tier": "Flagship",
+          "sip_lines": "20",
+          "screen": "7\" touch",
+          "best_for": "CEO, boardroom, executive suite",
+          "price_range": "$285"
+        },
+        {
+          "series": "A320/A320i",
+          "tier": "Android",
+          "os": "Android",
+          "best_for": "Video calls, Android apps, modern office, hybrid work",
+          "price_range": "$430-615"
+        },
+        {
+          "series": "H Series (H1-H603)",
+          "tier": "Hotel",
+          "sip_lines": "1-6",
+          "best_for": "Hotel rooms, bathrooms, lobbies",
+          "price_range": "$35-170"
+        },
+        {
+          "series": "X305/X210i",
+          "tier": "Call Center",
+          "best_for": "Call centers, helpdesks, high call volume",
+          "price_range": "$115-345"
+        }
+      ]
+    },
+    "2_hotel_phone_selection": {
+      "standard": "Hospitality",
+      "principle": "Hotel phones are purpose-built for guest rooms with simplified UI",
+      "guide": [
+        {
+          "room": "Bathroom",
+          "phone": "H1 or H2U",
+          "features": "Compact, moisture resistant, 1-2 lines, speed dial"
+        },
+        {
+          "room": "Standard guest room",
+          "phone": "H3/H4 or H3W/H4W (WiFi)",
+          "features": "Color screen, speed dial, wake-up, message waiting"
+        },
+        {
+          "room": "Suite / VIP room",
+          "phone": "H5/H5W or H6W",
+          "features": "Larger screen, premium finish, Bluetooth/WiFi"
+        },
+        {
+          "room": "Lobby / Front desk",
+          "phone": "H603W or V66-PRO",
+          "features": "Multi-line, speed dial, BLF, premium audio"
+        },
+        {
+          "room": "Conference room",
+          "phone": "CA400 or CA400-Lite",
+          "features": "Full duplex, 360\u00b0 pickup, daisy-chain"
+        }
+      ],
+      "pms_integration": "All H-series phones support PMS (Property Management System) integration for check-in/out, room status, minibar, wake-up via SIP/TAPI."
+    },
+    "3_sip_door_phone_selection": {
+      "standard": "SIP Intercom / Access Control",
+      "principle": "Door phone model based on security level and user interface needs",
+      "guide": [
+        {
+          "model": "i60",
+          "type": "Audio only",
+          "features": "1 button, relay, Wiegand",
+          "best_for": "Simple gate/door entry, intercom only"
+        },
+        {
+          "model": "i60K",
+          "type": "Audio + keypad",
+          "features": "Keypad, RFID, relay",
+          "best_for": "PIN-code access + intercom"
+        },
+        {
+          "model": "i62",
+          "type": "Video 720p",
+          "features": "Video call, RFID, Wiegand, IP65/IK10",
+          "best_for": "Standard video entry, apartment, office"
+        },
+        {
+          "model": "i63",
+          "type": "Video 2MP + keypad",
+          "features": "HD video, keypad, RFID",
+          "best_for": "Enhanced entry with PIN + card"
+        },
+        {
+          "model": "i64",
+          "type": "Video + touch",
+          "features": "4.3\" touch, face detection, QR",
+          "best_for": "Modern entry, visitor QR code access"
+        },
+        {
+          "model": "i66",
+          "type": "Video premium",
+          "features": "7\" touch, face recognition",
+          "best_for": "Premium entry, face unlock"
+        },
+        {
+          "model": "i67",
+          "type": "Flagship",
+          "features": "10\" Android, face recognition, full access control",
+          "best_for": "HQ main entrance, multi-tenant building"
+        }
+      ],
+      "wiegand_integration": "All i-series door phones output Wiegand (W26/W34) for integration with Hikvision DS-K2600/K2800 access controllers."
+    },
+    "4_sip_paging_system": {
+      "standard": "SIP Paging",
+      "principle": "SIP paging speakers provide network-based PA without traditional amplifiers",
+      "components": [
+        {
+          "component": "SIP Paging Speaker (A10/A201/A212/A233)",
+          "function": "Self-amplified PoE speaker, receives SIP multicast/unicast paging"
+        },
+        {
+          "component": "Paging Adapter (PA2S/PA3)",
+          "function": "Converts SIP page to analog audio output \u2192 connects to existing PA amplifier (DSPPA etc.)"
+        },
+        {
+          "component": "Conference Speaker (CS20/CS40)",
+          "function": "Compact SIP speaker for small room paging"
+        }
+      ],
+      "integration_with_dsppa": "PA2S/PA3 adapter receives SIP page \u2192 line-level audio output \u2192 DSPPA mixer amplifier AUX input \u2192 100V speaker system. This bridges VoIP and traditional PA."
+    },
+    "5_dect_wireless_selection": {
+      "standard": "DECT",
+      "principle": "DECT for mobile users who need wireless phone coverage within building",
+      "guide": [
+        {
+          "system": "W610W/H",
+          "type": "Single-cell",
+          "range_outdoor_m": 300,
+          "range_indoor_m": 50,
+          "handsets": 5,
+          "best_for": "Small office, single floor"
+        },
+        {
+          "system": "W611W",
+          "type": "Enhanced single-cell",
+          "best_for": "Larger single office, better range"
+        },
+        {
+          "system": "W712",
+          "type": "Multi-cell enterprise",
+          "best_for": "Large building, warehouse, campus \u2014 multiple base stations for roaming coverage"
+        }
+      ]
+    },
+    "6_indoor_station_selection": {
+      "standard": "SIP Intercom",
+      "principle": "Indoor stations pair with door phones for 2-way video intercom",
+      "guide": [
+        {
+          "model": "i504/i504W",
+          "screen": "4.3\"",
+          "best_for": "Apartment, basic intercom"
+        },
+        {
+          "model": "i505/i505W",
+          "screen": "7\"",
+          "best_for": "Villa, office reception"
+        },
+        {
+          "model": "i506W/i507W",
+          "screen": "7-10\"",
+          "best_for": "Premium villa, guard station"
+        },
+        {
+          "model": "i55A/i57A",
+          "os": "Android",
+          "best_for": "Smart home integration, Android apps"
+        }
+      ]
+    },
+    "7_poe_switch_selection": {
+      "standard": "IEEE 802.3af/at",
+      "principle": "Fanvil PoE switches power Fanvil phones and other PoE devices",
+      "guide": {
+        "PN1": "Single-port PoE injector \u2014 for individual device",
+        "PN8": "8-port \u2014 small office, 1 rack of phones",
+        "PN24": "24-port \u2014 full office floor, hotel wing"
+      },
+      "note": "For larger deployments, use Hikvision PoE switches from hikvision_switches_db.json for better management and PoE budget."
+    },
+    "8_sip_controller_sc_series": {
+      "standard": "System Architecture",
+      "principle": "SC controllers manage multi-door SIP intercom deployments",
+      "models": {
+        "SC-BC01": "Box Controller \u2014 standalone SIP intercom server, up to 100 doors",
+        "SC-BR01": "Rack-mount variant",
+        "SC-HC01": "Hotel/Commercial variant"
+      },
+      "features": [
+        "Centralized door phone management",
+        "Video recording and playback",
+        "SIP proxy for door-to-indoor calling",
+        "Access log and event management",
+        "Integration with PMS for hotels"
+      ]
+    },
+    "9_rfid_and_access": {
+      "standard": "Access Control",
+      "principle": "RFID key tags provide contactless access at Fanvil door phones",
+      "tags": {
+        "KT10": "Standard RFID keyfob",
+        "KT20": "RFID key tag",
+        "KT30": "RFID card",
+        "KT31": "RFID wristband"
+      },
+      "readers": {
+        "i10S": "Wall-mount RFID reader with SIP",
+        "i16S": "Keypad + RFID reader with SIP",
+        "i60K": "Door phone with built-in RFID"
+      },
+      "integration": "RFID UID passed via Wiegand to access controller or via SIP NOTIFY to PBX/management server."
+    },
+    "10_compliance": {
+      "standards": [
+        {
+          "standard": "SIP RFC 3261",
+          "scope": "Session Initiation Protocol"
+        },
+        {
+          "standard": "IEEE 802.3af/at",
+          "scope": "PoE power for all devices"
+        },
+        {
+          "standard": "IEC 60529 (IP65/IP66)",
+          "scope": "Ingress protection for outdoor door phones"
+        },
+        {
+          "standard": "IEC 62262 (IK10)",
+          "scope": "Vandal resistance for door phones"
+        },
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety of IT/communication equipment"
+        },
+        {
+          "standard": "EN 55032",
+          "scope": "EMC emissions"
+        },
+        {
+          "standard": "CE / FCC / RoHS",
+          "scope": "Regional compliance"
+        },
+        {
+          "standard": "DECT (EN 300 175)",
+          "scope": "DECT wireless protocol standard"
+        },
+        {
+          "standard": "Wiegand (W26/W34)",
+          "scope": "Access control interface standard"
+        }
+      ]
+    }
+  }
+}

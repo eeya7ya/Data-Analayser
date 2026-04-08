@@ -1,0 +1,673 @@
+{
+  "database_info": {
+    "name": "DSPPA Miscellaneous & Zero-Price Items Database",
+    "version": "1.0",
+    "manufacturer": "DSPPA",
+    "category": "Discontinued, Bundled, and Project-Quote Items",
+    "currency": "USD",
+    "last_updated": "2026-04-06",
+    "IMPORTANT_NOTE": "Items with $0 pricing are either discontinued, bundled with other products, or require project-level quotation. The 'redistribute_to' field indicates which main database these belong to."
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "DSP66091OUVEV",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 2,
+      "model": "NUVO PLAYER",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 3,
+      "model": "TRIPOD",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 4,
+      "model": "DSP9151",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 5,
+      "model": "DSP9100",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 6,
+      "model": "DSP124",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 7,
+      "model": "MAG6468",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 8,
+      "model": "POE170VF",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 9,
+      "model": "WH-2RS",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 10,
+      "model": "WH-2FRS",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 11,
+      "model": "DSP2021A",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 12,
+      "model": "DSP3008H",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 13,
+      "model": "DSP563",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 14,
+      "model": "DSP670BT",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 15,
+      "model": "DSP5165",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 16,
+      "model": "DM935",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 17,
+      "model": "HJ-50",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 18,
+      "model": "DSP561",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 19,
+      "model": "DSP562",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 20,
+      "model": "DSP5065",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 21,
+      "model": "DSP8200S",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 22,
+      "model": "DSP402W",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 23,
+      "model": "DSP5020W",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 24,
+      "model": "DSP7043",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 25,
+      "model": "DSP5153B",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 26,
+      "model": "DSP7011",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 27,
+      "model": "DSP320",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 28,
+      "model": "DSP8040",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 29,
+      "model": "DSP5520W",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 30,
+      "model": "PAVA9500",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 31,
+      "model": "PAVA9008",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 32,
+      "model": "PAVA9009",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 33,
+      "model": "PAVA9002",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 34,
+      "model": "PAVA9002S",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 35,
+      "model": "DSP207EN",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 36,
+      "model": "DSP602EN",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 37,
+      "model": "D6271D",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 38,
+      "model": "D6272D",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 39,
+      "model": "D5831AI",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 40,
+      "model": "DSP6120",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 41,
+      "model": "DM838T",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 42,
+      "model": "DSP6609",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 43,
+      "model": "MAG6812",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 44,
+      "model": "DMA6112",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 45,
+      "model": "DMA60M",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 46,
+      "model": "DMA60W",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 47,
+      "model": "DMA6250U",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 48,
+      "model": "DSP8050",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 49,
+      "model": "MINI260",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 50,
+      "model": "MA60UB",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 51,
+      "model": "M2B",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 52,
+      "model": "DSP5311W",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 53,
+      "model": "AUX168II",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 54,
+      "model": "DSP112",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 55,
+      "model": "DSP129",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 56,
+      "model": "DSP6050",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 57,
+      "model": "DSP6030P",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 58,
+      "model": "DW0235",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 59,
+      "model": "DM836G",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 60,
+      "model": "DM836D",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 61,
+      "model": "MP7825",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 62,
+      "model": "MP7835",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 63,
+      "model": "DSP1502",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 64,
+      "model": "DM838G",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 65,
+      "model": "MP7835",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    },
+    {
+      "id": 66,
+      "model": "WA124",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Bundled/discontinued/project \u2014 see main category database for active version if exists"
+    }
+  ]
+}

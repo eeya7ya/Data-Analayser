@@ -1,0 +1,286 @@
+{
+  "database_info": {
+    "name": "PTZ Camera Selection Theory - Standards Based",
+    "version": "1.0",
+    "purpose": "Engineering design tool for PTZ camera selection",
+    "last_updated": "2026-04-05"
+  },
+  "selection_criteria": {
+    "1_ip_vs_analog_ptz": {
+      "standard": "System Architecture",
+      "principle": "IP PTZ for network systems, Analog PTZ for Turbo HD DVR systems",
+      "comparison": [
+        {
+          "type": "IP PTZ (DS-2DE series)",
+          "connection": "Cat5e/Cat6 (PoE/Hi-PoE)",
+          "control": "Network (ONVIF, Hikvision protocol)",
+          "max_distance_m": 100,
+          "advantages": "Higher resolution, AcuSense AI, auto-tracking, remote config",
+          "power": "PoE+ or Hi-PoE (single cable) or 24VAC",
+          "best_for": "New IP installations, AI features needed"
+        },
+        {
+          "type": "Analog PTZ (DS-2AE series)",
+          "connection": "Coax (RG59/RG6)",
+          "control": "Coax telemetry (Hikvision-C) or RS-485",
+          "max_distance_m": 500,
+          "advantages": "Long cable runs, works with existing coax, simpler",
+          "power": "12VDC or 24VAC (separate)",
+          "best_for": "Existing analog systems, long distance, budget"
+        }
+      ]
+    },
+    "2_dome_size_selection": {
+      "standard": "Application / Environment",
+      "principle": "Dome size determines zoom power, IR range, and environmental durability",
+      "sizes": [
+        {
+          "size": "2-inch Mini",
+          "models": "DS-2DE2A404",
+          "zoom": "4\u00d7",
+          "ir_m": 20,
+          "power": "PoE (12W)",
+          "best_for": "Indoor, retail, small area monitoring, discrete",
+          "weight_kg": 1
+        },
+        {
+          "size": "4-inch",
+          "models": "DS-2DE4225/4425, DS-2AE4215/4225",
+          "zoom": "15-25\u00d7",
+          "ir_m": 100,
+          "power": "PoE+ (25W) or 12VDC",
+          "best_for": "Standard outdoor, parking lots, building perimeter",
+          "weight_kg": "2-3"
+        },
+        {
+          "size": "5-inch",
+          "models": "DS-2DE5232/5432, DS-2AE5232",
+          "zoom": "32\u00d7",
+          "ir_m": 150,
+          "power": "Hi-PoE (60W) or 24VAC",
+          "best_for": "Large perimeter, highways, industrial, long range",
+          "weight_kg": "4-5"
+        },
+        {
+          "size": "7-inch",
+          "models": "DS-2SE7C432 (TandemVu)",
+          "zoom": "32\u00d7",
+          "ir_m": 150,
+          "power": "Hi-PoE (42W) or 24VAC",
+          "best_for": "Wide area + detail simultaneously, campuses, critical infrastructure",
+          "weight_kg": "5-7"
+        }
+      ]
+    },
+    "3_zoom_selection": {
+      "standard": "Optical Design",
+      "principle": "Optical zoom determines detail capture distance",
+      "zoom_guide": [
+        {
+          "zoom": "4\u00d7",
+          "focal_mm": "2.8-12mm",
+          "detail_at_50m": "Overview only",
+          "best_for": "Small area, indoor, mini PT"
+        },
+        {
+          "zoom": "15\u00d7",
+          "focal_mm": "5-75mm",
+          "detail_at_50m": "Face identification",
+          "best_for": "Medium area, parking, building entrance"
+        },
+        {
+          "zoom": "25\u00d7",
+          "focal_mm": "4.8-120mm",
+          "detail_at_50m": "License plate readable",
+          "best_for": "Standard outdoor, parking lots, perimeter"
+        },
+        {
+          "zoom": "32\u00d7",
+          "focal_mm": "4.8-153mm / 5.9-189mm",
+          "detail_at_50m": "Fine detail, license plate at distance",
+          "best_for": "Large area, highway, perimeter, critical sites"
+        }
+      ],
+      "rule_of_thumb": "For face identification: maximum distance \u2248 zoom_factor \u00d7 3 meters. For 25\u00d7 zoom: ~75m face ID range."
+    },
+    "4_tandemvu_vs_standard": {
+      "standard": "Application",
+      "principle": "TandemVu provides simultaneous panoramic overview + PTZ detail in one unit",
+      "comparison": {
+        "standard_ptz": {
+          "view": "Single view \u2014 either wide OR zoomed, not both",
+          "blind_spot": "When zoomed in, rest of scene is unmonitored",
+          "tracking": "Loses overview when tracking a target",
+          "cost": "Lower"
+        },
+        "tandemvu": {
+          "view": "Dual view \u2014 panoramic overview always visible + independent PTZ zoom",
+          "blind_spot": "None \u2014 panoramic channel always covers full scene",
+          "tracking": "PTZ tracks target while panoramic maintains overview",
+          "cost": "Higher",
+          "model": "DS-2SE7C432MW-AEB"
+        }
+      },
+      "recommendation": "For critical areas where losing overview during zoom is unacceptable \u2192 TandemVu. For budget or simple tracking \u2192 Standard PTZ."
+    },
+    "5_auto_tracking": {
+      "standard": "Hikvision Smart Feature",
+      "principle": "Auto-tracking automatically follows a moving target across the PTZ field of view",
+      "types": [
+        {
+          "type": "Smart Tracking (AcuSense)",
+          "description": "AI-based human/vehicle tracking, maintains lock on classified target",
+          "models": "DE5432, DE4425 (AcuSense models)",
+          "accuracy": "High \u2014 ignores animals, shadows",
+          "best_for": "Perimeter security, parking enforcement"
+        },
+        {
+          "type": "Basic Motion Tracking",
+          "description": "Follows any moving object, may lose target in busy scenes",
+          "models": "Older models",
+          "accuracy": "Medium \u2014 may false-track"
+        }
+      ],
+      "note": "Auto-tracking requires clear scene. Dense crowds or many simultaneous targets will reduce effectiveness."
+    },
+    "6_power_and_cabling": {
+      "standard": "IEEE 802.3af/at/bt / Electrical Design",
+      "principle": "PTZ cameras require higher power than fixed cameras",
+      "power_options": [
+        {
+          "method": "PoE (802.3af)",
+          "max_w": 15.4,
+          "suitable_for": "Mini PT 2-inch only (DS-2DE2A404)",
+          "cable": "Cat5e/Cat6, max 100m"
+        },
+        {
+          "method": "PoE+ (802.3at)",
+          "max_w": 25.5,
+          "suitable_for": "4-inch PTZ (DS-2DE4xxx)",
+          "cable": "Cat5e/Cat6, max 100m"
+        },
+        {
+          "method": "Hi-PoE (802.3bt)",
+          "max_w": 60,
+          "suitable_for": "5-inch and 7-inch PTZ (DS-2DE5xxx, DS-2SE7xxx)",
+          "cable": "Cat5e/Cat6, max 100m",
+          "note": "Requires Hi-PoE injector or compatible switch"
+        },
+        {
+          "method": "24VAC",
+          "max_w": "60+",
+          "suitable_for": "All large PTZ, especially with heater",
+          "cable": "2-core 1.5mm\u00b2, max 100m",
+          "note": "Most reliable for cold climate with heater"
+        },
+        {
+          "method": "12VDC",
+          "max_w": 25,
+          "suitable_for": "Analog PTZ (DS-2AE4xxx)",
+          "cable": "2-core 1.0mm\u00b2"
+        }
+      ],
+      "heater_note": "PTZ cameras in cold climates (<-20\u00b0C) require heater. Budget additional 5-15W for heater/demister. 24VAC or Hi-PoE recommended for heated models."
+    },
+    "7_mounting_and_brackets": {
+      "standard": "Manufacturer / Structural",
+      "principle": "PTZ mounting must support weight, wind load, and provide clear field of view",
+      "mounting_options": [
+        {
+          "mount": "Ceiling pendant",
+          "bracket": "DS-1661ZJ or equivalent",
+          "best_for": "Indoor ceilings, covered walkways, parking garages"
+        },
+        {
+          "mount": "Wall mount",
+          "bracket": "DS-1602ZJ / DS-1604ZJ",
+          "best_for": "Building walls, poles with wall adapter"
+        },
+        {
+          "mount": "Pole mount",
+          "bracket": "DS-1602ZJ + pole adapter",
+          "best_for": "Parking lots, highways, perimeter poles"
+        },
+        {
+          "mount": "Corner mount",
+          "bracket": "DS-1602ZJ-corner",
+          "best_for": "Building corners"
+        },
+        {
+          "mount": "Parapet/roof edge",
+          "bracket": "Custom or universal",
+          "best_for": "Roof-mounted overlooking ground"
+        }
+      ],
+      "height_recommendation": {
+        "standard": "4-6m for parking lots and building perimeter",
+        "highway": "6-10m on poles",
+        "indoor": "3-4m ceiling mount",
+        "note": "Higher mounting = wider overview but less facial detail. Balance height vs zoom capability."
+      },
+      "wind_load": "For exposed pole mounts, calculate wind load. PTZ dome acts as sail. Use pole rated for local wind speed + camera weight."
+    },
+    "8_preset_tour_pattern": {
+      "standard": "System Design",
+      "principle": "PTZ presets, tours, and patterns automate surveillance coverage",
+      "definitions": {
+        "preset": "Saved position (pan/tilt/zoom coordinates). Call by number to instantly move camera to that view. Typical: 300 presets.",
+        "patrol_tour": "Sequence of presets with configurable dwell time at each. Camera moves through presets automatically. Typical: 8 tours.",
+        "pattern": "Recorded manual movement path. Camera replays the exact path continuously. Typical: 4 patterns.",
+        "auto_scan": "Camera slowly pans between two preset points continuously."
+      },
+      "design_guide": "Define presets for all critical views (gates, doors, parking rows). Create patrol tour covering all presets with 10-15s dwell each. Set as default action when no operator control."
+    },
+    "9_recorder_compatibility": {
+      "standard": "System Design",
+      "principle": "NVR/DVR must support PTZ control protocol and resolution",
+      "ip_ptz": {
+        "nvr": "Any Hikvision NVR (via ONVIF or Hikvision protocol)",
+        "control": "Network PTZ control \u2014 no additional wiring",
+        "acusense_note": "AcuSense PTZ features require NXI AcuSense NVR for full AI integration"
+      },
+      "analog_ptz": {
+        "dvr": "Any Hikvision Turbo HD DVR",
+        "control": "Hikvision-C coax telemetry (control over same coax cable) \u2014 NO RS-485 needed",
+        "legacy_control": "RS-485 for third-party DVRs (Pelco-D/P protocol)"
+      }
+    },
+    "10_compliance": {
+      "principle": "PTZ cameras must meet safety, EMC, weather, and cybersecurity standards",
+      "standards": [
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety of PTZ electronics and motor"
+        },
+        {
+          "standard": "EN 62676-1 to 4",
+          "scope": "Video surveillance system requirements"
+        },
+        {
+          "standard": "IEC 60529 (IP66)",
+          "scope": "Ingress protection \u2014 rain, dust, outdoor"
+        },
+        {
+          "standard": "IEC 62262 (IK10)",
+          "scope": "Impact protection (TandemVu models)"
+        },
+        {
+          "standard": "IEEE 802.3af/at/bt",
+          "scope": "PoE / PoE+ / Hi-PoE power standards"
+        },
+        {
+          "standard": "ONVIF Profile S/T",
+          "scope": "Interoperability with third-party VMS/NVR"
+        },
+        {
+          "standard": "NEMA 4X",
+          "scope": "US equivalent of IP66 for outdoor enclosures"
+        },
+        {
+          "standard": "Lightning protection",
+          "scope": "TVS 6000V for network interface. Surge protector recommended for exposed pole installations."
+        }
+      ]
+    }
+  }
+}

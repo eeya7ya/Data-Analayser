@@ -1,0 +1,295 @@
+{
+  "database_info": {
+    "name": "HPE Aruba Instant On Selection Theory",
+    "version": "1.0",
+    "manufacturer": "HPE Aruba",
+    "last_updated": "2026-04-07"
+  },
+  "selection_criteria": {
+    "1_instant_on_overview": {
+      "standard": "Enterprise Networking",
+      "principle": "Aruba Instant On is HPE's SMB/enterprise solution with cloud management",
+      "key_benefits": [
+        "Cloud-managed via portal or mobile app",
+        "Zero-touch provisioning \u2014 plug in and configure remotely",
+        "Lifetime limited warranty on hardware",
+        "Unified switch + AP management from one dashboard",
+        "No controller needed \u2014 built-in intelligence",
+        "Enterprise-grade security: WPA3, 802.1X, RADIUS"
+      ]
+    },
+    "2_switch_selection": {
+      "standard": "Network Design",
+      "principle": "Select switch based on port count, PoE budget, and management level",
+      "guide": [
+        {
+          "model": "JL680A",
+          "type": "1930 8G",
+          "ports": 8,
+          "poe": "No",
+          "best_for": "Small office, non-PoE devices",
+          "price": "$110"
+        },
+        {
+          "model": "JL681A",
+          "type": "1930 8G PoE",
+          "ports": 8,
+          "poe": "124W",
+          "best_for": "Small office with 4-8 PoE cameras/phones",
+          "price": "$198"
+        },
+        {
+          "model": "JL682A",
+          "type": "1930 24G",
+          "ports": 24,
+          "poe": "No",
+          "best_for": "Medium office, data only",
+          "price": "$193"
+        },
+        {
+          "model": "JL683A",
+          "type": "1930 24G PoE",
+          "ports": 24,
+          "poe": "195W",
+          "best_for": "Medium office with cameras + phones",
+          "price": "$275"
+        },
+        {
+          "model": "JL684A",
+          "type": "1930 48G PoE",
+          "ports": 48,
+          "poe": "370W",
+          "best_for": "Large office/hotel floor",
+          "price": "$352"
+        },
+        {
+          "model": "JL685",
+          "type": "1930 48G",
+          "ports": 48,
+          "poe": "No",
+          "best_for": "Large data-only network",
+          "price": "$288"
+        },
+        {
+          "model": "JL686B",
+          "type": "1960 L3 Stackable",
+          "ports": 24,
+          "poe": "Varies",
+          "best_for": "Enterprise core, multi-site, L3 routing",
+          "price": "$490"
+        }
+      ]
+    },
+    "3_access_point_selection": {
+      "standard": "Wi-Fi Design",
+      "principle": "AP model based on Wi-Fi standard, user density, and environment",
+      "guide": [
+        {
+          "model": "AP11",
+          "wifi": "Wi-Fi 5",
+          "users": 50,
+          "best_for": "Budget indoor: small office, shop",
+          "price": "$69"
+        },
+        {
+          "model": "AP21",
+          "wifi": "Wi-Fi 6",
+          "users": 75,
+          "best_for": "Standard indoor: office, classroom",
+          "price": "$78"
+        },
+        {
+          "model": "AP22",
+          "wifi": "Wi-Fi 6",
+          "users": 100,
+          "best_for": "Higher density: conference room, open plan",
+          "price": "$89"
+        },
+        {
+          "model": "AP32",
+          "wifi": "Wi-Fi 6E",
+          "users": 150,
+          "best_for": "High density: auditorium, hotel, future-proof",
+          "price": "$185"
+        },
+        {
+          "model": "AP17",
+          "wifi": "Wi-Fi 6",
+          "users": 75,
+          "best_for": "Outdoor premium: parking, campus",
+          "price": "$220"
+        },
+        {
+          "model": "AP27",
+          "wifi": "Wi-Fi 6",
+          "users": 75,
+          "best_for": "Outdoor standard: courtyard, pool",
+          "price": "$185"
+        }
+      ],
+      "coverage_per_ap_m2": {
+        "indoor": "100-150",
+        "outdoor": "200-500"
+      },
+      "quantity_formula": "APs needed = floor_area_m2 / 120 (indoor) or / 300 (outdoor). Add 20% for overlapping coverage."
+    },
+    "4_vlan_design_for_security": {
+      "standard": "IEEE 802.1Q",
+      "principle": "Aruba switches support VLANs to isolate camera, phone, and data traffic",
+      "recommended_vlans": [
+        {
+          "vlan_id": 10,
+          "name": "Management",
+          "use": "Switch/AP management interfaces"
+        },
+        {
+          "vlan_id": 20,
+          "name": "Cameras",
+          "use": "Hikvision IP cameras \u2014 isolated from data"
+        },
+        {
+          "vlan_id": 30,
+          "name": "VoIP",
+          "use": "Fanvil/Yeastar phones \u2014 QoS priority"
+        },
+        {
+          "vlan_id": 40,
+          "name": "Data",
+          "use": "User workstations and printers"
+        },
+        {
+          "vlan_id": 50,
+          "name": "Guest Wi-Fi",
+          "use": "Captive portal guest access"
+        },
+        {
+          "vlan_id": 60,
+          "name": "IoT/EZVIZ",
+          "use": "EZVIZ cameras and smart home devices"
+        }
+      ],
+      "trunk_ports": "Uplinks between switches configured as tagged trunks carrying all VLANs"
+    },
+    "5_cloud_management": {
+      "standard": "Aruba Instant On",
+      "principle": "All Instant On devices managed from single cloud dashboard",
+      "features": [
+        "Remote monitoring from anywhere",
+        "Firmware auto-updates",
+        "Alert notifications (email/push)",
+        "Site-level and device-level management",
+        "Guest portal with customizable splash page",
+        "Traffic insights and analytics",
+        "Zero-touch provisioning (ship to site, configure remotely)"
+      ],
+      "requirements": "Internet connection required for cloud management. Devices continue to function if cloud is temporarily unavailable."
+    },
+    "6_stacking_1960": {
+      "standard": "Enterprise Design",
+      "principle": "Aruba 1960 switches can stack up to 4 units as one logical switch",
+      "benefits": [
+        "Single management IP for up to 4 switches",
+        "192 ports in one logical switch (4\u00d748)",
+        "Dedicated stacking ports (no wasted uplinks)",
+        "High-speed inter-switch links",
+        "Simplified management and redundancy"
+      ],
+      "model": "JL686B \u2014 the only stackable model in the Instant On range"
+    },
+    "7_aruba_vs_tenda_vs_hikvision": {
+      "standard": "Product Comparison",
+      "principle": "Choose based on management needs and budget",
+      "comparison": [
+        {
+          "brand": "Tenda",
+          "tier": "Budget",
+          "managed": "Unmanaged or basic L2",
+          "cloud": "No",
+          "vlan": "Basic (L2 models only)",
+          "support": "Limited",
+          "price": "Lowest",
+          "best_for": "Simple small installations"
+        },
+        {
+          "brand": "Hikvision",
+          "tier": "Surveillance-focused",
+          "managed": "Web GUI",
+          "cloud": "No",
+          "vlan": "Yes (managed models)",
+          "support": "Surveillance focused",
+          "price": "Low-Medium",
+          "best_for": "Dedicated camera PoE networks"
+        },
+        {
+          "brand": "HPE Aruba",
+          "tier": "Enterprise",
+          "managed": "Cloud + Local + App",
+          "cloud": "Yes (Instant On portal)",
+          "vlan": "Full L2+/L3",
+          "support": "HPE enterprise + lifetime warranty",
+          "price": "Medium-High",
+          "best_for": "Converged networks, hotels, enterprise, multi-site"
+        }
+      ]
+    },
+    "8_poe_budget_planning": {
+      "standard": "IEEE 802.3af/at",
+      "principle": "Match total PoE load to switch PoE budget",
+      "aruba_poe_budgets": {
+        "JL681A": "124W (8 ports)",
+        "JL683A": "195W (24 ports)",
+        "JL684A": "370W (48 ports)"
+      },
+      "example": "16 Hikvision cameras \u00d7 12W = 192W \u2192 JL683A (195W) is tight. Consider JL684A (370W) or two JL681A for margin."
+    },
+    "9_guest_wifi_captive_portal": {
+      "standard": "Hospitality/Enterprise",
+      "principle": "Aruba Instant On provides built-in captive portal for guest Wi-Fi access",
+      "features": [
+        "Custom splash page with logo",
+        "Terms & conditions acceptance",
+        "Social media login (Facebook)",
+        "Time-limited access",
+        "Bandwidth limiting per guest",
+        "Separate VLAN for guest isolation"
+      ],
+      "best_for": "Hotels (with Yeastar PBX + Fanvil H-series), cafes, offices, lobbies"
+    },
+    "10_compliance": {
+      "standards": [
+        {
+          "standard": "IEEE 802.3af/at/bt",
+          "scope": "PoE power standards"
+        },
+        {
+          "standard": "IEEE 802.11ax (Wi-Fi 6/6E)",
+          "scope": "Wireless LAN"
+        },
+        {
+          "standard": "IEEE 802.1Q",
+          "scope": "VLAN"
+        },
+        {
+          "standard": "IEEE 802.1X",
+          "scope": "Port-based network access control (RADIUS)"
+        },
+        {
+          "standard": "WPA3",
+          "scope": "Latest Wi-Fi security protocol"
+        },
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety"
+        },
+        {
+          "standard": "CE / FCC / IC",
+          "scope": "Regional compliance"
+        },
+        {
+          "standard": "HPE Limited Lifetime Warranty",
+          "scope": "Hardware warranty for lifetime of product"
+        }
+      ]
+    }
+  }
+}

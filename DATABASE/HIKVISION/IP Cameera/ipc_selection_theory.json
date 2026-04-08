@@ -1,0 +1,365 @@
+{
+  "database_info": {
+    "name": "IP Camera Selection Theory - Standards Based",
+    "version": "1.0",
+    "purpose": "Engineering design tool for IP camera selection",
+    "last_updated": "2026-04-05"
+  },
+  "selection_criteria": {
+    "1_series_selection": {
+      "standard": "Application / Budget",
+      "principle": "Camera series determines feature level, AI capability, and build quality",
+      "series": [
+        {
+          "series": "1 Series (DS-2CD1xxx)",
+          "tier": "Value",
+          "features": "Basic PoE, IR/ColorVu/Hybrid Light, H.265+",
+          "ai": "None (motion detection only)",
+          "build": "Plastic housing",
+          "best_for": "Budget installations, residential, small retail",
+          "software": "iVMS-4200, Hik-Connect"
+        },
+        {
+          "series": "2 Series (DS-2CD2xxx)",
+          "tier": "Pro",
+          "features": "AcuSense AI, Smart Hybrid Light, WDR 120dB, audio/alarm I/O",
+          "ai": "AcuSense: human/vehicle classification, line crossing, intrusion",
+          "build": "Metal or plastic housing",
+          "best_for": "Commercial, enterprise, smart event detection",
+          "software": "iVMS-4200, HikCentral"
+        },
+        {
+          "series": "3 Series (DS-2CD3xxx)",
+          "tier": "DeepinView",
+          "features": "Deep learning, face recognition, people counting, ANPR",
+          "ai": "DeepinView: on-camera face capture, people counting, behavior analysis",
+          "build": "Metal housing, premium optics",
+          "best_for": "Retail analytics, perimeter, face recognition, city surveillance",
+          "software": "HikCentral, DeepinMind NVR"
+        }
+      ]
+    },
+    "2_resolution_selection": {
+      "standard": "EN 62676-4",
+      "principle": "Resolution must meet pixel density requirements at target distance",
+      "tiers": [
+        {
+          "resolution": "2MP",
+          "sensor": "1/2.7\" CMOS",
+          "best_for": "Indoor overview, basic monitoring, budget",
+          "storage_h265_gbday": 8
+        },
+        {
+          "resolution": "4MP",
+          "sensor": "1/3\" CMOS",
+          "best_for": "Standard commercial, parking, retail \u2014 BEST VALUE",
+          "storage_h265_gbday": 16
+        },
+        {
+          "resolution": "5MP",
+          "sensor": "1/2.7\" CMOS",
+          "best_for": "Enhanced detail, specific applications",
+          "storage_h265_gbday": 20
+        },
+        {
+          "resolution": "6MP",
+          "sensor": "1/2.4\" CMOS",
+          "best_for": "Good balance of detail and bandwidth",
+          "storage_h265_gbday": 24
+        },
+        {
+          "resolution": "8MP (4K)",
+          "sensor": "1/1.8\" CMOS",
+          "best_for": "Wide area coverage, forensic detail, critical areas",
+          "storage_h265_gbday": 35
+        }
+      ],
+      "ppf_at_10m": {
+        "2MP_2.8mm": 67,
+        "4MP_2.8mm": 95,
+        "6MP_2.8mm": 115,
+        "8MP_2.8mm": 134
+      }
+    },
+    "3_light_technology_selection": {
+      "standard": "Application / Lighting Conditions",
+      "principle": "Night illumination technology determines image quality in darkness",
+      "comparison": [
+        {
+          "tech": "Standard EXIR",
+          "suffix": "I",
+          "night_image": "B&W with IR",
+          "visible_light": "No (covert)",
+          "best_for": "General surveillance, covert monitoring"
+        },
+        {
+          "tech": "ColorVu",
+          "suffix": "L",
+          "night_image": "Full color",
+          "visible_light": "White LED (always on)",
+          "best_for": "Color evidence, license plate color, clothing identification"
+        },
+        {
+          "tech": "Smart Hybrid Light",
+          "suffix": "LI",
+          "night_image": "IR default \u2192 color on event",
+          "visible_light": "White LED only on motion/event",
+          "best_for": "Best of both \u2014 covert + color evidence when needed"
+        },
+        {
+          "tech": "Gen2H Smart Hybrid",
+          "suffix": "G2H-LI",
+          "night_image": "Enhanced hybrid",
+          "visible_light": "Intelligent switching",
+          "best_for": "Latest generation with improved AI-driven light switching"
+        }
+      ],
+      "recommendation": "For most commercial installations: Smart Hybrid Light (LI) provides the best balance. For pure evidence quality: ColorVu (L). For covert: Standard IR (I)."
+    },
+    "4_form_factor_and_lens": {
+      "standard": "Application / Installation",
+      "principle": "Form factor and lens must match the scene geometry",
+      "form_factors": [
+        {
+          "form": "Bullet",
+          "code": "0x/1x",
+          "best_for": "Outdoor perimeter, walls, long corridors",
+          "ir_advantage": "Longer IR range due to form factor",
+          "mount": "Wall/ceiling with bracket"
+        },
+        {
+          "form": "Turret",
+          "code": "1x/7x",
+          "best_for": "Indoor/outdoor versatile, eaves, soffits",
+          "ir_advantage": "No IR dome reflection",
+          "mount": "Ceiling/wall direct"
+        },
+        {
+          "form": "Dome",
+          "code": "4x",
+          "best_for": "Vandal areas, public, discreet",
+          "ir_advantage": "IK10 protection",
+          "mount": "Ceiling flush"
+        },
+        {
+          "form": "Cube",
+          "code": "5x",
+          "best_for": "Indoor desktop/shelf, audio, PIR",
+          "ir_advantage": "Built-in mic/speaker, PIR",
+          "mount": "Desktop or wall"
+        },
+        {
+          "form": "Long Range Bullet",
+          "code": "T2x/Txx",
+          "best_for": "60-80m+ range, perimeter, fence line",
+          "mount": "Wall/pole"
+        },
+        {
+          "form": "Fisheye",
+          "code": "55",
+          "best_for": "360\u00b0 panoramic, single camera room coverage",
+          "mount": "Ceiling center"
+        },
+        {
+          "form": "Mini PT",
+          "code": "DE",
+          "best_for": "Pan/tilt adjustable remotely",
+          "mount": "Ceiling/wall"
+        }
+      ],
+      "lens_guide": {
+        "2.8mm": {
+          "hfov": "102-108\u00b0",
+          "use": "Wide rooms, entrances, retail"
+        },
+        "4mm": {
+          "hfov": "78-87\u00b0",
+          "use": "Medium areas, parking, hallways"
+        },
+        "6mm": {
+          "hfov": "50-54\u00b0",
+          "use": "Long corridors, narrow areas"
+        },
+        "2.8-12mm MZ": {
+          "hfov": "102\u00b0-32\u00b0",
+          "use": "Flexible remote zoom, uncertain scenes"
+        }
+      }
+    },
+    "5_poe_and_network": {
+      "standard": "IEEE 802.3af/at",
+      "principle": "All IP cameras use PoE for power and data on single Cat5e/Cat6 cable",
+      "poe_classes": {
+        "standard_camera": {
+          "ieee": "802.3af (PoE)",
+          "max_w": 15.4,
+          "typical_w": 7
+        },
+        "ir_colorvu": {
+          "ieee": "802.3af (PoE)",
+          "max_w": 15.4,
+          "typical_w": 9
+        },
+        "motorized_audio": {
+          "ieee": "802.3af/at",
+          "max_w": 15.4,
+          "typical_w": 12
+        },
+        "ptz_heater": {
+          "ieee": "802.3at (PoE+)",
+          "max_w": 25.5,
+          "typical_w": 20
+        }
+      },
+      "cable": "Cat5e minimum, Cat6 recommended. Max 100m per run.",
+      "switch_sizing": "Total PoE budget must exceed sum of all camera power + 20% margin"
+    },
+    "6_acusense_features": {
+      "standard": "Hikvision AI",
+      "principle": "AcuSense cameras (2-series) classify humans and vehicles to reduce false alarms by 90%+",
+      "features": [
+        {
+          "feature": "Human/Vehicle Classification",
+          "description": "AI distinguishes people and cars from animals, leaves, shadows"
+        },
+        {
+          "feature": "Smart Line Crossing",
+          "description": "Trigger only when person or vehicle crosses a defined line"
+        },
+        {
+          "feature": "Smart Intrusion Detection",
+          "description": "Alert only when person or vehicle enters a defined zone"
+        },
+        {
+          "feature": "Smart Motion Detection",
+          "description": "Filter motion by target type (person/vehicle/all)"
+        },
+        {
+          "feature": "Quick Target Search",
+          "description": "Search NVR recordings by target type for fast forensic review"
+        },
+        {
+          "feature": "Real-time Push Notification",
+          "description": "Hik-Connect app alerts only for classified targets"
+        }
+      ],
+      "when_to_use": "Any installation where false alarms from animals, trees, shadows, or headlights are a concern \u2014 which is most outdoor installations."
+    },
+    "7_audio_alarm_integration": {
+      "standard": "System Design",
+      "principle": "Audio and alarm I/O enable two-way communication and peripheral integration",
+      "models_with_audio_alarm": "Models with suffix S, IS, IZS, LIZS typically include built-in mic + speaker + alarm I/O",
+      "capabilities": {
+        "built_in_mic": "Captures ambient audio (check local recording consent laws)",
+        "built_in_speaker": "Enables remote voice warnings, two-way audio",
+        "alarm_input": "Connect external sensors (PIR, door contact, panic button)",
+        "alarm_output": "Trigger external devices (siren, light, lock relay)",
+        "active_deterrence": "SL suffix = strobe light + speaker for automated warnings"
+      }
+    },
+    "8_storage_and_codec": {
+      "standard": "System Design",
+      "principle": "H.265+ compression halves storage vs H.264 with same quality",
+      "codec_comparison": {
+        "H.264": {
+          "bitrate_4mp_mbps": 8,
+          "storage_multiplier": 1.0,
+          "compatibility": "Universal"
+        },
+        "H.265": {
+          "bitrate_4mp_mbps": 4,
+          "storage_multiplier": 0.5,
+          "compatibility": "Modern NVRs"
+        },
+        "H.265+": {
+          "bitrate_4mp_mbps": 2,
+          "storage_multiplier": 0.25,
+          "compatibility": "Hikvision NVRs",
+          "note": "Smart codec, up to 75% reduction vs H.264"
+        }
+      },
+      "sd_card": "Most IP cameras support on-board microSD (up to 256GB) for edge recording / NVR failure backup"
+    },
+    "9_nvr_compatibility": {
+      "standard": "Manufacturer / ONVIF",
+      "principle": "NVR must support camera resolution and features",
+      "guide": [
+        {
+          "camera": "2MP IP",
+          "min_nvr": "Any NVR (Q/K/I/M series)",
+          "onvif": "Profile S/T"
+        },
+        {
+          "camera": "4MP IP",
+          "min_nvr": "Any NVR",
+          "onvif": "Profile S/T"
+        },
+        {
+          "camera": "6MP IP",
+          "min_nvr": "K1 or higher (not Q1 for some models)",
+          "onvif": "Profile S/T"
+        },
+        {
+          "camera": "8MP IP",
+          "min_nvr": "K-series minimum",
+          "note": "Check NVR max resolution per channel"
+        },
+        {
+          "camera": "AcuSense camera",
+          "best_nvr": "NXI AcuSense NVR",
+          "note": "Non-AcuSense NVR will record but not use AI features"
+        },
+        {
+          "camera": "DeepinView camera",
+          "best_nvr": "DeepinMind NVR or NXI-I",
+          "note": "Face recognition requires compatible NVR"
+        }
+      ]
+    },
+    "10_compliance": {
+      "principle": "IP cameras must meet safety, EMC, cybersecurity, and privacy standards",
+      "standards": [
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety of camera electronics"
+        },
+        {
+          "standard": "EN 62676-1 to 4",
+          "scope": "Video surveillance system requirements (all parts)"
+        },
+        {
+          "standard": "EN 55032 / FCC Part 15",
+          "scope": "EMC emissions"
+        },
+        {
+          "standard": "IEC 60529 (IP67)",
+          "scope": "Ingress protection"
+        },
+        {
+          "standard": "IEC 62262 (IK10)",
+          "scope": "Vandal impact resistance"
+        },
+        {
+          "standard": "ONVIF Profile S/T/G",
+          "scope": "Interoperability with third-party VMS/NVR"
+        },
+        {
+          "standard": "IEEE 802.3af/at",
+          "scope": "PoE power standard"
+        },
+        {
+          "standard": "GDPR / Privacy",
+          "scope": "Camera placement, signage, data retention policies"
+        },
+        {
+          "standard": "NDAA Section 889",
+          "scope": "US government procurement restrictions (check compliance)"
+        },
+        {
+          "standard": "Cyber Security",
+          "scope": "HTTPS, 802.1x, digest auth, SFTP, IP filtering \u2014 enable all on commissioning"
+        }
+      ]
+    }
+  }
+}

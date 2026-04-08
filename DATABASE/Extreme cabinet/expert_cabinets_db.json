@@ -1,0 +1,936 @@
+{
+  "database_info": {
+    "name": "Expert/EX Network Cabinet & Rack Infrastructure Database",
+    "version": "1.0",
+    "manufacturer": "Expert (EX Series)",
+    "category": "Network Cabinets, Server Racks, Outdoor Cabinets & Rack Accessories",
+    "currency": "JOD (Jordanian Dinar)",
+    "last_updated": "2026-04-07",
+    "price_tiers": {
+      "dpp": "DPP/Distributor",
+      "installer": "Installer"
+    },
+    "model_naming": {
+      "EXW1": "Wall Mount Cabinet (Economy, 542mm width)",
+      "EXWS64": "Wall Mount Cabinet (Standard, 600\u00d7450mm)",
+      "EXWS66": "Wall Mount Cabinet (Standard, 600\u00d7600mm)",
+      "EXFS66": "Floor Standing Cabinet (600\u00d7600mm)",
+      "EXFS68": "Floor Standing Cabinet (600\u00d7800mm)",
+      "EXFS60": "Floor Standing Cabinet (600\u00d71000mm)",
+      "EXFS88": "Floor Standing Cabinet (800\u00d7800mm)",
+      "EXFS80": "Floor Standing Cabinet (800\u00d71000mm)",
+      "ZP-PLUS": "Premium Floor Standing Cabinet (heavy duty)",
+      "OR": "Outdoor Rated Cabinet (IP rated)",
+      "SLIM RACK": "Compact/Slim Cabinet",
+      "last_2_digits": "Rack Units (e.g. 04=4U, 09=9U, 42=42U)",
+      "depth_code": "64=400mm, 66=600mm, 68=800mm, 60=1000mm, 80=1000mm, 88=800mm"
+    },
+    "integration_notes": {
+      "schneider_cabinets": "Alternative to Schneider NSYKDB/NSYVDA cabinets \u2014 same 19\" rack standard, competitive pricing in JOD",
+      "legrand_ups": "Legrand KEOR/DAKER UPS installs inside these cabinets",
+      "hikvision": "Houses Hikvision NVRs, PoE switches, patch panels",
+      "planet_tenda_aruba": "All 19\" rack-mount switches from PLANET/Tenda/Aruba fit these cabinets",
+      "schneider_legrand_cabling": "Schneider Actassi / Legrand LCS patch panels mount in these racks"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "EXW1-5404",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "4U Economy (542\u00d7400mm)",
+      "pricing": {
+        "dpp": 30,
+        "installer": 33
+      },
+      "specs": {
+        "rack_units": 4,
+        "width_mm": 542,
+        "depth_mm": 400,
+        "type": "Wall mount",
+        "door": "Glass front",
+        "included": "1 plastic fan, 1 shelf, 1 plastic PDU"
+      }
+    },
+    {
+      "id": 2,
+      "model": "EXW1-5406",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "6U Economy (542\u00d7400mm)",
+      "pricing": {
+        "dpp": 34,
+        "installer": 36
+      },
+      "specs": {
+        "rack_units": 6,
+        "width_mm": 542,
+        "depth_mm": 400
+      }
+    },
+    {
+      "id": 3,
+      "model": "EXW1-5409",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "9U Economy (542\u00d7400mm)",
+      "pricing": {
+        "dpp": 45,
+        "installer": 47
+      },
+      "specs": {
+        "rack_units": 9,
+        "width_mm": 542,
+        "depth_mm": 400
+      }
+    },
+    {
+      "id": 4,
+      "model": "EXWS6404",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "4U Standard (600\u00d7450mm)",
+      "pricing": {
+        "dpp": 45,
+        "installer": 48
+      },
+      "specs": {
+        "rack_units": 4,
+        "width_mm": 600,
+        "depth_mm": 450,
+        "included": "1 fan, 1 shelf, 1 plastic PDU"
+      }
+    },
+    {
+      "id": 5,
+      "model": "EXWS6406",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "6U Standard (600\u00d7450mm)",
+      "pricing": {
+        "dpp": 50,
+        "installer": 54
+      },
+      "specs": {
+        "rack_units": 6,
+        "width_mm": 600,
+        "depth_mm": 450
+      }
+    },
+    {
+      "id": 6,
+      "model": "EXWS6409",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "9U Standard (600\u00d7450mm)",
+      "pricing": {
+        "dpp": 65,
+        "installer": 68
+      },
+      "specs": {
+        "rack_units": 9,
+        "width_mm": 600,
+        "depth_mm": 450
+      }
+    },
+    {
+      "id": 7,
+      "model": "EXWS6412",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "12U Standard (600\u00d7450mm)",
+      "pricing": {
+        "dpp": 80,
+        "installer": 85
+      },
+      "specs": {
+        "rack_units": 12,
+        "width_mm": 600,
+        "depth_mm": 450
+      }
+    },
+    {
+      "id": 8,
+      "model": "EXWS6415",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "15U Standard (600\u00d7450mm)",
+      "pricing": {
+        "dpp": 90,
+        "installer": 95
+      },
+      "specs": {
+        "rack_units": 15,
+        "width_mm": 600,
+        "depth_mm": 450
+      }
+    },
+    {
+      "id": 9,
+      "model": "EXWS6418",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "18U Standard (600\u00d7450mm)",
+      "pricing": {
+        "dpp": 110,
+        "installer": 115
+      },
+      "specs": {
+        "rack_units": 18,
+        "width_mm": 600,
+        "depth_mm": 450
+      }
+    },
+    {
+      "id": 10,
+      "model": "EXWS6604",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "4U Deep (600\u00d7600mm)",
+      "pricing": {
+        "dpp": 64,
+        "installer": 68
+      },
+      "specs": {
+        "rack_units": 4,
+        "width_mm": 600,
+        "depth_mm": 600,
+        "included": "2 fans, 1 shelf, plastic PDU"
+      }
+    },
+    {
+      "id": 11,
+      "model": "EXWS6606",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "6U Deep (600\u00d7600mm)",
+      "pricing": {
+        "dpp": 68,
+        "installer": 72
+      },
+      "specs": {
+        "rack_units": 6,
+        "width_mm": 600,
+        "depth_mm": 600
+      }
+    },
+    {
+      "id": 12,
+      "model": "EXWS6609",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "9U Deep (600\u00d7600mm)",
+      "pricing": {
+        "dpp": 82,
+        "installer": 86
+      },
+      "specs": {
+        "rack_units": 9,
+        "width_mm": 600,
+        "depth_mm": 600
+      }
+    },
+    {
+      "id": 13,
+      "model": "EXWS6612",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "12U Deep (600\u00d7600mm)",
+      "pricing": {
+        "dpp": 90,
+        "installer": 94
+      },
+      "specs": {
+        "rack_units": 12,
+        "width_mm": 600,
+        "depth_mm": 600
+      }
+    },
+    {
+      "id": 14,
+      "model": "EXWS6615",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "15U Deep (600\u00d7600mm)",
+      "pricing": {
+        "dpp": 105,
+        "installer": 115
+      },
+      "specs": {
+        "rack_units": 15,
+        "width_mm": 600,
+        "depth_mm": 600
+      }
+    },
+    {
+      "id": 15,
+      "model": "EXWS6618",
+      "category": "Wall Mount Cabinet",
+      "sub_category": "18U Deep (600\u00d7600mm)",
+      "pricing": {
+        "dpp": 115,
+        "installer": 125
+      },
+      "specs": {
+        "rack_units": 18,
+        "width_mm": 600,
+        "depth_mm": 600
+      }
+    },
+    {
+      "id": 16,
+      "model": "EXFS6618",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "18U (600\u00d7600mm)",
+      "pricing": {
+        "dpp": 150,
+        "installer": 160
+      },
+      "specs": {
+        "rack_units": 18,
+        "width_mm": 600,
+        "depth_mm": 600,
+        "included": "2 fans, 2 shelves, 1 PVC PDU"
+      }
+    },
+    {
+      "id": 17,
+      "model": "EXFS6622",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "22U (600\u00d7600mm)",
+      "pricing": {
+        "dpp": 180,
+        "installer": 195
+      },
+      "specs": {
+        "rack_units": 22,
+        "width_mm": 600,
+        "depth_mm": 600
+      }
+    },
+    {
+      "id": 18,
+      "model": "EXFS6627",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "27U (600\u00d7600mm)",
+      "pricing": {
+        "dpp": 200,
+        "installer": 210
+      },
+      "specs": {
+        "rack_units": 27,
+        "width_mm": 600,
+        "depth_mm": 600,
+        "included": "2 fans, 3 shelves, 1 PVC PDU"
+      }
+    },
+    {
+      "id": 19,
+      "model": "EXFS6818",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "18U (600\u00d7800mm)",
+      "pricing": {
+        "dpp": 170,
+        "installer": 180
+      },
+      "specs": {
+        "rack_units": 18,
+        "width_mm": 600,
+        "depth_mm": 800,
+        "included": "4 fans, 2 shelves, 1 PVC PDU"
+      }
+    },
+    {
+      "id": 20,
+      "model": "EXFS6822",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "22U (600\u00d7800mm)",
+      "pricing": {
+        "dpp": 210,
+        "installer": 225
+      },
+      "specs": {
+        "rack_units": 22,
+        "width_mm": 600,
+        "depth_mm": 800
+      }
+    },
+    {
+      "id": 21,
+      "model": "EXFS6827",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "27U (600\u00d7800mm)",
+      "pricing": {
+        "dpp": 230,
+        "installer": 240
+      },
+      "specs": {
+        "rack_units": 27,
+        "width_mm": 600,
+        "depth_mm": 800,
+        "included": "4 fans, 3 shelves, 1 PVC PDU"
+      }
+    },
+    {
+      "id": 22,
+      "model": "EXFS6832",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "32U (600\u00d7800mm)",
+      "pricing": {
+        "dpp": 275,
+        "installer": 285
+      },
+      "specs": {
+        "rack_units": 32,
+        "width_mm": 600,
+        "depth_mm": 800
+      }
+    },
+    {
+      "id": 23,
+      "model": "EXFS6837",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "37U (600\u00d7800mm)",
+      "pricing": {
+        "dpp": 285,
+        "installer": 295
+      },
+      "specs": {
+        "rack_units": 37,
+        "width_mm": 600,
+        "depth_mm": 800
+      }
+    },
+    {
+      "id": 24,
+      "model": "EXFS6018",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "18U (600\u00d71000mm)",
+      "pricing": {
+        "dpp": 200,
+        "installer": 210
+      },
+      "specs": {
+        "rack_units": 18,
+        "width_mm": 600,
+        "depth_mm": 1000,
+        "included": "4 fans, 2 shelves, 1 PVC PDU"
+      }
+    },
+    {
+      "id": 25,
+      "model": "EXFS6022",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "22U (600\u00d71000mm)",
+      "pricing": {
+        "dpp": 240,
+        "installer": 250
+      },
+      "specs": {
+        "rack_units": 22,
+        "width_mm": 600,
+        "depth_mm": 1000
+      }
+    },
+    {
+      "id": 26,
+      "model": "EXFS6027",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "27U (600\u00d71000mm)",
+      "pricing": {
+        "dpp": 270,
+        "installer": 280
+      },
+      "specs": {
+        "rack_units": 27,
+        "width_mm": 600,
+        "depth_mm": 1000
+      }
+    },
+    {
+      "id": 27,
+      "model": "EXFS6032",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "32U (600\u00d71000mm)",
+      "pricing": {
+        "dpp": 295,
+        "installer": 310
+      },
+      "specs": {
+        "rack_units": 32,
+        "width_mm": 600,
+        "depth_mm": 1000
+      }
+    },
+    {
+      "id": 28,
+      "model": "EXFS6037",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "37U (600\u00d71000mm)",
+      "pricing": {
+        "dpp": 310,
+        "installer": 320
+      },
+      "specs": {
+        "rack_units": 37,
+        "width_mm": 600,
+        "depth_mm": 1000
+      }
+    },
+    {
+      "id": 29,
+      "model": "EXFS8842",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "42U (800\u00d7800mm) + Vertical Cable Mgmt",
+      "pricing": {
+        "dpp": 385,
+        "installer": 398
+      },
+      "specs": {
+        "rack_units": 42,
+        "width_mm": 800,
+        "depth_mm": 800,
+        "vertical_cable_mgmt": true,
+        "included": "4 fans, 3 shelves, 1 PVC PDU"
+      }
+    },
+    {
+      "id": 30,
+      "model": "EXFS8042",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "42U (800\u00d71000mm) + Vertical Cable Mgmt",
+      "pricing": {
+        "dpp": 450,
+        "installer": 470
+      },
+      "specs": {
+        "rack_units": 42,
+        "width_mm": 800,
+        "depth_mm": 1000,
+        "vertical_cable_mgmt": true
+      }
+    },
+    {
+      "id": 31,
+      "model": "EXFS8047",
+      "category": "Floor Standing Cabinet",
+      "sub_category": "47U (800\u00d71000mm) + Vertical Cable Mgmt",
+      "pricing": {
+        "dpp": 520,
+        "installer": 550
+      },
+      "specs": {
+        "rack_units": 47,
+        "width_mm": 800,
+        "depth_mm": 1000,
+        "vertical_cable_mgmt": true
+      }
+    },
+    {
+      "id": 32,
+      "model": "ZP-PLUS8842",
+      "category": "Floor Standing Cabinet (Premium)",
+      "sub_category": "42U Premium (800\u00d7800mm)",
+      "pricing": {
+        "dpp": 650,
+        "installer": 690
+      },
+      "specs": {
+        "rack_units": 42,
+        "width_mm": 800,
+        "depth_mm": 800,
+        "vertical_cable_mgmt": true,
+        "included": "4 fans, 3 shelves",
+        "type": "Premium heavy-duty cabinet"
+      }
+    },
+    {
+      "id": 33,
+      "model": "ZP-PLUS8042",
+      "category": "Floor Standing Cabinet (Premium)",
+      "sub_category": "42U Premium (800\u00d71000mm)",
+      "pricing": {
+        "dpp": 700,
+        "installer": 750
+      },
+      "specs": {
+        "rack_units": 42,
+        "width_mm": 800,
+        "depth_mm": 1000,
+        "vertical_cable_mgmt": true
+      }
+    },
+    {
+      "id": 34,
+      "model": "SLIM RACK-W",
+      "category": "Slim Cabinet",
+      "sub_category": "Slim Rack White (530\u00d7140\u00d7400mm)",
+      "pricing": {
+        "dpp": 16,
+        "installer": 18
+      },
+      "specs": {
+        "width_mm": 530,
+        "height_mm": 140,
+        "depth_mm": 400,
+        "color": "White",
+        "included": "Empty (no accessories)"
+      }
+    },
+    {
+      "id": 35,
+      "model": "SLIM RACK-B",
+      "category": "Slim Cabinet",
+      "sub_category": "Slim Rack Black + Glass (530\u00d7140\u00d7400mm)",
+      "pricing": {
+        "dpp": 18,
+        "installer": 20
+      },
+      "specs": {
+        "color": "Black",
+        "glass_window": true
+      }
+    },
+    {
+      "id": 36,
+      "model": "OR542",
+      "category": "Outdoor Cabinet",
+      "sub_category": "Outdoor Cabinet (500\u00d7400\u00d7200mm)",
+      "pricing": {
+        "dpp": 29,
+        "installer": 33
+      },
+      "specs": {
+        "width_mm": 500,
+        "depth_mm": 400,
+        "height_mm": 200,
+        "ip_rating": "IP55",
+        "included": "No accessories"
+      }
+    },
+    {
+      "id": 37,
+      "model": "OR6404",
+      "category": "Outdoor Cabinet",
+      "sub_category": "Outdoor Cabinet 4U (600\u00d7450mm) + Pole",
+      "pricing": {
+        "dpp": 125,
+        "installer": 135
+      },
+      "specs": {
+        "rack_units": 4,
+        "width_mm": 600,
+        "depth_mm": 450,
+        "ip_rating": "IP55",
+        "included": "2 fans, 1 shelf, 1 PDU, pole bracket, hangers"
+      }
+    },
+    {
+      "id": 38,
+      "model": "OR6406",
+      "category": "Outdoor Cabinet",
+      "sub_category": "Outdoor Cabinet 6U (600\u00d7450mm) + Pole",
+      "pricing": {
+        "dpp": 140,
+        "installer": 155
+      },
+      "specs": {
+        "rack_units": 6,
+        "width_mm": 600,
+        "depth_mm": 450
+      }
+    },
+    {
+      "id": 39,
+      "model": "OR6409",
+      "category": "Outdoor Cabinet",
+      "sub_category": "Outdoor Cabinet 9U (600\u00d7450mm) + Pole",
+      "pricing": {
+        "dpp": 165,
+        "installer": 175
+      },
+      "specs": {
+        "rack_units": 9,
+        "width_mm": 600,
+        "depth_mm": 450
+      }
+    },
+    {
+      "id": 40,
+      "model": "OR6604",
+      "category": "Outdoor Cabinet",
+      "sub_category": "Outdoor Cabinet 4U (600\u00d7600mm) + Pole",
+      "pricing": {
+        "dpp": 140,
+        "installer": 145
+      },
+      "specs": {
+        "rack_units": 4,
+        "width_mm": 600,
+        "depth_mm": 600,
+        "included": "2 fans, 1 shelf, 1 PDU, pole bracket"
+      }
+    },
+    {
+      "id": 41,
+      "model": "OR6606",
+      "category": "Outdoor Cabinet",
+      "sub_category": "Outdoor Cabinet 6U (600\u00d7600mm) + Pole",
+      "pricing": {
+        "dpp": 155,
+        "installer": 160
+      },
+      "specs": {
+        "rack_units": 6,
+        "width_mm": 600,
+        "depth_mm": 600
+      }
+    },
+    {
+      "id": 42,
+      "model": "OR6609",
+      "category": "Outdoor Cabinet",
+      "sub_category": "Outdoor Cabinet 9U (600\u00d7600mm) + Pole",
+      "pricing": {
+        "dpp": 175,
+        "installer": 180
+      },
+      "specs": {
+        "rack_units": 9,
+        "width_mm": 600,
+        "depth_mm": 600
+      }
+    },
+    {
+      "id": 43,
+      "model": "Sliding Shelf 800mm",
+      "category": "Accessory",
+      "sub_category": "Sliding Shelf (800mm depth)",
+      "pricing": {
+        "dpp": 25,
+        "installer": 30
+      },
+      "specs": {
+        "type": "Sliding shelf for floor cabinet",
+        "depth_mm": 800
+      }
+    },
+    {
+      "id": 44,
+      "model": "Sliding Shelf 1000mm",
+      "category": "Accessory",
+      "sub_category": "Sliding Shelf (1000mm depth)",
+      "pricing": {
+        "dpp": 30,
+        "installer": 35
+      },
+      "specs": {
+        "depth_mm": 1000
+      }
+    },
+    {
+      "id": 45,
+      "model": "Wall Shelf 600\u00d7450",
+      "category": "Accessory",
+      "sub_category": "Wall Cabinet Shelf (600\u00d7450mm)",
+      "pricing": {
+        "dpp": 5,
+        "installer": 6
+      }
+    },
+    {
+      "id": 46,
+      "model": "Wall Shelf 600\u00d7600",
+      "category": "Accessory",
+      "sub_category": "Wall Cabinet Shelf (600\u00d7600mm)",
+      "pricing": {
+        "dpp": 8,
+        "installer": 10
+      }
+    },
+    {
+      "id": 47,
+      "model": "Cabinet Shelf 600\u00d7600",
+      "category": "Accessory",
+      "sub_category": "Floor Cabinet Shelf (600\u00d7600mm)",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      }
+    },
+    {
+      "id": 48,
+      "model": "Cabinet Shelf 600\u00d7800",
+      "category": "Accessory",
+      "sub_category": "Floor Cabinet Shelf (600\u00d7800mm)",
+      "pricing": {
+        "dpp": 14,
+        "installer": 16
+      }
+    },
+    {
+      "id": 49,
+      "model": "Cabinet Shelf 600\u00d71000",
+      "category": "Accessory",
+      "sub_category": "Floor Cabinet Shelf (600\u00d71000mm)",
+      "pricing": {
+        "dpp": 18,
+        "installer": 20
+      }
+    },
+    {
+      "id": 50,
+      "model": "PDU 6-Way Metal",
+      "category": "Accessory",
+      "sub_category": "PDU 6-Way Universal Metal (UK Plug)",
+      "pricing": {
+        "dpp": 15,
+        "installer": 15
+      },
+      "specs": {
+        "outlets": 6,
+        "type": "Metal PDU",
+        "plug": "UK"
+      }
+    },
+    {
+      "id": 51,
+      "model": "PDU 8-Way Metal",
+      "category": "Accessory",
+      "sub_category": "PDU 8-Way Universal Metal (UK Plug)",
+      "pricing": {
+        "dpp": 25,
+        "installer": 25
+      },
+      "specs": {
+        "outlets": 8
+      }
+    },
+    {
+      "id": 52,
+      "model": "PDU 12-Way Metal",
+      "category": "Accessory",
+      "sub_category": "PDU 12-Way Universal Metal (UK Plug)",
+      "pricing": {
+        "dpp": 30,
+        "installer": 30
+      },
+      "specs": {
+        "outlets": 12
+      }
+    },
+    {
+      "id": 53,
+      "model": "PDU 6-Way Plastic",
+      "category": "Accessory",
+      "sub_category": "PDU 6-Way Universal Plastic (UK Plug)",
+      "pricing": {
+        "dpp": 10,
+        "installer": 12
+      },
+      "specs": {
+        "outlets": 6,
+        "type": "Plastic PDU"
+      }
+    },
+    {
+      "id": 54,
+      "model": "1U Blank Panel",
+      "category": "Accessory",
+      "sub_category": "1U Blank Panel (Tool-less)",
+      "pricing": {
+        "dpp": 3,
+        "installer": 3
+      },
+      "specs": {
+        "rack_units": "1U"
+      }
+    },
+    {
+      "id": 55,
+      "model": "2U Blank Panel",
+      "category": "Accessory",
+      "sub_category": "2U Blank Panel (Tool-less)",
+      "pricing": {
+        "dpp": 5,
+        "installer": 5
+      },
+      "specs": {
+        "rack_units": "2U"
+      }
+    },
+    {
+      "id": 56,
+      "model": "Brush Panel",
+      "category": "Accessory",
+      "sub_category": "Brush Panel (Cable Entry)",
+      "pricing": {
+        "dpp": 5,
+        "installer": 5
+      },
+      "specs": {
+        "type": "Brush strip panel for cable pass-through"
+      }
+    },
+    {
+      "id": 57,
+      "model": "5-Ring Brush Panel",
+      "category": "Accessory",
+      "sub_category": "5-Ring Cable Brush Panel",
+      "pricing": {
+        "dpp": 5,
+        "installer": 5
+      }
+    },
+    {
+      "id": 58,
+      "model": "Cable Manager",
+      "category": "Accessory",
+      "sub_category": "Horizontal Cable Manager (1U)",
+      "pricing": {
+        "dpp": 5,
+        "installer": 6
+      },
+      "specs": {
+        "type": "1U horizontal cable organizer"
+      }
+    },
+    {
+      "id": 59,
+      "model": "Bracket",
+      "category": "Accessory",
+      "sub_category": "Cabinet Mounting Bracket",
+      "pricing": {
+        "dpp": 8,
+        "installer": 10
+      }
+    },
+    {
+      "id": 60,
+      "model": "Limit Switch+Light",
+      "category": "Accessory",
+      "sub_category": "Limit Switch + Light for Floor Cabinet",
+      "pricing": {
+        "dpp": 35,
+        "installer": 35
+      },
+      "specs": {
+        "function": "Door limit switch with LED indicator light"
+      }
+    },
+    {
+      "id": 61,
+      "model": "1U Fan Unit Thermostat",
+      "category": "Accessory",
+      "sub_category": "1U Fan Unit with Thermostat (4 fans)",
+      "pricing": {
+        "dpp": 55,
+        "installer": 65
+      },
+      "specs": {
+        "fans": 4,
+        "thermostat": true,
+        "rack_units": "1U",
+        "function": "Temperature-controlled roof fan unit"
+      }
+    },
+    {
+      "id": 62,
+      "model": "Pole Gray 3M",
+      "category": "Accessory",
+      "sub_category": "Mounting Pole 3M (Gray)",
+      "pricing": {
+        "dpp": null,
+        "installer": null
+      },
+      "notes": "Sample \u2014 pricing on request"
+    }
+  ]
+}

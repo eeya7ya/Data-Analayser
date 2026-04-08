@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --mt-red: #e2231a;
+  --mt-ink: #1f1f1f;
+  --mt-soft: #f7f3f2;
+  --mt-border: #e6d7d5;
+  --mt-header: #f5e4e2;
+  --mt-highlight: #fff200;
+}
+
+html,
+body {
+  color: var(--mt-ink);
+  background: #ffffff;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Printable quotation styling — matches the Magic Tech sales quotation look. */
+.quotation-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 14mm 12mm 18mm 12mm;
+  background: #ffffff;
+  color: var(--mt-ink);
+  margin: 0 auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+}
+
+.quotation-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+}
+
+.quotation-sheet th,
+.quotation-sheet td {
+  border: 1px solid #cfbebc;
+  padding: 6px 5px;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.quotation-sheet thead th {
+  background: var(--mt-header);
+  color: var(--mt-red);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.quotation-sheet .site-banner {
+  background: var(--mt-header);
+  color: var(--mt-red);
+  text-align: center;
+  font-weight: 700;
+  padding: 6px 0;
+  border: 1px solid #cfbebc;
+  border-bottom: none;
+}
+
+.quotation-sheet .totals-row td {
+  background: var(--mt-highlight);
+  font-weight: 700;
+}
+
+.quotation-sheet .totals-row.grand td {
+  background: #fff8bf;
+  color: var(--mt-red);
+}
+
+.quotation-sheet .footer-address {
+  background: var(--mt-header);
+  color: var(--mt-red);
+  text-align: center;
+  padding: 8px;
+  font-weight: 600;
+  border: 1px solid #cfbebc;
+  margin-top: 16px;
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .quotation-sheet {
+    box-shadow: none;
+    margin: 0;
+    width: auto;
+    min-height: auto;
+    padding: 8mm;
+  }
+  @page {
+    size: A4;
+    margin: 8mm;
+  }
+}

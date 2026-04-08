@@ -1,0 +1,370 @@
+{
+  "database_info": {
+    "name": "DSPPA Speaker Selection Theory \u2014 Standards Based",
+    "version": "1.0",
+    "manufacturer": "DSPPA",
+    "purpose": "Engineering design tool for speaker selection, layout, and system integration",
+    "last_updated": "2026-04-06"
+  },
+  "selection_criteria": {
+    "1_speaker_type_by_application": {
+      "standard": "IEC 60268-5 / BS 5839-8 / Application Design",
+      "principle": "Speaker type must match the acoustic environment and mounting conditions",
+      "guide": [
+        {
+          "location": "Office / hotel room / clinic",
+          "speaker": "Ceiling Speaker",
+          "models": "DSP114, DSP124, DSP5011, DSP6011",
+          "mount": "Flush mount in suspended ceiling",
+          "typical_tap_w": "3-6W",
+          "spacing_m": "3-4m apart (2\u00d7 ceiling height)"
+        },
+        {
+          "location": "Conference room / boardroom",
+          "speaker": "Ceiling Speaker (Premium)",
+          "models": "DSP8040, DSP8050, DSP8060, AUX168II",
+          "mount": "Flush mount",
+          "typical_tap_w": "6-10W",
+          "notes": "Better frequency response for speech clarity"
+        },
+        {
+          "location": "Restaurant / caf\u00e9 / retail",
+          "speaker": "Pendant Speaker or Wall Mount",
+          "models": "DSP8062-8064 (pendant), DSP255/455 (wall)",
+          "mount": "Pendant from exposed ceiling or wall bracket",
+          "typical_tap_w": "6-10W"
+        },
+        {
+          "location": "Corridor / hallway",
+          "speaker": "Ceiling Speaker (compact)",
+          "models": "DSP3011, DSP114",
+          "mount": "Flush ceiling every 3-5m",
+          "typical_tap_w": "1.5-3W"
+        },
+        {
+          "location": "Outdoor covered area (canopy/walkway)",
+          "speaker": "Wall/Column Speaker (IP rated)",
+          "models": "DSP6035, DSP6050, DSP5053",
+          "mount": "Wall mount under cover",
+          "ip_rating": "IP55",
+          "typical_tap_w": "10-20W"
+        },
+        {
+          "location": "Outdoor open area (parking/playground)",
+          "speaker": "Horn Speaker",
+          "models": "DSP118, DSP119, DSP129, DSP310, DSP320",
+          "mount": "Pole or wall, high position (3-5m)",
+          "ip_rating": "IP66",
+          "typical_tap_w": "30-200W"
+        },
+        {
+          "location": "Garden / landscaping",
+          "speaker": "Garden Speaker",
+          "models": "DSP108, DSP208",
+          "mount": "Ground stake, hidden in planting",
+          "ip_rating": "IP44"
+        },
+        {
+          "location": "Mosque / house of worship",
+          "speaker": "Column Speaker",
+          "models": "DSP420, DSP530, DSP640, DSP8100S, DSP8200S",
+          "mount": "Wall mount at 2-3m height",
+          "typical_tap_w": "20-40W",
+          "notes": "Column pattern provides even coverage over congregation"
+        },
+        {
+          "location": "Hotel/apartment lobby (high ceiling)",
+          "speaker": "Pendant Speaker",
+          "models": "DSP8062-8064, DSP6030P, DSP8050P",
+          "mount": "Pendant from ceiling",
+          "notes": "Brings sound source closer to listeners"
+        },
+        {
+          "location": "Auditorium / large hall",
+          "speaker": "Line Array / Pro Speaker",
+          "models": "L-8 to L-15, D6565/6566, DSP1202A-3012A",
+          "mount": "Flown from rigging or ground stack",
+          "notes": "Professional installation required"
+        },
+        {
+          "location": "In-wall (boutique / residential)",
+          "speaker": "Wall Plate Speaker",
+          "models": "WL311, W312, W313",
+          "mount": "Flush in wall (gang box)",
+          "notes": "Low profile, decorative"
+        }
+      ]
+    },
+    "2_ceiling_speaker_layout": {
+      "standard": "System Design / Acoustics",
+      "principle": "Ceiling speakers should provide even SPL coverage across the listening area",
+      "rules": {
+        "spacing_rule": "Speaker spacing \u2264 2\u00d7 ceiling height (for uniform coverage)",
+        "edge_rule": "First speaker \u2264 1\u00d7 ceiling height from wall",
+        "examples": [
+          {
+            "ceiling_height_m": 2.7,
+            "spacing_m": "4.5-5.0",
+            "edge_m": 2.5,
+            "coverage_area_per_speaker_m2": 20
+          },
+          {
+            "ceiling_height_m": 3.0,
+            "spacing_m": "5.0-6.0",
+            "edge_m": 3.0,
+            "coverage_area_per_speaker_m2": 25
+          },
+          {
+            "ceiling_height_m": 4.0,
+            "spacing_m": "6.0-8.0",
+            "edge_m": 4.0,
+            "coverage_area_per_speaker_m2": 36
+          },
+          {
+            "ceiling_height_m": 5.0,
+            "spacing_m": "8.0-10.0",
+            "edge_m": 5.0,
+            "coverage_area_per_speaker_m2": 50
+          }
+        ],
+        "quantity_formula": "speakers_needed = ceiling(room_area_m2 / coverage_area_per_speaker_m2)"
+      }
+    },
+    "3_transformer_tap_selection": {
+      "standard": "100V/70V Line Design",
+      "principle": "Each speaker tap setting determines power draw from the amplifier",
+      "tap_guide": {
+        "rule": "Set tap based on required SPL and ambient noise. Higher tap = louder but draws more amplifier power.",
+        "typical_taps": [
+          {
+            "tap_w": 1.5,
+            "use": "Quiet corridor, hotel hallway, low BGM"
+          },
+          {
+            "tap_w": 3,
+            "use": "Standard office, classroom, small room BGM"
+          },
+          {
+            "tap_w": 6,
+            "use": "Standard retail, restaurant, general PA"
+          },
+          {
+            "tap_w": 10,
+            "use": "Noisy environment, large room, paging"
+          },
+          {
+            "tap_w": 15,
+            "use": "Outdoor covered, high ambient noise"
+          },
+          {
+            "tap_w": 20,
+            "use": "High-power paging, worship, auditorium"
+          },
+          {
+            "tap_w": "30-200",
+            "use": "Outdoor horn speakers, large open areas"
+          }
+        ]
+      },
+      "critical_rule": "Sum of ALL speaker tap wattages must NOT exceed amplifier rated power. Leave 20-50% headroom."
+    },
+    "4_horn_vs_column_vs_ceiling": {
+      "standard": "Acoustic Design",
+      "principle": "Speaker dispersion pattern must match the coverage requirement",
+      "comparison": [
+        {
+          "type": "Ceiling Speaker",
+          "dispersion": "Wide conical (120-160\u00b0)",
+          "throw_m": "3-6m vertical",
+          "coverage": "Circular area below speaker",
+          "best_for": "Even coverage of room from above",
+          "spl_typical_db": "86-92"
+        },
+        {
+          "type": "Column Speaker",
+          "dispersion": "Wide horizontal (120-160\u00b0) \u00d7 narrow vertical (30-40\u00b0)",
+          "throw_m": "10-30m",
+          "coverage": "Long thin horizontal band",
+          "best_for": "Worship halls, corridors, audience seating areas",
+          "spl_typical_db": "92-100"
+        },
+        {
+          "type": "Horn Speaker",
+          "dispersion": "Medium-wide (60-90\u00b0)",
+          "throw_m": "30-100m",
+          "coverage": "Cone projection over long distance",
+          "best_for": "Outdoor, parking, playground, stadium, emergency",
+          "spl_typical_db": "100-118"
+        }
+      ]
+    },
+    "5_ip_rating_for_outdoor": {
+      "standard": "IEC 60529",
+      "principle": "Outdoor speakers must have appropriate IP rating for the environment",
+      "ratings": [
+        {
+          "rating": "IP44",
+          "protection": "Splashing water",
+          "use": "Sheltered outdoor, garden",
+          "models": "DSP108, DSP208"
+        },
+        {
+          "rating": "IP55",
+          "protection": "Water jets",
+          "use": "Outdoor wall mount, semi-exposed",
+          "models": "DSP6035, DSP6050, DSP6606-6608"
+        },
+        {
+          "rating": "IP66",
+          "protection": "Powerful water jets + dust tight",
+          "use": "Fully exposed outdoor, coastal, industrial",
+          "models": "DSP107, DW6050, horn speakers"
+        }
+      ]
+    },
+    "6_pro_sound_speaker_selection": {
+      "standard": "Professional Audio Design",
+      "principle": "Pro sound systems require matched components for SPL, coverage, and frequency response",
+      "systems": [
+        {
+          "system": "Small venue (50-150 people)",
+          "mains": "D6565 (12\") or D6564 (15\" monitor)",
+          "sub": "D6075B (15\")",
+          "amp": "DA2250 or DA2500",
+          "notes": "Pair of mains on stands + 1-2 subs"
+        },
+        {
+          "system": "Medium venue (150-500 people)",
+          "mains": "D6566 (15\") or D4802",
+          "sub": "D6076B (18\")",
+          "amp": "DA4250 or MX2000II",
+          "notes": "Pair of mains + pair of subs + stage monitors"
+        },
+        {
+          "system": "Large venue (500-2000 people)",
+          "mains": "L-12 or L-15 line array (4-8 per side)",
+          "sub": "D6076BA (active 18\")",
+          "amp": "Powered / active or DA4250 per array",
+          "notes": "Flown line array + ground subs. Professional rigging required."
+        },
+        {
+          "system": "Very large (2000+)",
+          "mains": "LA4212 line array system",
+          "sub": "Multiple D6076BA",
+          "amp": "Active system",
+          "notes": "Full line array deployment. Acoustic modeling required."
+        }
+      ]
+    },
+    "7_active_vs_passive_speakers": {
+      "standard": "System Design",
+      "principle": "Active speakers have built-in amplification; passive speakers require external amplifiers",
+      "comparison": {
+        "passive": {
+          "models": "All DSP ceiling/wall/horn/column speakers, D6565/6566, L-8 to L-15",
+          "amplifier": "External amplifier required",
+          "cable": "Speaker cable (100V line or low-Z)",
+          "best_for": "Distributed PA, multi-speaker installations, 100V line systems"
+        },
+        "active": {
+          "models": "D6566A, D6075BA, D6076BA, D415A, DSP703, DSP7043/7064, DSP1202A-3012A",
+          "amplifier": "Built-in",
+          "cable": "Audio signal cable (balanced XLR) + AC power",
+          "best_for": "Pro sound, portable, self-contained installations"
+        }
+      }
+    },
+    "8_en54_speaker_requirements": {
+      "standard": "EN 54-24:2008",
+      "principle": "Voice evacuation speakers must be EN54-24 certified and meet minimum intelligibility",
+      "requirements": {
+        "certification": "Speaker must carry EN 54-24 certification mark",
+        "models": "DSP602EN, DSP207EN, DSP3154EN, DSP5311EN",
+        "intelligibility": "STI \u2265 0.50 (STIPA measurement) per BS 5839-8",
+        "spl": "Minimum 65dBA or 6dB above ambient noise (whichever is greater) at any point",
+        "fire_rating": "Speaker cable must be fire-rated (IEC 60331, 2hr)",
+        "supervision": "Speaker line must be monitored for open/short circuit"
+      },
+      "note": "For EN54 voice evacuation projects, use ONLY EN54-24 certified speakers from dsppa_pava_db.json"
+    },
+    "9_quantity_and_power_estimation": {
+      "standard": "System Design",
+      "principle": "Quick estimation for speaker quantity and total amplifier power needed",
+      "formulas": {
+        "ceiling_speakers": "Room area (m\u00b2) \u00f7 20 = approximate number of speakers (for 2.7m ceiling)",
+        "total_power": "Number of speakers \u00d7 tap wattage = total load. Amplifier \u2265 1.5\u00d7 total load.",
+        "horn_outdoor": "1 horn per 30-50m of fence/perimeter or per 500-1000m\u00b2 outdoor area"
+      },
+      "examples": [
+        {
+          "scenario": "Office floor 200m\u00b2",
+          "speakers": "200\u00f720 = 10\u00d7 DSP6011 at 6W",
+          "total_tap_w": 60,
+          "amplifier": "MA120UB (120W)"
+        },
+        {
+          "scenario": "Hotel 50 rooms (each 25m\u00b2)",
+          "speakers": "50\u00d7 DSP114 at 3W + 10\u00d7 corridor DSP3011 at 3W",
+          "total_tap_w": 180,
+          "amplifier": "MP300PIII (300W) + zone selector"
+        },
+        {
+          "scenario": "Shopping mall 2000m\u00b2 (4 zones)",
+          "speakers": "25 per zone \u00d7 6W = 150W/zone",
+          "amplifier": "MA6600U (600W) or 4\u00d7 MP200PIII"
+        },
+        {
+          "scenario": "School playground 5000m\u00b2",
+          "speakers": "10\u00d7 DSP320 horn at 30W",
+          "total_tap_w": 300,
+          "amplifier": "MP600PIII or DMA500U"
+        }
+      ]
+    },
+    "10_compliance": {
+      "principle": "Speakers must meet safety, acoustic, and fire standards",
+      "standards": [
+        {
+          "standard": "IEC 60268-5",
+          "scope": "Loudspeaker measurement and specification"
+        },
+        {
+          "standard": "EN 54-24:2008",
+          "scope": "Fire alarm loudspeaker certification"
+        },
+        {
+          "standard": "BS 5839-8:2013",
+          "scope": "Voice alarm system design and installation"
+        },
+        {
+          "standard": "IEC 60529",
+          "scope": "IP rating (ingress protection for outdoor)"
+        },
+        {
+          "standard": "IEC 62368-1",
+          "scope": "Safety of audio equipment"
+        },
+        {
+          "standard": "EN 55032",
+          "scope": "EMC emissions"
+        },
+        {
+          "standard": "IEC 60268-16",
+          "scope": "Speech intelligibility (STI/STIPA)"
+        },
+        {
+          "standard": "CE / RoHS",
+          "scope": "European conformity"
+        },
+        {
+          "standard": "ISO 7240-19",
+          "scope": "Voice alarm design (international)"
+        },
+        {
+          "standard": "NFPA 72 (US)",
+          "scope": "Fire alarm notification appliances"
+        }
+      ]
+    }
+  }
+}

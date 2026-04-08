@@ -1,0 +1,1382 @@
+{
+  "database_info": {
+    "name": "Schneider Electric Actassi Structured Cabling & Infrastructure Database",
+    "version": "1.0",
+    "manufacturer": "Schneider Electric",
+    "brand": "Actassi / ClimaSys / Unica",
+    "category": "Structured Cabling, Fiber Optics, Network Cabinets, Face Plates & Electrical",
+    "currency": "USD",
+    "last_updated": "2026-04-07",
+    "price_tiers": {
+      "dpp": "DPP/Distributor",
+      "si": "System Integrator/Installer"
+    },
+    "data_source": "Official Schneider Electric Actassi Catalogue & Product Data",
+    "model_naming": {
+      "ACT": "Actassi structured cabling product",
+      "ACT4P6U": "Cat6 UTP 4-pair cable",
+      "ACT4P6A": "Cat6A cable",
+      "ACTTG4P6A": "Cat6A cable (10G)",
+      "ACTPC6U": "Cat6 UTP patch cord",
+      "ACTPC6A": "Cat6A patch cord",
+      "ACTPP": "Patch panel",
+      "ACTPPS": "Patch panel shielded",
+      "ACTRJ": "RJ45 connector/module",
+      "ACTFM": "Fiber module/panel",
+      "ACTFP": "Fiber patch cord",
+      "ACTFT": "Fiber pigtail",
+      "ACTFA": "Fiber adapter",
+      "ACTFMSPT": "Fiber splice tool kit",
+      "ACTUDSLLA": "Fiber distribution cable",
+      "VDI": "Voice-Data-Image infrastructure product",
+      "VDICD": "VDI Copper Distribution",
+      "VDIG": "VDI Patch Panel / Infrastructure",
+      "VDIEB/VDIB": "VDI Keystone Jack / Module",
+      "KB": "Keystone blank / bracket",
+      "ST": "Face plate / wall plate",
+      "MGU": "Unica electrical accessory",
+      "NSYKDB": "ClimaSys network cabinet (wall mount)",
+      "NSYOPB": "ClimaSys open rack / cabinet",
+      "NSYVDA": "ClimaSys floor-standing server cabinet",
+      "NSYECVT": "Cabinet ventilation tray",
+      "NSY2FAN": "Cabinet cooling fan",
+      "IMT": "Conduit / installation material",
+      "LS": "LSZH (Low Smoke Zero Halogen)",
+      "CM": "CM rated (Communications Multipurpose)",
+      "CMR": "CMR rated (Riser)",
+      "WE": "White",
+      "BU": "Blue",
+      "SM": "Single-mode fiber",
+      "M35M": "Multi-mode OM3 fiber, 50/125\u00b5m",
+      "S19S": "Single-mode OS2 fiber, 9/125\u00b5m",
+      "LC": "LC fiber connector",
+      "SC": "SC fiber connector",
+      "W19S": "OS2 Single-mode outdoor",
+      "SFF": "Small Form Factor"
+    },
+    "MISSING_ITEMS_NOTICE": "The following items from the price list had no pricing or could not be fully identified. They are included with null pricing and should be verified: VDIG017241B, ACTPP6U24NSS_SE, ACTPPS24NSU_E, unnamed item at $78/$82. These may be patch panels or discontinued variants \u2014 confirm with Schneider representative."
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "ACT4P6ULS3RBWE",
+      "category": "Copper Cable",
+      "sub_category": "Cat6 UTP LSZH 305m White",
+      "pricing": {
+        "dpp": 125,
+        "si": 135
+      },
+      "specs": {
+        "type": "Cat6 U/UTP",
+        "conductor": "Solid copper 23AWG",
+        "shielding": "Unshielded",
+        "jacket": "LSZH",
+        "length_m": 305,
+        "color": "White",
+        "standard": "TIA-568-C.2 / ISO 11801",
+        "fire_rating": "IEC 61034 low smoke, IEC 60754 zero halogen"
+      }
+    },
+    {
+      "id": 2,
+      "model": "ACT4P6UCM3RBBU4",
+      "category": "Copper Cable",
+      "sub_category": "Cat6 UTP CM 305m Blue",
+      "pricing": {
+        "dpp": 125,
+        "si": 135
+      },
+      "specs": {
+        "type": "Cat6 U/UTP",
+        "conductor": "Solid copper 23AWG",
+        "shielding": "Unshielded",
+        "jacket": "CM rated PVC",
+        "length_m": 305,
+        "color": "Blue",
+        "standard": "TIA-568-C.2"
+      }
+    },
+    {
+      "id": 3,
+      "model": "ACTTG4P6AULS3RBU",
+      "category": "Copper Cable",
+      "sub_category": "Cat6A UTP LSZH 305m Blue",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "specs": {
+        "type": "Cat6A U/UTP",
+        "conductor": "Solid copper 23AWG",
+        "jacket": "LSZH",
+        "length_m": 305,
+        "color": "Blue",
+        "standard": "TIA-568-C.2 Cat6A / ISO 11801 Class Ea",
+        "bandwidth_mhz": 500
+      },
+      "notes": "Bundled/project pricing"
+    },
+    {
+      "id": 4,
+      "model": "VDICD62X218",
+      "category": "Copper Distribution",
+      "sub_category": "Cat6 UTP Distribution Module",
+      "pricing": {
+        "dpp": 310,
+        "si": 320
+      },
+      "specs": {
+        "type": "Distribution module for structured cabling"
+      }
+    },
+    {
+      "id": 5,
+      "model": "VDICD64X218",
+      "category": "Copper Distribution",
+      "sub_category": "Cat6 Distribution Module (Variant)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0
+      },
+      "notes": "Bundled/project"
+    },
+    {
+      "id": 6,
+      "model": "ACTPC6UULS05WE",
+      "category": "Patch Cord",
+      "sub_category": "Cat6 UTP Patch Cord 0.5m White",
+      "pricing": {
+        "dpp": 1.5,
+        "si": 1.5
+      },
+      "specs": {
+        "type": "Cat6 UTP",
+        "length": "0.5m",
+        "color": "White",
+        "connector": "RJ45 both ends",
+        "boot": "Snagless"
+      }
+    },
+    {
+      "id": 7,
+      "model": "ACTPC6UULS10WE",
+      "category": "Patch Cord",
+      "sub_category": "Cat6 UTP Patch Cord 1m White",
+      "pricing": {
+        "dpp": 2,
+        "si": 2.25
+      },
+      "specs": {
+        "type": "Cat6 UTP",
+        "length": "1m",
+        "color": "White",
+        "connector": "RJ45 both ends",
+        "boot": "Snagless"
+      }
+    },
+    {
+      "id": 8,
+      "model": "ACTPC6UULS30WE",
+      "category": "Patch Cord",
+      "sub_category": "Cat6 UTP Patch Cord 3m White",
+      "pricing": {
+        "dpp": 2.75,
+        "si": 2.75
+      },
+      "specs": {
+        "type": "Cat6 UTP",
+        "length": "3m",
+        "color": "White",
+        "connector": "RJ45 both ends",
+        "boot": "Snagless"
+      }
+    },
+    {
+      "id": 9,
+      "model": "ACTPC6UBCM05BU",
+      "category": "Patch Cord",
+      "sub_category": "Cat6 UTP Patch Cord 0.5m Blue",
+      "pricing": {
+        "dpp": 1.5,
+        "si": 1.5
+      },
+      "specs": {
+        "type": "Cat6 UTP",
+        "length": "0.5m",
+        "color": "Blue",
+        "connector": "RJ45 both ends",
+        "boot": "Snagless"
+      }
+    },
+    {
+      "id": 10,
+      "model": "ACTPC6UBCM10BU",
+      "category": "Patch Cord",
+      "sub_category": "Cat6 UTP Patch Cord 1m Blue",
+      "pricing": {
+        "dpp": 2,
+        "si": 2.25
+      },
+      "specs": {
+        "type": "Cat6 UTP",
+        "length": "1m",
+        "color": "Blue",
+        "connector": "RJ45 both ends",
+        "boot": "Snagless"
+      }
+    },
+    {
+      "id": 11,
+      "model": "ACTPC6UBCM30BU",
+      "category": "Patch Cord",
+      "sub_category": "Cat6 UTP Patch Cord 3m Blue",
+      "pricing": {
+        "dpp": 2.75,
+        "si": 2.75
+      },
+      "specs": {
+        "type": "Cat6 UTP",
+        "length": "3m",
+        "color": "Blue",
+        "connector": "RJ45 both ends",
+        "boot": "Snagless"
+      }
+    },
+    {
+      "id": 12,
+      "model": "ACTPC6ASFLS10WE",
+      "category": "Patch Cord",
+      "sub_category": "Cat6A SFF LSZH Patch Cord 1m White",
+      "pricing": {
+        "dpp": 2.5,
+        "si": 2.5
+      },
+      "specs": {
+        "type": "Cat6A F/UTP",
+        "length": "1m",
+        "jacket": "LSZH",
+        "color": "White"
+      }
+    },
+    {
+      "id": 13,
+      "model": "ACTPC6ASFLS30WE",
+      "category": "Patch Cord",
+      "sub_category": "Cat6A SFF LSZH Patch Cord 3m White",
+      "pricing": {
+        "dpp": 3.75,
+        "si": 3.75
+      },
+      "specs": {
+        "type": "Cat6A F/UTP",
+        "length": "3m",
+        "jacket": "LSZH",
+        "color": "White"
+      }
+    },
+    {
+      "id": 14,
+      "model": "VDIEB17266UWE",
+      "category": "Keystone Jack",
+      "sub_category": "Cat6 UTP Keystone Jack White",
+      "pricing": {
+        "dpp": 1.5,
+        "si": 1.5
+      },
+      "specs": {
+        "type": "Cat6 UTP RJ45 keystone module",
+        "standard": "TIA-568-C.2",
+        "color": "White",
+        "termination": "Tool-less or punch-down"
+      }
+    },
+    {
+      "id": 15,
+      "model": "VDIB17366UWE",
+      "category": "Keystone Jack",
+      "sub_category": "Cat6 UTP Keystone Jack White (B)",
+      "pricing": {
+        "dpp": 1.5,
+        "si": 1.5
+      }
+    },
+    {
+      "id": 16,
+      "model": "VDIB17726U12",
+      "category": "Keystone Jack",
+      "sub_category": "Cat6 UTP Keystone Jack (12-pack)",
+      "pricing": {
+        "dpp": 2.25,
+        "si": 2.5
+      }
+    },
+    {
+      "id": 17,
+      "model": "VDIB1736XUWE",
+      "category": "Keystone Jack",
+      "sub_category": "Cat6 UTP Keystone Jack White (X)",
+      "pricing": {
+        "dpp": 2.5,
+        "si": 3
+      }
+    },
+    {
+      "id": 18,
+      "model": "VDIB11777XB24",
+      "category": "Keystone Jack",
+      "sub_category": "Cat6 Keystone Jack (24-pack)",
+      "pricing": {
+        "dpp": 3.25,
+        "si": 3.5
+      }
+    },
+    {
+      "id": 19,
+      "model": "VDIB1772XB12",
+      "category": "Keystone Jack",
+      "sub_category": "Cat6 Keystone Jack (12-pack, Premium)",
+      "pricing": {
+        "dpp": 4.25,
+        "si": 4.5
+      }
+    },
+    {
+      "id": 20,
+      "model": "KB31RJK",
+      "category": "Keystone Blank",
+      "sub_category": "Keystone Blank Panel (RJ)",
+      "pricing": {
+        "dpp": 1.25,
+        "si": 1.5
+      }
+    },
+    {
+      "id": 21,
+      "model": "KB32RJK",
+      "category": "Keystone Blank",
+      "sub_category": "Keystone Blank Panel (RJ, Dual)",
+      "pricing": {
+        "dpp": 1.5,
+        "si": 1.75
+      }
+    },
+    {
+      "id": 22,
+      "model": "KB31RJ6",
+      "category": "Keystone Bracket",
+      "sub_category": "Keystone RJ45 Bracket (Single)",
+      "pricing": {
+        "dpp": 3.75,
+        "si": 4
+      }
+    },
+    {
+      "id": 23,
+      "model": "KB32RJ6",
+      "category": "Keystone Bracket",
+      "sub_category": "Keystone RJ45 Bracket (Dual)",
+      "pricing": {
+        "dpp": 5.5,
+        "si": 6
+      }
+    },
+    {
+      "id": 24,
+      "model": "KB31TS",
+      "category": "Keystone Blank",
+      "sub_category": "Keystone Blank (TS)",
+      "pricing": {
+        "dpp": 1.5,
+        "si": 1.5
+      }
+    },
+    {
+      "id": 25,
+      "model": "MGU4.103.18",
+      "category": "Unica Accessory",
+      "sub_category": "Unica RJ45 Data Socket Module",
+      "pricing": {
+        "dpp": 1.25,
+        "si": 1.25
+      },
+      "specs": {
+        "type": "Schneider Unica RJ45 module for wall plate"
+      }
+    },
+    {
+      "id": 26,
+      "model": "MGU7.103.P",
+      "category": "Unica Accessory",
+      "sub_category": "Unica Blank Module",
+      "pricing": {
+        "dpp": 0.5,
+        "si": 0.5
+      }
+    },
+    {
+      "id": 27,
+      "model": "MGU9.410.18",
+      "category": "Unica Accessory",
+      "sub_category": "Unica Wall Plate Frame",
+      "pricing": {
+        "dpp": 1.25,
+        "si": 1.5
+      }
+    },
+    {
+      "id": 28,
+      "model": "VDIG017241B",
+      "category": "Patch Panel",
+      "sub_category": "Patch Panel (Unidentified)",
+      "pricing": {
+        "dpp": null,
+        "si": null
+      },
+      "notes": "Model needs verification with Schneider \u2014 pricing not provided"
+    },
+    {
+      "id": 29,
+      "model": "ACTPP6U24NSS_SE",
+      "category": "Patch Panel",
+      "sub_category": "Cat6 UTP Patch Panel 24-Port 1U",
+      "pricing": {
+        "dpp": null,
+        "si": null
+      },
+      "notes": "Pricing not provided \u2014 verify with Schneider"
+    },
+    {
+      "id": 30,
+      "model": "ACTPPS24NSU_E",
+      "category": "Patch Panel",
+      "sub_category": "Cat6 Shielded Patch Panel 24-Port",
+      "pricing": {
+        "dpp": null,
+        "si": null
+      },
+      "notes": "Pricing not provided"
+    },
+    {
+      "id": 31,
+      "model": "VDIEG113241U60",
+      "category": "Patch Panel",
+      "sub_category": "Cat6 UTP Patch Panel 24-Port (Evo, Loaded)",
+      "pricing": {
+        "dpp": 42,
+        "si": 45
+      },
+      "specs": {
+        "type": "Actassi 19\" 1U sliding patch panel",
+        "ports": 24,
+        "loaded": true,
+        "standard": "Cat6 UTP"
+      }
+    },
+    {
+      "id": 32,
+      "model": "VDIG112241U",
+      "category": "Patch Panel",
+      "sub_category": "Cat6 UTP Patch Panel 24-Port (Loaded)",
+      "pricing": {
+        "dpp": 32.5,
+        "si": 33.5
+      },
+      "specs": {
+        "ports": 24,
+        "loaded": true
+      }
+    },
+    {
+      "id": 33,
+      "model": "Unnamed Patch Panel",
+      "category": "Patch Panel",
+      "sub_category": "Patch Panel (Reference Missing)",
+      "pricing": {
+        "dpp": 78,
+        "si": 82
+      },
+      "notes": "Model reference missing from price list \u2014 confirm identity"
+    },
+    {
+      "id": 34,
+      "model": "VDI6691F",
+      "category": "Patch Panel Accessory",
+      "sub_category": "Patch Panel Accessory/Cable Manager",
+      "pricing": {
+        "dpp": 16,
+        "si": 17
+      }
+    },
+    {
+      "id": 35,
+      "model": "ACTRJ1UCMPSC",
+      "category": "RJ45 Connector",
+      "sub_category": "Cat6 RJ45 Connector (Compact)",
+      "pricing": {
+        "dpp": 8,
+        "si": 10
+      },
+      "specs": {
+        "type": "Actassi Cat6 UTP RJ45 field connector"
+      }
+    },
+    {
+      "id": 36,
+      "model": "ACTRJ1UCMPM",
+      "category": "RJ45 Connector",
+      "sub_category": "Cat6 RJ45 Connector (Medium)",
+      "pricing": {
+        "dpp": 10,
+        "si": 12
+      }
+    },
+    {
+      "id": 37,
+      "model": "VDIG188141",
+      "category": "RJ45 Module",
+      "sub_category": "RJ45 Module/Coupler",
+      "pricing": {
+        "dpp": 15.5,
+        "si": 16.5
+      }
+    },
+    {
+      "id": 38,
+      "model": "ST9431W",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 1-Port White (Flat)",
+      "pricing": {
+        "dpp": 7.5,
+        "si": 7.75
+      },
+      "specs": {
+        "ports": 1,
+        "color": "White",
+        "style": "Flat",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 39,
+      "model": "ST9433W",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 3-Port White (Flat)",
+      "pricing": {
+        "dpp": 10.5,
+        "si": 10.75
+      },
+      "specs": {
+        "ports": 3,
+        "color": "White",
+        "style": "Flat",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 40,
+      "model": "ST9433B",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 3-Port Black (Flat)",
+      "pricing": {
+        "dpp": 10,
+        "si": 10
+      },
+      "specs": {
+        "ports": 3,
+        "color": "Black",
+        "style": "Flat",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 41,
+      "model": "ST9453W",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 3-Port White (Angled)",
+      "pricing": {
+        "dpp": 11,
+        "si": 11.5
+      },
+      "specs": {
+        "ports": 3,
+        "color": "White",
+        "style": "Angled",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 42,
+      "model": "ST9453B",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 3-Port Black (Angled)",
+      "pricing": {
+        "dpp": 11,
+        "si": 11.5
+      },
+      "specs": {
+        "ports": 3,
+        "color": "Black",
+        "style": "Angled",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 43,
+      "model": "ST943U1W",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 1-Port White (Unica)",
+      "pricing": {
+        "dpp": 13.5,
+        "si": 13.5
+      },
+      "specs": {
+        "ports": 1,
+        "color": "White",
+        "style": "Unica",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 44,
+      "model": "ST943U1B",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 1-Port Black (Unica)",
+      "pricing": {
+        "dpp": 13.5,
+        "si": 13.5
+      },
+      "specs": {
+        "ports": 1,
+        "color": "Black",
+        "style": "Unica",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 45,
+      "model": "ST943U3W",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 3-Port White (Unica)",
+      "pricing": {
+        "dpp": 14.5,
+        "si": 14.5
+      },
+      "specs": {
+        "ports": 3,
+        "color": "White",
+        "style": "Unica",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 46,
+      "model": "ST943U3B",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 3-Port Black (Unica)",
+      "pricing": {
+        "dpp": 15.5,
+        "si": 15.5
+      },
+      "specs": {
+        "ports": 3,
+        "color": "Black",
+        "style": "Unica",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 47,
+      "model": "ST945U1W",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 1-Port White (Unica, 45\u00d745)",
+      "pricing": {
+        "dpp": 14.5,
+        "si": 15
+      },
+      "specs": {
+        "ports": 1,
+        "color": "White",
+        "style": "Unica 45\u00d745",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 48,
+      "model": "ST945U1B",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 1-Port Black (Unica, 45\u00d745)",
+      "pricing": {
+        "dpp": 14.5,
+        "si": 15
+      },
+      "specs": {
+        "ports": 1,
+        "color": "Black",
+        "style": "Unica 45\u00d745",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 49,
+      "model": "ST945U3W",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 3-Port White (Unica, 45\u00d745)",
+      "pricing": {
+        "dpp": 14.5,
+        "si": 15
+      },
+      "specs": {
+        "ports": 3,
+        "color": "White",
+        "style": "Unica 45\u00d745",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 50,
+      "model": "ST945U3B",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 3-Port Black (Unica, 45\u00d745)",
+      "pricing": {
+        "dpp": 12,
+        "si": 12
+      },
+      "specs": {
+        "ports": 3,
+        "color": "Black",
+        "style": "Unica 45\u00d745",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 51,
+      "model": "ST943U1WA",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 1-Port White (Unica, Angled)",
+      "pricing": {
+        "dpp": 13,
+        "si": 13
+      },
+      "specs": {
+        "ports": 1,
+        "color": "White",
+        "style": "Unica Angled",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 52,
+      "model": "ST943U1BA",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 1-Port Black (Unica, Angled)",
+      "pricing": {
+        "dpp": 13,
+        "si": 13
+      },
+      "specs": {
+        "ports": 1,
+        "color": "Black",
+        "style": "Unica Angled",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 53,
+      "model": "ST945U1WA",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 1-Port White (45\u00d745, Angled)",
+      "pricing": {
+        "dpp": 18,
+        "si": 18
+      },
+      "specs": {
+        "ports": 1,
+        "color": "White",
+        "style": "45\u00d745 Angled",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 54,
+      "model": "ST945U1BA",
+      "category": "Face Plate",
+      "sub_category": "Actassi Face Plate 1-Port Black (45\u00d745, Angled)",
+      "pricing": {
+        "dpp": 18,
+        "si": 18
+      },
+      "specs": {
+        "ports": 1,
+        "color": "Black",
+        "style": "45\u00d745 Angled",
+        "keystone_compatible": true,
+        "standard": "86\u00d786mm or 45\u00d745mm depending on style"
+      }
+    },
+    {
+      "id": 55,
+      "model": "NSYKDB6U4F",
+      "category": "Network Cabinet",
+      "sub_category": "Wall Mount Cabinet 6U",
+      "pricing": {
+        "dpp": 95,
+        "si": 95
+      },
+      "specs": {
+        "type": "ClimaSys wall-mount network cabinet",
+        "rack_units": 6,
+        "depth": "400mm",
+        "door": "Glass front",
+        "ip_rating": "IP30",
+        "color": "RAL7035 Grey",
+        "wall_mount": true
+      }
+    },
+    {
+      "id": 56,
+      "model": "NSYKDB9U4f",
+      "category": "Network Cabinet",
+      "sub_category": "Wall Mount Cabinet 9U",
+      "pricing": {
+        "dpp": 110,
+        "si": 115
+      },
+      "specs": {
+        "rack_units": 9,
+        "depth": "400mm"
+      }
+    },
+    {
+      "id": 57,
+      "model": "NSYKDB12U6F",
+      "category": "Network Cabinet",
+      "sub_category": "Wall Mount Cabinet 12U",
+      "pricing": {
+        "dpp": 155,
+        "si": 165
+      },
+      "specs": {
+        "rack_units": 12,
+        "depth": "600mm"
+      }
+    },
+    {
+      "id": 58,
+      "model": "NSYKDB15U6F",
+      "category": "Network Cabinet",
+      "sub_category": "Wall Mount Cabinet 15U",
+      "pricing": {
+        "dpp": 170,
+        "si": 180
+      },
+      "specs": {
+        "rack_units": 15,
+        "depth": "600mm"
+      }
+    },
+    {
+      "id": 59,
+      "model": "NSYOPB21U6F",
+      "category": "Network Cabinet",
+      "sub_category": "Open Frame Rack 21U",
+      "pricing": {
+        "dpp": 245,
+        "si": 255
+      },
+      "specs": {
+        "type": "Open frame 19\" rack",
+        "rack_units": 21,
+        "depth": "600mm"
+      }
+    },
+    {
+      "id": 60,
+      "model": "NSYVDA42U810B",
+      "category": "Network Cabinet",
+      "sub_category": "Floor Standing Server Cabinet 42U",
+      "pricing": {
+        "dpp": 600,
+        "si": 650
+      },
+      "specs": {
+        "type": "Floor-standing server cabinet",
+        "rack_units": 42,
+        "width_mm": 800,
+        "depth_mm": 1000,
+        "door": "Front glass, rear perforated",
+        "ip_rating": "IP30",
+        "load_kg": 800,
+        "color": "Black"
+      }
+    },
+    {
+      "id": 61,
+      "model": "NSYOPB21UTPN",
+      "category": "Cabinet Accessory",
+      "sub_category": "Rack Tray/Shelf for 21U",
+      "pricing": {
+        "dpp": 40,
+        "si": 40
+      }
+    },
+    {
+      "id": 62,
+      "model": "NSYECVT300",
+      "category": "Cabinet Accessory",
+      "sub_category": "Cabinet Ventilation Tray",
+      "pricing": {
+        "dpp": 30,
+        "si": 30
+      },
+      "specs": {
+        "function": "Roof ventilation panel with cable entry"
+      }
+    },
+    {
+      "id": 63,
+      "model": "NSY2FAN230",
+      "category": "Cabinet Accessory",
+      "sub_category": "Cabinet Cooling Fan 230V",
+      "pricing": {
+        "dpp": 30,
+        "si": 30
+      },
+      "specs": {
+        "function": "2-fan cooling unit for network cabinet",
+        "voltage": "230VAC"
+      }
+    },
+    {
+      "id": 64,
+      "model": "VDIG161931",
+      "category": "Fiber Panel",
+      "sub_category": "Fiber Optic Patch Panel 19\" 1U",
+      "pricing": {
+        "dpp": 72,
+        "si": 75
+      },
+      "specs": {
+        "type": "19\" fiber distribution panel",
+        "rack_units": "1U"
+      }
+    },
+    {
+      "id": 65,
+      "model": "VDIG188011",
+      "category": "Fiber Panel",
+      "sub_category": "Fiber Optic Splice/Patch Panel",
+      "pricing": {
+        "dpp": 25,
+        "si": 25
+      }
+    },
+    {
+      "id": 66,
+      "model": "ACTFM1UBLC48U",
+      "category": "Fiber Module",
+      "sub_category": "Fiber Module LC 48-port",
+      "pricing": {
+        "dpp": 25,
+        "si": 27
+      },
+      "specs": {
+        "type": "LC fiber module for patch panel",
+        "ports": 48,
+        "connector": "LC Duplex"
+      }
+    },
+    {
+      "id": 67,
+      "model": "ACTFM1UBSC24U",
+      "category": "Fiber Module",
+      "sub_category": "Fiber Module SC 24-port",
+      "pricing": {
+        "dpp": 25,
+        "si": 27
+      },
+      "specs": {
+        "type": "SC fiber module",
+        "ports": 24,
+        "connector": "SC Simplex"
+      }
+    },
+    {
+      "id": 68,
+      "model": "ACTFMSPTKIT",
+      "category": "Fiber Tool",
+      "sub_category": "Fiber Splice Tool Kit",
+      "pricing": {
+        "dpp": 5,
+        "si": 6
+      }
+    },
+    {
+      "id": 69,
+      "model": "ACTUDSLLA06SM9",
+      "category": "Fiber Cable",
+      "sub_category": "Fiber Distribution Cable 6-Core SM",
+      "pricing": {
+        "dpp": 0.7,
+        "si": 0.75
+      },
+      "specs": {
+        "type": "Single-mode OS2 distribution cable",
+        "cores": 6,
+        "fiber_type": "9/125\u00b5m OS2",
+        "price_per": "per meter"
+      }
+    },
+    {
+      "id": 70,
+      "model": "ACTUDSLLA12SM9",
+      "category": "Fiber Cable",
+      "sub_category": "Fiber Distribution Cable 12-Core SM",
+      "pricing": {
+        "dpp": 0.8,
+        "si": 0.85
+      },
+      "specs": {
+        "cores": 12,
+        "fiber_type": "9/125\u00b5m OS2",
+        "price_per": "per meter"
+      }
+    },
+    {
+      "id": 71,
+      "model": "VDICD52306T",
+      "category": "Fiber Cable",
+      "sub_category": "Fiber Cable 6-Core",
+      "pricing": {
+        "dpp": 1.3,
+        "si": 1.35
+      },
+      "specs": {
+        "cores": 6
+      }
+    },
+    {
+      "id": 72,
+      "model": "VDICD52312L",
+      "category": "Fiber Cable",
+      "sub_category": "Fiber Cable 12-Core",
+      "pricing": {
+        "dpp": 1.75,
+        "si": 1.8
+      },
+      "specs": {
+        "cores": 12
+      }
+    },
+    {
+      "id": 73,
+      "model": "IMT23222",
+      "category": "Conduit",
+      "sub_category": "PVC Conduit 20mm",
+      "pricing": {
+        "dpp": 23,
+        "si": 25
+      },
+      "specs": {
+        "type": "PVC conduit for cable installation"
+      }
+    },
+    {
+      "id": 74,
+      "model": "IMT23106",
+      "category": "Conduit",
+      "sub_category": "PVC Conduit 25mm",
+      "pricing": {
+        "dpp": 23,
+        "si": 25
+      }
+    },
+    {
+      "id": 75,
+      "model": "IMT23114",
+      "category": "Conduit",
+      "sub_category": "PVC Conduit 32mm",
+      "pricing": {
+        "dpp": 23,
+        "si": 25
+      }
+    },
+    {
+      "id": 76,
+      "model": "ACTFP2CL1M35M10",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord LC-LC OM3 Duplex 1m",
+      "pricing": {
+        "dpp": 7.5,
+        "si": 7.75
+      },
+      "specs": {
+        "fiber_type": "OM3 Multi-mode"
+      }
+    },
+    {
+      "id": 77,
+      "model": "ACTFP2CL1M35M30",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord LC-LC OM3 Duplex 3m",
+      "pricing": {
+        "dpp": 8.75,
+        "si": 8.75
+      },
+      "specs": {
+        "fiber_type": "OM3 Multi-mode"
+      }
+    },
+    {
+      "id": 78,
+      "model": "ACTFP2CL1S19S10",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord LC-LC OS2 Duplex 1m",
+      "pricing": {
+        "dpp": 7.75,
+        "si": 7.75
+      },
+      "specs": {
+        "fiber_type": "OS2 Single-mode"
+      }
+    },
+    {
+      "id": 79,
+      "model": "ACTFP2CL1S19S30",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord LC-LC OS2 Duplex 3m",
+      "pricing": {
+        "dpp": 8,
+        "si": 8
+      },
+      "specs": {
+        "fiber_type": "OS2 Single-mode"
+      }
+    },
+    {
+      "id": 80,
+      "model": "ACTFP2L1S19S30",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord LC-LC OS2 Duplex 3m (Standard)",
+      "pricing": {
+        "dpp": 11,
+        "si": 11
+      },
+      "specs": {
+        "fiber_type": "OS2 Single-mode"
+      }
+    },
+    {
+      "id": 81,
+      "model": "ACTFP2CL1M35M50",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord LC-LC OM3 Duplex 5m",
+      "pricing": {
+        "dpp": 10.5,
+        "si": 10.5
+      },
+      "specs": {
+        "fiber_type": "OM3 Multi-mode"
+      }
+    },
+    {
+      "id": 82,
+      "model": "ACTFP2C1M35M30",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord SC-LC OM3 Duplex 3m",
+      "pricing": {
+        "dpp": 10,
+        "si": 10
+      },
+      "specs": {
+        "fiber_type": "OM3 Multi-mode"
+      }
+    },
+    {
+      "id": 83,
+      "model": "ACTFP2C1S19S30",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord SC-LC OS2 Duplex 3m",
+      "pricing": {
+        "dpp": 8.75,
+        "si": 8.75
+      },
+      "specs": {
+        "fiber_type": "OS2 Single-mode"
+      }
+    },
+    {
+      "id": 84,
+      "model": "ACTFP2C1M35M10",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord SC-LC OM3 Duplex 1m",
+      "pricing": {
+        "dpp": 6.5,
+        "si": 6.5
+      },
+      "specs": {
+        "fiber_type": "OM3 Multi-mode"
+      }
+    },
+    {
+      "id": 85,
+      "model": "ACTFP2C1S19S10",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord SC-LC OS2 Duplex 1m",
+      "pricing": {
+        "dpp": 6.75,
+        "si": 6.75
+      },
+      "specs": {
+        "fiber_type": "OS2 Single-mode"
+      }
+    },
+    {
+      "id": 86,
+      "model": "ACTFP2L1M35M30",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord LC-LC OM3 3m (Loose)",
+      "pricing": {
+        "dpp": 8.75,
+        "si": 8.75
+      },
+      "specs": {
+        "fiber_type": "OM3 Multi-mode"
+      }
+    },
+    {
+      "id": 87,
+      "model": "ACTFP2L1M35M10",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord LC-LC OM3 1m (Loose)",
+      "pricing": {
+        "dpp": 9.75,
+        "si": 9.75
+      },
+      "specs": {
+        "fiber_type": "OM3 Multi-mode"
+      }
+    },
+    {
+      "id": 88,
+      "model": "ACTFP2L1S19S10",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord LC-LC OS2 1m (Loose)",
+      "pricing": {
+        "dpp": 7.75,
+        "si": 7.75
+      },
+      "specs": {
+        "fiber_type": "OS2 Single-mode"
+      }
+    },
+    {
+      "id": 89,
+      "model": "ACTFP2CL1W19S30",
+      "category": "Fiber Patch Cord",
+      "sub_category": "Fiber Patch Cord LC-LC OS2 Outdoor 3m",
+      "pricing": {
+        "dpp": 7.75,
+        "si": 7.75
+      },
+      "specs": {
+        "fiber_type": "OS2 Single-mode"
+      }
+    },
+    {
+      "id": 90,
+      "model": "ACTFA2LSMZP",
+      "category": "Fiber Adapter",
+      "sub_category": "Fiber Optic LC SM Duplex Adapter",
+      "pricing": {
+        "dpp": 2.75,
+        "si": 2.75
+      }
+    },
+    {
+      "id": 91,
+      "model": "ACTFA2CSMZP",
+      "category": "Fiber Adapter",
+      "sub_category": "Fiber Optic SC SM Duplex Adapter",
+      "pricing": {
+        "dpp": 2.5,
+        "si": 2.5
+      }
+    },
+    {
+      "id": 92,
+      "model": "ACTFA2CMMZP",
+      "category": "Fiber Adapter",
+      "sub_category": "Fiber Optic SC MM Duplex Adapter",
+      "pricing": {
+        "dpp": 2.5,
+        "si": 2.75
+      }
+    },
+    {
+      "id": 93,
+      "model": "ACTFA2LMMZP",
+      "category": "Fiber Adapter",
+      "sub_category": "Fiber Optic LC MM Duplex Adapter",
+      "pricing": {
+        "dpp": 2.5,
+        "si": 2.75
+      }
+    },
+    {
+      "id": 94,
+      "model": "ACTFT1L1M35M10",
+      "category": "Fiber Pigtail",
+      "sub_category": "Fiber Optic LC OM3 Pigtail 1m",
+      "pricing": {
+        "dpp": 2.25,
+        "si": 2.25
+      }
+    },
+    {
+      "id": 95,
+      "model": "ACTFT1C1M35M10",
+      "category": "Fiber Pigtail",
+      "sub_category": "Fiber Optic SC OM3 Pigtail 1m",
+      "pricing": {
+        "dpp": 2.5,
+        "si": 2.5
+      }
+    },
+    {
+      "id": 96,
+      "model": "ACTFT1C1S19S10",
+      "category": "Fiber Pigtail",
+      "sub_category": "Fiber Optic SC OS2 Pigtail 1m",
+      "pricing": {
+        "dpp": 2.5,
+        "si": 2.5
+      }
+    },
+    {
+      "id": 97,
+      "model": "ACTFT1L1S19S10",
+      "category": "Fiber Pigtail",
+      "sub_category": "Fiber Optic LC OS2 Pigtail 1m",
+      "pricing": {
+        "dpp": 2.5,
+        "si": 2.5
+      }
+    }
+  ]
+}

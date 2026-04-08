@@ -1,0 +1,3055 @@
+{
+  "database_info": {
+    "name": "Hikvision Monitors Engineering Database",
+    "version": "2.0",
+    "manufacturer": "Hikvision",
+    "category": "Monitors & Accessories",
+    "currency": "USD",
+    "last_updated": "2026-04-05",
+    "data_source": "Official Hikvision Datasheets (assets.hikvision.com) & Product Pages (hikvision.com)"
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "DS-D5019QE-B",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Value",
+      "status": "EOL",
+      "pricing": {
+        "dpp": 36,
+        "si": 36
+      },
+      "features": [
+        "LED backlit technology",
+        "HD 1366x768",
+        "3D comb filter",
+        "3D De-interlace",
+        "3D noise reduction",
+        "VESA stand bracket"
+      ],
+      "display": {
+        "screen_size_inch": 18.5,
+        "active_display_area_mm": {
+          "h": null,
+          "v": null
+        },
+        "resolution": "1366x768",
+        "resolution_class": "HD",
+        "panel_type": "TFT LCD",
+        "backlight": "LED",
+        "pixel_pitch_mm": {
+          "h": 0.3,
+          "v": 0.3
+        },
+        "brightness_cdm2": 200,
+        "contrast_ratio": "600:1",
+        "response_time_ms": 5,
+        "refresh_rate_hz": {
+          "max": 60,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 90,
+          "v": 65
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": null,
+        "haze": null,
+        "aspect_ratio": "16:9",
+        "reliability": "7x24"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI x1, VGA x1",
+        "hdmi": {
+          "qty": 1,
+          "version": "1.3",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 1
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": null,
+        "audio_out": {
+          "qty": 0
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": null,
+        "usb": {
+          "qty": 0,
+          "version": null
+        },
+        "control": null,
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": false,
+          "impedance_ohm": null,
+          "power_w": null,
+          "qty": 0
+        }
+      },
+      "power": {
+        "supply": "AC 100-240V, 50/60Hz",
+        "supply_detail": null,
+        "consumption_max_w": 20,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 55
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 131
+        },
+        "working_humidity_pct": {
+          "min": 10,
+          "max": 85
+        },
+        "storage_humidity_pct": {
+          "min": 5,
+          "max": 95
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 446,
+          "h": 275,
+          "d": 45
+        },
+        "dimensions_with_base_mm": {
+          "w": 446,
+          "h": 335,
+          "d": 148
+        },
+        "package_dimensions_mm": {
+          "w": 492,
+          "h": 337,
+          "d": 100
+        },
+        "net_weight_kg": 2.8,
+        "gross_weight_kg": 3.5,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": null,
+          "left": null,
+          "right": null,
+          "bottom": null
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "75x75",
+        "vesa_screw": "M4",
+        "vesa_screw_length_mm": null,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-C",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base Bracket x1",
+        "Power Cord x1",
+        "VGA Cable x1",
+        "User Manual x1"
+      ],
+      "optional_accessory": null,
+      "available_models": [
+        "DS-D5019QE-B(European standard)",
+        "DS-D5019QE-B(American Standard)",
+        "DS-D5019QE-B(British Standard)",
+        "DS-D5019QE-B"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 2,
+      "model": "DS-D5019S0-1P0",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Value",
+      "status": "Active",
+      "pricing": {
+        "dpp": 40,
+        "si": 42
+      },
+      "features": [
+        "LED backlit technology",
+        "HD 1366x768",
+        "3D comb filter",
+        "3D De-interlace",
+        "3D noise reduction",
+        "VESA stand bracket"
+      ],
+      "display": {
+        "screen_size_inch": 18.5,
+        "active_display_area_mm": {
+          "h": null,
+          "v": null
+        },
+        "resolution": "1366x768",
+        "resolution_class": "HD",
+        "panel_type": "TFT LCD",
+        "backlight": "LED",
+        "pixel_pitch_mm": {
+          "h": 0.3,
+          "v": 0.3
+        },
+        "brightness_cdm2": 200,
+        "contrast_ratio": "600:1",
+        "response_time_ms": 5,
+        "refresh_rate_hz": {
+          "max": 60,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 90,
+          "v": 65
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": null,
+        "haze": null,
+        "aspect_ratio": "16:9",
+        "reliability": "7x24"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI x1, VGA x1",
+        "hdmi": {
+          "qty": 1,
+          "version": "1.3",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 1
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": null,
+        "audio_out": {
+          "qty": 0
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": null,
+        "usb": {
+          "qty": 0,
+          "version": null
+        },
+        "control": null,
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": false,
+          "impedance_ohm": null,
+          "power_w": null,
+          "qty": 0
+        }
+      },
+      "power": {
+        "supply": "AC 100-240V, 50/60Hz",
+        "supply_detail": null,
+        "consumption_max_w": 20,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 55
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 131
+        },
+        "working_humidity_pct": {
+          "min": 10,
+          "max": 85
+        },
+        "storage_humidity_pct": {
+          "min": 5,
+          "max": 95
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 446,
+          "h": 275,
+          "d": 45
+        },
+        "dimensions_with_base_mm": {
+          "w": 446,
+          "h": 335,
+          "d": 148
+        },
+        "package_dimensions_mm": {
+          "w": 492,
+          "h": 337,
+          "d": 100
+        },
+        "net_weight_kg": 2.8,
+        "gross_weight_kg": 3.5,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": null,
+          "left": null,
+          "right": null,
+          "bottom": null
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "75x75",
+        "vesa_screw": "M4",
+        "vesa_screw_length_mm": null,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-C",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base Bracket x1",
+        "Power Cord x1",
+        "VGA Cable x1",
+        "User Manual x1"
+      ],
+      "optional_accessory": null,
+      "available_models": [
+        "DS-D5019S0-1P0"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 3,
+      "model": "DS-D5022F2-IV2",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 46,
+        "si": 46
+      },
+      "features": [
+        "100Hz refresh rate",
+        "VA technology",
+        "Ultra-thin body",
+        "Ultra-thin border 3 sides",
+        "8 bit LVDS FHD",
+        "3D noise reduction",
+        "Low blue light eye care",
+        "HDMI and VGA",
+        "VESA wall mount"
+      ],
+      "display": {
+        "screen_size_inch": 21.5,
+        "active_display_area_mm": {
+          "h": 478.656,
+          "v": 260.28
+        },
+        "resolution": "1920x1080",
+        "resolution_class": "FHD",
+        "panel_type": "VA",
+        "backlight": "E-LED",
+        "pixel_pitch_mm": {
+          "h": 0.248,
+          "v": 0.248
+        },
+        "brightness_cdm2": 250,
+        "contrast_ratio": "4000:1",
+        "response_time_ms": 8,
+        "refresh_rate_hz": {
+          "max": 100,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": 72,
+        "haze": "25%, 3H",
+        "aspect_ratio": "16:9",
+        "reliability": "7x16"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI 1.4 x1, VGA x1",
+        "hdmi": {
+          "qty": 1,
+          "version": "1.4",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 1
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "Audio Out x1",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "None",
+        "usb": {
+          "qty": 0,
+          "version": null
+        },
+        "control": "None",
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": false,
+          "impedance_ohm": null,
+          "power_w": null,
+          "qty": 0
+        }
+      },
+      "power": {
+        "supply": "DC 12V, 2.0A",
+        "supply_detail": "External adapter",
+        "consumption_max_w": 24,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 90
+        },
+        "storage_humidity_pct": {
+          "min": 10,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 493.26,
+          "h": 290.13,
+          "d": 42.35
+        },
+        "dimensions_with_base_mm": {
+          "w": 493.26,
+          "h": 367.02,
+          "d": 162.73
+        },
+        "package_dimensions_mm": {
+          "w": 553,
+          "h": 354,
+          "d": 111
+        },
+        "net_weight_kg": 2.0,
+        "net_weight_tolerance": 0.5,
+        "gross_weight_kg": 3.2,
+        "gross_weight_tolerance": 0.5,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": 2.38,
+          "left": 2.38,
+          "right": 2.38,
+          "bottom": 21.55
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "75x75",
+        "vesa_screw": "M4",
+        "vesa_screw_length_mm": 6,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-C",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base component x1",
+        "Power adapter (12V, 2.0A) x1",
+        "HDMI cable (1.5m) x1",
+        "User manual x1",
+        "Multilingual manual x1"
+      ],
+      "optional_accessory": "DS-DM1940W",
+      "available_models": [
+        "DS-D5022F2-IV2"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 4,
+      "model": "DS-D5022F2-2V2",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 49,
+        "si": 49
+      },
+      "features": [
+        "100Hz refresh rate",
+        "VA technology",
+        "Ultra-thin body",
+        "Ultra-thin border 3 sides",
+        "8 bit LVDS FHD",
+        "3D noise reduction",
+        "Low blue light eye care",
+        "HDMI and VGA",
+        "VESA wall mount"
+      ],
+      "display": {
+        "screen_size_inch": 21.45,
+        "active_display_area_mm": {
+          "h": 478.656,
+          "v": 260.28
+        },
+        "resolution": "1920x1080",
+        "resolution_class": "FHD",
+        "panel_type": "VA",
+        "backlight": "E-LED",
+        "pixel_pitch_mm": {
+          "h": 0.241,
+          "v": 0.241
+        },
+        "brightness_cdm2": 250,
+        "contrast_ratio": "4000:1",
+        "response_time_ms": 8,
+        "refresh_rate_hz": {
+          "max": 100,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": 72,
+        "haze": "25%, 3H",
+        "aspect_ratio": "16:9",
+        "reliability": "7x16"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI 1.4 x1, VGA x1",
+        "hdmi": {
+          "qty": 1,
+          "version": "1.4",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 1
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "Audio Out x1",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "None",
+        "usb": {
+          "qty": 0,
+          "version": null
+        },
+        "control": "None",
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": false,
+          "impedance_ohm": null,
+          "power_w": null,
+          "qty": 0
+        }
+      },
+      "power": {
+        "supply": "DC 12V, 2.0A",
+        "supply_detail": "External adapter",
+        "consumption_max_w": 24,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 90
+        },
+        "storage_humidity_pct": {
+          "min": 10,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 493.26,
+          "h": 290.13,
+          "d": 42.35
+        },
+        "dimensions_with_base_mm": {
+          "w": 493.26,
+          "h": 367.02,
+          "d": 162.73
+        },
+        "package_dimensions_mm": {
+          "w": 553,
+          "h": 354,
+          "d": 111
+        },
+        "net_weight_kg": 2.0,
+        "net_weight_tolerance": 0.5,
+        "gross_weight_kg": 3.2,
+        "gross_weight_tolerance": 0.5,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": 2.38,
+          "left": 2.38,
+          "right": 2.38,
+          "bottom": 21.55
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "75x75",
+        "vesa_screw": "M4",
+        "vesa_screw_length_mm": 6,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-C",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base component x1",
+        "Power adapter (12V, 2.0A) x1",
+        "HDMI cable (1.5m) x1",
+        "User manual x1",
+        "Multilingual manual x1"
+      ],
+      "optional_accessory": "DS-DM1940W",
+      "available_models": [
+        "DS-D5022F2-2V2(US)",
+        "DS-D5022F2-2V2(EU)",
+        "DS-D5022F2-2V2(UK)"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 5,
+      "model": "DS-D5024F2-AV2",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 57,
+        "si": 57
+      },
+      "features": [
+        "100Hz refresh rate",
+        "VA technology 178\u00b0 ultra-wide view",
+        "Ultra-thin body",
+        "Ultra-thin border 3 sides",
+        "8 bit LVDS FHD",
+        "3D noise reduction",
+        "Low blue light eye care",
+        "HDMI and VGA",
+        "VESA wall mount"
+      ],
+      "display": {
+        "screen_size_inch": 23.8,
+        "active_display_area_mm": {
+          "h": 527.04,
+          "v": 296.46
+        },
+        "resolution": "1920x1080",
+        "resolution_class": "FHD",
+        "panel_type": "VA",
+        "backlight": "E-LED",
+        "pixel_pitch_mm": {
+          "h": 0.275,
+          "v": 0.275
+        },
+        "brightness_cdm2": 250,
+        "contrast_ratio": "4000:1",
+        "response_time_ms": 8,
+        "refresh_rate_hz": {
+          "max": 100,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": 72,
+        "haze": "25%, 3H",
+        "aspect_ratio": "16:9",
+        "reliability": "7x16"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI 1.4 x1, VGA x1",
+        "hdmi": {
+          "qty": 1,
+          "version": "1.4",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 1
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "Audio Out x1",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "None",
+        "usb": {
+          "qty": 0,
+          "version": null
+        },
+        "control": "None",
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": false,
+          "impedance_ohm": null,
+          "power_w": null,
+          "qty": 0
+        }
+      },
+      "power": {
+        "supply": "DC 12V, 2.5A",
+        "supply_detail": "External adapter",
+        "consumption_max_w": 28,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 90
+        },
+        "storage_humidity_pct": {
+          "min": 10,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 541.18,
+          "h": 318.73,
+          "d": 42.35
+        },
+        "dimensions_with_base_mm": {
+          "w": 541.18,
+          "h": 400.84,
+          "d": 175.34
+        },
+        "package_dimensions_mm": {
+          "w": 625,
+          "h": 388,
+          "d": 115
+        },
+        "net_weight_kg": 2.5,
+        "net_weight_tolerance": 0.5,
+        "gross_weight_kg": 3.8,
+        "gross_weight_tolerance": 0.5,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": 2.38,
+          "left": 2.38,
+          "right": 2.38,
+          "bottom": 21.55
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "75x75",
+        "vesa_screw": "M4",
+        "vesa_screw_length_mm": 6,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-C",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base component x1",
+        "Power adapter (12V, 2.5A) x1",
+        "HDMI cable (1.5m) x1",
+        "User manual x1",
+        "Multilingual manual x1"
+      ],
+      "optional_accessory": "DS-DM1940W",
+      "available_models": [
+        "DS-D5024F2-AV2(US)",
+        "DS-D5024F2-AV2(EU)",
+        "DS-D5024F2-AV2(UK)"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 6,
+      "model": "DS-D5024F2-BV2",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 59,
+        "si": 59
+      },
+      "features": [
+        "100Hz refresh rate",
+        "VA technology 178\u00b0 ultra-wide view",
+        "Ultra-thin body",
+        "Ultra-thin border 3 sides",
+        "8 bit LVDS FHD",
+        "3D noise reduction",
+        "Low blue light eye care",
+        "HDMI and VGA",
+        "VESA wall mount",
+        "Built-in speaker"
+      ],
+      "display": {
+        "screen_size_inch": 23.8,
+        "active_display_area_mm": {
+          "h": 527.04,
+          "v": 296.46
+        },
+        "resolution": "1920x1080",
+        "resolution_class": "FHD",
+        "panel_type": "VA",
+        "backlight": "E-LED",
+        "pixel_pitch_mm": {
+          "h": 0.275,
+          "v": 0.275
+        },
+        "brightness_cdm2": 250,
+        "contrast_ratio": "4000:1",
+        "response_time_ms": 8,
+        "refresh_rate_hz": {
+          "max": 100,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": 72,
+        "haze": "25%, 3H",
+        "aspect_ratio": "16:9",
+        "reliability": "7x16"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI 1.4 x1, VGA x1",
+        "hdmi": {
+          "qty": 1,
+          "version": "1.4",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 1
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "Audio Out x1, Speaker OUT x2",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "None",
+        "usb": {
+          "qty": 0,
+          "version": null
+        },
+        "control": "None",
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": true,
+          "impedance_ohm": 8,
+          "power_w": 3,
+          "qty": 2
+        }
+      },
+      "power": {
+        "supply": "DC 12V, 2.5A",
+        "supply_detail": "External adapter",
+        "consumption_max_w": 30,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 90
+        },
+        "storage_humidity_pct": {
+          "min": 10,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 541.18,
+          "h": 318.73,
+          "d": 42.35
+        },
+        "dimensions_with_base_mm": {
+          "w": 541.18,
+          "h": 400.84,
+          "d": 175.34
+        },
+        "package_dimensions_mm": {
+          "w": 625,
+          "h": 388,
+          "d": 115
+        },
+        "net_weight_kg": 2.6,
+        "net_weight_tolerance": 0.5,
+        "gross_weight_kg": 3.9,
+        "gross_weight_tolerance": 0.5,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": 2.38,
+          "left": 2.38,
+          "right": 2.38,
+          "bottom": 21.55
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "75x75",
+        "vesa_screw": "M4",
+        "vesa_screw_length_mm": 6,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-C",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base component x1",
+        "Power adapter (12V, 2.5A) x1",
+        "HDMI cable (1.5m) x1",
+        "User manual x1",
+        "Multilingual manual x1"
+      ],
+      "optional_accessory": "DS-DM1940W",
+      "available_models": [
+        "DS-D5024F2-BV2(US)",
+        "DS-D5024F2-BV2(EU)",
+        "DS-D5024F2-BV2(UK)"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 7,
+      "model": "DS-D5024FN",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 55,
+        "si": 55
+      },
+      "features": [
+        "FHD 1920x1080",
+        "Wide view angle 178x178",
+        "Built-in speaker",
+        "24/7 operation",
+        "3D noise reduction"
+      ],
+      "display": {
+        "screen_size_inch": 23.8,
+        "active_display_area_mm": {
+          "h": 527.04,
+          "v": 296.46
+        },
+        "resolution": "1920x1080",
+        "resolution_class": "FHD",
+        "panel_type": "VA",
+        "backlight": "LED",
+        "pixel_pitch_mm": {
+          "h": 0.275,
+          "v": 0.275
+        },
+        "brightness_cdm2": 250,
+        "contrast_ratio": "3000:1",
+        "response_time_ms": 5,
+        "refresh_rate_hz": {
+          "max": 60,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": 72,
+        "haze": null,
+        "aspect_ratio": "16:9",
+        "reliability": "7x24"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI 1.3 x1, VGA x1",
+        "hdmi": {
+          "qty": 1,
+          "version": "1.3",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 1
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "Audio Out x1, Speaker x2",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "None",
+        "usb": {
+          "qty": 0,
+          "version": null
+        },
+        "control": "None",
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": true,
+          "impedance_ohm": 8,
+          "power_w": 3,
+          "qty": 2
+        }
+      },
+      "power": {
+        "supply": "AC 100-240V, 50/60Hz",
+        "supply_detail": "Built-in PSU",
+        "consumption_max_w": 30,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 55
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 131
+        },
+        "working_humidity_pct": {
+          "min": 10,
+          "max": 85
+        },
+        "storage_humidity_pct": {
+          "min": 5,
+          "max": 95
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 557,
+          "h": 340,
+          "d": 49
+        },
+        "dimensions_with_base_mm": {
+          "w": 557,
+          "h": 410,
+          "d": 200
+        },
+        "package_dimensions_mm": {
+          "w": null,
+          "h": null,
+          "d": null
+        },
+        "net_weight_kg": 3.6,
+        "gross_weight_kg": 5.0,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": null,
+          "left": null,
+          "right": null,
+          "bottom": null
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "100x100",
+        "vesa_screw": "M4",
+        "vesa_screw_length_mm": 8,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-D",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base Bracket x1",
+        "Power Cord x1",
+        "HDMI cable x1",
+        "User Manual x1"
+      ],
+      "optional_accessory": "DS-DM4225W",
+      "available_models": [
+        "DS-D5024FN"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 8,
+      "model": "DS-D5027FN",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 74,
+        "si": 74
+      },
+      "features": [
+        "FHD 1920x1080",
+        "Wide view angle 178x178",
+        "Built-in speaker",
+        "24/7 operation",
+        "User-friendly OSD menu"
+      ],
+      "display": {
+        "screen_size_inch": 27,
+        "active_display_area_mm": {
+          "h": 597.888,
+          "v": 336.312
+        },
+        "resolution": "1920x1080",
+        "resolution_class": "FHD",
+        "panel_type": "VA",
+        "backlight": "LED",
+        "pixel_pitch_mm": {
+          "h": 0.311,
+          "v": 0.311
+        },
+        "brightness_cdm2": 300,
+        "contrast_ratio": "3000:1",
+        "response_time_ms": 5,
+        "refresh_rate_hz": {
+          "max": 60,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": 72,
+        "haze": null,
+        "aspect_ratio": "16:9",
+        "reliability": "7x24"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI 1.3 x1",
+        "hdmi": {
+          "qty": 1,
+          "version": "1.3",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 0
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "Audio Out x1, Speaker x2",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "None",
+        "usb": {
+          "qty": 0,
+          "version": null
+        },
+        "control": "None",
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": true,
+          "impedance_ohm": 8,
+          "power_w": 3,
+          "qty": 2
+        }
+      },
+      "power": {
+        "supply": "AC 100-240V, 50/60Hz",
+        "supply_detail": "Built-in PSU",
+        "consumption_max_w": 40,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 55
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 131
+        },
+        "working_humidity_pct": {
+          "min": 10,
+          "max": 85
+        },
+        "storage_humidity_pct": {
+          "min": 5,
+          "max": 95
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 625,
+          "h": 380,
+          "d": 50
+        },
+        "dimensions_with_base_mm": {
+          "w": 625,
+          "h": 450,
+          "d": 210
+        },
+        "package_dimensions_mm": {
+          "w": null,
+          "h": null,
+          "d": null
+        },
+        "net_weight_kg": 4.5,
+        "gross_weight_kg": 6.0,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": null,
+          "left": null,
+          "right": null,
+          "bottom": null
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "100x100",
+        "vesa_screw": "M4",
+        "vesa_screw_length_mm": 8,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-D",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base Bracket x1",
+        "Power Cord x1",
+        "HDMI cable x1",
+        "User Manual x1"
+      ],
+      "optional_accessory": "DS-DM4225W",
+      "available_models": [
+        "DS-D5027FN"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 9,
+      "model": "DS-D5027F2-1P2",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 75,
+        "si": 75
+      },
+      "features": [
+        "100Hz refresh rate",
+        "IPS technology 178\u00b0 ultra-wide view",
+        "Ultra-thin body",
+        "Ultra-thin border 3 sides",
+        "8 bit CVDS FHD",
+        "3D noise reduction",
+        "Low blue light eye care",
+        "HDMI and VGA",
+        "VESA wall mount"
+      ],
+      "display": {
+        "screen_size_inch": 27,
+        "active_display_area_mm": {
+          "h": 597.888,
+          "v": 336.312
+        },
+        "resolution": "1920x1080",
+        "resolution_class": "FHD",
+        "panel_type": "IPS",
+        "backlight": "E-LED",
+        "pixel_pitch_mm": {
+          "h": 0.311,
+          "v": 0.311
+        },
+        "brightness_cdm2": 300,
+        "contrast_ratio": "1000:1",
+        "response_time_ms": 5,
+        "refresh_rate_hz": {
+          "max": 100,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": 72,
+        "haze": null,
+        "aspect_ratio": "16:9",
+        "reliability": "7x12"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI 1.4 x1, VGA x1",
+        "hdmi": {
+          "qty": 1,
+          "version": "1.4",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 1
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "Audio Out x1",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "None",
+        "usb": {
+          "qty": 0,
+          "version": null
+        },
+        "control": "None",
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": false,
+          "impedance_ohm": null,
+          "power_w": null,
+          "qty": 0
+        }
+      },
+      "power": {
+        "supply": "DC 12V, 2.5A",
+        "supply_detail": "External adapter",
+        "consumption_max_w": 30,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 90
+        },
+        "storage_humidity_pct": {
+          "min": 10,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 615,
+          "h": 362,
+          "d": 42
+        },
+        "dimensions_with_base_mm": {
+          "w": 615,
+          "h": 439,
+          "d": 175
+        },
+        "package_dimensions_mm": {
+          "w": null,
+          "h": null,
+          "d": null
+        },
+        "net_weight_kg": 3.0,
+        "gross_weight_kg": 4.5,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": 2.5,
+          "left": 2.5,
+          "right": 2.5,
+          "bottom": 22
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "100x100",
+        "vesa_screw": "M4",
+        "vesa_screw_length_mm": 8,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-D",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base component x1",
+        "Power adapter (12V, 2.5A) x1",
+        "HDMI cable (1.5m) x1",
+        "User manual x1",
+        "Multilingual manual x1"
+      ],
+      "optional_accessory": "DS-DM1940W",
+      "available_models": [
+        "DS-D5027F2-1P2"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 10,
+      "model": "DS-D5027F2-2P2",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 79,
+        "si": 79
+      },
+      "features": [
+        "100Hz refresh rate",
+        "IPS technology 178\u00b0 ultra-wide view",
+        "Ultra-thin body",
+        "Ultra-thin border 3 sides",
+        "V-bracket",
+        "3D noise reduction",
+        "Low blue light eye care"
+      ],
+      "display": {
+        "screen_size_inch": 27,
+        "active_display_area_mm": {
+          "h": 597.888,
+          "v": 336.312
+        },
+        "resolution": "1920x1080",
+        "resolution_class": "FHD",
+        "panel_type": "IPS",
+        "backlight": "E-LED",
+        "pixel_pitch_mm": {
+          "h": 0.311,
+          "v": 0.311
+        },
+        "brightness_cdm2": 300,
+        "contrast_ratio": "1000:1",
+        "response_time_ms": 5,
+        "refresh_rate_hz": {
+          "max": 100,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": 72,
+        "haze": null,
+        "aspect_ratio": "16:9",
+        "reliability": "7x12"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI 1.4 x1, VGA x1",
+        "hdmi": {
+          "qty": 1,
+          "version": "1.4",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 1
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "Audio Out x1",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "None",
+        "usb": {
+          "qty": 0,
+          "version": null
+        },
+        "control": "None",
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": false,
+          "impedance_ohm": null,
+          "power_w": null,
+          "qty": 0
+        }
+      },
+      "power": {
+        "supply": "DC 12V, 2.5A",
+        "supply_detail": "External adapter",
+        "consumption_max_w": 30,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 90
+        },
+        "storage_humidity_pct": {
+          "min": 10,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 615,
+          "h": 362,
+          "d": 42
+        },
+        "dimensions_with_base_mm": {
+          "w": 615,
+          "h": 445,
+          "d": 195
+        },
+        "package_dimensions_mm": {
+          "w": null,
+          "h": null,
+          "d": null
+        },
+        "net_weight_kg": 3.2,
+        "gross_weight_kg": 4.7,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": 2.5,
+          "left": 2.5,
+          "right": 2.5,
+          "bottom": 22
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "100x100",
+        "vesa_screw": "M4",
+        "vesa_screw_length_mm": 8,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-D",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base component x1",
+        "Power adapter (12V, 2.5A) x1",
+        "HDMI cable (1.5m) x1",
+        "User manual x1",
+        "Multilingual manual x1"
+      ],
+      "optional_accessory": "DS-DM1940W",
+      "available_models": [
+        "DS-D5027F2-2P2"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 11,
+      "model": "DS-D5032F3-1V0S",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 115,
+        "si": 115
+      },
+      "features": [
+        "VA technology 178\u00b0 ultra-wide view",
+        "8 bit FHD",
+        "3D noise reduction",
+        "Low blue light eye care",
+        "Built-in speaker 10Wx2",
+        "HDMI VGA USB",
+        "Remote control",
+        "VESA wall mount",
+        "24/7 operation"
+      ],
+      "display": {
+        "screen_size_inch": 32,
+        "active_display_area_mm": {
+          "h": 698.4,
+          "v": 392.85
+        },
+        "resolution": "1920x1080",
+        "resolution_class": "FHD",
+        "panel_type": "VA",
+        "backlight": "D-LED",
+        "pixel_pitch_mm": {
+          "h": 0.364,
+          "v": 0.364
+        },
+        "brightness_cdm2": 300,
+        "contrast_ratio": "4000:1",
+        "response_time_ms": 8,
+        "refresh_rate_hz": {
+          "max": 75,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": 72,
+        "haze": null,
+        "aspect_ratio": "16:9",
+        "reliability": "7x24"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI x1, VGA x1",
+        "hdmi": {
+          "qty": 1,
+          "version": "1.4",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 1
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "LINE OUT x1, Speaker OUT x2",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "USB2.0 x1",
+        "usb": {
+          "qty": 1,
+          "version": "2.0"
+        },
+        "control": "None",
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": true,
+          "impedance_ohm": 8,
+          "power_w": 10,
+          "qty": 2
+        }
+      },
+      "power": {
+        "supply": "AC 100-240V, 50/60Hz",
+        "supply_detail": "Built-in PSU",
+        "consumption_max_w": 50,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 90
+        },
+        "storage_humidity_pct": {
+          "min": 10,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 735.08,
+          "h": 433.46,
+          "d": 80.19
+        },
+        "dimensions_with_base_mm": {
+          "w": 735.08,
+          "h": 489.16,
+          "d": 207.95
+        },
+        "package_dimensions_mm": {
+          "w": null,
+          "h": null,
+          "d": null
+        },
+        "net_weight_kg": 5.5,
+        "gross_weight_kg": 8.0,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": null,
+          "left": null,
+          "right": null,
+          "bottom": null
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "100x100",
+        "vesa_screw": "M4",
+        "vesa_screw_length_mm": 10,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-D",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base component x1",
+        "HDMI cable (1.5m) x1",
+        "User manual x1",
+        "Multilingual manual x1",
+        "Remote control x1",
+        "Base screw x6",
+        "Wall-mount screw x4"
+      ],
+      "optional_accessory": "DS-DM4255W",
+      "available_models": [
+        "DS-D5032F3-1V0S"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 12,
+      "model": "DS-D5043F3-1V0S",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 172,
+        "si": 172
+      },
+      "features": [
+        "VA technology 178\u00b0 ultra-wide view",
+        "8 bit FHD",
+        "3D noise reduction",
+        "Low blue light eye care",
+        "Built-in speaker 5Wx2",
+        "HDMI VGA USB",
+        "Remote control",
+        "VESA wall mount",
+        "24/7 operation"
+      ],
+      "display": {
+        "screen_size_inch": 43,
+        "active_display_area_mm": {
+          "h": 941.184,
+          "v": 529.416
+        },
+        "resolution": "1920x1080",
+        "resolution_class": "FHD",
+        "panel_type": "VA",
+        "backlight": "D-LED",
+        "pixel_pitch_mm": {
+          "h": 0.496,
+          "v": 0.496
+        },
+        "brightness_cdm2": 300,
+        "contrast_ratio": "4000:1",
+        "response_time_ms": 8,
+        "refresh_rate_hz": {
+          "max": 60,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": 72,
+        "haze": null,
+        "aspect_ratio": "16:9",
+        "reliability": "7x24"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI x2, VGA x1",
+        "hdmi": {
+          "qty": 2,
+          "version": "2.0",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 1
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "LINE OUT x1, Speaker OUT x2",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "USB2.0 x1",
+        "usb": {
+          "qty": 1,
+          "version": "2.0"
+        },
+        "control": "None",
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": true,
+          "impedance_ohm": 8,
+          "power_w": 5,
+          "qty": 2
+        }
+      },
+      "power": {
+        "supply": "AC 100-240V, 50/60Hz",
+        "supply_detail": "Built-in PSU",
+        "consumption_max_w": 75,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 90
+        },
+        "storage_humidity_pct": {
+          "min": 10,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 954.4,
+          "h": 561.8,
+          "d": 76
+        },
+        "dimensions_with_base_mm": {
+          "w": 954.4,
+          "h": 616.3,
+          "d": 242
+        },
+        "package_dimensions_mm": {
+          "w": null,
+          "h": null,
+          "d": null
+        },
+        "net_weight_kg": 7.5,
+        "gross_weight_kg": 11.0,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": null,
+          "left": null,
+          "right": null,
+          "bottom": null
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "200x200",
+        "vesa_screw": "M6",
+        "vesa_screw_length_mm": 12,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-F",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base component x1",
+        "Power cable x1",
+        "HDMI cable (1.5m) x1",
+        "User manual x1",
+        "Multilingual manual x1",
+        "Remote control x1",
+        "Screw x6"
+      ],
+      "optional_accessory": "DS-DM4255W",
+      "available_models": [
+        "DS-D5043F3-1V0S"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 13,
+      "model": "DS-D5043U3-1V0S",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 245,
+        "si": 245
+      },
+      "features": [
+        "4K 3840x2160",
+        "VA technology 178\u00b0 ultra-wide view",
+        "Ultra-thin border 3 sides",
+        "3D noise reduction",
+        "Built-in speaker 10Wx2",
+        "Multiple HDMI USB RS232",
+        "Remote control",
+        "24/7 operation"
+      ],
+      "display": {
+        "screen_size_inch": 43,
+        "active_display_area_mm": {
+          "h": 941.184,
+          "v": 529.416
+        },
+        "resolution": "3840x2160",
+        "resolution_class": "4K UHD",
+        "panel_type": "VA",
+        "backlight": "D-LED",
+        "pixel_pitch_mm": {
+          "h": 0.248,
+          "v": 0.248
+        },
+        "brightness_cdm2": 300,
+        "contrast_ratio": "4000:1",
+        "response_time_ms": 6.5,
+        "refresh_rate_hz": {
+          "max": 60,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": "8 bit + FDR",
+        "colors_million": 1073,
+        "color_gamut_ntsc_pct": 72,
+        "haze": "25%, 3H",
+        "aspect_ratio": "16:9",
+        "reliability": "7x24"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI x3",
+        "hdmi": {
+          "qty": 3,
+          "version": "2.0",
+          "max_res": "3840x2160@60Hz"
+        },
+        "vga": {
+          "qty": 0
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "LINE OUT x1, Speaker OUT x2",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "USB2.0 x1",
+        "usb": {
+          "qty": 1,
+          "version": "2.0"
+        },
+        "control": "RS232-IN x1, RS232-OUT x1",
+        "rs232_in": {
+          "qty": 1
+        },
+        "rs232_out": {
+          "qty": 1
+        },
+        "speaker": {
+          "built_in": true,
+          "impedance_ohm": 8,
+          "power_w": 10,
+          "qty": 2
+        }
+      },
+      "power": {
+        "supply": "AC 100-240V, 50/60Hz, 1.0A Max",
+        "supply_detail": "Built-in PSU",
+        "consumption_max_w": 90,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 90
+        },
+        "storage_humidity_pct": {
+          "min": 10,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 954.4,
+          "h": 561.8,
+          "d": 76
+        },
+        "dimensions_with_base_mm": {
+          "w": 954.4,
+          "h": 616.3,
+          "d": 242
+        },
+        "package_dimensions_mm": {
+          "w": null,
+          "h": null,
+          "d": null
+        },
+        "net_weight_kg": 8.0,
+        "gross_weight_kg": 12.0,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": 1.2,
+          "left": 1.2,
+          "right": 1.2,
+          "bottom": 20
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "200x200",
+        "vesa_screw": "M6",
+        "vesa_screw_length_mm": 12,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-F",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base component x1",
+        "Power cable x1",
+        "HDMI cable (1.5m) x1",
+        "User manual x1",
+        "Multilingual manual x1",
+        "Remote control x1",
+        "Screw x6"
+      ],
+      "optional_accessory": "DS-DM4255W",
+      "available_models": [
+        "DS-D5043U3-1V0S"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 14,
+      "model": "DS-D5050U3-1V0S",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 315,
+        "si": 325
+      },
+      "features": [
+        "4K 3840x2160",
+        "VA technology 178\u00b0 ultra-wide view",
+        "Ultra-thin border 3 sides",
+        "3D noise reduction",
+        "Built-in speaker 10Wx2",
+        "Multiple HDMI USB RS232",
+        "Remote control",
+        "24/7 operation"
+      ],
+      "display": {
+        "screen_size_inch": 50,
+        "active_display_area_mm": {
+          "h": 1095.84,
+          "v": 616.41
+        },
+        "resolution": "3840x2160",
+        "resolution_class": "4K UHD",
+        "panel_type": "VA",
+        "backlight": "D-LED",
+        "pixel_pitch_mm": {
+          "h": 0.2853,
+          "v": 0.2853
+        },
+        "brightness_cdm2": 300,
+        "contrast_ratio": "4000:1",
+        "response_time_ms": 6.5,
+        "refresh_rate_hz": {
+          "max": 60,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": "8 bit + FDR",
+        "colors_million": null,
+        "color_gamut_ntsc_pct": 72,
+        "haze": "25%, 3H",
+        "surface_treatment": "Haze 25%, 3H",
+        "aspect_ratio": "16:9",
+        "reliability": "7x24"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI x3",
+        "hdmi": {
+          "qty": 3,
+          "version": "HDMI 1.4",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 0
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "LINE OUT x1, Speaker OUT x2",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "USB2.0 x1",
+        "usb": {
+          "qty": 1,
+          "version": "2.0"
+        },
+        "control": "RS232-IN x1, RS232-OUT x1",
+        "rs232_in": {
+          "qty": 1
+        },
+        "rs232_out": {
+          "qty": 1
+        },
+        "speaker": {
+          "built_in": true,
+          "impedance_ohm": 8,
+          "power_w": 10,
+          "qty": 2
+        }
+      },
+      "power": {
+        "supply": "AC 100-240V, 50/60Hz, 1.0A Max",
+        "supply_detail": "Built-in PSU",
+        "consumption_max_w": 120,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 90
+        },
+        "storage_humidity_pct": {
+          "min": 10,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 1110.9,
+          "h": 642.6,
+          "d": 80.3
+        },
+        "dimensions_with_base_mm": {
+          "w": 1110.9,
+          "h": 698.3,
+          "d": 231.1
+        },
+        "dimensions_without_base_inch": {
+          "w": 43.74,
+          "h": 25.3,
+          "d": 3.16
+        },
+        "dimensions_with_base_inch": {
+          "w": 43.74,
+          "h": 27.48,
+          "d": 9.1
+        },
+        "package_dimensions_mm": {
+          "w": 1230,
+          "h": 787,
+          "d": 215
+        },
+        "net_weight_kg": 9.7,
+        "net_weight_tolerance": 0.5,
+        "net_weight_lb": 21.4,
+        "gross_weight_kg": 13.1,
+        "gross_weight_tolerance": 0.5,
+        "gross_weight_lb": 28.9,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": 1.27,
+          "left": 1.27,
+          "right": 1.27,
+          "bottom": 17.27
+        },
+        "bezel_inch": {
+          "top": 0.05,
+          "left": 0.05,
+          "right": 0.05,
+          "bottom": 0.68
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "200x200",
+        "vesa_screw": "M4 and M6",
+        "vesa_screw_length_mm": null,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-F",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base component x1",
+        "User manual x1",
+        "Quick start guide x1",
+        "Remote control x1",
+        "HDMI cable (1.5m) x1",
+        "M4 Screw x4",
+        "M6 Screw x4"
+      ],
+      "optional_accessory": "DS-DM4255W",
+      "available_models": [
+        "DS-D5050U3-1V0S"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 15,
+      "model": "DS-D5055U3-1V0S",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 375,
+        "si": 385
+      },
+      "features": [
+        "Ultra HD 3840x2160 @60Hz",
+        "VA technology 178\u00b0 ultra-wide view",
+        "Ultra-thin border 3 sides",
+        "3D noise reduction",
+        "Low blue light eye care",
+        "Built-in speaker 10Wx2",
+        "Multiple HDMI USB RS232",
+        "Remote control",
+        "24/7 operation"
+      ],
+      "display": {
+        "screen_size_inch": 55,
+        "active_display_area_mm": {
+          "h": 1209.6,
+          "v": 680.4
+        },
+        "resolution": "3840x2160 @60Hz",
+        "resolution_class": "4K UHD",
+        "panel_type": "VA",
+        "backlight": "D-LED",
+        "pixel_pitch_mm": {
+          "h": 0.315,
+          "v": 0.315
+        },
+        "brightness_cdm2": 300,
+        "contrast_ratio": "4000:1",
+        "response_time_ms": 6.5,
+        "refresh_rate_hz": {
+          "max": 60,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": "8 bit + FDR",
+        "colors_million": null,
+        "color_gamut_ntsc_pct": 72,
+        "haze": "2%",
+        "aspect_ratio": "16:9",
+        "reliability": "7x24"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI x3",
+        "hdmi": {
+          "qty": 3,
+          "version": "HDMI 1.4",
+          "max_res": null
+        },
+        "vga": {
+          "qty": 0
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "LINE OUT x1, Speaker OUT x2",
+        "audio_out": {
+          "qty": 1,
+          "type": "3.5mm"
+        },
+        "audio_in": {
+          "qty": 0
+        },
+        "data_transmission": "USB2.0 x1",
+        "usb": {
+          "qty": 1,
+          "version": "2.0"
+        },
+        "control": "RS232-IN x1, RS232-OUT x1",
+        "rs232_in": {
+          "qty": 1
+        },
+        "rs232_out": {
+          "qty": 1
+        },
+        "speaker": {
+          "built_in": true,
+          "impedance_ohm": 8,
+          "power_w": 10,
+          "qty": 2
+        }
+      },
+      "power": {
+        "supply": "AC 100-240V, 50/60Hz, 1.0A Max",
+        "supply_detail": "Built-in PSU",
+        "consumption_max_w": 120,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 90
+        },
+        "storage_humidity_pct": {
+          "min": 5,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 1225.3,
+          "h": 714.0,
+          "d": 73.7
+        },
+        "dimensions_with_base_mm": {
+          "w": 1225.3,
+          "h": 773.0,
+          "d": 242.0
+        },
+        "dimensions_without_base_inch": {
+          "w": 48.24,
+          "h": 28.11,
+          "d": 2.9
+        },
+        "dimensions_with_base_inch": {
+          "w": 48.24,
+          "h": 30.43,
+          "d": 9.53
+        },
+        "package_dimensions_mm": {
+          "w": 1356,
+          "h": 828,
+          "d": 161
+        },
+        "net_weight_kg": 11.5,
+        "net_weight_tolerance": 0.5,
+        "net_weight_lb": 25.35,
+        "gross_weight_kg": 16.01,
+        "gross_weight_tolerance": 0.5,
+        "gross_weight_lb": 35.3,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": 1.27,
+          "left": 1.27,
+          "right": 1.27,
+          "bottom": 23.88
+        },
+        "bezel_inch": {
+          "top": 0.05,
+          "left": 0.05,
+          "right": 0.05,
+          "bottom": 0.94
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "200x200",
+        "vesa_screw": "M6",
+        "vesa_screw_length_mm": null,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-F",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Monitor x1",
+        "Base component x1",
+        "Power cable x1",
+        "HDMI cable (1.5m) x1",
+        "User manual x1",
+        "Multilingual manual x1",
+        "Remote control x1",
+        "Screw x6"
+      ],
+      "optional_accessory": "DS-DM4255W",
+      "available_models": [
+        "DS-D5055U3-1V0S"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 16,
+      "model": "DS-D5065UC-C",
+      "category": "Monitor",
+      "sub_category": "Commercial Monitor",
+      "series": "Commercial",
+      "status": "Active",
+      "pricing": {
+        "dpp": 565,
+        "si": 585
+      },
+      "features": [
+        "4K 3840x2160 @60Hz",
+        "65\" LED backlight",
+        "Wide view angle 178x178",
+        "Narrow front bezel",
+        "Built-in speaker 7Wx2",
+        "Multiple HDMI VGA USB Audio",
+        "24/7 operation"
+      ],
+      "display": {
+        "screen_size_inch": 65,
+        "active_display_area_mm": {
+          "h": 1428.48,
+          "v": 803.52
+        },
+        "resolution": "3840x2160 @60Hz",
+        "resolution_class": "4K UHD",
+        "panel_type": "VA",
+        "backlight": "LED",
+        "pixel_pitch_mm": {
+          "h": 0.372,
+          "v": 0.372
+        },
+        "brightness_cdm2": 350,
+        "contrast_ratio": "1200:1",
+        "response_time_ms": 8,
+        "refresh_rate_hz": {
+          "max": 60,
+          "typical": 60
+        },
+        "viewing_angle_deg": {
+          "h": 178,
+          "v": 178
+        },
+        "color_depth_bit": 8,
+        "colors_million": 16.7,
+        "color_gamut_ntsc_pct": 72,
+        "haze": "1%",
+        "aspect_ratio": "16:9",
+        "reliability": "7x24"
+      },
+      "interfaces": {
+        "video_audio_input": "HDMI 1.4 x1, HDMI 2.0 x1, VGA x1, Audio IN x1",
+        "hdmi": [
+          {
+            "port": "HDMI-IN1",
+            "version": "1.4",
+            "max_res": "3840x2160@30Hz"
+          },
+          {
+            "port": "HDMI-IN2",
+            "version": "2.0",
+            "max_res": "3840x2160@60Hz"
+          }
+        ],
+        "hdmi_total_qty": 2,
+        "vga": {
+          "qty": 1,
+          "max_res": "1920x1080@60Hz"
+        },
+        "bnc": {
+          "qty": 0
+        },
+        "displayport": {
+          "qty": 0
+        },
+        "video_audio_output": "Speaker (6\u03a9 7W) x2",
+        "audio_out": {
+          "qty": 0
+        },
+        "audio_in": {
+          "qty": 1
+        },
+        "data_transmission": "USB x1",
+        "usb": {
+          "qty": 1,
+          "version": "2.0"
+        },
+        "control": "None",
+        "rs232_in": {
+          "qty": 0
+        },
+        "rs232_out": {
+          "qty": 0
+        },
+        "speaker": {
+          "built_in": true,
+          "impedance_ohm": 6,
+          "power_w": 7,
+          "qty": 2
+        }
+      },
+      "power": {
+        "supply": "AC 100-240V, 50/60Hz",
+        "supply_detail": "Built-in PSU",
+        "consumption_max_w": 190,
+        "standby_w": 0.5
+      },
+      "environment": {
+        "working_temp_c": {
+          "min": 0,
+          "max": 40
+        },
+        "working_temp_f": {
+          "min": 32,
+          "max": 104
+        },
+        "storage_temp_c": {
+          "min": -20,
+          "max": 60
+        },
+        "storage_temp_f": {
+          "min": -4,
+          "max": 140
+        },
+        "working_humidity_pct": {
+          "min": 20,
+          "max": 80
+        },
+        "storage_humidity_pct": {
+          "min": 10,
+          "max": 90
+        },
+        "condensation": false
+      },
+      "physical": {
+        "dimensions_without_base_mm": {
+          "w": 1449.6,
+          "h": 838.38,
+          "d": 79.6
+        },
+        "dimensions_with_base_mm": {
+          "w": 1449.6,
+          "h": 883.35,
+          "d": 283.4
+        },
+        "dimensions_without_base_inch": {
+          "w": 57.07,
+          "h": 33.01,
+          "d": 3.13
+        },
+        "dimensions_with_base_inch": {
+          "w": 57.07,
+          "h": 34.78,
+          "d": 11.16
+        },
+        "package_dimensions_mm": {
+          "w": 1600,
+          "h": 995,
+          "d": 175
+        },
+        "package_dimensions_inch": {
+          "w": 62.99,
+          "h": 39.17,
+          "d": 6.89
+        },
+        "net_weight_without_stand_kg": 18.6,
+        "net_weight_without_stand_lb": 41.01,
+        "net_weight_with_stand_kg": 18.7,
+        "net_weight_with_stand_lb": 41.23,
+        "gross_weight_without_stand_kg": 24.4,
+        "gross_weight_without_stand_lb": 53.79,
+        "gross_weight_with_stand_kg": 24.5,
+        "gross_weight_with_stand_lb": 54.01,
+        "casing_material": "Plastic",
+        "casing_color": "Black",
+        "bezel_mm": {
+          "top": 8.24,
+          "left": 8.24,
+          "right": 8.24,
+          "bottom": 22.62
+        }
+      },
+      "mounting": {
+        "vesa_pattern_mm": "300x300",
+        "vesa_screw": "M6",
+        "vesa_screw_length_mm": 25,
+        "vesa_screw_qty": 4,
+        "vesa_standard": "FDMI MIS-F",
+        "desk_stand_included": true,
+        "wall_mount_compatible": true
+      },
+      "packing_list": [
+        "Power cable x1",
+        "Remote control x1",
+        "User manual x1",
+        "HDMI cable x1",
+        "Base bracket x1"
+      ],
+      "optional_accessory": "DS-DM4255W",
+      "available_models": [
+        "DS-D5065UC-C"
+      ],
+      "certifications": [
+        "CE",
+        "FCC",
+        "RoHS"
+      ]
+    },
+    {
+      "id": 17,
+      "model": "DS-DM4225W",
+      "category": "Accessory",
+      "sub_category": "Wall Mount Bracket",
+      "series": "Accessory",
+      "status": "Active",
+      "pricing": {
+        "dpp": 8,
+        "si": 10
+      },
+      "features": [
+        "Wall mounting bracket",
+        "Solid steel structure",
+        "Prevents screen bend or twist"
+      ],
+      "specs": {
+        "compatible_monitor_sizes": "42 to 55 inch",
+        "vesa_patterns_supported": [
+          "200x200",
+          "400x400"
+        ],
+        "material": "SPCC Cold-Rolled Steel Plate",
+        "max_load_kg": 50,
+        "color": "Black"
+      }
+    }
+  ]
+}

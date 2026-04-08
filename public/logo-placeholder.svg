@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="60" viewBox="0 0 220 60">
+  <style>
+    .arabic{font:italic 11px "Amiri","Tahoma",serif;fill:#1f1f1f}
+    .m{font:900 28px "Inter","Segoe UI",sans-serif;fill:#e2231a}
+    .t{font:900 28px "Inter","Segoe UI",sans-serif;fill:#1f1f1f}
+  </style>
+  <text x="6" y="16" class="arabic">سحر التقنية</text>
+  <text x="6" y="46" class="m">Magic</text>
+  <text x="96" y="46" class="t">Tech</text>
+</svg>

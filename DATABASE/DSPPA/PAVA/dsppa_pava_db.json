@@ -1,0 +1,150 @@
+{
+  "database_info": {
+    "name": "DSPPA PAVA EN54 Voice Evacuation Database",
+    "version": "1.0",
+    "manufacturer": "DSPPA",
+    "category": "PAVA \u2014 EN54 Voice Alarm / Evacuation System",
+    "currency": "USD",
+    "last_updated": "2026-04-06",
+    "integration_notes": {
+      "speaker_db": "dsppa_speakers_db.json \u2014 Use EN54-24 certified speakers (DSP602EN, DSP207EN, DSP3154EN, DSP5311EN)",
+      "amplifier_db": "dsppa_amplifiers_db.json \u2014 PAVA uses dedicated EN54 amplifiers, but can integrate with standard amps for BGM zones"
+    }
+  },
+  "products": [
+    {
+      "id": 1,
+      "model": "PAVA8500",
+      "category": "PAVA Controller",
+      "sub_category": "EN54 Voice Alarm Controller (Main)",
+      "pricing": {
+        "dpp": 1050,
+        "si": 1050,
+        "end_user": 1155
+      },
+      "specs": {
+        "standard": "EN 54-16",
+        "zones": 8,
+        "expandable_zones": 64,
+        "amplifier_slots": 4,
+        "features": [
+          "Automatic fault monitoring",
+          "Battery backup",
+          "Fire panel interface",
+          "Pre-recorded messages",
+          "Live microphone priority"
+        ],
+        "fire_panel_input": "Dry contact or serial"
+      },
+      "features": [
+        "EN 54-16 certified",
+        "8 base zones expandable to 64",
+        "Built-in message storage",
+        "Automatic speaker line monitoring",
+        "24V battery backup (EN 54-4)",
+        "Priority override from fire panel"
+      ]
+    },
+    {
+      "id": 2,
+      "model": "PAVA8500E",
+      "category": "PAVA Controller",
+      "sub_category": "EN54 Zone Expander",
+      "pricing": {
+        "dpp": 670,
+        "si": 740,
+        "end_user": 814
+      },
+      "specs": {
+        "function": "Adds 8 zones to PAVA8500",
+        "zones_added": 8
+      }
+    },
+    {
+      "id": 3,
+      "model": "PAVA8008",
+      "category": "PAVA Amplifier",
+      "sub_category": "EN54 Power Amplifier Module",
+      "pricing": {
+        "dpp": 290,
+        "si": 320,
+        "end_user": 352
+      },
+      "specs": {
+        "function": "EN54 amplifier card for PAVA8500",
+        "standard": "EN 54-4 (power supply)"
+      }
+    },
+    {
+      "id": 4,
+      "model": "PAVA8009",
+      "category": "PAVA Accessory",
+      "sub_category": "EN54 Microphone Panel",
+      "pricing": {
+        "dpp": 240,
+        "si": 265,
+        "end_user": 291.5
+      }
+    },
+    {
+      "id": 5,
+      "model": "PAVA9500",
+      "category": "PAVA Controller",
+      "sub_category": "EN54 PAVA Controller (Advanced)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Project pricing"
+    },
+    {
+      "id": 6,
+      "model": "PAVA9008",
+      "category": "PAVA Amplifier",
+      "sub_category": "EN54 Amplifier (9500 series)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Project pricing"
+    },
+    {
+      "id": 7,
+      "model": "PAVA9009",
+      "category": "PAVA Accessory",
+      "sub_category": "EN54 Mic Panel (9500 series)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Project pricing"
+    },
+    {
+      "id": 8,
+      "model": "PAVA9002",
+      "category": "PAVA Accessory",
+      "sub_category": "EN54 Accessory",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Project pricing"
+    },
+    {
+      "id": 9,
+      "model": "PAVA9002S",
+      "category": "PAVA Accessory",
+      "sub_category": "EN54 Accessory (S)",
+      "pricing": {
+        "dpp": 0,
+        "si": 0,
+        "end_user": 0
+      },
+      "notes": "Project pricing"
+    }
+  ]
+}

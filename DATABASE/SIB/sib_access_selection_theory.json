@@ -1,0 +1,290 @@
+{
+  "database_info": {
+    "name": "SIB Standalone Access Control Selection Theory",
+    "version": "1.0",
+    "last_updated": "2026-04-07"
+  },
+  "selection_criteria": {
+    "1_standalone_vs_networked": {
+      "standard": "System Design",
+      "principle": "Standalone controllers are self-contained; networked controllers connect to central management",
+      "comparison": [
+        {
+          "type": "SIB Standalone",
+          "management": "On-device (keypad programming)",
+          "users": "100-2000 (depends on model)",
+          "remote": "None (except Tuya Wi-Fi models)",
+          "best_for": "Single doors, small offices, gates, storage rooms",
+          "cost": "$8-35 per door"
+        },
+        {
+          "type": "Hikvision Networked",
+          "management": "iVMS-4200 / HikCentral software",
+          "users": "Unlimited",
+          "remote": "Full network management",
+          "best_for": "Enterprise, multi-door, audit trail, integration with video",
+          "cost": "$50-200+ per door (controller + reader)"
+        }
+      ],
+      "recommendation": "SIB for budget single-door installations. Hikvision for enterprise multi-door with central management and audit trail."
+    },
+    "2_controller_selection": {
+      "standard": "Application",
+      "principle": "Controller type based on authentication method and environment",
+      "guide": [
+        {
+          "type": "Keypad only (K/S/T series)",
+          "auth": "PIN code",
+          "security": "Low-Medium",
+          "price": "$8-18",
+          "best_for": "Internal doors, utility rooms, budget"
+        },
+        {
+          "type": "Keypad + EM Card (T-EM)",
+          "auth": "PIN + 125KHz card",
+          "security": "Medium",
+          "price": "$12-22",
+          "best_for": "Standard office, staff doors"
+        },
+        {
+          "type": "Fingerprint (F/KF/TF series)",
+          "auth": "Fingerprint + card + PIN",
+          "security": "Medium-High",
+          "price": "$25-35",
+          "best_for": "Restricted areas, no card sharing"
+        },
+        {
+          "type": "Tuya Wi-Fi models",
+          "auth": "Card + PIN + app",
+          "security": "Medium",
+          "price": "$12-30",
+          "best_for": "Remote management via smartphone, Airbnb, rental"
+        },
+        {
+          "type": "3D Face Recognition",
+          "auth": "Face + card + PIN",
+          "security": "High",
+          "price": "TBD",
+          "best_for": "High security, touchless entry"
+        },
+        {
+          "type": "Bluetooth TT Lock",
+          "auth": "Phone app + card",
+          "security": "Medium",
+          "price": "TBD",
+          "best_for": "Smart locks, co-working spaces, modern offices"
+        }
+      ]
+    },
+    "3_magnetic_lock_sizing": {
+      "standard": "EN 14846 / Application",
+      "principle": "Holding force must exceed maximum expected force on door",
+      "guide": [
+        {
+          "lock": "L60B (60KG)",
+          "use": "Cabinet doors, internal lightweight doors",
+          "door_type": "Light interior"
+        },
+        {
+          "lock": "L180B (180KG/350lbs)",
+          "use": "Standard interior doors, office",
+          "door_type": "Interior wood/metal",
+          "price": "$9-13"
+        },
+        {
+          "lock": "L280B (280KG/600lbs)",
+          "use": "Standard exterior doors, main entrances",
+          "door_type": "Exterior wood/metal/aluminum",
+          "price": "$12-18"
+        },
+        {
+          "lock": "L350B (350KG/800lbs)",
+          "use": "Heavy exterior doors, fire doors",
+          "door_type": "Heavy metal/fire rated",
+          "price": "$20-25"
+        },
+        {
+          "lock": "L350D (Double)",
+          "use": "Double-leaf doors",
+          "door_type": "Double door pair",
+          "price": "$25-30"
+        },
+        {
+          "lock": "L500B (500KG/1100lbs)",
+          "use": "Maximum security doors, bank vaults, heavy gates",
+          "door_type": "Heavy-duty",
+          "price": "$28-48"
+        }
+      ],
+      "wiring": "Standard: 2-wire (12VDC power). 5-wire: adds door position detection signal (recommended for monitored systems)."
+    },
+    "4_bracket_selection": {
+      "standard": "Installation",
+      "principle": "Bracket type depends on door opening direction and frame type",
+      "guide": [
+        {
+          "bracket": "L-Bracket",
+          "use": "Outward-opening wooden/metal doors \u2014 most common",
+          "function": "Extends lock body to align with door edge"
+        },
+        {
+          "bracket": "ZL-Bracket (Z+L combined)",
+          "use": "Inward-opening wooden/metal doors",
+          "function": "Z-bracket on frame + L-bracket on lock for inward swing"
+        },
+        {
+          "bracket": "U-Bracket",
+          "use": "Frameless glass doors",
+          "function": "Clamps around glass edge to mount armature plate"
+        }
+      ],
+      "sizing": "Match bracket to lock size: L180B-L for 180KG lock, L280B-ZL for 280KG lock, etc."
+    },
+    "5_electric_lock_types": {
+      "standard": "Application",
+      "principle": "Lock type depends on door type and fail mode requirement",
+      "types": [
+        {
+          "type": "Magnetic Lock (EM Lock)",
+          "models": "L180B-L500B",
+          "fail_mode": "Fail-safe (unlocks on power loss)",
+          "best_for": "Fire exits, emergency doors \u2014 code required",
+          "note": "Must release on power failure for fire safety"
+        },
+        {
+          "type": "Electric Bolt (Drop Bolt)",
+          "models": "L04A, L04S",
+          "fail_mode": "Configurable fail-safe or fail-secure",
+          "best_for": "Glass doors, concealed installation"
+        },
+        {
+          "type": "Electric Strike",
+          "models": "L02B, L02C",
+          "fail_mode": "Configurable",
+          "best_for": "Standard doors with mechanical lock \u2014 electric release"
+        }
+      ],
+      "fire_safety": "For fire exit doors: ALWAYS use fail-safe locks (unlock on power loss). Mag locks are inherently fail-safe. Electric bolts must be configured as fail-safe."
+    },
+    "6_exit_button_selection": {
+      "standard": "EN 179 / Application",
+      "principle": "Exit button type based on environment, aesthetics, and hygiene",
+      "guide": [
+        {
+          "type": "Mechanical push (OP02/OP03/OP06/OP07)",
+          "price": "$1.25-5",
+          "best_for": "Standard offices, internal doors, budget"
+        },
+        {
+          "type": "Touch sensor (OP21B/OP21D)",
+          "price": "$4-4.50",
+          "best_for": "Modern offices, hygienic environments"
+        },
+        {
+          "type": "No-touch infrared (OP12/OP16/OP17/OP24D)",
+          "price": "$3.50-5",
+          "best_for": "Hospitals, cleanrooms, hygiene-critical areas, COVID-aware installations"
+        },
+        {
+          "type": "Break glass (AR01)",
+          "price": "$3-4",
+          "best_for": "Emergency exit \u2014 fire regulations require break-glass adjacent to mag-locked fire doors"
+        },
+        {
+          "type": "Waterproof (OP02H1-W/OP2603-W)",
+          "price": "$8",
+          "best_for": "Outdoor gates, parking, exposed locations"
+        }
+      ]
+    },
+    "7_em_vs_mifare_cards": {
+      "standard": "RFID",
+      "principle": "Card technology affects security and compatibility",
+      "comparison": [
+        {
+          "type": "EM 125KHz",
+          "models": "EM008, AB001EM, PV01EM",
+          "security": "Low (easily cloned)",
+          "read_range": "5-10cm",
+          "cost": "$0.25-1",
+          "compatible": "All SIB EM models, most standalone readers"
+        },
+        {
+          "type": "Mifare 13.56MHz",
+          "models": "MF008, AB001MF, PV01MF",
+          "security": "Medium (encrypted)",
+          "read_range": "3-5cm",
+          "cost": "$0.25-1",
+          "compatible": "SIB MF models, Hikvision Mifare readers"
+        }
+      ],
+      "recommendation": "Mifare for any installation where card cloning is a concern. EM for budget/low-security applications."
+    },
+    "8_uhf_long_range_access": {
+      "standard": "UHF RFID",
+      "principle": "UHF readers provide hands-free long-range vehicle access",
+      "system": {
+        "reader": "UHF-115 ($135-145)",
+        "range": "5-15m",
+        "cards": "C01-UHF card ($1.50) or LB01-UHF windshield sticker ($1.50)",
+        "frequency": "920-925MHz"
+      },
+      "use_case": "Parking garage entry, compound gates, logistics yards \u2014 vehicle drives through and gate opens automatically without stopping.",
+      "integration": "UHF reader relay output \u2192 gate barrier controller (Hikvision DS-TMG series) or SIB standalone controller relay input."
+    },
+    "9_complete_door_system_design": {
+      "standard": "System Design",
+      "principle": "Each door requires a complete set of components",
+      "standard_door_kit": {
+        "access_side": "1\u00d7 Access controller (T6EM-W or similar)",
+        "exit_side": "1\u00d7 Exit button (OP06 or OP16)",
+        "lock": "1\u00d7 Magnetic lock (L280B for standard door) + appropriate bracket (L/ZL/U)",
+        "sensor": "1\u00d7 Door magnetic contact sensor",
+        "power": "1\u00d7 12VDC 3A power supply (or access control PSU with battery backup)",
+        "cable": "4-core alarm cable (controller to lock) + 2-core (exit button)"
+      },
+      "cost_example": "Budget door: K1201EM ($8) + OP07 ($1.25) + L180B ($9) + L180B-L bracket ($3) + sensor ($1) + PSU ($4.50) = ~$27 per door",
+      "premium_example": "F3EM.w ($25) + OP16 ($3.50) + L280B-5W ($16) + L280B-ZL ($5) + sensor ($2.50) + PSU ($15) = ~$67 per door"
+    },
+    "10_compliance": {
+      "standards": [
+        {
+          "standard": "EN 14846",
+          "scope": "Electromechanical lock requirements"
+        },
+        {
+          "standard": "EN 179",
+          "scope": "Emergency exit hardware (push bar/button)"
+        },
+        {
+          "standard": "EN 1125",
+          "scope": "Panic exit devices (push bar)"
+        },
+        {
+          "standard": "EN 13637",
+          "scope": "Electrically controlled exit systems"
+        },
+        {
+          "standard": "EN 50131-1",
+          "scope": "Intrusion alarm \u2014 access control integration"
+        },
+        {
+          "standard": "ISO 14443",
+          "scope": "13.56MHz Mifare contactless card standard"
+        },
+        {
+          "standard": "ISO 18000-6C",
+          "scope": "UHF RFID (EPC Gen2)"
+        },
+        {
+          "standard": "IEC 60529 (IP65)",
+          "scope": "Waterproof rating for outdoor controllers"
+        },
+        {
+          "standard": "Fire Code",
+          "scope": "Fail-safe locks mandatory on fire exit doors"
+        }
+      ]
+    }
+  }
+}

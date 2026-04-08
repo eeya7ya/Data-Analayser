@@ -1,0 +1,493 @@
+{
+  "database_info": {
+    "name": "Monitor Selection Theory - Standards Based",
+    "version": "1.0",
+    "purpose": "Engineering design tool for monitor selection based on international standards",
+    "last_updated": "2026-04-05"
+  },
+  "selection_criteria": {
+    "1_screen_size_selection": {
+      "standard": "ISO 11064-5 / SMPTE EG 18",
+      "principle": "Screen size is determined by viewing distance and content type, not preference",
+      "formulas": {
+        "min_viewing_distance": {
+          "formula": "D_min = 1.5 \u00d7 screen_diagonal",
+          "unit": "same as diagonal",
+          "source": "ISO 11064-5:2008"
+        },
+        "max_viewing_distance_fhd": {
+          "formula": "D_max = 3.2 \u00d7 screen_diagonal",
+          "unit": "same as diagonal",
+          "source": "SMPTE EG 18",
+          "note": "For 1080p content where detail recognition is needed"
+        },
+        "max_viewing_distance_4k": {
+          "formula": "D_max = 1.5 \u00d7 screen_diagonal",
+          "unit": "same as diagonal",
+          "source": "ITU-R BT.2020",
+          "note": "4K allows closer viewing without pixel visibility"
+        },
+        "optimal_viewing_angle": {
+          "formula": "Viewing angle = 2 \u00d7 arctan(screen_width / (2 \u00d7 distance))",
+          "recommended_range_deg": {
+            "min": 20,
+            "max": 40
+          },
+          "source": "SMPTE EG 18 / THX"
+        }
+      },
+      "lookup_table": [
+        {
+          "screen_inch": 19,
+          "diagonal_mm": 483,
+          "min_distance_mm": 724,
+          "max_distance_fhd_mm": 1545,
+          "recommended_apps": "Single operator desk, individual workstation"
+        },
+        {
+          "screen_inch": 22,
+          "diagonal_mm": 559,
+          "min_distance_mm": 838,
+          "max_distance_fhd_mm": 1788,
+          "recommended_apps": "Operator console, reception desk"
+        },
+        {
+          "screen_inch": 24,
+          "diagonal_mm": 610,
+          "min_distance_mm": 914,
+          "max_distance_fhd_mm": 1951,
+          "recommended_apps": "Control room operator station, office"
+        },
+        {
+          "screen_inch": 27,
+          "diagonal_mm": 686,
+          "min_distance_mm": 1029,
+          "max_distance_fhd_mm": 2195,
+          "recommended_apps": "Control room, multi-camera view"
+        },
+        {
+          "screen_inch": 32,
+          "diagonal_mm": 813,
+          "min_distance_mm": 1219,
+          "max_distance_fhd_mm": 2601,
+          "recommended_apps": "Control room overview, team display"
+        },
+        {
+          "screen_inch": 43,
+          "diagonal_mm": 1092,
+          "min_distance_mm": 1638,
+          "max_distance_fhd_mm": 3494,
+          "recommended_apps": "Video wall element, large overview display"
+        },
+        {
+          "screen_inch": 50,
+          "diagonal_mm": 1270,
+          "min_distance_mm": 1905,
+          "max_distance_4k_mm": 1905,
+          "recommended_apps": "Public display, NOC/SOC overview"
+        },
+        {
+          "screen_inch": 55,
+          "diagonal_mm": 1397,
+          "min_distance_mm": 2095,
+          "max_distance_4k_mm": 2095,
+          "recommended_apps": "Video wall, presentation, command center"
+        },
+        {
+          "screen_inch": 65,
+          "diagonal_mm": 1651,
+          "min_distance_mm": 2476,
+          "max_distance_4k_mm": 2476,
+          "recommended_apps": "Main overview display, video wall"
+        }
+      ]
+    },
+    "2_resolution_selection": {
+      "standard": "ISO 9241-303 / EN 50132-7",
+      "principle": "Resolution must match viewing distance and content detail requirements",
+      "rules": {
+        "surveillance_cctv": {
+          "standard": "EN 50132-7 / BS EN 62676-4",
+          "rule": "Minimum 1:1 pixel mapping per camera channel displayed",
+          "requirements": {
+            "single_camera_full_screen": "Monitor resolution >= camera resolution",
+            "4_camera_split": "Monitor resolution >= 2x camera H-res \u00d7 2x camera V-res",
+            "9_camera_split": "Monitor resolution >= 3x camera H-res \u00d7 3x camera V-res",
+            "16_camera_split": "4K monitor required for HD cameras"
+          }
+        },
+        "ppi_by_application": [
+          {
+            "application": "Surveillance spot monitor",
+            "min_ppi": 40,
+            "recommended_ppi": 60,
+            "note": "Lower PPI acceptable at longer distance"
+          },
+          {
+            "application": "Operator workstation",
+            "min_ppi": 72,
+            "recommended_ppi": 92,
+            "note": "Text readability critical"
+          },
+          {
+            "application": "Control room overview",
+            "min_ppi": 50,
+            "recommended_ppi": 70,
+            "note": "Content viewed from 2-4m"
+          },
+          {
+            "application": "Design review / CAD",
+            "min_ppi": 92,
+            "recommended_ppi": 110,
+            "note": "Fine detail recognition"
+          },
+          {
+            "application": "Public information display",
+            "min_ppi": 30,
+            "recommended_ppi": 50,
+            "note": "Large text, viewed from 3-10m"
+          }
+        ],
+        "resolution_vs_size_guideline": [
+          {
+            "size_range": "18-24 inch",
+            "recommended": "FHD 1920x1080",
+            "reason": "PPI 92-102, ideal for close viewing"
+          },
+          {
+            "size_range": "27-32 inch",
+            "recommended": "FHD or QHD",
+            "reason": "FHD PPI drops to 56-82, QHD preferred for text"
+          },
+          {
+            "size_range": "43+ inch",
+            "recommended": "4K UHD 3840x2160",
+            "reason": "FHD PPI below 52, pixel visible at operator distance"
+          },
+          {
+            "size_range": "43+ inch surveillance",
+            "recommended": "FHD acceptable",
+            "reason": "If viewed from >2m and showing multiple cameras"
+          }
+        ]
+      }
+    },
+    "3_brightness_contrast_selection": {
+      "standard": "ISO 9241-307:2008 / ISO 3664:2009",
+      "principle": "Brightness must overcome ambient light; contrast must ensure readability",
+      "requirements": {
+        "luminance_by_ambient": [
+          {
+            "ambient_lux": "< 50 (dark room)",
+            "min_brightness_cdm2": 100,
+            "recommended_cdm2": 150,
+            "application": "Dedicated control room, dark NOC"
+          },
+          {
+            "ambient_lux": "50-150 (dim room)",
+            "min_brightness_cdm2": 150,
+            "recommended_cdm2": 250,
+            "application": "Control room with controlled lighting"
+          },
+          {
+            "ambient_lux": "150-300 (office)",
+            "min_brightness_cdm2": 250,
+            "recommended_cdm2": 350,
+            "application": "Standard office, reception"
+          },
+          {
+            "ambient_lux": "300-500 (bright office)",
+            "min_brightness_cdm2": 350,
+            "recommended_cdm2": 500,
+            "application": "Open plan office, retail back-office"
+          },
+          {
+            "ambient_lux": "> 500 (daylight)",
+            "min_brightness_cdm2": 500,
+            "recommended_cdm2": 700,
+            "application": "Public display, window-facing"
+          }
+        ],
+        "contrast_ratio": {
+          "standard": "ISO 9241-307",
+          "minimum": "3:1 for text readability",
+          "recommended": "5:1 for comfortable prolonged use",
+          "ideal": "> 1000:1 for image-critical applications",
+          "note": "Specified contrast is measured in dark room. Effective contrast degrades with ambient light."
+        },
+        "luminance_uniformity": {
+          "standard": "ISO 9241-307",
+          "requirement": ">= 75% (L_min / L_max across screen)",
+          "note": "Critical for video walls and side-by-side displays"
+        }
+      }
+    },
+    "4_panel_type_selection": {
+      "standard": "Manufacturer / Application Best Practice",
+      "principle": "Panel technology determines viewing angle, color accuracy, contrast, and response",
+      "comparison": [
+        {
+          "type": "VA (Vertical Alignment)",
+          "viewing_angle": "178\u00b0 typical",
+          "contrast": "3000:1 - 5000:1 native",
+          "color_accuracy": "Good",
+          "response_time": "6-8 ms typical",
+          "best_for": "Surveillance, control rooms, 24/7 operation",
+          "weakness": "Slight color shift at extreme angles",
+          "note": "Best balance for CCTV - high contrast shows dark scenes better"
+        },
+        {
+          "type": "IPS (In-Plane Switching)",
+          "viewing_angle": "178\u00b0 with minimal color shift",
+          "contrast": "1000:1 native",
+          "color_accuracy": "Excellent",
+          "response_time": "4-5 ms typical",
+          "best_for": "Design review, color-critical work, multi-viewer stations",
+          "weakness": "Lower contrast, potential IPS glow in dark rooms",
+          "note": "Better color consistency across wide angles"
+        },
+        {
+          "type": "TN (Twisted Nematic)",
+          "viewing_angle": "90-170\u00b0 with significant shift",
+          "contrast": "600:1 - 1000:1",
+          "color_accuracy": "Fair",
+          "response_time": "1-5 ms",
+          "best_for": "Budget single-operator stations, non-critical display",
+          "weakness": "Poor viewing angles, color accuracy",
+          "note": "Lowest cost, acceptable only for direct front viewing"
+        }
+      ]
+    },
+    "5_mounting_design": {
+      "standard": "VESA FDMI / ISO 11064-5",
+      "principle": "Mounting must support weight safely and position screen ergonomically",
+      "vesa_classes": [
+        {
+          "class": "MIS-B",
+          "pattern_mm": "50x20",
+          "screw": "M4",
+          "max_weight_kg": 2,
+          "typical_size": "< 12 inch"
+        },
+        {
+          "class": "MIS-C",
+          "pattern_mm": "75x75",
+          "screw": "M4",
+          "max_weight_kg": 4.5,
+          "typical_size": "12-22 inch"
+        },
+        {
+          "class": "MIS-D",
+          "pattern_mm": "100x100",
+          "screw": "M4",
+          "max_weight_kg": 8,
+          "typical_size": "22-32 inch"
+        },
+        {
+          "class": "MIS-E",
+          "pattern_mm": "200x100",
+          "screw": "M4",
+          "max_weight_kg": 23.7,
+          "typical_size": "32-43 inch"
+        },
+        {
+          "class": "MIS-F",
+          "pattern_mm": "200x200 to 800x400",
+          "screw": "M6/M8",
+          "max_weight_kg": 50,
+          "typical_size": "43-90+ inch"
+        }
+      ],
+      "ergonomic_placement": {
+        "standard": "ISO 11064-5:2008",
+        "screen_center_height_mm": {
+          "min": 1000,
+          "max": 1200,
+          "note": "Above finished floor, seated operator"
+        },
+        "tilt_angle_deg": {
+          "min": 0,
+          "max": 35,
+          "recommended": "10-20 backward from vertical"
+        },
+        "horizontal_viewing_arc": {
+          "max_deg": 95,
+          "note": "Total arc for multi-monitor setups per operator"
+        }
+      }
+    },
+    "6_reliability_selection": {
+      "standard": "IEC 62368-1 / Manufacturer",
+      "principle": "Operating hours rating must match deployment duty cycle",
+      "duty_cycles": [
+        {
+          "classification": "7x24",
+          "hours_per_year": 8760,
+          "application": "Surveillance, control room, NOC/SOC, critical infrastructure",
+          "min_backlight_life_hrs": 50000
+        },
+        {
+          "classification": "7x16",
+          "hours_per_year": 5840,
+          "application": "Office surveillance, staffed control rooms",
+          "min_backlight_life_hrs": 30000
+        },
+        {
+          "classification": "7x12",
+          "hours_per_year": 4380,
+          "application": "Retail, reception, general display",
+          "min_backlight_life_hrs": 30000
+        },
+        {
+          "classification": "5x8",
+          "hours_per_year": 2080,
+          "application": "Standard office, meeting room",
+          "min_backlight_life_hrs": 20000
+        }
+      ],
+      "note": "Using a 7x12 rated monitor in 7x24 operation voids warranty and accelerates backlight degradation"
+    },
+    "7_power_infrastructure": {
+      "standard": "IEC 60364 / NEC",
+      "principle": "Electrical design must safely support all monitors with margin",
+      "formulas": {
+        "circuit_capacity": "Total_load = Sum(monitor_watts) \u00d7 1.25 safety_factor",
+        "max_monitors_per_circuit": {
+          "230V_16A": "Available_watts = 16 \u00d7 230 \u00d7 0.8 = 2944W",
+          "120V_20A": "Available_watts = 20 \u00d7 120 \u00d7 0.8 = 1920W"
+        },
+        "heat_dissipation": "Q = Power_consumption \u00d7 3.412 BTU/hr per watt",
+        "cooling_load": "Each monitor adds its full wattage as heat to room HVAC load"
+      },
+      "ups_sizing": {
+        "formula": "UPS_VA = Sum(monitor_watts) / power_factor \u00d7 runtime_factor",
+        "typical_power_factor": 0.7,
+        "recommended_runtime_min": 15,
+        "note": "Critical surveillance monitors should be on UPS with minimum 15 min runtime"
+      }
+    },
+    "8_cable_infrastructure": {
+      "standard": "HDMI Spec / DisplayPort Spec / BS EN 50173",
+      "principle": "Cable type and length must match resolution and distance requirements",
+      "max_passive_cable_length": [
+        {
+          "interface": "VGA",
+          "max_length_m": 15,
+          "recommended_m": 10,
+          "note": "Quality degrades with length, use booster beyond 15m"
+        },
+        {
+          "interface": "HDMI 1.4 (1080p)",
+          "max_length_m": 15,
+          "recommended_m": 10,
+          "note": "Use active cable or extender beyond 15m"
+        },
+        {
+          "interface": "HDMI 2.0 (4K@60Hz)",
+          "max_length_m": 5,
+          "recommended_m": 3,
+          "note": "Use fiber HDMI or HDBaseT beyond 5m"
+        },
+        {
+          "interface": "DisplayPort 1.2 (4K@60Hz)",
+          "max_length_m": 3,
+          "recommended_m": 2,
+          "note": "Use DP fiber or extender beyond 3m"
+        },
+        {
+          "interface": "HDBaseT (Cat6a)",
+          "max_length_m": 100,
+          "recommended_m": 80,
+          "note": "Requires HDBaseT transmitter/receiver pair"
+        },
+        {
+          "interface": "HDMI over Fiber",
+          "max_length_m": 300,
+          "recommended_m": 200,
+          "note": "For long-run installations"
+        }
+      ]
+    },
+    "9_environmental_selection": {
+      "standard": "IEC 62368-1 / TIA-942 / ASHRAE",
+      "principle": "Monitor operating envelope must match installation environment",
+      "environments": [
+        {
+          "environment": "Data Center / NOC",
+          "temp_c": "18-27",
+          "humidity_pct": "20-80",
+          "standard": "TIA-942-B / ASHRAE A1",
+          "ventilation_clearance_mm": 100
+        },
+        {
+          "environment": "Control Room",
+          "temp_c": "18-25",
+          "humidity_pct": "30-70",
+          "standard": "ISO 11064-6",
+          "ventilation_clearance_mm": 100
+        },
+        {
+          "environment": "Standard Office",
+          "temp_c": "20-26",
+          "humidity_pct": "30-60",
+          "standard": "ISO 7730",
+          "ventilation_clearance_mm": 50
+        },
+        {
+          "environment": "Industrial",
+          "temp_c": "5-40",
+          "humidity_pct": "10-90",
+          "standard": "IEC 62368-1",
+          "ventilation_clearance_mm": 150
+        },
+        {
+          "environment": "Outdoor (sheltered)",
+          "temp_c": "-20 to 50",
+          "humidity_pct": "5-95",
+          "standard": "IP65+ required",
+          "ventilation_clearance_mm": "N/A - forced cooling"
+        }
+      ]
+    },
+    "10_compliance_standards": {
+      "principle": "All monitors must meet applicable safety and EMC standards for the market",
+      "mandatory_standards": [
+        {
+          "standard": "IEC 62368-1:2023",
+          "scope": "Safety of AV/IT equipment",
+          "markets": "Global baseline"
+        },
+        {
+          "standard": "EN 55032 (Class A/B)",
+          "scope": "EMC emissions",
+          "markets": "EU (CE)"
+        },
+        {
+          "standard": "EN 55035",
+          "scope": "EMC immunity",
+          "markets": "EU (CE)"
+        },
+        {
+          "standard": "FCC Part 15",
+          "scope": "RF emissions",
+          "markets": "USA"
+        },
+        {
+          "standard": "RoHS 2011/65/EU",
+          "scope": "Hazardous substance restriction",
+          "markets": "EU"
+        },
+        {
+          "standard": "ErP Lot 6 (standby \u22640.5W)",
+          "scope": "Energy efficiency",
+          "markets": "EU"
+        },
+        {
+          "standard": "WEEE 2012/19/EU",
+          "scope": "End-of-life recycling",
+          "markets": "EU"
+        }
+      ]
+    }
+  }
+}
