@@ -21,7 +21,9 @@ export async function POST(req: NextRequest) {
     };
 
     if (body.global || !body.systemId) {
-      const hits = await globalSearch(body.text || "", body.limit || 12);
+      // Caller can still cap with an explicit limit; the default is generous
+      // so cross-vendor searches don't silently truncate relevant products.
+      const hits = await globalSearch(body.text || "", body.limit || 200);
       return NextResponse.json({ mode: "global", hits });
     }
 

@@ -90,6 +90,34 @@ function systemLabel(sys: SystemEntry | undefined): string {
   return `${sys.vendor} ${sys.category || ""}`.trim();
 }
 
+function buildDescription(
+  product: Record<string, unknown>,
+  sys: SystemEntry | undefined,
+): string {
+  // Prefer the rich flattened spec description, but always fall back to
+  // something meaningful so no row ships with a blank description cell.
+  const flat = flatSpecs(product).trim();
+  if (flat) return flat;
+
+  const parts: string[] = [];
+  const model = product.model ? String(product.model) : "";
+  const category: string = product.category
+    ? String(product.category)
+    : sys?.category || "";
+  const subCat =
+    product.sub_category ? String(product.sub_category) : "";
+  const vendor: string =
+    sys?.vendor || (product.vendor ? String(product.vendor) : "");
+
+  if (vendor) parts.push(vendor);
+  if (model) parts.push(model);
+  if (subCat) parts.push(subCat);
+  else if (category) parts.push(category);
+
+  const joined = parts.filter(Boolean).join(" — ");
+  return joined || "Product (no spec data available — please add details).";
+}
+
 function toQuotationItem(
   h: HitWithSystem,
   sys: SystemEntry | undefined,
@@ -100,7 +128,7 @@ function toQuotationItem(
     system: systemLabel(sys),
     brand: sys?.vendor ?? "",
     model: String(h.product.model ?? ""),
-    description: flatSpecs(h.product),
+    description: buildDescription(h.product, sys),
     quantity: qty,
     unit_price: h.unitPrice,
     delivery: "Available",

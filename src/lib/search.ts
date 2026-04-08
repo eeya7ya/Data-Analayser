@@ -43,6 +43,60 @@ const tokenize = (s: string): string[] =>
     .split(/\s+/)
     .filter(Boolean);
 
+/** Very light stemming so "cameras" still matches "camera" etc. */
+function expandTokens(tokens: string[]): string[] {
+  const out = new Set<string>();
+  for (const t of tokens) {
+    if (!t) continue;
+    out.add(t);
+    if (t.length > 3 && t.endsWith("s")) out.add(t.slice(0, -1));
+    if (t.length > 4 && t.endsWith("es")) out.add(t.slice(0, -2));
+    if (t.length > 3 && t.endsWith("ing")) out.add(t.slice(0, -3));
+  }
+  return [...out];
+}
+
+/** Common vendor / category aliases so the user can type human words. */
+const SEARCH_ALIASES: Record<string, string[]> = {
+  cctv: ["camera", "ipc", "dvr", "nvr", "ptz", "hikvision", "esviz"],
+  camera: ["cctv", "ipc", "ptz", "bullet", "dome", "turret"],
+  ip: ["ipc", "poe"],
+  sound: ["speaker", "amplifier", "dsppa", "audio", "pa"],
+  pa: ["speaker", "amplifier", "dsppa", "audio", "sound"],
+  audio: ["speaker", "amplifier", "dsppa", "sound", "pa"],
+  speaker: ["sound", "audio", "dsppa", "amplifier"],
+  amplifier: ["sound", "audio", "dsppa", "speaker"],
+  network: ["switch", "router", "aruba", "tenda", "planet", "poe"],
+  networking: ["switch", "router", "aruba", "tenda", "planet", "poe"],
+  switch: ["network", "poe", "aruba", "tenda", "planet"],
+  router: ["network", "aruba", "tenda", "planet"],
+  access: ["sib", "turnstile", "barrier", "door", "reader"],
+  door: ["access", "sib", "reader", "lock"],
+  cable: ["cables", "utp", "cat6", "hdmi", "coax", "fiber"],
+  cables: ["cable", "utp", "cat6", "hdmi", "coax", "fiber"],
+  intercom: ["fanvil", "hikvision", "video"],
+  phone: ["pbx", "fanvil", "yeastar", "ip phone"],
+  pbx: ["yeastar", "phone", "fanvil"],
+  video: ["wall", "display", "monitor", "screen"],
+  display: ["monitor", "screen", "video wall", "interactive"],
+  monitor: ["display", "screen"],
+  nvr: ["dvr", "cctv", "recorder"],
+  dvr: ["nvr", "cctv", "recorder"],
+  rack: ["cabinet", "extreme"],
+  cabinet: ["rack", "extreme"],
+  ups: ["legrand", "battery", "power"],
+  power: ["ups", "schneider", "legrand"],
+};
+
+function expandWithAliases(tokens: string[]): string[] {
+  const out = new Set<string>(tokens);
+  for (const t of tokens) {
+    const aliases = SEARCH_ALIASES[t];
+    if (aliases) for (const a of aliases) out.add(a);
+  }
+  return [...out];
+}
+
 function flatten(obj: unknown, depth = 0, acc: string[] = []): string[] {
   if (depth > 4 || obj == null) return acc;
   if (typeof obj === "string" || typeof obj === "number" || typeof obj === "boolean") {
@@ -116,7 +170,9 @@ export function searchProducts(
   const products = db.products || [];
   const currency =
     (db.database_info?.currency as string | undefined) || "USD";
-  const textTokens = tokenize(query.text || "");
+  const rawTokens = tokenize(query.text || "");
+  // Include singular/plural stems so "cameras" finds "camera" products too.
+  const textTokens = expandTokens(rawTokens);
   const filters = query.filters || {};
   const scored: ScoredProduct[] = [];
 
@@ -190,27 +246,43 @@ export function searchProducts(
 /** Global cross-vendor search (used when the AI needs broader candidates). */
 export async function globalSearch(
   text: string,
-  limit = 10,
+  limit = 80,
 ): Promise<Array<ScoredProduct & { system: SystemEntry }>> {
-  const tokens = tokenize(text);
-  // Pre-filter systems whose vendor/category matches any token, otherwise
-  // fall back to scanning all systems.
-  let candidates = SYSTEMS.filter((s) => {
-    const hay = `${s.vendor} ${s.category} ${s.name}`.toLowerCase();
-    return tokens.some((t) => hay.includes(t));
-  });
-  if (candidates.length === 0) candidates = SYSTEMS;
+  const rawTokens = tokenize(text);
+  const tokens = expandWithAliases(expandTokens(rawTokens));
 
-  const results: Array<ScoredProduct & { system: SystemEntry }> = [];
-  for (const sys of candidates.slice(0, 8)) {
-    try {
-      const { db } = await loadSystem(sys);
-      const hits = searchProducts(db, { text, limit: 5 });
-      for (const h of hits) results.push({ ...h, system: sys });
-    } catch {
-      /* ignore */
-    }
-  }
+  // Rank systems by how many query tokens (or aliases of them) they match
+  // in vendor/category/name — but still scan every system afterwards so
+  // niche products with the query term deep in their specs are never
+  // silently excluded.
+  const ranked = SYSTEMS.map((s) => {
+    const hay = `${s.vendor} ${s.category} ${s.name} ${s.manufacturer || ""}`
+      .toLowerCase();
+    const sysScore = tokens.reduce(
+      (acc, t) => (hay.includes(t) ? acc + 1 : acc),
+      0,
+    );
+    return { s, sysScore };
+  }).sort((a, b) => b.sysScore - a.sysScore);
+  const candidates = ranked.map((r) => r.s);
+
+  // Per-system cap is high enough that broad vendors (Hikvision, DSPPA)
+  // can still surface a meaningful spread of matching products.
+  const perSystemLimit = Math.max(20, Math.ceil(limit / 2));
+
+  const chunks = await Promise.all(
+    candidates.map(async (sys) => {
+      try {
+        const { db } = await loadSystem(sys);
+        const hits = searchProducts(db, { text, limit: perSystemLimit });
+        return hits.map((h) => ({ ...h, system: sys }));
+      } catch {
+        return [] as Array<ScoredProduct & { system: SystemEntry }>;
+      }
+    }),
+  );
+
+  const results = chunks.flat();
   results.sort((a, b) => b.score - a.score);
   return results.slice(0, limit);
 }
