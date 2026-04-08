@@ -10,12 +10,80 @@ export function groqClient(): Groq {
   return new Groq({ apiKey: key });
 }
 
+/** All chat/text-generation models available on this Groq account. */
+export const GROQ_CHAT_MODELS = [
+  {
+    id: "llama-3.3-70b-versatile",
+    label: "Llama 3.3 70B Versatile",
+    description: "Balanced quality & speed — default design model",
+    supportsJsonMode: true,
+  },
+  {
+    id: "llama-3.1-8b-instant",
+    label: "Llama 3.1 8B Instant",
+    description: "Fastest, lightest — good for simple BoQ tasks",
+    supportsJsonMode: true,
+  },
+  {
+    id: "meta-llama/llama-4-scout-17b-16e-instruct",
+    label: "Llama 4 Scout 17B",
+    description: "Llama 4 multimodal scout model",
+    supportsJsonMode: true,
+  },
+  {
+    id: "moonshotai/kimi-k2-instruct",
+    label: "Kimi K2",
+    description: "Moonshot AI — strong reasoning & long context",
+    supportsJsonMode: false,
+  },
+  {
+    id: "moonshotai/kimi-k2-instruct-0905",
+    label: "Kimi K2 (Sep-05)",
+    description: "Moonshot AI — September checkpoint",
+    supportsJsonMode: false,
+  },
+  {
+    id: "openai/gpt-oss-120b",
+    label: "GPT OSS 120B",
+    description: "Large open-weight GPT-class model via Groq",
+    supportsJsonMode: true,
+  },
+  {
+    id: "openai/gpt-oss-20b",
+    label: "GPT OSS 20B",
+    description: "Smaller open-weight GPT-class model — fast",
+    supportsJsonMode: true,
+  },
+  {
+    id: "qwen/qwen3-32b",
+    label: "Qwen 3 32B",
+    description: "Alibaba Qwen 3 — strong multilingual & Arabic support",
+    supportsJsonMode: true,
+  },
+] as const;
+
+export type GroqChatModelId = (typeof GROQ_CHAT_MODELS)[number]["id"];
+
+/** Compound (agentic) models that include live web search. */
+export const GROQ_WEB_MODELS = [
+  {
+    id: "groq/compound",
+    label: "Compound (full)",
+    description: "Groq agentic model with live web search",
+  },
+  {
+    id: "groq/compound-mini",
+    label: "Compound Mini",
+    description: "Lighter agentic model with live web search",
+  },
+] as const;
+
 export const DESIGN_MODEL = () =>
   process.env.GROQ_DESIGN_MODEL || "llama-3.3-70b-versatile";
 
 // Groq's "compound" agentic model performs live web search automatically.
 // Perfect for deep fallback when our local DB can't answer.
-export const WEB_MODEL = () => process.env.GROQ_WEB_MODEL || "compound-beta";
+export const WEB_MODEL = () => process.env.GROQ_WEB_MODEL || "groq/compound";
 
 export const DESIGNER_SYSTEM_PROMPT = `You are MagicTech's expert Sales & Design Engineer AI.
 

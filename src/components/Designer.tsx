@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SystemEntry } from "@/lib/manifest.generated";
 import type { SessionUser } from "@/lib/auth";
+import { GROQ_CHAT_MODELS, type GroqChatModelId } from "@/lib/groq";
 import QuotationPreview, { QuotationItem } from "./QuotationPreview";
 
 interface DesignResult {
@@ -34,6 +35,9 @@ export default function Designer({
 }) {
   const router = useRouter();
   const [systemId, setSystemId] = useState<number | "">("");
+  const [designModel, setDesignModel] = useState<GroqChatModelId>(
+    GROQ_CHAT_MODELS[0].id,
+  );
   const [brief, setBrief] = useState(
     "Kempinski Hotel Aqaba Red Sea — 10× indoor industry dashcam, SD cards, mobile surveillance base, full install.",
   );
@@ -72,6 +76,7 @@ export default function Designer({
           systemId: systemId || undefined,
           userBrief: brief,
           answers,
+          model: designModel,
         }),
       });
       const data = await res.json();
@@ -151,7 +156,7 @@ export default function Designer({
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       {/* LEFT — controls */}
       <section className="lg:col-span-5 space-y-4">
-        <Card title="1 · Select a system">
+        <Card title="1 · Select a system &amp; AI model">
           <select
             value={systemId}
             onChange={(e) =>
@@ -170,6 +175,25 @@ export default function Designer({
               </optgroup>
             ))}
           </select>
+          <div className="mt-3">
+            <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
+              Groq design model
+            </label>
+            <select
+              value={designModel}
+              onChange={(e) => setDesignModel(e.target.value as GroqChatModelId)}
+              className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
+            >
+              {GROQ_CHAT_MODELS.map((m) => (
+                <option key={m.id} value={m.id} title={m.description}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-magic-ink/50">
+              {GROQ_CHAT_MODELS.find((m) => m.id === designModel)?.description}
+            </p>
+          </div>
         </Card>
 
         <Card title="2 · Describe the project (one sentence is enough)">

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { DESIGNER_SYSTEM_PROMPT, DESIGN_MODEL, groqClient } from "@/lib/groq";
+import {
+  DESIGNER_SYSTEM_PROMPT,
+  DESIGN_MODEL,
+  GROQ_CHAT_MODELS,
+  groqClient,
+  type GroqChatModelId,
+} from "@/lib/groq";
 import {
   findSystem,
   loadSystem,
@@ -24,6 +30,7 @@ export async function POST(req: NextRequest) {
       userBrief: string;
       history?: Array<{ role: "user" | "assistant"; content: string }>;
       answers?: Record<string, string>;
+      model?: GroqChatModelId;
     };
 
     if (!body.userBrief || body.userBrief.trim().length < 3) {
@@ -84,10 +91,18 @@ export async function POST(req: NextRequest) {
       { role: "user" as const, content: body.userBrief },
     ];
 
+    // Use caller-supplied model if it is in the known catalog, else env/default.
+    const allowedIds = GROQ_CHAT_MODELS.map((m) => m.id as string);
+    const requestedModel = body.model && allowedIds.includes(body.model)
+      ? body.model
+      : DESIGN_MODEL();
+    const modelMeta = GROQ_CHAT_MODELS.find((m) => m.id === requestedModel);
+    const supportsJson = modelMeta?.supportsJsonMode !== false;
+
     const completion = await groq.chat.completions.create({
-      model: DESIGN_MODEL(),
+      model: requestedModel,
       temperature: 0.2,
-      response_format: { type: "json_object" },
+      ...(supportsJson ? { response_format: { type: "json_object" } } : {}),
       messages,
     });
 
@@ -98,7 +113,7 @@ export async function POST(req: NextRequest) {
     } catch {
       parsed = { ready: false, raw, error: "Model returned non-JSON" };
     }
-    return NextResponse.json({ result: parsed });
+    return NextResponse.json({ model: requestedModel, result: parsed });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message || "design failed" },
