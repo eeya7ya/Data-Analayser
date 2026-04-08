@@ -271,38 +271,34 @@ function QuotationPage({
         </div>
       </div>
 
-      {/* Info header — left column on the left edge, right column on the right edge. */}
+      {/* Info header — left column pinned to the left edge, right column pinned
+       * to the right edge. Each column is a 2-col mini-grid so labels and
+       * values line up cleanly instead of floating against the edge. */}
       <div className="flex justify-between items-start gap-4 mb-3 text-[10.5px]">
-        <div className="text-left">
-          <div className="font-bold">
+        <div className="inline-grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
+          <div className="col-span-2 font-bold">
             {header.date || new Date().toLocaleDateString("en-GB")}
           </div>
-          <div>
-            <b>Project:</b> {header.project_name || "—"}
-          </div>
-          <div>
-            <b>Client:</b> {header.client_name || "—"}
-          </div>
-          <div>
-            <b>EMAIL:</b> {header.client_email || "—"}
-          </div>
-          <div>
-            <b>Phone:</b> {header.client_phone || "—"}
-          </div>
+          <div className="text-left font-bold">Project:</div>
+          <div className="text-left">{header.project_name || "—"}</div>
+          <div className="text-left font-bold">Client:</div>
+          <div className="text-left">{header.client_name || "—"}</div>
+          <div className="text-left font-bold">EMAIL:</div>
+          <div className="text-left">{header.client_email || "—"}</div>
+          <div className="text-left font-bold">Phone:</div>
+          <div className="text-left">{header.client_phone || "—"}</div>
         </div>
-        <div className="text-right">
-          <div>
-            <b>Ref:</b> {header.ref}
+        <div className="inline-grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+          <div className="text-left font-bold">Ref:</div>
+          <div className="text-left">{header.ref}</div>
+          <div className="text-left font-bold">Prepared By:</div>
+          <div className="text-left">{header.prepared_by || "—"}</div>
+          <div className="text-left font-bold">Phone:</div>
+          <div className="text-left">
+            {header.sales_phone || "+962 795172566"}
           </div>
-          <div>
-            <b>Prepared By:</b> {header.prepared_by || "—"}
-          </div>
-          <div>
-            <b>Phone:</b> {header.sales_phone || "+962 795172566"}
-          </div>
-          <div>
-            <b>Sales Engineer:</b> {header.sales_engineer || "—"}
-          </div>
+          <div className="text-left font-bold">Sales Engineer:</div>
+          <div className="text-left">{header.sales_engineer || "—"}</div>
         </div>
       </div>
 

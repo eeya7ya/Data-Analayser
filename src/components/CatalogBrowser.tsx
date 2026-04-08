@@ -25,11 +25,56 @@ function getPrice(p: Record<string, unknown>): { si: number; dpp: number } {
 }
 
 function flatSpecs(p: Record<string, unknown>): string {
-  const skip = new Set(["id", "model", "category", "sub_category", "pricing", "series"]);
-  return Object.entries(p)
-    .filter(([k, v]) => !skip.has(k) && v !== null && v !== undefined && v !== "" && v !== false)
-    .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`)
-    .join("  •  ");
+  // Fields that carry metadata, not user-facing specs.
+  const skip = new Set([
+    "id",
+    "model",
+    "category",
+    "sub_category",
+    "pricing",
+    "series",
+    "vendor",
+    "brand",
+  ]);
+
+  const parts: string[] = [];
+
+  function formatLeaf(v: unknown): string | null {
+    if (v === null || v === undefined || v === "" || v === false) return null;
+    if (v === true) return "Yes";
+    if (typeof v === "number" || typeof v === "string") return String(v);
+    return null;
+  }
+
+  function walk(key: string, value: unknown) {
+    if (value === null || value === undefined || value === "" || value === false)
+      return;
+    const label = key.replace(/_/g, " ");
+    // Arrays render as comma-joined leaf values (filters out nested objects).
+    if (Array.isArray(value)) {
+      const items = value
+        .map((v) => (typeof v === "object" && v !== null ? null : formatLeaf(v)))
+        .filter((x): x is string => !!x);
+      if (items.length) parts.push(`${label}: ${items.join(", ")}`);
+      return;
+    }
+    // Nested objects get flattened so their leaf entries show up as top-level.
+    if (typeof value === "object") {
+      for (const [nk, nv] of Object.entries(value as Record<string, unknown>)) {
+        walk(nk, nv);
+      }
+      return;
+    }
+    const formatted = formatLeaf(value);
+    if (formatted) parts.push(`${label}: ${formatted}`);
+  }
+
+  for (const [k, v] of Object.entries(p)) {
+    if (skip.has(k)) continue;
+    walk(k, v);
+  }
+
+  return parts.join("  •  ");
 }
 
 function sortVal(product: Record<string, unknown>, key: string, unitPrice: number): string | number {
