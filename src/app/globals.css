@@ -20,6 +20,14 @@ body {
 }
 
 /* Printable quotation styling — matches the Magic Tech sales quotation look. */
+/* Multi-page quotation document: stack individual A4 sheets vertically. */
+.quotation-doc {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
 .quotation-sheet {
   width: 210mm;
   min-height: 297mm;
@@ -28,6 +36,18 @@ body {
   color: var(--mt-ink);
   margin: 0 auto;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+.quotation-sheet .footer-address {
+  margin-top: auto;
+}
+
+/* Force a hard page break after every sheet except the last one. */
+.quotation-sheet.page-break-after {
+  page-break-after: always;
+  break-after: page;
 }
 
 .quotation-sheet table {
@@ -89,12 +109,19 @@ body {
   .no-print {
     display: none !important;
   }
+  .quotation-doc {
+    gap: 0;
+  }
   .quotation-sheet {
     box-shadow: none;
     margin: 0;
     width: auto;
     min-height: auto;
     padding: 8mm;
+  }
+  .quotation-sheet.page-break-after {
+    page-break-after: always;
+    break-after: page;
   }
   @page {
     size: A4;

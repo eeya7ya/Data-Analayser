@@ -1,13 +1,25 @@
 "use client";
 
 import QuotationPreview, { QuotationItem } from "./QuotationPreview";
+import { DEFAULT_TERMS } from "@/lib/quotationDraft";
+
+interface SavedConfig {
+  showPictures?: boolean;
+  terms?: string[];
+}
 
 export default function QuotationViewer({
   row,
 }: {
   row: Record<string, unknown>;
 }) {
-  const items = (row.items_json as QuotationItem[]) || [];
+  const rawItems = (row.items_json as QuotationItem[]) || [];
+  // Back-fill `system` for rows saved before grouping existed.
+  const items: QuotationItem[] = rawItems.map((it) => ({
+    ...it,
+    system: it.system || it.brand || "General",
+  }));
+  const config = (row.config_json as SavedConfig) || {};
   const header = {
     ref: String(row.ref),
     project_name: String(row.project_name),
@@ -31,7 +43,17 @@ export default function QuotationViewer({
           Print / PDF
         </button>
       </div>
-      <QuotationPreview header={header} items={items} editable={false} />
+      <QuotationPreview
+        header={header}
+        items={items}
+        editable={false}
+        showPictures={Boolean(config.showPictures)}
+        terms={
+          Array.isArray(config.terms) && config.terms.length > 0
+            ? config.terms
+            : [...DEFAULT_TERMS]
+        }
+      />
     </div>
   );
 }

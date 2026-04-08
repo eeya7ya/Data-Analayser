@@ -58,20 +58,22 @@ export async function POST(req: NextRequest) {
       tax_percent?: number;
       items: unknown[];
       totals?: Record<string, unknown>;
+      config?: Record<string, unknown>;
     };
     const ref = genRef();
     const q = sql();
     const rows = (await q`
       insert into quotations (
         ref, owner_id, project_name, client_name, client_email, client_phone,
-        sales_engineer, prepared_by, site_name, tax_percent, items_json, totals_json
+        sales_engineer, prepared_by, site_name, tax_percent, items_json, totals_json, config_json
       ) values (
         ${ref}, ${user.id}, ${body.project_name}, ${body.client_name || null},
         ${body.client_email || null}, ${body.client_phone || null},
         ${body.sales_engineer || null}, ${body.prepared_by || user.username},
         ${body.site_name || "SITE"}, ${body.tax_percent ?? 16},
         ${JSON.stringify(body.items || [])}::jsonb,
-        ${JSON.stringify(body.totals || {})}::jsonb
+        ${JSON.stringify(body.totals || {})}::jsonb,
+        ${JSON.stringify(body.config || {})}::jsonb
       )
       returning id, ref
     `) as Array<{ id: number; ref: string }>;
