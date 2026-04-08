@@ -176,7 +176,7 @@ export default function QuotationPreview({
         </QuotationPage>
       ))}
 
-      {/* Final totals + terms page */}
+      {/* Final summary + terms page */}
       {systemPages.length > 0 && (
         <QuotationPage
           header={header}
@@ -184,19 +184,43 @@ export default function QuotationPreview({
           pageLabel={`Page ${systemPages.length + 1} of ${systemPages.length + 1}`}
           isLast
         >
-          <div className="site-banner">Final Totals</div>
+          {/* Per-system summary with grand totals */}
+          <div className="site-banner">Summary of Systems</div>
           <table>
+            <thead>
+              <tr>
+                <th style={{ width: "8%" }}>No</th>
+                <th style={{ width: "62%" }}>System</th>
+                <th style={{ width: "30%" }}>Total</th>
+              </tr>
+            </thead>
             <tbody>
+              {groups.map((g, i) => {
+                const sub = g.rows.reduce(
+                  (acc, { item }) =>
+                    acc +
+                    (Number(item.quantity) || 0) *
+                      (Number(item.unit_price) || 0),
+                  0,
+                );
+                return (
+                  <tr key={g.system + i}>
+                    <td>{i + 1}</td>
+                    <td className="font-semibold">{g.system}</td>
+                    <td className="font-semibold">{money(sub)}</td>
+                  </tr>
+                );
+              })}
               <tr className="totals-row grand">
-                <td style={{ width: "75%" }}>Grand Total Cost (Subtotal)</td>
+                <td colSpan={2}>Grand Total (Subtotal)</td>
                 <td>{money(subtotal)}</td>
               </tr>
               <tr className="totals-row">
-                <td>TAX ({header.tax_percent}%)</td>
+                <td colSpan={2}>TAX ({header.tax_percent}%)</td>
                 <td>{money(tax)}</td>
               </tr>
               <tr className="totals-row">
-                <td>Total Cost</td>
+                <td colSpan={2}>Total Cost</td>
                 <td>{money(total)}</td>
               </tr>
             </tbody>
@@ -229,6 +253,9 @@ function QuotationPage({
   isLast?: boolean;
   children: React.ReactNode;
 }) {
+  // The repo ships the Magic Tech brand as /public/logo-placeholder.svg —
+  // fall back to it so every sheet renders the real logo, not the text hack.
+  const effectiveLogo = logoUrl || "/logo-placeholder.svg";
   return (
     <div
       className={`quotation-sheet text-[11px] ${isLast ? "" : "page-break-after"}`}
@@ -236,18 +263,8 @@ function QuotationPage({
       {/* Top brand strip */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="MagicTech" className="h-12" />
-          ) : (
-            <div>
-              <div className="text-xs text-magic-ink/60">سحر التقنية</div>
-              <div className="flex items-center gap-1">
-                <span className="text-2xl font-black text-magic-red">Magic</span>
-                <span className="text-2xl font-black text-magic-ink">Tech</span>
-              </div>
-            </div>
-          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={effectiveLogo} alt="MagicTech" className="h-14" />
         </div>
         <div className="text-right">
           <div className="text-3xl font-black">
@@ -260,9 +277,9 @@ function QuotationPage({
         </div>
       </div>
 
-      {/* Info header */}
+      {/* Info header — both columns left-aligned */}
       <div className="grid grid-cols-2 gap-4 mb-3 text-[10.5px]">
-        <div>
+        <div className="text-left">
           <div className="font-bold">
             {header.date || new Date().toLocaleDateString("en-GB")}
           </div>
@@ -279,7 +296,7 @@ function QuotationPage({
             <b>Phone:</b> {header.client_phone || "—"}
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-left">
           <div>
             <b>Ref:</b> {header.ref}
           </div>
@@ -297,9 +314,13 @@ function QuotationPage({
 
       {children}
 
-      {/* Footer: location / site */}
+      {/* Fixed company address footer */}
       <div className="footer-address">
-        {header.site_name || "SITE"}
+        <span>Address: Amman - Gardens Street - Khawaja Complex No. 65</span>
+        <span className="footer-sep">•</span>
+        <span>Tel: +962 6 5560272</span>
+        <span className="footer-sep">•</span>
+        <span>Fax: +962 6 5560275</span>
       </div>
     </div>
   );
@@ -400,20 +421,18 @@ function SystemTable({
                 item.model
               )}
             </td>
-            <td className="text-left align-top">
+            <td>
               {editable ? (
                 <textarea
                   rows={3}
-                  className="w-full bg-transparent text-[10.5px]"
+                  className="w-full bg-transparent text-[10.5px] text-center"
                   value={item.description}
                   onChange={(e) =>
                     onUpdate(globalIndex, { description: e.target.value })
                   }
                 />
               ) : (
-                <div className="whitespace-pre-wrap text-left">
-                  {item.description}
-                </div>
+                <div className="whitespace-pre-wrap">{item.description}</div>
               )}
             </td>
             {showPictures && (
@@ -582,35 +601,33 @@ function TermsBlock({
   }
 
   return (
-    <div className="mt-4 text-[10.5px]">
-      <div className="border-b border-magic-ink/40 inline-block font-bold italic mb-2">
-        Terms and conditions
-      </div>
-      <ul className="mt-2 space-y-1">
+    <div className="terms-block mt-4">
+      <div className="site-banner">Terms &amp; Conditions</div>
+      <div className="terms-grid">
         {terms.map((t, i) => (
-          <li key={i} className="flex items-start gap-1">
-            <span>•</span>
+          <div key={i} className="terms-row">
+            <span className="terms-num">{i + 1}.</span>
             {editable ? (
               <>
                 <input
                   value={t}
                   onChange={(e) => update(i, e.target.value)}
-                  className="flex-1 bg-transparent border-b border-dotted border-magic-border outline-none"
+                  className="terms-input"
                 />
                 <button
                   onClick={() => remove(i)}
-                  className="no-print text-red-500 text-[9px]"
+                  className="no-print text-red-500 text-[10px] ml-1"
                   title="Remove term"
                 >
                   ×
                 </button>
               </>
             ) : (
-              <span>{t}</span>
+              <span className="terms-text">{t}</span>
             )}
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
       {editable && (
         <button
           onClick={add}
@@ -619,7 +636,7 @@ function TermsBlock({
           + Add term
         </button>
       )}
-      <p className="mt-3 font-bold italic">
+      <p className="mt-3 font-bold italic text-right">
         Presales Engineer: {salesEngineer || "—"}
       </p>
     </div>
