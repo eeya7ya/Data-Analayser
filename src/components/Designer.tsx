@@ -1,11 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SystemEntry } from "@/lib/manifest.generated";
 import type { SessionUser } from "@/lib/auth";
 import { GROQ_CHAT_MODELS, type GroqChatModelId } from "@/lib/groq";
 import QuotationPreview, { QuotationItem } from "./QuotationPreview";
+import {
+  DEFAULT_TERMS,
+  loadDraft,
+  saveDraft,
+  clearDraft,
+} from "@/lib/quotationDraft";
 
 interface DesignResult {
   ready: boolean;
@@ -41,16 +47,14 @@ export default function Designer({
   const [brief, setBrief] = useState(
     "Kempinski Hotel Aqaba Red Sea — 10× indoor industry dashcam, SD cards, mobile surveillance base, full install.",
   );
-  // Conversation history — filled after AI asks follow-up questions so the
-  // second call has context about what the AI already asked.
   const [convHistory, setConvHistory] = useState<
     Array<{ role: "user" | "assistant"; content: string }>
   >([]);
-  const [projectName, setProjectName] = useState("Kempinski Hotel Aqaba Red Sea");
+  const [projectName, setProjectName] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [salesEng, setSalesEng] = useState("ENG. Yahya Khaled");
-  const [siteName, setSiteName] = useState("AQABA SITE");
+  const [siteName, setSiteName] = useState("");
   const [taxPercent, setTaxPercent] = useState(16);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -59,6 +63,50 @@ export default function Designer({
   const [webResult, setWebResult] = useState<string | null>(null);
   const [items, setItems] = useState<QuotationItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [showPictures, setShowPictures] = useState(false);
+  const [terms, setTerms] = useState<string[]>([...DEFAULT_TERMS]);
+  const hydratedRef = useRef(false);
+
+  // ── Load persisted draft on mount ─────────────────────────────────────────
+  useEffect(() => {
+    const d = loadDraft();
+    setItems(d.items);
+    setProjectName(d.projectName);
+    setClientName(d.clientName);
+    setClientEmail(d.clientEmail);
+    setSalesEng(d.salesEng);
+    setSiteName(d.siteName);
+    setTaxPercent(d.taxPercent);
+    setShowPictures(d.showPictures);
+    setTerms(d.terms.length > 0 ? d.terms : [...DEFAULT_TERMS]);
+    hydratedRef.current = true;
+  }, []);
+
+  // ── Persist draft whenever it changes ─────────────────────────────────────
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    saveDraft({
+      items,
+      projectName,
+      clientName,
+      clientEmail,
+      salesEng,
+      siteName,
+      taxPercent,
+      showPictures,
+      terms,
+    });
+  }, [
+    items,
+    projectName,
+    clientName,
+    clientEmail,
+    salesEng,
+    siteName,
+    taxPercent,
+    showPictures,
+    terms,
+  ]);
 
   const systemsBy = useMemo(() => {
     const map = new Map<string, SystemEntry[]>();
@@ -74,8 +122,6 @@ export default function Designer({
     setLoading(true);
     setResult(null);
     try {
-      // When the user is answering follow-up questions, build a clear answers
-      // message and include the stored history so the AI remembers what it asked.
       const hasAnswers =
         convHistory.length > 0 && Object.keys(answers).length > 0;
       const userBrief = hasAnswers
@@ -103,7 +149,6 @@ export default function Designer({
       setResult(r);
 
       if (!r.ready && r.followup_questions?.length) {
-        // Store history so the next call (with answers) has context.
         setConvHistory([
           { role: "user", content: brief },
           { role: "assistant", content: JSON.stringify(r) },
@@ -113,9 +158,16 @@ export default function Designer({
       }
 
       if (r.ready && r.items) {
-        setItems(
-          r.items.map((it, i) => ({
-            no: i + 1,
+        const sysLabel = systems.find((s) => s.id === systemId);
+        const sysName = sysLabel
+          ? `${sysLabel.vendor} ${sysLabel.category || ""}`.trim()
+          : "AI Design";
+        // Merge AI-generated items into existing list (append, not replace).
+        const base = items.slice();
+        r.items.forEach((it, i) => {
+          base.push({
+            no: base.length + i + 1,
+            system: sysName,
             brand: it.brand,
             model: it.model,
             description: it.description,
@@ -123,8 +175,9 @@ export default function Designer({
             unit_price: Number(it.unit_price) || 0,
             delivery: it.delivery || "TBD",
             picture_hint: it.picture_hint || "",
-          })),
-        );
+          });
+        });
+        setItems(base.map((b, i) => ({ ...b, no: i + 1 })));
       }
     } catch (err) {
       setResult({ ready: false, error: (err as Error).message });
@@ -160,7 +213,7 @@ export default function Designer({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          project_name: projectName,
+          project_name: projectName || "Untitled Quotation",
           client_name: clientName,
           client_email: clientEmail,
           sales_engineer: salesEng,
@@ -169,16 +222,30 @@ export default function Designer({
           tax_percent: taxPercent,
           items,
           totals,
+          config: { showPictures, terms },
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "save failed");
+      clearDraft();
       router.push(`/quotation?id=${data.quotation.id}`);
     } catch (err) {
       alert((err as Error).message);
     } finally {
       setSaving(false);
     }
+  }
+
+  function clearAll() {
+    if (!confirm("Clear the current quotation draft?")) return;
+    setItems([]);
+    setProjectName("");
+    setClientName("");
+    setClientEmail("");
+    setSiteName("");
+    setShowPictures(false);
+    setTerms([...DEFAULT_TERMS]);
+    clearDraft();
   }
 
   return (
@@ -296,7 +363,11 @@ export default function Designer({
         <Card title="Quotation header">
           <div className="grid grid-cols-2 gap-2 text-xs">
             <Field label="Project" value={projectName} onChange={setProjectName} />
-            <Field label="Site" value={siteName} onChange={setSiteName} />
+            <Field
+              label="Site / Location"
+              value={siteName}
+              onChange={setSiteName}
+            />
             <Field label="Client" value={clientName} onChange={setClientName} />
             <Field
               label="Client email"
@@ -320,6 +391,14 @@ export default function Designer({
               />
             </div>
           </div>
+          <label className="mt-3 flex items-center gap-2 text-xs text-magic-ink/80">
+            <input
+              type="checkbox"
+              checked={showPictures}
+              onChange={(e) => setShowPictures(e.target.checked)}
+            />
+            Show picture column (pictures are uploaded manually per row)
+          </label>
         </Card>
       </section>
 
@@ -349,6 +428,13 @@ export default function Designer({
             <h3 className="text-sm font-semibold">Quotation preview</h3>
             <div className="flex gap-2">
               <button
+                onClick={clearAll}
+                disabled={items.length === 0 || saving}
+                className="rounded-md border border-magic-border px-3 py-1.5 text-xs hover:bg-magic-soft disabled:opacity-40"
+              >
+                Clear
+              </button>
+              <button
                 onClick={saveQuotation}
                 disabled={items.length === 0 || saving}
                 className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
@@ -372,6 +458,9 @@ export default function Designer({
             items={items}
             setItems={setItems}
             editable
+            showPictures={showPictures}
+            terms={terms}
+            setTerms={setTerms}
           />
         </div>
       </section>

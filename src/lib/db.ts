@@ -47,9 +47,14 @@ export async function ensureSchema(): Promise<void> {
       site_name     text not null default 'SITE',
       items_json    jsonb not null default '[]'::jsonb,
       totals_json   jsonb not null default '{}'::jsonb,
+      config_json   jsonb not null default '{}'::jsonb,
       created_at    timestamptz not null default now(),
       updated_at    timestamptz not null default now()
     )
+  `;
+  // Additive migration for pre-existing databases (safe no-op if column exists).
+  await q`
+    alter table quotations add column if not exists config_json jsonb not null default '{}'::jsonb
   `;
   await q`
     create index if not exists quotations_owner_idx on quotations(owner_id)
