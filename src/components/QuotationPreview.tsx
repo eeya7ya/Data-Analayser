@@ -2,6 +2,13 @@
 
 import React, { useRef } from "react";
 
+export interface QuotationExtraColumn {
+  /** Stable identifier used to key `QuotationItem.extra`. */
+  id: string;
+  /** User-facing header label. */
+  label: string;
+}
+
 export interface QuotationItem {
   no: number;
   /** System / vendor-category name used to group items onto separate pages. */
@@ -15,6 +22,8 @@ export interface QuotationItem {
   picture_hint?: string;
   /** Manually-inserted image (data URL or external URL). */
   picture_url?: string;
+  /** Per-row values for user-added manual columns, keyed by column id. */
+  extra?: Record<string, string>;
 }
 
 export interface QuotationHeader {
@@ -29,6 +38,10 @@ export interface QuotationHeader {
   sales_phone?: string;
   site_name: string;
   tax_percent: number;
+  /** User-added manual columns shown in every system table. */
+  extra_columns?: QuotationExtraColumn[];
+  /** Optional custom scope intro that appears above the Final Totals table. */
+  scope_intro?: string;
 }
 
 interface Props {
@@ -107,10 +120,13 @@ export default function QuotationPreview({
           system,
           brand: "",
           model: "",
-          description: "",
+          // Seed with a hint so every row — even manually-added blanks —
+          // carries a clear description by default.
+          description: `New ${system} item — please add a short description.`,
           quantity: 1,
           unit_price: 0,
           delivery: "TBD",
+          extra: {},
         },
       ]),
     );
@@ -132,6 +148,43 @@ export default function QuotationPreview({
     );
   }
 
+  // ── Manual (user-added) columns ─────────────────────────────────────────
+  const extraColumns: QuotationExtraColumn[] = header.extra_columns || [];
+
+  function addExtraColumn() {
+    if (!setHeader) return;
+    const label = window.prompt(
+      "Column header (e.g. Part No., Warranty, Location)",
+      "",
+    );
+    if (!label || !label.trim()) return;
+    const id = `c_${Date.now().toString(36)}_${Math.random()
+      .toString(36)
+      .slice(2, 6)}`;
+    const next = [...extraColumns, { id, label: label.trim() }];
+    setHeader({ extra_columns: next });
+  }
+
+  function renameExtraColumn(id: string, label: string) {
+    if (!setHeader) return;
+    const next = extraColumns.map((c) => (c.id === id ? { ...c, label } : c));
+    setHeader({ extra_columns: next });
+  }
+
+  function removeExtraColumn(id: string) {
+    if (!setHeader || !setItems) return;
+    setHeader({ extra_columns: extraColumns.filter((c) => c.id !== id) });
+    // Strip the removed column's value from every row so the JSON stays clean.
+    setItems(
+      items.map((it) => {
+        if (!it.extra || !(id in it.extra)) return it;
+        const nextExtra = { ...it.extra };
+        delete nextExtra[id];
+        return { ...it, extra: nextExtra };
+      }),
+    );
+  }
+
   const groups = groupBySystem(items);
   // Number of printed pages = one per system group + one totals page.
   // When there are no items, just render a single empty page.
@@ -150,6 +203,24 @@ export default function QuotationPreview({
           <p className="py-8 text-center text-magic-ink/50 text-xs">
             No items yet. Add products from the Catalog or use the AI Designer.
           </p>
+          {editable && (
+            <div className="no-print flex items-center justify-center gap-2">
+              <button
+                onClick={addExtraColumn}
+                className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
+                title="Add a manual column that will show up in every table"
+              >
+                + Add manual column
+              </button>
+              {extraColumns.length > 0 && (
+                <span className="text-[10px] text-magic-ink/50">
+                  {extraColumns.length} manual column
+                  {extraColumns.length === 1 ? "" : "s"} queued:{" "}
+                  {extraColumns.map((c) => c.label).join(", ")}
+                </span>
+              )}
+            </div>
+          )}
         </QuotationPage>
       )}
 
@@ -173,16 +244,33 @@ export default function QuotationPreview({
             allPages={groups.map((g) => g.system)}
             showPictures={showPictures}
             editable={editable}
+            extraColumns={extraColumns}
             onUpdate={update}
             onRemove={removeRow}
+            onRenameExtraColumn={renameExtraColumn}
+            onRemoveExtraColumn={removeExtraColumn}
           />
           {editable && (
-            <button
-              onClick={() => addRowToSystem(group.system)}
-              className="no-print mt-2 rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
-            >
-              + Add row to {group.system}
-            </button>
+            <div className="no-print mt-2 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => addRowToSystem(group.system)}
+                className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
+              >
+                + Add row to {group.system}
+              </button>
+              {/* Only show the "add column" button on the first group so the
+               * user isn't tempted to add the same column multiple times —
+               * manual columns are shared across every system table. */}
+              {pageIdx === 0 && (
+                <button
+                  onClick={addExtraColumn}
+                  className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
+                  title="Add a manual column that shows up in every table"
+                >
+                  + Add manual column
+                </button>
+              )}
+            </div>
           )}
         </QuotationPage>
       ))}
@@ -197,6 +285,12 @@ export default function QuotationPreview({
           pageLabel={`Page ${systemPages.length + 1} of ${systemPages.length + 1}`}
           isLast
         >
+          <ScopeIntro
+            systems={groups.map((g) => g.system)}
+            value={header.scope_intro}
+            editable={editable}
+            onChange={(v) => setHeader?.({ scope_intro: v })}
+          />
           <div className="site-banner">Final Totals</div>
           <table>
             <tbody>
@@ -453,22 +547,34 @@ function SystemTable({
   allPages,
   showPictures,
   editable,
+  extraColumns,
   onUpdate,
   onRemove,
+  onRenameExtraColumn,
+  onRemoveExtraColumn,
 }: {
   group: { system: string; rows: Array<{ item: QuotationItem; globalIndex: number }> };
   allPages: string[];
   showPictures: boolean;
   editable: boolean;
+  extraColumns: QuotationExtraColumn[];
   onUpdate: (globalIndex: number, patch: Partial<QuotationItem>) => void;
   onRemove: (globalIndex: number) => void;
+  onRenameExtraColumn: (id: string, label: string) => void;
+  onRemoveExtraColumn: (id: string) => void;
 }) {
-  const colCount = showPictures ? 9 : 8;
+  // Base = No, Brand, Model, Description, [Picture], Quantity, Delivery,
+  // Unit Price, Total Price — plus one cell per manual column.
+  const colCount = (showPictures ? 9 : 8) + extraColumns.length;
   const subtotal = group.rows.reduce(
     (acc, { item }) =>
       acc + (Number(item.quantity) || 0) * (Number(item.unit_price) || 0),
     0,
   );
+  // When manual columns are present, shrink the description column a bit so
+  // everything still fits on A4 without horizontal overflow.
+  const extraShare = Math.min(extraColumns.length * 7, 21); // max 21%
+  const descWidth = showPictures ? 28 - extraShare : 36 - extraShare;
   return (
     <table>
       <thead>
@@ -476,12 +582,36 @@ function SystemTable({
           <th style={{ width: "4%" }}>No</th>
           <th style={{ width: "10%" }}>Brand</th>
           <th style={{ width: "12%" }}>Model</th>
-          <th style={{ width: showPictures ? "28%" : "36%" }}>Description</th>
+          <th style={{ width: `${descWidth}%` }}>Description</th>
           {showPictures && <th style={{ width: "10%" }}>Picture</th>}
           <th style={{ width: "6%" }}>Quantity</th>
           <th style={{ width: "8%" }}>Delivery</th>
           <th style={{ width: "10%" }}>Unit Price</th>
           <th style={{ width: "12%" }}>Total Price</th>
+          {extraColumns.map((col) => (
+            <th key={col.id} style={{ width: `${extraShare / Math.max(extraColumns.length, 1)}%` }}>
+              {editable ? (
+                <div className="flex items-center justify-center gap-1">
+                  <input
+                    className="w-full bg-transparent text-center uppercase font-bold text-magic-red"
+                    value={col.label}
+                    onChange={(e) => onRenameExtraColumn(col.id, e.target.value)}
+                    aria-label="Rename manual column"
+                  />
+                  <button
+                    onClick={() => onRemoveExtraColumn(col.id)}
+                    className="no-print text-red-500 text-[10px] leading-none"
+                    title="Remove this manual column"
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                col.label
+              )}
+            </th>
+          ))}
         </tr>
       </thead>
       <tbody>
@@ -523,13 +653,17 @@ function SystemTable({
                   rows={3}
                   className="w-full bg-transparent text-[10.5px]"
                   value={item.description}
+                  placeholder="Add a short description for this item…"
                   onChange={(e) =>
                     onUpdate(globalIndex, { description: e.target.value })
                   }
                 />
               ) : (
                 <div className="whitespace-pre-wrap text-left">
-                  {item.description}
+                  {item.description && item.description.trim()
+                    ? item.description
+                    : `${item.brand || ""} ${item.model || ""}`.trim() ||
+                      "—"}
                 </div>
               )}
             </td>
@@ -623,6 +757,26 @@ function SystemTable({
                 </div>
               )}
             </td>
+            {extraColumns.map((col) => {
+              const cellValue = item.extra?.[col.id] || "";
+              return (
+                <td key={col.id} className="align-top">
+                  {editable ? (
+                    <input
+                      className="w-full bg-transparent text-center"
+                      value={cellValue}
+                      onChange={(e) =>
+                        onUpdate(globalIndex, {
+                          extra: { ...(item.extra || {}), [col.id]: e.target.value },
+                        })
+                      }
+                    />
+                  ) : (
+                    cellValue || "—"
+                  )}
+                </td>
+              );
+            })}
           </tr>
         ))}
         <tr className="totals-row">
@@ -693,6 +847,71 @@ function PictureCell({
             onChange={(e) => onPick(e.target.files?.[0] ?? null)}
           />
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Project-scope intro (shown above the Final Totals table) ───────────────
+// A short, professional paragraph that thanks the client and recaps the
+// integrated solutions included in the quotation. Auto-generated from the
+// system-group names on the previous pages, but the user can override it
+// with any custom copy from the editor — their override is remembered.
+
+function defaultScopeIntro(systems: string[]): string {
+  const list = systems.filter(Boolean);
+  if (list.length === 0) {
+    return (
+      "We sincerely appreciate the opportunity to collaborate with you on " +
+      "this project and thank you for your continued trust in Magic " +
+      "Technology. The following investment reflects the fully engineered " +
+      "scope of works outlined in this proposal."
+    );
+  }
+  const bulletList =
+    list.length === 1
+      ? list[0]
+      : list.slice(0, -1).join(", ") + " and " + list[list.length - 1];
+  return (
+    `We sincerely appreciate the opportunity to partner with you on this ` +
+    `project and thank you for your continued trust in Magic Technology. ` +
+    `As detailed in the preceding pages, the proposed scope of works has ` +
+    `been carefully engineered to deliver a fully integrated solution ` +
+    `covering ${bulletList}. Every component has been selected to ensure ` +
+    `seamless interoperability, long-term reliability, and measurable value ` +
+    `for your operation. The consolidated investment for the complete ` +
+    `scope is summarised below.`
+  );
+}
+
+function ScopeIntro({
+  systems,
+  value,
+  editable,
+  onChange,
+}: {
+  systems: string[];
+  value?: string;
+  editable: boolean;
+  onChange: (v: string) => void;
+}) {
+  const fallback = defaultScopeIntro(systems);
+  const text = value && value.trim() ? value : fallback;
+  return (
+    <div className="mb-3 text-[10.5px] leading-relaxed">
+      <div className="border-b border-magic-ink/40 inline-block font-bold italic mb-2">
+        Project Scope Summary
+      </div>
+      {editable ? (
+        <textarea
+          rows={5}
+          value={text}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full bg-transparent border border-dotted border-magic-border rounded p-2 outline-none focus:border-magic-red text-justify"
+          placeholder={fallback}
+        />
+      ) : (
+        <p className="text-justify whitespace-pre-wrap">{text}</p>
       )}
     </div>
   );

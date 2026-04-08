@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import type { SystemEntry } from "@/lib/manifest.generated";
 import type { SessionUser } from "@/lib/auth";
 import { GROQ_CHAT_MODELS, type GroqChatModelId } from "@/lib/groq";
-import QuotationPreview, { QuotationItem } from "./QuotationPreview";
+import QuotationPreview, {
+  QuotationItem,
+  QuotationExtraColumn,
+} from "./QuotationPreview";
 import {
   DEFAULT_TERMS,
   loadDraft,
@@ -44,7 +47,13 @@ export interface ExistingQuotation {
   site_name: string;
   tax_percent: number;
   items_json: QuotationItem[];
-  config_json: { showPictures?: boolean; terms?: string[]; salesPhone?: string };
+  config_json: {
+    showPictures?: boolean;
+    terms?: string[];
+    salesPhone?: string;
+    extraColumns?: QuotationExtraColumn[];
+    scopeIntro?: string;
+  };
 }
 
 export default function Designer({
@@ -87,6 +96,8 @@ export default function Designer({
   const [saving, setSaving] = useState(false);
   const [showPictures, setShowPictures] = useState(false);
   const [terms, setTerms] = useState<string[]>([...DEFAULT_TERMS]);
+  const [extraColumns, setExtraColumns] = useState<QuotationExtraColumn[]>([]);
+  const [scopeIntro, setScopeIntro] = useState("");
   const hydratedRef = useRef(false);
 
   // ── Hydrate state on mount ────────────────────────────────────────────────
@@ -117,6 +128,12 @@ export default function Designer({
           ? existing.config_json!.terms!
           : [...DEFAULT_TERMS],
       );
+      setExtraColumns(
+        Array.isArray(existing.config_json?.extraColumns)
+          ? existing.config_json!.extraColumns!
+          : [],
+      );
+      setScopeIntro(existing.config_json?.scopeIntro || "");
       hydratedRef.current = true;
       return;
     }
@@ -134,6 +151,8 @@ export default function Designer({
     setTaxPercent(d.taxPercent);
     setShowPictures(d.showPictures);
     setTerms(d.terms.length > 0 ? d.terms : [...DEFAULT_TERMS]);
+    setExtraColumns(d.extraColumns || []);
+    setScopeIntro(d.scopeIntro || "");
     hydratedRef.current = true;
   }, [existing, user.username]);
 
@@ -154,6 +173,8 @@ export default function Designer({
       taxPercent,
       showPictures,
       terms,
+      extraColumns,
+      scopeIntro,
     });
   }, [
     editMode,
@@ -170,6 +191,8 @@ export default function Designer({
     taxPercent,
     showPictures,
     terms,
+    extraColumns,
+    scopeIntro,
   ]);
 
   const systemsBy = useMemo(() => {
@@ -229,12 +252,20 @@ export default function Designer({
         // Merge AI-generated items into existing list (append, not replace).
         const base = items.slice();
         r.items.forEach((it, i) => {
+          // Never ship an AI-designed row with an empty description: fall
+          // back to the AI's reason, then to brand/model, so every printed
+          // quotation row carries something informative.
+          const desc =
+            (it.description && it.description.trim()) ||
+            (it.reason && it.reason.trim()) ||
+            [it.brand, it.model].filter(Boolean).join(" ").trim() ||
+            "AI-recommended item — please review and add details.";
           base.push({
             no: base.length + i + 1,
             system: sysName,
             brand: it.brand,
             model: it.model,
-            description: it.description,
+            description: desc,
             quantity: Number(it.quantity) || 1,
             unit_price: Number(it.unit_price) || 0,
             delivery: it.delivery || "TBD",
@@ -285,7 +316,7 @@ export default function Designer({
         tax_percent: taxPercent,
         items,
         totals,
-        config: { showPictures, terms, salesPhone },
+        config: { showPictures, terms, salesPhone, extraColumns, scopeIntro },
       };
       const res = editMode
         ? await fetch(`/api/quotations?id=${existing!.id}`, {
@@ -535,6 +566,8 @@ export default function Designer({
               ref: refCode || "PREVIEW",
               tax_percent: taxPercent,
               date: new Date().toLocaleDateString("en-GB"),
+              extra_columns: extraColumns,
+              scope_intro: scopeIntro,
             }}
             items={items}
             setItems={setItems}
@@ -555,6 +588,10 @@ export default function Designer({
                 setPreparedBy(patch.prepared_by);
               if (patch.ref !== undefined) setRefCode(patch.ref);
               if (patch.site_name !== undefined) setSiteName(patch.site_name);
+              if (patch.extra_columns !== undefined)
+                setExtraColumns(patch.extra_columns);
+              if (patch.scope_intro !== undefined)
+                setScopeIntro(patch.scope_intro);
             }}
             editable
             showPictures={showPictures}

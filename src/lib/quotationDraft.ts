@@ -2,7 +2,10 @@
 // The catalog pushes items into this draft, and the designer reads/edits it
 // live — so clicking "+" on any product lands directly in the designer table.
 
-import type { QuotationItem } from "@/components/QuotationPreview";
+import type {
+  QuotationItem,
+  QuotationExtraColumn,
+} from "@/components/QuotationPreview";
 
 export const DEFAULT_TERMS: string[] = [
   "Validity: 1 week from the date of the offer.",
@@ -28,6 +31,10 @@ export interface QuotationDraft {
   taxPercent: number;
   showPictures: boolean;
   terms: string[];
+  /** User-added manual columns shared across every system table. */
+  extraColumns: QuotationExtraColumn[];
+  /** Optional custom project-scope paragraph shown above Final Totals. */
+  scopeIntro: string;
 }
 
 const STORAGE_KEY = "mt_quotation_draft_v1";
@@ -47,6 +54,8 @@ export function emptyDraft(): QuotationDraft {
     taxPercent: 16,
     showPictures: false,
     terms: [...DEFAULT_TERMS],
+    extraColumns: [],
+    scopeIntro: "",
   };
 }
 
