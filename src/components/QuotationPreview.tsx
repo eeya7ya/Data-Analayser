@@ -160,6 +160,7 @@ export default function QuotationPreview({
           />
           <SystemTable
             group={group}
+            allPages={groups.map((g) => g.system)}
             showPictures={showPictures}
             editable={editable}
             onUpdate={update}
@@ -229,6 +230,11 @@ function QuotationPage({
   isLast?: boolean;
   children: React.ReactNode;
 }) {
+  // Default to /logo.png in /public. Drop the real PNG at
+  // public/logo.png and it will appear automatically. If the file
+  // is missing we fall back to the Magic Tech text block.
+  const resolvedLogo = logoUrl || "/logo.png";
+  const [logoBroken, setLogoBroken] = React.useState(false);
   return (
     <div
       className={`quotation-sheet text-[11px] ${isLast ? "" : "page-break-after"}`}
@@ -236,9 +242,14 @@ function QuotationPage({
       {/* Top brand strip */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          {logoUrl ? (
+          {!logoBroken ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="MagicTech" className="h-12" />
+            <img
+              src={resolvedLogo}
+              alt="Magic Tech"
+              className="h-14 w-auto object-contain"
+              onError={() => setLogoBroken(true)}
+            />
           ) : (
             <div>
               <div className="text-xs text-magic-ink/60">سحر التقنية</div>
@@ -279,7 +290,7 @@ function QuotationPage({
             <b>Phone:</b> {header.client_phone || "—"}
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-left">
           <div>
             <b>Ref:</b> {header.ref}
           </div>
@@ -335,12 +346,14 @@ function SystemBanner({
 
 function SystemTable({
   group,
+  allPages,
   showPictures,
   editable,
   onUpdate,
   onRemove,
 }: {
   group: { system: string; rows: Array<{ item: QuotationItem; globalIndex: number }> };
+  allPages: string[];
   showPictures: boolean;
   editable: boolean;
   onUpdate: (globalIndex: number, patch: Partial<QuotationItem>) => void;
@@ -469,13 +482,41 @@ function SystemTable({
                 (Number(item.quantity) || 0) * (Number(item.unit_price) || 0),
               )}
               {editable && (
-                <button
-                  onClick={() => onRemove(globalIndex)}
-                  className="no-print ml-2 text-red-500 text-[9px]"
-                  title="Remove row"
-                >
-                  ×
-                </button>
+                <div className="no-print mt-1 flex items-center justify-center gap-1">
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!v) return;
+                      if (v === "__new__") {
+                        const name = prompt("Move to which page?", "");
+                        if (name && name.trim())
+                          onUpdate(globalIndex, { system: name.trim() });
+                      } else {
+                        onUpdate(globalIndex, { system: v });
+                      }
+                    }}
+                    className="text-[9px] border border-magic-border rounded px-1 py-0.5 bg-white"
+                    title="Move this row to another page"
+                  >
+                    <option value="">Move to…</option>
+                    {allPages
+                      .filter((p) => p !== group.system)
+                      .map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    <option value="__new__">+ New page…</option>
+                  </select>
+                  <button
+                    onClick={() => onRemove(globalIndex)}
+                    className="text-red-500 text-[11px]"
+                    title="Remove row"
+                  >
+                    ×
+                  </button>
+                </div>
               )}
             </td>
           </tr>
