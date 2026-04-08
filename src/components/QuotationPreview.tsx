@@ -229,10 +229,6 @@ function QuotationPage({
   isLast?: boolean;
   children: React.ReactNode;
 }) {
-  // Default to /logo.png in /public so dropping a real PNG there
-  // (public/logo.png) makes it appear automatically.
-  const resolvedLogo = logoUrl || "/logo.png";
-  const [logoBroken, setLogoBroken] = React.useState(false);
   return (
     <div
       className={`quotation-sheet text-[11px] ${isLast ? "" : "page-break-after"}`}
@@ -240,14 +236,9 @@ function QuotationPage({
       {/* Top brand strip */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          {!logoBroken ? (
+          {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={resolvedLogo}
-              alt="Magic Tech"
-              className="h-14 w-auto object-contain"
-              onError={() => setLogoBroken(true)}
-            />
+            <img src={logoUrl} alt="MagicTech" className="h-12" />
           ) : (
             <div>
               <div className="text-xs text-magic-ink/60">سحر التقنية</div>
@@ -269,8 +260,8 @@ function QuotationPage({
         </div>
       </div>
 
-      {/* Info header — both columns kept on the left side of the page */}
-      <div className="flex flex-wrap gap-x-10 gap-y-1 mb-3 text-[10.5px] text-left">
+      {/* Info header */}
+      <div className="grid grid-cols-2 gap-4 mb-3 text-[10.5px]">
         <div>
           <div className="font-bold">
             {header.date || new Date().toLocaleDateString("en-GB")}
@@ -288,7 +279,7 @@ function QuotationPage({
             <b>Phone:</b> {header.client_phone || "—"}
           </div>
         </div>
-        <div>
+        <div className="text-right">
           <div>
             <b>Ref:</b> {header.ref}
           </div>

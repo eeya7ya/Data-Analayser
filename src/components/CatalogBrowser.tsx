@@ -257,7 +257,7 @@ export default function CatalogBrowser({
       </div>
 
       <p className="text-[11px] text-magic-ink/60 -mt-2">
-        Click any row to send the product straight to the designer. Hold{" "}
+        Click <b>+</b> to send a product straight to the designer. Hold{" "}
         <kbd className="px-1 py-0.5 rounded bg-magic-soft border border-magic-border">
           Shift
         </kbd>{" "}
@@ -298,6 +298,7 @@ export default function CatalogBrowser({
               <table className="w-full text-xs border-collapse">
                 <thead className="sticky top-0 bg-magic-soft/80 backdrop-blur z-10">
                   <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-magic-ink/60 w-8"></th>
                     {columns.map((col) => (
                       <th
                         key={col}
@@ -324,13 +325,20 @@ export default function CatalogBrowser({
                     return (
                       <tr
                         key={rowIdx}
-                        onClick={(e) => {
-                          if (e.shiftKey) addSilently(h);
-                          else addAndGoToDesigner(h);
-                        }}
-                        title="Click to add to designer (Shift+click to stay on catalog)"
-                        className="border-t border-magic-border/50 hover:bg-magic-soft/30 transition-colors cursor-pointer"
+                        className="border-t border-magic-border/50 hover:bg-magic-soft/30 transition-colors"
                       >
+                        <td className="px-2 py-1.5">
+                          <button
+                            onClick={(e) => {
+                              if (e.shiftKey) addSilently(h);
+                              else addAndGoToDesigner(h);
+                            }}
+                            title="Add to designer (Shift+click to stay on catalog)"
+                            className="w-6 h-6 rounded-full bg-magic-red text-white flex items-center justify-center text-base leading-none hover:bg-red-700 font-bold"
+                          >
+                            +
+                          </button>
+                        </td>
                         {columns.map((col) => {
                           let val: unknown;
                           if (col === "si_price") {
