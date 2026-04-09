@@ -12,11 +12,16 @@
  */
 import postgres from "postgres";
 
-const url = process.env.DATABASE_URL;
+const url =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.POSTGRES_PRISMA_URL ||
+  process.env.POSTGRES_URL_NON_POOLING;
 if (!url) {
   console.error(
-    "DATABASE_URL is required. Copy it from Supabase → Project Settings → " +
-      "Database → Connection string → Transaction pooler.",
+    "No Supabase connection string found. Set DATABASE_URL (or POSTGRES_URL " +
+      "from the Supabase→Vercel integration). Copy it from Supabase → " +
+      "Project Settings → Database → Connection string → Transaction pooler.",
   );
   process.exit(1);
 }
