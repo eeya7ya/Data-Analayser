@@ -1,6 +1,10 @@
 "use client";
 
 import React, { useRef } from "react";
+import {
+  computeQuotationTotals,
+  effectiveMergedValue,
+} from "@/lib/quotationTotals";
 
 export interface QuotationExtraColumn {
   /** Stable identifier used to key `QuotationItem.extra`. */
@@ -110,12 +114,13 @@ export default function QuotationPreview({
   terms = [],
   setTerms,
 }: Props) {
-  const subtotal = items.reduce(
-    (a, it) => a + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0),
-    0,
+  // Resolve merged cells when summing so the Final Totals page matches
+  // the per-group subtotals (and what the user visually sees in each
+  // merged unit-price cell).
+  const { subtotal, tax, total } = computeQuotationTotals(
+    items,
+    header.tax_percent || 0,
   );
-  const tax = (subtotal * (header.tax_percent || 0)) / 100;
-  const total = subtotal + tax;
 
   function update(i: number, patch: Partial<QuotationItem>) {
     if (!setItems) return;
@@ -174,6 +179,9 @@ export default function QuotationPreview({
 
   // Toggles the `merge_up` flag for a specific column on a specific row.
   // Pairs with SystemTable's `computeMergePlan` to render rowSpan correctly.
+  // On merge (not unmerge) we also copy the anchor row's value into the
+  // merged row's own data so unit-price equations stay consistent with
+  // what the user visually sees in the rowSpan cell.
   function toggleMerge(globalIndex: number, col: MergeCol) {
     if (!setItems) return;
     const next = items.slice();
@@ -182,10 +190,35 @@ export default function QuotationPreview({
     const merge_up = { ...(cur.merge_up || {}) };
     if (merge_up[col]) {
       delete merge_up[col];
-    } else {
-      merge_up[col] = true;
+      next[globalIndex] = { ...cur, merge_up };
+      setItems(next);
+      return;
     }
-    next[globalIndex] = { ...cur, merge_up };
+    merge_up[col] = true;
+
+    // Walk back through rows in the same system group to find the
+    // anchor row's effective value for this column, then copy it over.
+    const curKey = cur.system || cur.brand || "General";
+    const groupRows: QuotationItem[] = [];
+    const groupIndexForGlobal = new Map<number, number>();
+    for (let i = 0; i < next.length; i++) {
+      const it = next[i];
+      const key = it.system || it.brand || "General";
+      if (key !== curKey) continue;
+      groupIndexForGlobal.set(i, groupRows.length);
+      groupRows.push(it);
+    }
+    const localIdx = groupIndexForGlobal.get(globalIndex) ?? -1;
+    if (localIdx > 0) {
+      const anchorValue = effectiveMergedValue(groupRows, localIdx - 1, col);
+      next[globalIndex] = {
+        ...cur,
+        [col]: anchorValue,
+        merge_up,
+      } as QuotationItem;
+    } else {
+      next[globalIndex] = { ...cur, merge_up };
+    }
     setItems(next);
   }
 
@@ -508,13 +541,13 @@ function QuotationPage({
               onChange={(v) => setHeader?.({ ref: v })}
             />
           </div>
-          <div className="text-left font-bold">Prepared By:</div>
+          <div className="text-left font-bold">Presales Engineer:</div>
           <div className="text-left">
             <HeaderField
-              value={header.prepared_by || ""}
+              value={header.design_engineer || ""}
               placeholder="—"
               editable={editable && !!setHeader}
-              onChange={(v) => setHeader?.({ prepared_by: v })}
+              onChange={(v) => setHeader?.({ design_engineer: v })}
             />
           </div>
           <div className="text-left font-bold">Phone:</div>
@@ -683,11 +716,15 @@ function SystemTable({
   // Base = No, Brand, Model, Description, [Picture], Quantity, Delivery,
   // Unit Price, Total Price — plus one cell per manual column.
   const colCount = (showPictures ? 9 : 8) + extraColumns.length;
-  const subtotal = group.rows.reduce(
-    (acc, { item }) =>
-      acc + (Number(item.quantity) || 0) * (Number(item.unit_price) || 0),
-    0,
-  );
+  // Pull out the items in their group order once so every downstream
+  // calculation can resolve merged unit-price cells via effectiveMergedValue.
+  const groupItems = group.rows.map((r) => r.item);
+  const subtotal = group.rows.reduce((acc, _, rowIdx) => {
+    const qty = Number(groupItems[rowIdx].quantity) || 0;
+    const price =
+      Number(effectiveMergedValue(groupItems, rowIdx, "unit_price")) || 0;
+    return acc + qty * price;
+  }, 0);
   // When manual columns are present, shrink the description column a bit so
   // everything still fits on A4 without horizontal overflow.
   const extraShare = Math.min(extraColumns.length * 7, 21); // max 21%
@@ -898,7 +935,10 @@ function SystemTable({
             )}
             <td className="font-semibold">
               {money(
-                (Number(item.quantity) || 0) * (Number(item.unit_price) || 0),
+                (Number(item.quantity) || 0) *
+                  (Number(
+                    effectiveMergedValue(groupItems, rowIdx, "unit_price"),
+                  ) || 0),
               )}
               {editable && (
                 <div className="no-print mt-1 flex items-center justify-center gap-1">

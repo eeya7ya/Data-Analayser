@@ -18,6 +18,7 @@ import {
   saveDesignEngineerPref,
   saveEditingContext,
 } from "@/lib/quotationDraft";
+import { computeQuotationTotals } from "@/lib/quotationTotals";
 
 interface DesignResult {
   ready: boolean;
@@ -98,6 +99,7 @@ export default function Designer({
   const [webResult, setWebResult] = useState<string | null>(null);
   const [items, setItems] = useState<QuotationItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
   const [showPictures, setShowPictures] = useState(false);
   const [terms, setTerms] = useState<string[]>([...DEFAULT_TERMS]);
   const [extraColumns, setExtraColumns] = useState<QuotationExtraColumn[]>([]);
@@ -108,6 +110,10 @@ export default function Designer({
   const [priceMultiplier, setPriceMultiplier] = useState(1);
   const [embeddedTaxPct, setEmbeddedTaxPct] = useState(16);
   const [priceStatus, setPriceStatus] = useState("");
+  // Becomes true after a successful Strip TAX press so subsequent presses
+  // don't double-strip. Reset whenever the current item set is replaced
+  // from an external source (hydrate, clear, AI result).
+  const [taxStripped, setTaxStripped] = useState(false);
   const hydratedRef = useRef(false);
 
   // Wrap the design-engineer setter so it also updates the per-user
@@ -181,6 +187,7 @@ export default function Designer({
       setDesignEngState(
         existing.config_json?.designEng || loadDesignEngineerPref() || "",
       );
+      setTaxStripped(false);
       hydratedRef.current = true;
       return;
     }
@@ -205,6 +212,7 @@ export default function Designer({
     setExtraColumns(d.extraColumns || []);
     setScopeIntro(d.scopeIntro || "");
     setDesignEngState(d.designEng || loadDesignEngineerPref() || "");
+    setTaxStripped(false);
     hydratedRef.current = true;
   }, [existing, user.username]);
 
@@ -327,6 +335,7 @@ export default function Designer({
           });
         });
         setItems(base.map((b, i) => ({ ...b, no: i + 1 })));
+        setTaxStripped(false);
       }
     } catch (err) {
       setResult({ ready: false, error: (err as Error).message });
@@ -356,6 +365,7 @@ export default function Designer({
 
   async function saveQuotation() {
     setSaving(true);
+    setSaveStatus("");
     try {
       const totals = computeTotals(items, taxPercent);
       const payload = {
@@ -392,13 +402,20 @@ export default function Designer({
           });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "save failed");
-      if (!editMode) clearDraft();
+      if (editMode) {
+        // Stay on the editor so the user can keep tweaking. A fresh
+        // timestamp signals to them that the PATCH actually landed.
+        const now = new Date().toLocaleTimeString("en-GB");
+        setSaveStatus(`Saved at ${now}`);
+        return;
+      }
+      clearDraft();
       // Once we navigate to the read-only view the editing session is over —
       // clear the context so re-visiting /catalog starts a fresh workflow.
       saveEditingContext(null);
-      const id = editMode ? existing!.id : data.quotation.id;
-      router.push(`/quotation?id=${id}`);
+      router.push(`/quotation?id=${data.quotation.id}`);
     } catch (err) {
+      setSaveStatus(`Error: ${(err as Error).message}`);
       alert((err as Error).message);
     } finally {
       setSaving(false);
@@ -415,6 +432,7 @@ export default function Designer({
     setSiteName("");
     setShowPictures(false);
     setTerms([...DEFAULT_TERMS]);
+    setTaxStripped(false);
     if (!editMode) clearDraft();
   }
 
@@ -449,6 +467,12 @@ export default function Designer({
   }
 
   function stripEmbeddedTax() {
+    if (taxStripped) {
+      setPriceStatus(
+        "TAX already stripped from the current items — add or reset items first.",
+      );
+      return;
+    }
     const pct = Number(embeddedTaxPct);
     if (!Number.isFinite(pct) || pct <= 0) {
       setPriceStatus("Enter a positive TAX % first.");
@@ -472,6 +496,7 @@ export default function Designer({
         unit_price: Number(((Number(it.unit_price) || 0) / divisor).toFixed(2)),
       })),
     );
+    setTaxStripped(true);
     setPriceStatus(`Embedded ${pct}% TAX stripped from ${items.length} item(s).`);
   }
 
@@ -607,7 +632,7 @@ export default function Designer({
               onChange={setSalesEng}
             />
             <Field
-              label="Design / Presales engineer"
+              label="Presales engineer"
               value={designEng}
               onChange={setDesignEng}
             />
@@ -624,8 +649,8 @@ export default function Designer({
             </div>
           </div>
           <p className="mt-2 text-[10px] text-magic-ink/50">
-            Design / Presales engineer is remembered across quotations — set
-            it once and it pre-fills every future draft.
+            Presales engineer is remembered across quotations — set it once
+            and it pre-fills every future draft.
           </p>
           <label className="mt-3 flex items-center gap-2 text-xs text-magic-ink/80">
             <input
@@ -688,10 +713,15 @@ export default function Designer({
             </div>
             <button
               onClick={stripEmbeddedTax}
-              disabled={items.length === 0}
+              disabled={items.length === 0 || taxStripped}
               className="h-[34px] rounded-md border border-magic-red text-magic-red px-3 text-xs font-semibold hover:bg-magic-red/5 disabled:opacity-40"
+              title={
+                taxStripped
+                  ? "Already stripped from the current items"
+                  : "Divide every unit price by (1 + TAX%)"
+              }
             >
-              Strip TAX
+              {taxStripped ? "TAX stripped" : "Strip TAX"}
             </button>
           </div>
           {priceStatus && (
@@ -726,7 +756,18 @@ export default function Designer({
         <div className="rounded-2xl border border-magic-border bg-white p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold">Quotation preview</h3>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              {editMode && saveStatus && (
+                <span
+                  className={`text-[11px] italic ${
+                    saveStatus.startsWith("Error")
+                      ? "text-red-600"
+                      : "text-magic-ink/60"
+                  }`}
+                >
+                  {saveStatus}
+                </span>
+              )}
               <button
                 onClick={clearAll}
                 disabled={items.length === 0 || saving}
@@ -742,7 +783,7 @@ export default function Designer({
                 {saving
                   ? "Saving…"
                   : editMode
-                    ? "Update quotation"
+                    ? "Save updates"
                     : "Save & open printable"}
               </button>
             </div>
@@ -839,11 +880,9 @@ function Field({
   );
 }
 
+// Delegates to the shared helper in @/lib/quotationTotals so the saved
+// `totals` blob always matches what QuotationPreview renders, even when
+// the user has merged unit-price cells.
 function computeTotals(items: QuotationItem[], taxPercent: number) {
-  const subtotal = items.reduce(
-    (acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0),
-    0,
-  );
-  const tax = (subtotal * taxPercent) / 100;
-  return { subtotal, tax, total: subtotal + tax };
+  return computeQuotationTotals(items, taxPercent);
 }
