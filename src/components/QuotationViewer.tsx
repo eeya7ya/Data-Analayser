@@ -23,7 +23,23 @@ export default function QuotationViewer({
 }) {
   const router = useRouter();
   const id = Number(row.id);
-  const rawItems = (row.items_json as QuotationItem[]) || [];
+  // `items_json` comes straight from a jsonb column. Normally that decodes to
+  // an array, but legacy/corrupt rows can surface an object or a JSON string,
+  // either of which would make `.map` throw and crash the whole viewer.
+  const rawItemsUnknown: unknown = row.items_json;
+  const parsedItems: unknown =
+    typeof rawItemsUnknown === "string"
+      ? (() => {
+          try {
+            return JSON.parse(rawItemsUnknown);
+          } catch {
+            return [];
+          }
+        })()
+      : rawItemsUnknown;
+  const rawItems: QuotationItem[] = Array.isArray(parsedItems)
+    ? (parsedItems as QuotationItem[])
+    : [];
   const items: QuotationItem[] = rawItems.map((it) => ({
     ...it,
     system: it.system || it.brand || "General",
