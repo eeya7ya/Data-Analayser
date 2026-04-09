@@ -40,37 +40,43 @@ product data.
 Copy `.env.example` to `.env.local` (locally) or add to your Vercel project
 settings:
 
-| Variable                      | Required | Description                                                                             |
-| ----------------------------- | -------- | --------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                | ✅       | Supabase **Transaction Pooler** (Supavisor) connection string — port 6543 (see below)    |
-| `AUTH_SECRET`                 | ✅       | Long random string (>=32 chars) for JWT signing. Generate: `openssl rand -base64 48`    |
-| `GROQ_API_KEY`                | ✅       | Free at <https://console.groq.com/keys>                                                 |
-| `GROQ_DESIGN_MODEL`           |          | Default `llama-3.3-70b-versatile`                                                       |
-| `GROQ_WEB_MODEL`              |          | Default `groq/compound` (agentic web search)                                            |
-| `DEFAULT_ADMIN_USER`          |          | Default `admin`                                                                         |
-| `DEFAULT_ADMIN_PASS`          |          | Default `admin123` — **change immediately after first login**                           |
-| `NEXT_PUBLIC_SUPABASE_URL`    |          | Optional — only needed if you later use `@supabase/supabase-js` on the client           |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` |        | Optional — paired with the URL above for client-side Supabase SDK usage                 |
-| `SUPABASE_SERVICE_ROLE_KEY`   |          | Optional — privileged server-side key. **Never expose to the browser.**                 |
-| `GITHUB_REPO`                 |          | `owner/repo` that hosts `DATABASE/` — default this repo                                 |
-| `GITHUB_BRANCH`               |          | Default `claude/migrate-neon-to-supabase-a3m4d`                                         |
-| `COMPANY_LOGO_URL`            |          | Raw GitHub URL for the Magic Tech logo (falls back to SVG)                              |
+| Variable                         | Required | Description                                                                             |
+| -------------------------------- | -------- | --------------------------------------------------------------------------------------- |
+| `POSTGRES_URL` *or* `DATABASE_URL` | ✅     | Supabase **Transaction Pooler** (Supavisor) connection string — port 6543 (see below)   |
+| `AUTH_SECRET`                    | ✅       | Long random string (>=32 chars) for JWT signing. Generate: `openssl rand -base64 48`    |
+| `GROQ_API_KEY`                   | ✅       | Free at <https://console.groq.com/keys>                                                 |
+| `GROQ_DESIGN_MODEL`              |          | Default `llama-3.3-70b-versatile`                                                       |
+| `GROQ_WEB_MODEL`                 |          | Default `groq/compound` (agentic web search)                                            |
+| `DEFAULT_ADMIN_USER`             |          | Default `admin`                                                                         |
+| `DEFAULT_ADMIN_PASS`             |          | Default `admin123` — **change immediately after first login**                           |
+| `NEXT_PUBLIC_SUPABASE_URL`       |          | Injected by the Vercel integration. Only used if you later add the client-side SDK      |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  |          | Injected by the Vercel integration. Paired with the URL above for client-side SDK use   |
+| `SUPABASE_SERVICE_ROLE_KEY`      |          | Injected by the Vercel integration. **Never expose to the browser.**                    |
+| `GITHUB_REPO`                    |          | `owner/repo` that hosts `DATABASE/` — default this repo                                 |
+| `GITHUB_BRANCH`                  |          | Default `claude/migrate-neon-to-supabase-a3m4d`                                         |
+| `COMPANY_LOGO_URL`               |          | Raw GitHub URL for the Magic Tech logo (falls back to SVG)                              |
 
-### How to get the `DATABASE_URL`
+### How the Postgres URL is resolved
 
-1. Supabase Dashboard → your project → **Project Settings** → **Database**.
-2. Scroll to **Connection string** → **Transaction pooler** tab.
-3. Copy the URI — it looks like:
-   `postgres://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres`
-4. Paste it into Vercel → Project Settings → Environment Variables →
-   `DATABASE_URL`. Mark the variable as **Sensitive** and apply it to
-   **Production, Preview, and Development**.
-5. Redeploy (or push a commit) so the new env var takes effect.
+The app looks for these env vars in order and uses the first non-empty value:
 
-> ⚠  Use the **transaction pooler** (port 6543), not the direct connection.
-> The app is configured with `prepare: false` and `max: 1` for pgbouncer-in-
-> transaction-mode and will not work against a direct `db.<ref>.supabase.co`
-> URL from a serverless function.
+1. `DATABASE_URL`            — set manually if you prefer explicit naming.
+2. `POSTGRES_URL`            — **auto-injected by the Supabase→Vercel native
+                                integration**, already pointing at the pooled
+                                (transaction mode) endpoint. No action needed.
+3. `POSTGRES_PRISMA_URL`     — same source, Prisma-flavoured.
+4. `POSTGRES_URL_NON_POOLING` — last-resort direct connection. Not recommended
+                                from a serverless function.
+
+So if you installed the Supabase integration in Vercel (the screenshot shows
+the full set: `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, `SUPABASE_URL`,
+`SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, etc.), you're already done —
+just **redeploy** so the new env vars are picked up by the build.
+
+> ⚠  Use the **transaction pooler** (the `POSTGRES_URL`, port 6543), not
+> `POSTGRES_URL_NON_POOLING`. The app is configured with `prepare: false` and
+> `max: 1` for pgbouncer-in-transaction-mode and will exhaust direct
+> connections under serverless load.
 
 ---
 
@@ -88,23 +94,27 @@ Open <http://localhost:3000>, sign in as `admin / admin123`, and go.
 
 ## Deploy to Vercel with Supabase
 
+Recommended path (what this project is wired for):
+
 1. **Create the database.** In Supabase (Pro plan) create a new project in the
    region closest to your Vercel region (e.g. `eu-central-1` for `fra1`).
-2. **Copy the pooler URL.** Project Settings → Database → Connection string →
-   **Transaction pooler**. Copy the URI (port `6543`).
-3. **Push this branch to GitHub** (`claude/migrate-neon-to-supabase-a3m4d`)
-   and import the repo in Vercel, or re-link your existing project.
-4. **Remove any leftover Neon integration** on the Vercel project
+2. **Install the Supabase integration on Vercel.** Vercel → Integrations →
+   Supabase → Add → link it to your Data-Analayser project. This
+   automatically injects `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`,
+   `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and
+   friends into Production, Preview, and Development — marked Sensitive.
+3. **Remove any leftover Neon integration** on the Vercel project
    (Integrations → Neon → Disconnect) so no stale `DATABASE_URL` shadows the
    Supabase one.
-5. **Set environment variables** in Vercel → Project Settings → Environment
-   Variables (select Production + Preview + Development, mark as
-   **Sensitive**):
-   - `DATABASE_URL` — the Supabase transaction pooler URI
+4. **Add the remaining secrets** in Vercel → Project Settings → Environment
+   Variables (Production + Preview + Development, marked **Sensitive**):
    - `AUTH_SECRET` — `openssl rand -base64 48`
    - `GROQ_API_KEY`
    - plus any optional vars from the table above
-6. **Deploy.** On the first request `ensureSchema()` bootstraps the `users`
+5. **Redeploy.** Crucial — env vars added after the last build are only
+   picked up on the next deploy. Either push a commit or use
+   Vercel → Deployments → … → **Redeploy**.
+6. On the first authenticated request `ensureSchema()` bootstraps the `users`
    and `quotations` tables and seeds the default admin.
 7. **Log in** at `/login` as `admin / admin123`, open `/admin`, and rotate
    the admin password immediately.

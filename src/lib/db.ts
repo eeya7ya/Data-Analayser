@@ -12,6 +12,14 @@ import postgres, { type Sql } from "postgres";
  * invocation briefly checks out a pooled connection. This mode does NOT
  * support server-side prepared statements, so `prepare: false` is mandatory.
  *
+ * Env var resolution order (first non-empty wins):
+ *   1. DATABASE_URL            — manual setup (our docs).
+ *   2. POSTGRES_URL            — injected by the Supabase→Vercel native
+ *                                integration; points at the pooled endpoint.
+ *   3. POSTGRES_PRISMA_URL     — same source, Prisma-flavoured pooled URL.
+ *   4. POSTGRES_URL_NON_POOLING — last-resort direct connection (NOT
+ *                                 recommended for serverless — see note).
+ *
  * The client is memoised on the module scope so hot-invoked lambdas reuse
  * the same socket between requests, and `max: 1` keeps the Vercel function's
  * pool footprint tiny.
@@ -24,12 +32,18 @@ const globalForDb = globalThis as unknown as {
 };
 
 function getUrl(): string {
-  const url = process.env.DATABASE_URL;
+  const url =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING;
   if (!url) {
     throw new Error(
-      "DATABASE_URL is not configured. Set it to your Supabase Transaction " +
-        "Pooler connection string in the Vercel project env " +
-        "(Project Settings → Environment Variables).",
+      "No Supabase connection string found. Expected one of DATABASE_URL, " +
+        "POSTGRES_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL_NON_POOLING in " +
+        "the Vercel project env (Project Settings → Environment Variables). " +
+        "The Supabase→Vercel integration normally injects POSTGRES_URL " +
+        "automatically; redeploy after linking it.",
     );
   }
   return url;
