@@ -1,8 +1,8 @@
 {
   "name": "magictech-quotation-designer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "MagicTech AI Quotation Designer — Next.js 15 + Vercel 2026 + Neon serverless + Groq",
+  "description": "MagicTech AI Quotation Designer — Next.js 15 + Vercel 2026 + Supabase Postgres + Groq",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,11 +12,12 @@
     "manifest:build": "node scripts/build-manifest.mjs"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^0.10.4",
+    "@supabase/supabase-js": "^2.58.0",
     "clsx": "^2.1.1",
     "groq-sdk": "^0.12.0",
     "jose": "^5.9.6",
     "next": "15.5.14",
+    "postgres": "^3.4.7",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "tailwind-merge": "^2.5.5"
