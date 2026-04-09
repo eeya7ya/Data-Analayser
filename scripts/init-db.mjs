@@ -1,17 +1,33 @@
 #!/usr/bin/env node
 /**
- * Bootstraps the Neon / Vercel Postgres schema and default admin.
- * Usage:   DATABASE_URL=postgres://... node scripts/init-db.mjs
+ * Bootstraps the Supabase Postgres schema and the default admin user.
+ *
+ * Usage:
+ *   DATABASE_URL=postgres://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres \
+ *   node scripts/init-db.mjs
+ *
+ * The Supabase Transaction Pooler (port 6543) is the recommended connection
+ * target for serverless deployments (Vercel, etc.) and is used by the app
+ * at runtime.
  */
-import { neon } from "@neondatabase/serverless";
+import postgres from "postgres";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
-  console.error("DATABASE_URL is required");
+  console.error(
+    "DATABASE_URL is required. Copy it from Supabase → Project Settings → " +
+      "Database → Connection string → Transaction pooler.",
+  );
   process.exit(1);
 }
 
-const sql = neon(url);
+const sql = postgres(url, {
+  ssl: "require",
+  prepare: false,
+  max: 1,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
 
 const ITERS = 120_000;
 
@@ -58,9 +74,13 @@ async function main() {
       site_name     text not null default 'SITE',
       items_json    jsonb not null default '[]'::jsonb,
       totals_json   jsonb not null default '{}'::jsonb,
+      config_json   jsonb not null default '{}'::jsonb,
       created_at    timestamptz not null default now(),
       updated_at    timestamptz not null default now()
     )
+  `;
+  await sql`
+    alter table quotations add column if not exists config_json jsonb not null default '{}'::jsonb
   `;
   await sql`create index if not exists quotations_owner_idx on quotations(owner_id)`;
 
@@ -74,14 +94,24 @@ async function main() {
       values (${adminUser}, ${hash}, 'admin')
     `;
     console.log(`Created default admin: ${adminUser} / ${adminPass}`);
+    console.log(
+      "⚠  Change this password immediately from the /admin page after first login.",
+    );
   } else {
     console.log(`Admin user '${adminUser}' already exists.`);
   }
 
-  console.log("Schema ready.");
+  console.log("Supabase schema ready.");
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main()
+  .then(() => sql.end({ timeout: 5 }))
+  .catch(async (err) => {
+    console.error(err);
+    try {
+      await sql.end({ timeout: 5 });
+    } catch {
+      /* ignore */
+    }
+    process.exit(1);
+  });

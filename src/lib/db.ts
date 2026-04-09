@@ -1,23 +1,66 @@
-import { neon } from "@neondatabase/serverless";
+import postgres, { type Sql } from "postgres";
 
-// Note: Neon serverless ≥0.10 always caches connections; no config needed.
+/**
+ * Supabase Postgres client for Vercel serverless runtimes.
+ *
+ * The connection URL should point at the Supabase **Transaction Pooler**
+ * (Supavisor) on port `6543` — e.g.:
+ *
+ *   postgres://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+ *
+ * Transaction mode is required for serverless because each function
+ * invocation briefly checks out a pooled connection. This mode does NOT
+ * support server-side prepared statements, so `prepare: false` is mandatory.
+ *
+ * The client is memoised on the module scope so hot-invoked lambdas reuse
+ * the same socket between requests, and `max: 1` keeps the Vercel function's
+ * pool footprint tiny.
+ */
+
+// Re-use the client across warm invocations of the same serverless instance.
+// `globalThis` so hot-reload in `next dev` doesn't leak sockets.
+const globalForDb = globalThis as unknown as {
+  __mtSql?: Sql;
+};
 
 function getUrl(): string {
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error(
-      "DATABASE_URL is not configured. Set it in your Vercel project env (Neon / Vercel Postgres).",
+      "DATABASE_URL is not configured. Set it to your Supabase Transaction " +
+        "Pooler connection string in the Vercel project env " +
+        "(Project Settings → Environment Variables).",
     );
   }
   return url;
 }
 
 /**
- * Returns a Neon SQL tagged-template client. Safe to call from any route.
- * Usage: `const rows = await sql\`select * from users\`;`
+ * Returns a lazily-created, process-wide `postgres` tagged-template client.
+ * Usage:
+ *   const q = sql();
+ *   const rows = await q`select * from users where id = ${id}`;
  */
-export function sql() {
-  return neon(getUrl());
+export function sql(): Sql {
+  if (!globalForDb.__mtSql) {
+    globalForDb.__mtSql = postgres(getUrl(), {
+      // Supabase requires TLS for every connection.
+      ssl: "require",
+      // Required for Supabase Transaction Pooler (pgbouncer-in-transaction-mode)
+      // because prepared statements cannot span pooled connections.
+      prepare: false,
+      // Serverless functions are short-lived — keep the local pool tiny so we
+      // don't exhaust the shared Supavisor connection budget.
+      max: 1,
+      idle_timeout: 20,
+      connect_timeout: 10,
+      // Let transient network hiccups retry instead of failing the request.
+      max_lifetime: 60 * 30,
+      // Suppress NOTICE noise in production logs.
+      onnotice: () => {},
+    });
+  }
+  return globalForDb.__mtSql;
 }
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
