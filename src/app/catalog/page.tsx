@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { SYSTEMS } from "@/lib/manifest.generated";
+import { loadSystems } from "@/lib/search";
 import CatalogBrowser from "@/components/CatalogBrowser";
 import TopBar from "@/components/TopBar";
 
@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function CatalogPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const systems = await loadSystems();
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
@@ -22,7 +23,7 @@ export default async function CatalogPage() {
             column, and build a quotation manually.
           </p>
         </header>
-        <CatalogBrowser systems={SYSTEMS} user={user} />
+        <CatalogBrowser systems={systems} user={user} />
       </main>
     </div>
   );

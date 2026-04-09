@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     let systemMeta: unknown = null;
 
     if (body.systemId) {
-      const system = findSystem(body.systemId);
+      const system = await findSystem(body.systemId);
       if (!system) {
         return NextResponse.json(
           { error: "System not found" },

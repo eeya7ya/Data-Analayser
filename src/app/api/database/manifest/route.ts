@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { MANIFEST } from "@/lib/manifest.generated";
+import { loadManifest } from "@/lib/search";
 import { requireUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     await requireUser();
-    return NextResponse.json({ manifest: MANIFEST });
+    const manifest = await loadManifest();
+    return NextResponse.json({ manifest });
   } catch {
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
