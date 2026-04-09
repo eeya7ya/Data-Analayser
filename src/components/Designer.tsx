@@ -138,7 +138,13 @@ export default function Designer({
         projectName: existing.project_name || "",
       });
 
-      const baseItems = (existing.items_json || []).map((it) => ({
+      // Defensive: even though `/designer` page normalizes `items_json` into
+      // an array, a stale bundle or a directly-mounted Designer could still
+      // pass a non-array. Guard so `.map` never blows up the whole page.
+      const baseItems = (Array.isArray(existing.items_json)
+        ? existing.items_json
+        : []
+      ).map((it) => ({
         ...it,
         system: it.system || it.brand || "General",
       }));

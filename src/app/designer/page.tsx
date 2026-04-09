@@ -29,6 +29,30 @@ export default async function DesignerPage({
     `) as Array<Record<string, unknown>>;
     const row = rows[0];
     if (row && (user.role === "admin" || row.owner_id === user.id)) {
+      // jsonb round-trips usually hand us a JS array, but corrupted rows or a
+      // legacy `{}` default can make it an object/string. Normalize hard so
+      // the client never has to defend against a non-array `items_json`.
+      const rawItems: unknown = row.items_json;
+      const parsedItems: unknown =
+        typeof rawItems === "string"
+          ? (() => {
+              try {
+                return JSON.parse(rawItems);
+              } catch {
+                return [];
+              }
+            })()
+          : rawItems;
+      const itemsArray = Array.isArray(parsedItems)
+        ? (parsedItems as ExistingQuotation["items_json"])
+        : [];
+
+      const rawConfig: unknown = row.config_json;
+      const configObject =
+        rawConfig && typeof rawConfig === "object" && !Array.isArray(rawConfig)
+          ? (rawConfig as ExistingQuotation["config_json"])
+          : {};
+
       existing = {
         id: Number(row.id),
         ref: String(row.ref),
@@ -40,9 +64,8 @@ export default async function DesignerPage({
         prepared_by: (row.prepared_by as string) || null,
         site_name: String(row.site_name),
         tax_percent: Number(row.tax_percent ?? 16),
-        items_json: (row.items_json as ExistingQuotation["items_json"]) || [],
-        config_json:
-          (row.config_json as ExistingQuotation["config_json"]) || {},
+        items_json: itemsArray,
+        config_json: configObject,
       };
     }
   }
