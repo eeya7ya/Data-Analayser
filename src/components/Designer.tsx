@@ -501,9 +501,16 @@ export default function Designer({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* LEFT — controls */}
-      <section className="lg:col-span-5 space-y-4">
+    <div className="space-y-4">
+      {/* TOP — controls toolbar (collapsible to give the preview room) */}
+      <details className="no-print rounded-2xl border border-magic-border bg-white open:pb-3" open>
+        <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between text-sm font-semibold">
+          <span>Designer controls</span>
+          <span className="text-[11px] text-magic-ink/50">
+            Click to collapse / expand
+          </span>
+        </summary>
+        <div className="px-4 pt-1 grid gap-3 lg:grid-cols-3 items-start">
         <Card title="1 · Select a system &amp; AI model">
           <select
             value={systemId}
@@ -730,10 +737,11 @@ export default function Designer({
             </p>
           )}
         </Card>
-      </section>
+        </div>
+      </details>
 
-      {/* RIGHT — quotation preview */}
-      <section className="lg:col-span-7 space-y-4">
+      {/* BELOW — quotation preview gets the full content width */}
+      <section className="space-y-4">
         {result?.summary && (
           <Card title="Design summary">
             <p className="text-sm text-magic-ink/80 whitespace-pre-wrap">
@@ -754,7 +762,7 @@ export default function Designer({
         )}
 
         <div className="rounded-2xl border border-magic-border bg-white p-4">
-          <div className="flex items-center justify-between mb-3">
+          <div className="no-print flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold">Quotation preview</h3>
             <div className="flex items-center gap-2">
               {editMode && saveStatus && (
@@ -774,6 +782,14 @@ export default function Designer({
                 className="rounded-md border border-magic-border px-3 py-1.5 text-xs hover:bg-magic-soft disabled:opacity-40"
               >
                 Clear
+              </button>
+              <button
+                onClick={() => window.print()}
+                disabled={items.length === 0}
+                className="rounded-md border border-magic-border px-3 py-1.5 text-xs font-semibold hover:bg-magic-soft disabled:opacity-40"
+                title="Print the current draft (uses browser print-to-PDF)"
+              >
+                Print
               </button>
               <button
                 onClick={saveQuotation}

@@ -35,6 +35,14 @@ export interface QuotationItem {
    * unit_price, total_price, quantity, and `extra:<columnId>`.
    */
   merge_up?: Record<string, boolean>;
+  /**
+   * Per-column "merge with previous column" flags. When true for a column,
+   * the cell is visually merged leftward into the nearest anchor cell on the
+   * same row (rendered via colSpan). Mutually exclusive with `merge_up` on a
+   * given column to keep rowSpan/colSpan layout simple. Quantity, Total
+   * Price and the "No" column are barriers and never participate.
+   */
+  merge_left?: Record<string, boolean>;
 }
 
 export interface QuotationHeader {
@@ -222,6 +230,52 @@ export default function QuotationPreview({
     setItems(next);
   }
 
+  // Toggles the `merge_left` flag for a specific column on a specific row.
+  // Horizontal merging is visual-only (colSpan), so we don't need to copy
+  // any anchor value the way toggleMerge does for unit prices. The flag is
+  // mutually exclusive with merge_up on the same column to avoid tricky
+  // rowSpan+colSpan compositions.
+  function toggleHorizontalMerge(globalIndex: number, col: string) {
+    if (!setItems) return;
+    const next = items.slice();
+    const cur = next[globalIndex];
+    if (!cur) return;
+    const merge_left = { ...(cur.merge_left || {}) };
+    if (merge_left[col]) {
+      delete merge_left[col];
+      next[globalIndex] = { ...cur, merge_left };
+      setItems(next);
+      return;
+    }
+    merge_left[col] = true;
+    // Clear any vertical merge on the same column so they don't fight.
+    const merge_up = { ...(cur.merge_up || {}) };
+    delete merge_up[col];
+    next[globalIndex] = { ...cur, merge_left, merge_up };
+    setItems(next);
+  }
+
+  // Duplicates a row immediately below the original, resetting its merge
+  // flags so the clone is a clean standalone row. Used by the Ctrl/Cmd+D
+  // keyboard shortcut in SystemTable.
+  function duplicateRow(globalIndex: number) {
+    if (!setItems) return;
+    const src = items[globalIndex];
+    if (!src) return;
+    const clone: QuotationItem = {
+      ...src,
+      extra: src.extra ? { ...src.extra } : undefined,
+      merge_up: undefined,
+      merge_left: undefined,
+    };
+    const next = [
+      ...items.slice(0, globalIndex + 1),
+      clone,
+      ...items.slice(globalIndex + 1),
+    ];
+    setItems(renumber(next));
+  }
+
   function renameSystem(oldName: string, newName: string) {
     if (!setItems || !newName.trim() || newName === oldName) return;
     setItems(
@@ -341,6 +395,8 @@ export default function QuotationPreview({
             onUpdate={update}
             onRemove={removeRow}
             onToggleMerge={toggleMerge}
+            onToggleHorizontalMerge={toggleHorizontalMerge}
+            onDuplicate={duplicateRow}
             onRenameExtraColumn={renameExtraColumn}
             onRemoveExtraColumn={removeExtraColumn}
           />
@@ -657,15 +713,44 @@ const MERGEABLE_COLUMNS = [
 
 type MergeCol = (typeof MERGEABLE_COLUMNS)[number];
 
+// Columns that never participate in horizontal (left) merging. Merging
+// quantity or total price would break subtotal math, and the "no" column
+// is a per-row numbering cell.
+const H_BARRIERS = new Set(["no", "quantity", "total_price"]);
+
+/**
+ * Returns the rendered column ids in left-to-right order. Must mirror the
+ * `<thead>` order in SystemTable. Used by the horizontal merge plan to know
+ * which cell is each cell's left neighbor.
+ */
+function getColumnOrder(
+  showPictures: boolean,
+  extraColumns: QuotationExtraColumn[],
+): string[] {
+  const cols = ["no", "brand", "model", "description"];
+  if (showPictures) cols.push("picture");
+  cols.push("quantity", "delivery", "unit_price", "total_price");
+  for (const c of extraColumns) cols.push(`extra:${c.id}`);
+  return cols;
+}
+
 interface MergePlan {
   /** rowSpan to apply when rendering this row's cell (≥ 1). */
   spans: Record<MergeCol, number[]>;
   /** true → skip rendering this row's cell; its span was folded into anchor */
   skip: Record<MergeCol, boolean[]>;
+  /** colSpan per [rowIdx][colIdx] in getColumnOrder() order (≥ 1). */
+  colSpans: number[][];
+  /** true → skip rendering this row/col cell; it was folded into the left anchor. */
+  hSkip: boolean[][];
+  /** Rendered column order the horizontal plan was built against. */
+  columnOrder: string[];
 }
 
 function computeMergePlan(
   rows: Array<{ item: QuotationItem; globalIndex: number }>,
+  showPictures: boolean,
+  extraColumns: QuotationExtraColumn[],
 ): MergePlan {
   const spans = {} as Record<MergeCol, number[]>;
   const skip = {} as Record<MergeCol, boolean[]>;
@@ -687,7 +772,37 @@ function computeMergePlan(
     spans[col] = sp;
     skip[col] = sk;
   }
-  return { spans, skip };
+
+  // Horizontal pass: walk each row left→right over the rendered columns
+  // and fold `merge_left` cells into the nearest non-barrier anchor on the
+  // left. Barriers (no / quantity / total_price) reset the anchor chain.
+  const columnOrder = getColumnOrder(showPictures, extraColumns);
+  const colSpans = new Array<number[]>(rows.length);
+  const hSkip = new Array<boolean[]>(rows.length);
+  for (let r = 0; r < rows.length; r++) {
+    const cSp = new Array<number>(columnOrder.length).fill(1);
+    const cSk = new Array<boolean>(columnOrder.length).fill(false);
+    let anchor = -1;
+    for (let c = 0; c < columnOrder.length; c++) {
+      const colId = columnOrder[c];
+      if (H_BARRIERS.has(colId)) {
+        anchor = -1; // barrier breaks the chain
+        continue;
+      }
+      const merged =
+        !!rows[r].item.merge_left?.[colId] && anchor >= 0 && c > 0;
+      if (merged) {
+        cSk[c] = true;
+        cSp[anchor] += 1;
+      } else {
+        anchor = c;
+      }
+    }
+    colSpans[r] = cSp;
+    hSkip[r] = cSk;
+  }
+
+  return { spans, skip, colSpans, hSkip, columnOrder };
 }
 
 function SystemTable({
@@ -699,6 +814,8 @@ function SystemTable({
   onUpdate,
   onRemove,
   onToggleMerge,
+  onToggleHorizontalMerge,
+  onDuplicate,
   onRenameExtraColumn,
   onRemoveExtraColumn,
 }: {
@@ -710,6 +827,8 @@ function SystemTable({
   onUpdate: (globalIndex: number, patch: Partial<QuotationItem>) => void;
   onRemove: (globalIndex: number) => void;
   onToggleMerge: (globalIndex: number, col: MergeCol) => void;
+  onToggleHorizontalMerge: (globalIndex: number, col: string) => void;
+  onDuplicate: (globalIndex: number) => void;
   onRenameExtraColumn: (id: string, label: string) => void;
   onRemoveExtraColumn: (id: string) => void;
 }) {
@@ -730,38 +849,69 @@ function SystemTable({
   const extraShare = Math.min(extraColumns.length * 7, 21); // max 21%
   const descWidth = showPictures ? 28 - extraShare : 36 - extraShare;
 
-  const plan = computeMergePlan(group.rows);
+  const plan = computeMergePlan(group.rows, showPictures, extraColumns);
+  const colIdxOf = (colId: string) => plan.columnOrder.indexOf(colId);
 
-  // Renders a mergeable cell that either:
-  //   - is skipped (cell was folded into an anchor above), or
-  //   - gets a rowSpan from the plan and an optional "merge up" toggle.
-  function mergeableCell(
-    col: MergeCol,
+  // Renders a cell with support for both vertical and horizontal merging.
+  //   - vertical skip (folded into anchor above) → returns null
+  //   - horizontal skip (folded into anchor on the left) → returns null
+  //   - otherwise applies rowSpan + colSpan from the plan and renders
+  //     merge-toggle buttons (⇧ to merge up, ⇦ to merge left)
+  //
+  // `col` is the semantic column id used for merge_up (MergeCol) or
+  // the same id used for horizontal merging. `mergeable` controls whether
+  // the ⇧ vertical-merge button is shown — it's only valid for the
+  // MERGEABLE_COLUMNS set, while horizontal merging is allowed on any
+  // non-barrier column.
+  function tableCell(
+    col: string,
     rowIdx: number,
     globalIndex: number,
     className: string,
     children: React.ReactNode,
+    opts?: { verticalMergeable?: boolean },
   ): React.ReactNode {
-    if (plan.skip[col][rowIdx]) return null;
-    const span = plan.spans[col][rowIdx];
-    const isMerged = rowIdx > 0 && !!group.rows[rowIdx].item.merge_up?.[col];
+    const verticalMergeable = !!opts?.verticalMergeable;
+    const cIdx = colIdxOf(col);
+
+    // Vertical skip — cell was folded into an anchor above.
+    if (verticalMergeable && plan.skip[col as MergeCol]?.[rowIdx]) return null;
+    // Horizontal skip — cell was folded into an anchor on the left.
+    if (cIdx >= 0 && plan.hSkip[rowIdx]?.[cIdx]) return null;
+
+    const rowSpan = verticalMergeable ? plan.spans[col as MergeCol][rowIdx] : 1;
+    const colSpan = cIdx >= 0 ? plan.colSpans[rowIdx][cIdx] : 1;
+
+    const isVMerged =
+      verticalMergeable && rowIdx > 0 && !!group.rows[rowIdx].item.merge_up?.[col];
+    const isHMerged =
+      !H_BARRIERS.has(col) && !!group.rows[rowIdx].item.merge_left?.[col];
+
+    // Only allow toggling the ⇦ button when the immediate left neighbor
+    // in the rendered order is also not a barrier — otherwise there's no
+    // cell to merge into.
+    const leftNeighborOk =
+      cIdx > 0 && !H_BARRIERS.has(plan.columnOrder[cIdx - 1]);
+    const canHorizontalMerge = !H_BARRIERS.has(col) && leftNeighborOk;
+
     return (
       <td
         className={`relative ${className}`}
-        rowSpan={span > 1 ? span : undefined}
+        rowSpan={rowSpan > 1 ? rowSpan : undefined}
+        colSpan={colSpan > 1 ? colSpan : undefined}
       >
         {children}
-        {editable && rowIdx > 0 && (
+        {editable && verticalMergeable && rowIdx > 0 && !isHMerged && (
           <button
             type="button"
-            onClick={() => onToggleMerge(globalIndex, col)}
+            onClick={() => onToggleMerge(globalIndex, col as MergeCol)}
             title={
-              isMerged
+              isVMerged
                 ? "Unmerge this cell from the row above"
                 : "Merge this cell with the row above"
             }
             className={`no-print absolute top-0 right-0 w-4 h-4 text-[9px] leading-none rounded-bl ${
-              isMerged
+              isVMerged
                 ? "bg-magic-red text-white"
                 : "bg-white/80 text-magic-ink/50 hover:bg-magic-soft"
             }`}
@@ -769,12 +919,141 @@ function SystemTable({
             ⇧
           </button>
         )}
+        {editable && canHorizontalMerge && !isVMerged && (
+          <button
+            type="button"
+            onClick={() => onToggleHorizontalMerge(globalIndex, col)}
+            title={
+              isHMerged
+                ? "Unmerge this cell from the cell on the left"
+                : "Merge this cell with the cell on the left"
+            }
+            className={`no-print absolute top-0 left-0 w-4 h-4 text-[9px] leading-none rounded-br ${
+              isHMerged
+                ? "bg-magic-red text-white"
+                : "bg-white/80 text-magic-ink/50 hover:bg-magic-soft"
+            }`}
+          >
+            ⇦
+          </button>
+        )}
       </td>
     );
   }
 
+  // Back-compat wrapper: existing call sites use this helper for the
+  // vertically-mergeable columns (brand/model/description/delivery/unit_price).
+  function mergeableCell(
+    col: MergeCol,
+    rowIdx: number,
+    globalIndex: number,
+    className: string,
+    children: React.ReactNode,
+  ): React.ReactNode {
+    return tableCell(col, rowIdx, globalIndex, className, children, {
+      verticalMergeable: true,
+    });
+  }
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────────────
+  // Tab/Shift+Tab walk the editable cells in document order; Arrow keys
+  // provide directional navigation; Ctrl/Cmd+D duplicates the current row.
+  // The data-qcell-* attributes are applied to every editable input below.
+  function handleTableKeyDown(e: React.KeyboardEvent<HTMLElement>) {
+    if (!editable) return;
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    const row = target.getAttribute?.("data-qcell-row");
+    const col = target.getAttribute?.("data-qcell-col");
+    if (row == null || col == null) return;
+
+    // Ctrl/Cmd+D → duplicate the current row.
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+      e.preventDefault();
+      onDuplicate(Number(row));
+      return;
+    }
+
+    // Tab / Shift+Tab → next / previous editable cell across the whole doc.
+    if (e.key === "Tab") {
+      const all = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-qcell-row][data-qcell-col]"),
+      );
+      const idx = all.indexOf(target);
+      if (idx < 0) return;
+      const nextIdx = e.shiftKey ? idx - 1 : idx + 1;
+      const next = all[nextIdx];
+      if (next) {
+        e.preventDefault();
+        next.focus();
+        if (next instanceof HTMLInputElement) next.select();
+      }
+      return;
+    }
+
+    // Arrow keys → directional navigation, but only when the caret is at
+    // the edge of the field so we don't hijack intra-cell text editing.
+    if (
+      e.key === "ArrowLeft" ||
+      e.key === "ArrowRight" ||
+      e.key === "ArrowUp" ||
+      e.key === "ArrowDown"
+    ) {
+      const el = target as HTMLInputElement | HTMLTextAreaElement;
+      const caretStart = (el as HTMLInputElement).selectionStart ?? 0;
+      const caretEnd = (el as HTMLInputElement).selectionEnd ?? 0;
+      const valueLen = (el.value || "").length;
+      const atStart = caretStart === 0 && caretEnd === 0;
+      const atEnd = caretStart === valueLen && caretEnd === valueLen;
+      if (
+        (e.key === "ArrowLeft" && !atStart) ||
+        (e.key === "ArrowRight" && !atEnd)
+      ) {
+        return;
+      }
+
+      const all = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-qcell-row][data-qcell-col]"),
+      );
+      const idx = all.indexOf(target);
+      if (idx < 0) return;
+
+      // Vertical moves: find the same column in the neighboring row. For
+      // multi-line textareas we only intercept when the caret is at the
+      // very start (ArrowUp) or very end (ArrowDown) so line navigation
+      // inside the description still works naturally.
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        if (el instanceof HTMLTextAreaElement) {
+          if (e.key === "ArrowUp" && !atStart) return;
+          if (e.key === "ArrowDown" && !atEnd) return;
+        }
+        const targetRow = Number(row) + (e.key === "ArrowDown" ? 1 : -1);
+        const match = all.find(
+          (cell) =>
+            cell.getAttribute("data-qcell-row") === String(targetRow) &&
+            cell.getAttribute("data-qcell-col") === col,
+        );
+        if (match) {
+          e.preventDefault();
+          match.focus();
+          if (match instanceof HTMLInputElement) match.select();
+        }
+        return;
+      }
+
+      // Horizontal moves: step through the flat list.
+      const nextIdx = e.key === "ArrowLeft" ? idx - 1 : idx + 1;
+      const next = all[nextIdx];
+      if (next) {
+        e.preventDefault();
+        next.focus();
+        if (next instanceof HTMLInputElement) next.select();
+      }
+    }
+  }
+
   return (
-    <table>
+    <table onKeyDown={handleTableKeyDown}>
       <thead>
         <tr>
           <th style={{ width: "4%" }}>No</th>
@@ -832,6 +1111,8 @@ function SystemTable({
                 <input
                   className="w-full bg-transparent text-center"
                   value={item.brand}
+                  data-qcell-row={globalIndex}
+                  data-qcell-col="brand"
                   onChange={(e) => onUpdate(globalIndex, { brand: e.target.value })}
                 />
               ) : (
@@ -847,6 +1128,8 @@ function SystemTable({
                 <input
                   className="w-full bg-transparent text-center"
                   value={item.model}
+                  data-qcell-row={globalIndex}
+                  data-qcell-col="model"
                   onChange={(e) => onUpdate(globalIndex, { model: e.target.value })}
                 />
               ) : (
@@ -864,6 +1147,8 @@ function SystemTable({
                   className="w-full bg-transparent text-[10.5px]"
                   value={item.description}
                   placeholder="Add a short description for this item…"
+                  data-qcell-row={globalIndex}
+                  data-qcell-col="description"
                   onChange={(e) =>
                     onUpdate(globalIndex, { description: e.target.value })
                   }
@@ -877,21 +1162,26 @@ function SystemTable({
                 </div>
               ),
             )}
-            {showPictures && (
-              <td>
+            {showPictures &&
+              tableCell(
+                "picture",
+                rowIdx,
+                globalIndex,
+                "",
                 <PictureCell
                   item={item}
                   editable={editable}
                   onUpdate={(patch) => onUpdate(globalIndex, patch)}
-                />
-              </td>
-            )}
+                />,
+              )}
             <td>
               {editable ? (
                 <input
                   type="number"
                   className="w-full bg-transparent text-center"
                   value={item.quantity}
+                  data-qcell-row={globalIndex}
+                  data-qcell-col="quantity"
                   onChange={(e) =>
                     onUpdate(globalIndex, { quantity: Number(e.target.value) })
                   }
@@ -909,6 +1199,8 @@ function SystemTable({
                 <input
                   className="w-full bg-transparent text-center"
                   value={item.delivery}
+                  data-qcell-row={globalIndex}
+                  data-qcell-col="delivery"
                   onChange={(e) => onUpdate(globalIndex, { delivery: e.target.value })}
                 />
               ) : (
@@ -925,6 +1217,8 @@ function SystemTable({
                   type="number"
                   className="w-full bg-transparent text-center"
                   value={item.unit_price}
+                  data-qcell-row={globalIndex}
+                  data-qcell-col="unit_price"
                   onChange={(e) =>
                     onUpdate(globalIndex, { unit_price: Number(e.target.value) })
                   }
@@ -980,22 +1274,31 @@ function SystemTable({
             </td>
             {extraColumns.map((col) => {
               const cellValue = item.extra?.[col.id] || "";
+              const colKey = `extra:${col.id}`;
               return (
-                <td key={col.id} className="align-top">
-                  {editable ? (
-                    <input
-                      className="w-full bg-transparent text-center"
-                      value={cellValue}
-                      onChange={(e) =>
-                        onUpdate(globalIndex, {
-                          extra: { ...(item.extra || {}), [col.id]: e.target.value },
-                        })
-                      }
-                    />
-                  ) : (
-                    cellValue || "—"
+                <React.Fragment key={col.id}>
+                  {tableCell(
+                    colKey,
+                    rowIdx,
+                    globalIndex,
+                    "align-top",
+                    editable ? (
+                      <input
+                        className="w-full bg-transparent text-center"
+                        value={cellValue}
+                        data-qcell-row={globalIndex}
+                        data-qcell-col={colKey}
+                        onChange={(e) =>
+                          onUpdate(globalIndex, {
+                            extra: { ...(item.extra || {}), [col.id]: e.target.value },
+                          })
+                        }
+                      />
+                    ) : (
+                      cellValue || "—"
+                    ),
                   )}
-                </td>
+                </React.Fragment>
               );
             })}
           </tr>
