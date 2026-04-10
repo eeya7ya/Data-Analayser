@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -29,7 +29,7 @@ interface ExportPayload {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireAdmin();
+    const user = await requireUser();
     await ensureSchema();
     const body = (await req.json()) as ExportPayload;
 
@@ -51,17 +51,17 @@ export async function POST(req: NextRequest) {
     let quotationsCreated = 0;
     let quotationsSkipped = 0;
 
-    // Step 1: Create/resolve folders
+    // Step 1: Create/resolve folders — always scoped to the importing user.
     const folderIdMap = new Map<string, number>();
     for (const folder of body.folders) {
       const name = folder.name?.trim();
       if (!name) continue;
 
-      // Try to insert, fall back to finding existing
+      // Try to insert, fall back to finding existing (per-owner uniqueness).
       const inserted = (await q`
-        insert into client_folders (name)
-        values (${name})
-        on conflict (name) do nothing
+        insert into client_folders (name, owner_id)
+        values (${name}, ${user.id})
+        on conflict (owner_id, name) do nothing
         returning id
       `) as Array<{ id: number }>;
 
@@ -70,7 +70,9 @@ export async function POST(req: NextRequest) {
         foldersCreated++;
       } else {
         const existing = (await q`
-          select id from client_folders where name = ${name} limit 1
+          select id from client_folders
+          where name = ${name} and owner_id = ${user.id}
+          limit 1
         `) as Array<{ id: number }>;
         if (existing.length > 0) {
           folderIdMap.set(name, existing[0].id);
