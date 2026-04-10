@@ -208,7 +208,8 @@ async function main() {
           "price_si",
           "specifications",
         )}
-        on conflict (vendor, model) do update set
+        on conflict (model) do update set
+          vendor         = excluded.vendor,
           system         = excluded.system,
           category       = excluded.category,
           sub_category   = excluded.sub_category,
