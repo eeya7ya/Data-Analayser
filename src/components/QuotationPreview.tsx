@@ -78,6 +78,8 @@ interface Props {
   showPictures?: boolean;
   terms?: string[];
   setTerms?: (terms: string[]) => void;
+  /** When false, tax is excluded from the total cost. Defaults to true. */
+  includeTax?: boolean;
 }
 
 function money(n: number): string {
@@ -119,13 +121,15 @@ export default function QuotationPreview({
   showPictures = false,
   terms = [],
   setTerms,
+  includeTax = true,
 }: Props) {
   // Resolve merged cells when summing so the Final Totals page matches
   // the per-group subtotals (and what the user visually sees in each
   // merged unit-price cell).
+  const effectiveTaxPercent = includeTax ? (header.tax_percent || 0) : 0;
   const { subtotal, tax, total } = computeQuotationTotals(
     items,
-    header.tax_percent || 0,
+    effectiveTaxPercent,
   );
 
   function update(i: number, patch: Partial<QuotationItem>) {
@@ -391,6 +395,7 @@ export default function QuotationPreview({
           logoUrl={logoUrl}
           pageLabel={`Page ${systemPages.length + 1} of ${systemPages.length + 1}`}
           isLast
+          hideInfoHeader
         >
           <ScopeIntro
             systems={groups.map((g) => g.system)}
@@ -405,10 +410,12 @@ export default function QuotationPreview({
                 <td style={{ width: "75%" }}>Grand Total Cost (Subtotal)</td>
                 <td>{money(subtotal)}</td>
               </tr>
-              <tr className="totals-row">
-                <td>TAX ({header.tax_percent}%)</td>
-                <td>{money(tax)}</td>
-              </tr>
+              {includeTax && (
+                <tr className="totals-row">
+                  <td>TAX ({header.tax_percent}%)</td>
+                  <td>{money(tax)}</td>
+                </tr>
+              )}
               <tr className="totals-row">
                 <td>Total Cost</td>
                 <td>{money(total)}</td>
@@ -437,6 +444,7 @@ function QuotationPage({
   logoUrl,
   pageLabel,
   isLast,
+  hideInfoHeader,
   children,
 }: {
   header: QuotationHeader;
@@ -445,6 +453,8 @@ function QuotationPage({
   logoUrl?: string;
   pageLabel?: string;
   isLast?: boolean;
+  /** When true, skip the project/client/engineer info grid on this page. */
+  hideInfoHeader?: boolean;
   children: React.ReactNode;
 }) {
   // Default to /logo.png in /public. Drop the real PNG at
@@ -491,90 +501,92 @@ function QuotationPage({
       {/* Info header — left column pinned to the left edge, right column pinned
        * to the right edge. Each column is a 2-col mini-grid so labels and
        * values line up cleanly instead of floating against the edge. */}
-      <div className="flex justify-between items-start gap-4 mb-3 text-[10.5px]">
-        <div className="inline-grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
-          <div className="col-span-2 font-bold">
-            <HeaderField
-              value={header.date || new Date().toLocaleDateString("en-GB")}
-              editable={editable && !!setHeader}
-              onChange={(v) => setHeader?.({ date: v })}
-              bold
-            />
+      {!hideInfoHeader && (
+        <div className="flex justify-between items-start gap-4 mb-3 text-[10.5px]">
+          <div className="inline-grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
+            <div className="col-span-2 font-bold">
+              <HeaderField
+                value={header.date || new Date().toLocaleDateString("en-GB")}
+                editable={editable && !!setHeader}
+                onChange={(v) => setHeader?.({ date: v })}
+                bold
+              />
+            </div>
+            <div className="text-left font-bold">Project:</div>
+            <div className="text-left">
+              <HeaderField
+                value={header.project_name}
+                placeholder="—"
+                editable={editable && !!setHeader}
+                onChange={(v) => setHeader?.({ project_name: v })}
+              />
+            </div>
+            <div className="text-left font-bold">Client:</div>
+            <div className="text-left">
+              <HeaderField
+                value={header.client_name || ""}
+                placeholder="—"
+                editable={editable && !!setHeader}
+                onChange={(v) => setHeader?.({ client_name: v })}
+              />
+            </div>
+            <div className="text-left font-bold">EMAIL:</div>
+            <div className="text-left">
+              <HeaderField
+                value={header.client_email || ""}
+                placeholder="—"
+                editable={editable && !!setHeader}
+                onChange={(v) => setHeader?.({ client_email: v })}
+              />
+            </div>
+            <div className="text-left font-bold">Phone:</div>
+            <div className="text-left">
+              <HeaderField
+                value={header.client_phone || ""}
+                placeholder="—"
+                editable={editable && !!setHeader}
+                onChange={(v) => setHeader?.({ client_phone: v })}
+              />
+            </div>
           </div>
-          <div className="text-left font-bold">Project:</div>
-          <div className="text-left">
-            <HeaderField
-              value={header.project_name}
-              placeholder="—"
-              editable={editable && !!setHeader}
-              onChange={(v) => setHeader?.({ project_name: v })}
-            />
-          </div>
-          <div className="text-left font-bold">Client:</div>
-          <div className="text-left">
-            <HeaderField
-              value={header.client_name || ""}
-              placeholder="—"
-              editable={editable && !!setHeader}
-              onChange={(v) => setHeader?.({ client_name: v })}
-            />
-          </div>
-          <div className="text-left font-bold">EMAIL:</div>
-          <div className="text-left">
-            <HeaderField
-              value={header.client_email || ""}
-              placeholder="—"
-              editable={editable && !!setHeader}
-              onChange={(v) => setHeader?.({ client_email: v })}
-            />
-          </div>
-          <div className="text-left font-bold">Phone:</div>
-          <div className="text-left">
-            <HeaderField
-              value={header.client_phone || ""}
-              placeholder="—"
-              editable={editable && !!setHeader}
-              onChange={(v) => setHeader?.({ client_phone: v })}
-            />
+          <div className="inline-grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+            <div className="text-left font-bold">Ref:</div>
+            <div className="text-left">
+              <HeaderField
+                value={header.ref}
+                editable={editable && !!setHeader}
+                onChange={(v) => setHeader?.({ ref: v })}
+              />
+            </div>
+            <div className="text-left font-bold">Presales Engineer:</div>
+            <div className="text-left">
+              <HeaderField
+                value={header.design_engineer || ""}
+                placeholder="—"
+                editable={editable && !!setHeader}
+                onChange={(v) => setHeader?.({ design_engineer: v })}
+              />
+            </div>
+            <div className="text-left font-bold">Phone:</div>
+            <div className="text-left">
+              <HeaderField
+                value={header.sales_phone || "+962 795172566"}
+                editable={editable && !!setHeader}
+                onChange={(v) => setHeader?.({ sales_phone: v })}
+              />
+            </div>
+            <div className="text-left font-bold">Sales Engineer:</div>
+            <div className="text-left">
+              <HeaderField
+                value={header.sales_engineer || ""}
+                placeholder="—"
+                editable={editable && !!setHeader}
+                onChange={(v) => setHeader?.({ sales_engineer: v })}
+              />
+            </div>
           </div>
         </div>
-        <div className="inline-grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-          <div className="text-left font-bold">Ref:</div>
-          <div className="text-left">
-            <HeaderField
-              value={header.ref}
-              editable={editable && !!setHeader}
-              onChange={(v) => setHeader?.({ ref: v })}
-            />
-          </div>
-          <div className="text-left font-bold">Presales Engineer:</div>
-          <div className="text-left">
-            <HeaderField
-              value={header.design_engineer || ""}
-              placeholder="—"
-              editable={editable && !!setHeader}
-              onChange={(v) => setHeader?.({ design_engineer: v })}
-            />
-          </div>
-          <div className="text-left font-bold">Phone:</div>
-          <div className="text-left">
-            <HeaderField
-              value={header.sales_phone || "+962 795172566"}
-              editable={editable && !!setHeader}
-              onChange={(v) => setHeader?.({ sales_phone: v })}
-            />
-          </div>
-          <div className="text-left font-bold">Sales Engineer:</div>
-          <div className="text-left">
-            <HeaderField
-              value={header.sales_engineer || ""}
-              placeholder="—"
-              editable={editable && !!setHeader}
-              onChange={(v) => setHeader?.({ sales_engineer: v })}
-            />
-          </div>
-        </div>
-      </div>
+      )}
 
       {children}
 

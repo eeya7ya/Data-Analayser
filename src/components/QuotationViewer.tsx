@@ -14,6 +14,7 @@ interface SavedConfig {
   extraColumns?: QuotationExtraColumn[];
   scopeIntro?: string;
   designEng?: string;
+  includeTax?: boolean;
 }
 
 export default function QuotationViewer({
@@ -90,6 +91,7 @@ export default function QuotationViewer({
             ? config.terms
             : [...DEFAULT_TERMS]
         }
+        includeTax={config.includeTax !== false}
       />
     </div>
   );

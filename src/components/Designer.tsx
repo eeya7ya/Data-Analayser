@@ -41,6 +41,7 @@ export interface ExistingQuotation {
     scopeIntro?: string;
     designEng?: string;
     pricingCategory?: PricingCategory;
+    includeTax?: boolean;
   };
 }
 
@@ -72,6 +73,7 @@ export default function Designer({
   const [scopeIntro, setScopeIntro] = useState("");
   const [designEng, setDesignEngState] = useState("");
   const [pricingCategory, setPricingCategoryState] = useState<PricingCategory>("si");
+  const [includeTax, setIncludeTax] = useState(true);
   const hydratedRef = useRef(false);
 
   function setDesignEng(value: string) {
@@ -165,6 +167,7 @@ export default function Designer({
         existing.config_json?.designEng || loadDesignEngineerPref() || user.username,
       );
       setPricingCategoryState(existing.config_json?.pricingCategory || "si");
+      setIncludeTax(existing.config_json?.includeTax !== false);
       hydratedRef.current = true;
       return;
     }
@@ -189,6 +192,7 @@ export default function Designer({
     setScopeIntro(d.scopeIntro || "");
     setDesignEngState(d.designEng || loadDesignEngineerPref() || user.username);
     setPricingCategoryState(d.pricingCategory || "si");
+    setIncludeTax(d.includeTax !== false);
     hydratedRef.current = true;
   }, [existing, user.username]);
 
@@ -213,6 +217,7 @@ export default function Designer({
       scopeIntro,
       designEng,
       pricingCategory,
+      includeTax,
     });
   }, [
     editMode,
@@ -233,13 +238,14 @@ export default function Designer({
     scopeIntro,
     designEng,
     pricingCategory,
+    includeTax,
   ]);
 
   async function saveQuotation() {
     setSaving(true);
     setSaveStatus("");
     try {
-      const totals = computeQuotationTotals(items, taxPercent);
+      const totals = computeQuotationTotals(items, includeTax ? taxPercent : 0);
       const payload = {
         ref: refCode || undefined,
         project_name: projectName || "Untitled Quotation",
@@ -260,6 +266,7 @@ export default function Designer({
           scopeIntro,
           designEng,
           pricingCategory,
+          includeTax,
         },
       };
       const res = editMode
@@ -353,12 +360,28 @@ export default function Designer({
               <label className="block text-[10px] font-semibold uppercase text-magic-ink/60">
                 Tax %
               </label>
-              <input
-                type="number"
-                value={taxPercent}
-                onChange={(e) => setTaxPercent(Number(e.target.value))}
-                className="mt-1 w-20 rounded-md border border-magic-border px-2 py-1 text-sm"
-              />
+              <div className="flex items-center gap-1.5 mt-1">
+                <input
+                  type="number"
+                  value={taxPercent}
+                  onChange={(e) => setTaxPercent(Number(e.target.value))}
+                  disabled={!includeTax}
+                  className={`w-20 rounded-md border border-magic-border px-2 py-1 text-sm ${
+                    !includeTax ? "opacity-40" : ""
+                  }`}
+                />
+                <button
+                  onClick={() => setIncludeTax(!includeTax)}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    includeTax
+                      ? "bg-green-600 text-white hover:bg-green-700"
+                      : "bg-gray-300 text-magic-ink/70 hover:bg-gray-400"
+                  }`}
+                  title={includeTax ? "Click to exclude tax" : "Click to include tax"}
+                >
+                  {includeTax ? "Tax ON" : "Tax OFF"}
+                </button>
+              </div>
             </div>
             <label className="flex items-center gap-2 text-xs text-magic-ink/80 pb-1">
               <input
@@ -455,6 +478,7 @@ export default function Designer({
           showPictures={showPictures}
           terms={terms}
           setTerms={setTerms}
+          includeTax={includeTax}
         />
       </div>
     </div>
