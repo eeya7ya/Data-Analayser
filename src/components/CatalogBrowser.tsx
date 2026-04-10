@@ -85,10 +85,25 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
   // ── System list ──────────────────────────────────────────────────────────
   const [systems, setSystems] = useState<SystemInfo[]>([]);
   useEffect(() => {
-    fetch("/api/catalogue/systems")
-      .then((r) => r.json())
-      .then((d) => setSystems(d.systems || []))
-      .catch(() => setSystems([]));
+    let cancelled = false;
+    async function load(attempt = 0): Promise<void> {
+      try {
+        const r = await fetch("/api/catalogue/systems");
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        if (!cancelled) setSystems(d.systems || []);
+      } catch {
+        // Retry up to 2 times (3 total) with short back-off — covers cold-start
+        // races where the first request may hit a still-initialising DB pool.
+        if (attempt < 2 && !cancelled) {
+          await new Promise((res) => setTimeout(res, 800 * (attempt + 1)));
+          return load(attempt + 1);
+        }
+        if (!cancelled) setSystems([]);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   // ── Browsing state ────────────────────────────────────────────────────────
