@@ -77,8 +77,22 @@ export function sql(): Sql {
   return globalForDb.__mtSql;
 }
 
+// ── Schema initialisation guard ────────────────────────────────────────────
+// Ensures the DDL block runs at most once per process lifetime.  Concurrent
+// callers (typical on Vercel cold-start) all await the same promise instead
+// of racing through CREATE / ALTER statements on a single-connection pool.
+const globalForSchema = globalThis as unknown as {
+  __mtSchemaPromise?: Promise<void>;
+};
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
+  if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
+  globalForSchema.__mtSchemaPromise = _ensureSchemaOnce();
+  return globalForSchema.__mtSchemaPromise;
+}
+
+async function _ensureSchemaOnce(): Promise<void> {
   const q = sql();
   await q`
     create table if not exists users (
