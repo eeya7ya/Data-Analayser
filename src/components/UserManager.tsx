@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 interface U {
   id: number;
   username: string;
+  display_name: string;
   role: string;
   created_at: string;
 }
@@ -12,6 +13,7 @@ interface U {
 export default function UserManager() {
   const [users, setUsers] = useState<U[]>([]);
   const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"user" | "admin">("user");
   const [err, setErr] = useState<string | null>(null);
@@ -35,11 +37,12 @@ export default function UserManager() {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, role }),
+        body: JSON.stringify({ username, password, role, display_name: displayName }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed");
       setUsername("");
+      setDisplayName("");
       setPassword("");
       await load();
     } catch (e) {
@@ -59,7 +62,7 @@ export default function UserManager() {
     <div className="space-y-6">
       <form
         onSubmit={create}
-        className="rounded-2xl border border-magic-border bg-white p-4 grid grid-cols-1 md:grid-cols-4 gap-3"
+        className="rounded-2xl border border-magic-border bg-white p-4 grid grid-cols-1 md:grid-cols-5 gap-3"
       >
         <input
           className="rounded-md border border-magic-border px-3 py-2 text-sm"
@@ -67,6 +70,12 @@ export default function UserManager() {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
+        />
+        <input
+          className="rounded-md border border-magic-border px-3 py-2 text-sm"
+          placeholder="display name"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
         />
         <input
           className="rounded-md border border-magic-border px-3 py-2 text-sm"
@@ -91,7 +100,7 @@ export default function UserManager() {
           {loading ? "Creating…" : "Create user"}
         </button>
         {err && (
-          <div className="md:col-span-4 text-xs text-red-600">{err}</div>
+          <div className="md:col-span-5 text-xs text-red-600">{err}</div>
         )}
       </form>
 
@@ -101,6 +110,7 @@ export default function UserManager() {
             <tr>
               <th className="p-3 text-left">ID</th>
               <th className="p-3 text-left">Username</th>
+              <th className="p-3 text-left">Name</th>
               <th className="p-3 text-left">Role</th>
               <th className="p-3 text-left">Created</th>
               <th className="p-3"></th>
@@ -111,6 +121,7 @@ export default function UserManager() {
               <tr key={u.id} className="border-t border-magic-border">
                 <td className="p-3 font-mono">{u.id}</td>
                 <td className="p-3">{u.username}</td>
+                <td className="p-3">{u.display_name || "—"}</td>
                 <td className="p-3">{u.role}</td>
                 <td className="p-3 text-xs text-magic-ink/60">
                   {new Date(u.created_at).toLocaleString()}

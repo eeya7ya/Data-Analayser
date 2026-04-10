@@ -131,6 +131,26 @@ async function _ensureSchemaOnce(): Promise<void> {
     create index if not exists quotations_owner_idx on quotations(owner_id)
   `;
 
+  // ── User display name ────────────────────────────────────────────────────
+  await q`
+    alter table users add column if not exists display_name text not null default ''
+  `;
+
+  // ── Client folders for quotation organisation ────────────────────────────
+  await q`
+    create table if not exists client_folders (
+      id         serial primary key,
+      name       text unique not null,
+      created_at timestamptz not null default now()
+    )
+  `;
+  await q`
+    alter table quotations add column if not exists folder_id integer references client_folders(id) on delete set null
+  `;
+  await q`
+    create index if not exists quotations_folder_idx on quotations(folder_id)
+  `;
+
   // ── Products catalogue table ──────────────────────────────────────────────
   await q`
     create table if not exists products (

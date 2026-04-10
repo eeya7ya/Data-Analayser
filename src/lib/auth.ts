@@ -17,6 +17,7 @@ export interface SessionUser {
   id: number;
   username: string;
   role: "admin" | "user";
+  display_name: string;
 }
 
 /**
@@ -103,6 +104,7 @@ export async function createSessionCookie(user: SessionUser): Promise<void> {
     sub: String(user.id),
     username: user.username,
     role: user.role,
+    display_name: user.display_name,
   })
     .setProtectedHeader({ alg: ALG })
     .setIssuedAt()
@@ -133,6 +135,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       id: Number(payload.sub),
       username: String(payload.username),
       role: (payload.role as "admin" | "user") || "user",
+      display_name: String(payload.display_name || ""),
     };
   } catch {
     return null;

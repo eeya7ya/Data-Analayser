@@ -28,11 +28,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ quotation: rows[0] || null });
     }
     const rows = (await q`
-      select id, ref, project_name, client_name, site_name, created_at
+      select id, ref, project_name, client_name, site_name, folder_id, created_at
       from quotations
       where owner_id = ${user.id} or ${user.role} = 'admin'
       order by id desc
-      limit 100
+      limit 200
     `) as Array<Record<string, unknown>>;
     return NextResponse.json({ quotations: rows });
   } catch (err) {
@@ -65,6 +65,7 @@ export async function PATCH(req: NextRequest) {
       items?: unknown[];
       totals?: Record<string, unknown>;
       config?: Record<string, unknown>;
+      folder_id?: number | null;
     };
     const q = sql();
     const existingRows = (await q`
@@ -97,6 +98,7 @@ export async function PATCH(req: NextRequest) {
       items_json: body.items ?? existing.items_json,
       totals_json: body.totals ?? existing.totals_json,
       config_json: body.config ?? existing.config_json,
+      folder_id: pick("folder_id", existing.folder_id) as number | null,
     };
 
     const rows = (await q`
@@ -113,6 +115,7 @@ export async function PATCH(req: NextRequest) {
         items_json     = ${JSON.stringify(next.items_json)}::jsonb,
         totals_json    = ${JSON.stringify(next.totals_json)}::jsonb,
         config_json    = ${JSON.stringify(next.config_json)}::jsonb,
+        folder_id      = ${next.folder_id},
         updated_at     = now()
       where id = ${id}
       returning id, ref
@@ -143,13 +146,15 @@ export async function POST(req: NextRequest) {
       items: unknown[];
       totals?: Record<string, unknown>;
       config?: Record<string, unknown>;
+      folder_id?: number | null;
     };
     const ref = body.ref && body.ref.trim() ? body.ref.trim() : genRef();
+    const folderId = body.folder_id || null;
     const q = sql();
     const rows = (await q`
       insert into quotations (
         ref, owner_id, project_name, client_name, client_email, client_phone,
-        sales_engineer, prepared_by, site_name, tax_percent, items_json, totals_json, config_json
+        sales_engineer, prepared_by, site_name, tax_percent, items_json, totals_json, config_json, folder_id
       ) values (
         ${ref}, ${user.id}, ${body.project_name}, ${body.client_name || null},
         ${body.client_email || null}, ${body.client_phone || null},
@@ -157,7 +162,8 @@ export async function POST(req: NextRequest) {
         ${body.site_name || "SITE"}, ${body.tax_percent ?? 16},
         ${JSON.stringify(body.items || [])}::jsonb,
         ${JSON.stringify(body.totals || {})}::jsonb,
-        ${JSON.stringify(body.config || {})}::jsonb
+        ${JSON.stringify(body.config || {})}::jsonb,
+        ${folderId}
       )
       returning id, ref
     `) as Array<{ id: number; ref: string }>;

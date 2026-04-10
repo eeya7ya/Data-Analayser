@@ -32,6 +32,7 @@ export interface ExistingQuotation {
   prepared_by: string | null;
   site_name: string;
   tax_percent: number;
+  folder_id: number | null;
   items_json: QuotationItem[];
   config_json: {
     showPictures?: boolean;
@@ -44,6 +45,11 @@ export interface ExistingQuotation {
     includeTax?: boolean;
     taxInclusive?: boolean;
   };
+}
+
+interface ClientFolder {
+  id: number;
+  name: string;
 }
 
 export default function Designer({
@@ -76,6 +82,10 @@ export default function Designer({
   const [pricingCategory, setPricingCategoryState] = useState<PricingCategory>("si");
   const [includeTax, setIncludeTax] = useState(true);
   const [taxInclusive, setTaxInclusive] = useState(false);
+  const [folders, setFolders] = useState<ClientFolder[]>([]);
+  const [folderId, setFolderId] = useState<number | null>(null);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [showNewFolder, setShowNewFolder] = useState(false);
   const hydratedRef = useRef(false);
 
   function setDesignEng(value: string) {
@@ -166,7 +176,7 @@ export default function Designer({
       );
       setScopeIntro(existing.config_json?.scopeIntro || "");
       setDesignEngState(
-        existing.config_json?.designEng || loadDesignEngineerPref() || user.username,
+        existing.config_json?.designEng || loadDesignEngineerPref() || user.display_name || user.username,
       );
       setPricingCategoryState(existing.config_json?.pricingCategory || "si");
       setIncludeTax(existing.config_json?.includeTax !== false);
@@ -193,12 +203,47 @@ export default function Designer({
     setTerms(d.terms.length > 0 ? d.terms : [...DEFAULT_TERMS]);
     setExtraColumns(d.extraColumns || []);
     setScopeIntro(d.scopeIntro || "");
-    setDesignEngState(d.designEng || loadDesignEngineerPref() || user.username);
+    setDesignEngState(d.designEng || loadDesignEngineerPref() || user.display_name || user.username);
     setPricingCategoryState(d.pricingCategory || "si");
     setIncludeTax(d.includeTax !== false);
     setTaxInclusive(Boolean(d.taxInclusive));
     hydratedRef.current = true;
-  }, [existing, user.username]);
+  }, [existing, user.username, user.display_name]);
+
+  // ── Fetch client folders ──────────────────────────────────────────────────
+  useEffect(() => {
+    fetch("/api/folders")
+      .then((r) => r.json())
+      .then((d) => setFolders(d.folders || []))
+      .catch(() => {});
+  }, []);
+
+  // Set folder_id from existing quotation after folders are loaded
+  useEffect(() => {
+    if (existing?.folder_id && folders.length > 0) {
+      setFolderId(existing.folder_id);
+    }
+  }, [existing, folders]);
+
+  async function createFolder() {
+    const name = newFolderName.trim();
+    if (!name) return;
+    try {
+      const res = await fetch("/api/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "failed");
+      setFolders((prev) => [...prev, data.folder].sort((a, b) => a.name.localeCompare(b.name)));
+      setFolderId(data.folder.id);
+      setNewFolderName("");
+      setShowNewFolder(false);
+    } catch {
+      alert("Failed to create folder");
+    }
+  }
 
   // ── Persist draft whenever it changes (new-mode only) ─────────────────────
   useEffect(() => {
@@ -262,6 +307,7 @@ export default function Designer({
         prepared_by: preparedBy || user.username,
         site_name: siteName,
         tax_percent: taxPercent,
+        folder_id: folderId,
         items,
         totals,
         config: {
@@ -409,6 +455,68 @@ export default function Designer({
               />
               Pictures
             </label>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Client folder assignment (not printed) ────────────────────────── */}
+      <div className="rounded-2xl border border-magic-border bg-white p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
+              Client Folder
+            </label>
+            {!showNewFolder ? (
+              <div className="flex items-center gap-2">
+                <select
+                  value={folderId ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "__new__") {
+                      setShowNewFolder(true);
+                    } else {
+                      setFolderId(v ? Number(v) : null);
+                    }
+                  }}
+                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[200px]"
+                >
+                  <option value="">No folder (unfiled)</option>
+                  {folders.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                  <option value="__new__">+ New folder...</option>
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[200px]"
+                  placeholder="Folder name"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); createFolder(); }
+                    if (e.key === "Escape") { setShowNewFolder(false); setNewFolderName(""); }
+                  }}
+                />
+                <button
+                  onClick={createFolder}
+                  disabled={!newFolderName.trim()}
+                  className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
+                >
+                  Create
+                </button>
+                <button
+                  onClick={() => { setShowNewFolder(false); setNewFolderName(""); }}
+                  className="rounded-md border border-magic-border px-3 py-1.5 text-xs hover:bg-magic-soft"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

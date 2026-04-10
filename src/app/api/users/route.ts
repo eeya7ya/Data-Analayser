@@ -9,12 +9,13 @@ export async function GET() {
     await requireAdmin();
     const q = sql();
     const rows = (await q`
-      select id, username, role, created_at
+      select id, username, display_name, role, created_at
       from users
       order by id asc
     `) as Array<{
       id: number;
       username: string;
+      display_name: string;
       role: string;
       created_at: string;
     }>;
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
       username?: string;
       password?: string;
       role?: "admin" | "user";
+      display_name?: string;
     };
     if (!body.username || !body.password) {
       return NextResponse.json(
@@ -43,16 +45,18 @@ export async function POST(req: NextRequest) {
       );
     }
     const role: "admin" | "user" = body.role === "admin" ? "admin" : "user";
+    const displayName = body.display_name || "";
     const hash = await hashPassword(body.password);
     const q = sql();
     const rows = (await q`
-      insert into users (username, password_hash, role)
-      values (${body.username}, ${hash}, ${role})
+      insert into users (username, password_hash, role, display_name)
+      values (${body.username}, ${hash}, ${role}, ${displayName})
       on conflict (username) do nothing
-      returning id, username, role, created_at
+      returning id, username, display_name, role, created_at
     `) as Array<{
       id: number;
       username: string;
+      display_name: string;
       role: string;
       created_at: string;
     }>;
