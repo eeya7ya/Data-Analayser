@@ -49,8 +49,6 @@ const DISPLAY_COLUMNS: Array<{ key: keyof Product; label: string; wide?: boolean
   { key: "specifications", label: "Specifications", wide: true },
 ];
 
-const DEFAULT_TAX_RATE = 16;
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function toQuotationItem(p: Product, qty: number): QuotationItem {
@@ -121,7 +119,6 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [globalMode, setGlobalMode] = useState(false);
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
-  const [includeTax, setIncludeTax] = useState(false);
 
   // ── Page-picker modal ───────────────────────────────────────────────────
   const [pendingItem, setPendingItem] = useState<Product | null>(null);
@@ -186,26 +183,26 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
       .finally(() => setLoading(false));
   }, [selectedVendor, selectedSystem, debouncedSearch]);
 
-  // ── Subcategories derived from loaded products ─────────────────────────────
-  const subcategories = useMemo(() => {
+  // ── Categories derived from loaded products (for the filter dropdown) ───────
+  const categories = useMemo(() => {
     const set = new Set<string>();
     for (const p of products) {
-      if (p.sub_category) set.add(p.sub_category);
+      if (p.category) set.add(p.category);
     }
     return [...set].sort();
   }, [products]);
 
-  // Reset subcategory filter when the available list no longer contains it
+  // Reset category filter when the available list no longer contains it
   useEffect(() => {
-    if (selectedSubCategory && !subcategories.includes(selectedSubCategory)) {
+    if (selectedSubCategory && !categories.includes(selectedSubCategory)) {
       setSelectedSubCategory("");
     }
-  }, [subcategories, selectedSubCategory]);
+  }, [categories, selectedSubCategory]);
 
-  // ── Sorted products (with optional subcategory filter) ────────────────────
+  // ── Sorted products (with optional category filter) ───────────────────────
   const sorted = useMemo(() => {
     const base = selectedSubCategory
-      ? products.filter((p) => p.sub_category === selectedSubCategory)
+      ? products.filter((p) => p.category === selectedSubCategory)
       : products;
     return [...base].sort((a, b) => {
       const av = a[sortKey];
@@ -296,7 +293,7 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
           </select>
         </div>
 
-        {subcategories.length > 0 && (
+        {categories.length > 0 && (
           <div className="flex-1 min-w-40 max-w-56">
             <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
               Sub Category
@@ -307,9 +304,9 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
               className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
             >
               <option value="">— All sub categories —</option>
-              {subcategories.map((sc) => (
-                <option key={sc} value={sc}>
-                  {sc}
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
                 </option>
               ))}
             </select>
@@ -330,20 +327,6 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
             }
             className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
           />
-        </div>
-
-        <div className="pt-5">
-          <button
-            onClick={() => setIncludeTax((v) => !v)}
-            className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
-              includeTax
-                ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
-                : "bg-white text-magic-ink/60 border-magic-border hover:bg-magic-soft"
-            }`}
-            title={includeTax ? "Prices shown with tax" : "Prices shown without tax"}
-          >
-            Tax {DEFAULT_TAX_RATE}% {includeTax ? "ON" : "OFF"}
-          </button>
         </div>
 
         <div className="pt-5">
@@ -470,11 +453,6 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
                         className="px-3 py-2 text-left font-semibold text-magic-ink/60 whitespace-nowrap cursor-pointer hover:text-magic-red select-none"
                       >
                         {col.label}
-                        {col.key === "price_si" && includeTax && (
-                          <span className="ml-1 text-green-600 text-[9px] font-normal">
-                            +tax
-                          </span>
-                        )}
                         {sortKey === col.key && (
                           <span className="ml-1">
                             {sortDir === "asc" ? "↑" : "↓"}
@@ -504,12 +482,9 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
                         let display: string;
                         if (col.key === "price_si") {
                           const raw = Number(val);
-                          const price = includeTax
-                            ? raw * (1 + DEFAULT_TAX_RATE / 100)
-                            : raw;
                           display =
-                            price > 0
-                              ? `${p.currency} ${price.toFixed(2)}`
+                            raw > 0
+                              ? `${p.currency} ${raw.toFixed(2)}`
                               : "—";
                         } else if (col.key === "specifications") {
                           const s = String(val || "");
