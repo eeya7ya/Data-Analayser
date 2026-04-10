@@ -61,6 +61,8 @@ export interface QuotationDraft {
   pricingCategory: PricingCategory;
   /** Whether tax is included in the total cost. */
   includeTax: boolean;
+  /** Whether entered prices already include tax (back-calculate base). */
+  taxInclusive: boolean;
 }
 
 // Per-user preference keys that survive individual draft resets so the
@@ -156,6 +158,7 @@ export function emptyDraft(): QuotationDraft {
     designEng: loadDesignEngineerPref(),
     pricingCategory: "si",
     includeTax: true,
+    taxInclusive: false,
   };
 }
 

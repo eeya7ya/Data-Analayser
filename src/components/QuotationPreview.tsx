@@ -4,6 +4,7 @@ import React, { useRef } from "react";
 import {
   computeQuotationTotals,
   effectiveMergedValue,
+  taxDivisor,
 } from "@/lib/quotationTotals";
 
 export interface QuotationExtraColumn {
@@ -80,6 +81,8 @@ interface Props {
   setTerms?: (terms: string[]) => void;
   /** When false, tax is excluded from the total cost. Defaults to true. */
   includeTax?: boolean;
+  /** When true, entered prices already contain tax — back-calculate base. */
+  taxInclusive?: boolean;
 }
 
 function money(n: number): string {
@@ -122,14 +125,17 @@ export default function QuotationPreview({
   terms = [],
   setTerms,
   includeTax = true,
+  taxInclusive = false,
 }: Props) {
   // Resolve merged cells when summing so the Final Totals page matches
   // the per-group subtotals (and what the user visually sees in each
   // merged unit-price cell).
   const effectiveTaxPercent = includeTax ? (header.tax_percent || 0) : 0;
+  const divisor = taxDivisor(header.tax_percent, taxInclusive);
   const { subtotal, tax, total } = computeQuotationTotals(
     items,
     effectiveTaxPercent,
+    taxInclusive,
   );
 
   function update(i: number, patch: Partial<QuotationItem>) {
@@ -348,6 +354,7 @@ export default function QuotationPreview({
             showPictures={showPictures}
             editable={editable}
             extraColumns={extraColumns}
+            priceDivisor={divisor}
             onUpdate={update}
             onRemove={removeRow}
             onToggleMerge={toggleMerge}
@@ -714,6 +721,7 @@ function SystemTable({
   showPictures,
   editable,
   extraColumns,
+  priceDivisor = 1,
   onUpdate,
   onRemove,
   onToggleMerge,
@@ -725,6 +733,7 @@ function SystemTable({
   showPictures: boolean;
   editable: boolean;
   extraColumns: QuotationExtraColumn[];
+  priceDivisor?: number;
   onUpdate: (globalIndex: number, patch: Partial<QuotationItem>) => void;
   onRemove: (globalIndex: number) => void;
   onToggleMerge: (globalIndex: number, col: MergeCol) => void;
@@ -741,7 +750,7 @@ function SystemTable({
     const qty = Number(groupItems[rowIdx].quantity) || 0;
     const price =
       Number(effectiveMergedValue(groupItems, rowIdx, "unit_price")) || 0;
-    return acc + qty * price;
+    return acc + qty * (price / priceDivisor);
   }, 0);
   // When manual columns are present, shrink the description column a bit so
   // everything still fits on A4 without horizontal overflow.
@@ -948,15 +957,15 @@ function SystemTable({
                   }
                 />
               ) : (
-                money(item.unit_price)
+                money(item.unit_price / priceDivisor)
               ),
             )}
             <td className="font-semibold">
               {money(
                 (Number(item.quantity) || 0) *
-                  (Number(
+                  ((Number(
                     effectiveMergedValue(groupItems, rowIdx, "unit_price"),
-                  ) || 0),
+                  ) || 0) / priceDivisor),
               )}
               {editable && (
                 <div className="no-print mt-1 flex items-center justify-center gap-1">

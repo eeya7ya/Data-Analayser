@@ -15,6 +15,7 @@ interface SavedConfig {
   scopeIntro?: string;
   designEng?: string;
   includeTax?: boolean;
+  taxInclusive?: boolean;
 }
 
 export default function QuotationViewer({
@@ -92,6 +93,7 @@ export default function QuotationViewer({
             : [...DEFAULT_TERMS]
         }
         includeTax={config.includeTax !== false}
+        taxInclusive={Boolean(config.taxInclusive)}
       />
     </div>
   );
