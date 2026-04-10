@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { listSystems } from "@/lib/search";
 import Designer, { type ExistingQuotation } from "@/components/Designer";
 import TopBar from "@/components/TopBar";
 import { sql, ensureSchema } from "@/lib/db";
@@ -76,15 +75,15 @@ export default async function DesignerPage({
       <main className="max-w-7xl mx-auto p-6">
         <header className="mb-6">
           <h1 className="text-2xl font-bold text-magic-ink">
-            {existing ? `Editing ${existing.ref}` : "AI Quotation Designer"}
+            {existing ? `Editing ${existing.ref}` : "Quotation Designer"}
           </h1>
           <p className="text-sm text-magic-ink/70">
             {existing
-              ? "Edit the quotation below. Changes are saved when you click Update."
-              : "Pick a system, describe the project in a sentence, and the AI will fill the rest from the live GitHub catalog. When the catalog can't answer, we escalate to Groq web-search."}
+              ? "Edit the quotation below. Changes are saved when you click Save updates."
+              : "Build and edit your quotation. Choose a pricing category, modify the table, and save when ready."}
           </p>
         </header>
-        <Designer systems={await listSystems()} user={user} existing={existing} />
+        <Designer user={user} existing={existing} />
       </main>
     </div>
   );

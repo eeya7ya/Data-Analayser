@@ -7,6 +7,23 @@ import type {
   QuotationExtraColumn,
 } from "@/components/QuotationPreview";
 
+/** Pricing category determines the factor applied to SI (base) prices. */
+export type PricingCategory = "si" | "dpp" | "end_user" | "manual";
+
+/** Factor multiplied against the SI base price for each category. */
+export const PRICING_FACTORS: Record<Exclude<PricingCategory, "manual">, number> = {
+  si: 1,
+  dpp: 0.965,
+  end_user: 1.05,
+};
+
+export const PRICING_LABELS: Record<PricingCategory, string> = {
+  si: "SI (System Installer)",
+  dpp: "DPP (Distributor Partner)",
+  end_user: "End User",
+  manual: "Manual Pricing",
+};
+
 export const DEFAULT_TERMS: string[] = [
   "Validity: 1 week from the date of the offer.",
   "Total cost include TAX and custom fees",
@@ -40,6 +57,8 @@ export interface QuotationDraft {
    * per-user preference so the user only has to type it once.
    */
   designEng: string;
+  /** Active pricing category — determines the factor applied to SI prices. */
+  pricingCategory: PricingCategory;
 }
 
 // Per-user preference keys that survive individual draft resets so the
@@ -133,6 +152,7 @@ export function emptyDraft(): QuotationDraft {
     extraColumns: [],
     scopeIntro: "",
     designEng: loadDesignEngineerPref(),
+    pricingCategory: "si",
   };
 }
 

@@ -35,6 +35,12 @@ export interface QuotationItem {
    * unit_price, total_price, quantity, and `extra:<columnId>`.
    */
   merge_up?: Record<string, boolean>;
+  /**
+   * Original System Installer price from the product database. Stored so
+   * that switching between pricing categories (SI / DPP / End-user) can
+   * always recompute from the canonical base price.
+   */
+  price_si?: number;
 }
 
 export interface QuotationHeader {

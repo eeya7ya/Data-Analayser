@@ -62,6 +62,7 @@ function toQuotationItem(p: Product, qty: number): QuotationItem {
     unit_price: Number(p.price_si) || 0,
     delivery: "Available",
     picture_hint: p.category,
+    price_si: Number(p.price_si) || 0,
   };
 }
 
