@@ -59,6 +59,8 @@ export interface QuotationDraft {
   designEng: string;
   /** Active pricing category — determines the factor applied to SI prices. */
   pricingCategory: PricingCategory;
+  /** Whether tax is included in the total cost. */
+  includeTax: boolean;
 }
 
 // Per-user preference keys that survive individual draft resets so the
@@ -153,6 +155,7 @@ export function emptyDraft(): QuotationDraft {
     scopeIntro: "",
     designEng: loadDesignEngineerPref(),
     pricingCategory: "si",
+    includeTax: true,
   };
 }
 
