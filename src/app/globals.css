@@ -40,6 +40,21 @@ body {
   flex-direction: column;
 }
 
+/* Full-bleed static A4 page — used for the fixed cover and about-us
+ * pages that bracket every printed quotation. No padding so the supplied
+ * artwork fills the sheet edge to edge. */
+.quotation-sheet.full-bleed {
+  padding: 0;
+  overflow: hidden;
+}
+
+.quotation-sheet.full-bleed img {
+  display: block;
+  width: 210mm;
+  height: 297mm;
+  object-fit: cover;
+}
+
 /* Footer styling is defined below — the `margin-top: auto` there pushes
  * the footer to the bottom of every flex-column sheet. */
 

@@ -35,18 +35,27 @@ interface SystemInfo {
 }
 
 // ─── Fixed columns ──────────────────────────────────────────────────────────
+// `width` is used as a table-layout:fixed column width so each column gets a
+// predictable share of the table regardless of content length. Description
+// and specifications get the most room because they are the only columns
+// where extra width materially improves readability.
 
-const DISPLAY_COLUMNS: Array<{ key: keyof Product; label: string; wide?: boolean }> = [
-  { key: "vendor", label: "Vendor" },
-  { key: "system", label: "System" },
-  { key: "category", label: "Category" },
-  { key: "sub_category", label: "Sub Category" },
-  { key: "fast_view", label: "Fast View", wide: true },
-  { key: "model", label: "Model" },
-  { key: "description", label: "Description", wide: true },
-  { key: "currency", label: "Currency" },
-  { key: "price_si", label: "Price SI" },
-  { key: "specifications", label: "Specifications", wide: true },
+const DISPLAY_COLUMNS: Array<{
+  key: keyof Product;
+  label: string;
+  width: string;
+  wrap?: boolean;
+}> = [
+  { key: "vendor", label: "Vendor", width: "6%" },
+  { key: "system", label: "System", width: "8%" },
+  { key: "category", label: "Category", width: "8%" },
+  { key: "sub_category", label: "Sub Category", width: "8%" },
+  { key: "fast_view", label: "Fast View", width: "9%", wrap: true },
+  { key: "model", label: "Model", width: "13%", wrap: true },
+  { key: "description", label: "Description", width: "24%", wrap: true },
+  { key: "currency", label: "Currency", width: "5%" },
+  { key: "price_si", label: "Price SI", width: "7%" },
+  { key: "specifications", label: "Specifications", width: "12%", wrap: true },
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -442,22 +451,28 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
               </span>
             </div>
             <div className="overflow-x-auto max-h-[65vh] overflow-y-auto">
-              <table className="w-full text-xs border-collapse">
+              <table className="w-full text-xs border-collapse table-fixed">
+                <colgroup>
+                  <col style={{ width: "32px" }} />
+                  {DISPLAY_COLUMNS.map((col) => (
+                    <col key={col.key} style={{ width: col.width }} />
+                  ))}
+                </colgroup>
                 <thead className="sticky top-0 bg-magic-soft/80 backdrop-blur z-10">
                   <tr>
-                    <th className="px-3 py-2 text-left font-semibold text-magic-ink/60 w-8"></th>
+                    <th className="px-2 py-2 text-left font-semibold text-magic-ink/60"></th>
                     {DISPLAY_COLUMNS.map((col) => (
                       <th
                         key={col.key}
                         onClick={() => toggleSort(col.key)}
-                        className="px-3 py-2 text-left font-semibold text-magic-ink/60 whitespace-nowrap cursor-pointer hover:text-magic-red select-none"
+                        className="px-2 py-2 text-left font-semibold text-magic-ink/60 cursor-pointer hover:text-magic-red select-none"
                       >
-                        {col.label}
-                        {sortKey === col.key && (
-                          <span className="ml-1">
-                            {sortDir === "asc" ? "↑" : "↓"}
-                          </span>
-                        )}
+                        <span className="inline-flex items-center gap-1">
+                          <span className="truncate">{col.label}</span>
+                          {sortKey === col.key && (
+                            <span>{sortDir === "asc" ? "↑" : "↓"}</span>
+                          )}
+                        </span>
                       </th>
                     ))}
                   </tr>
@@ -489,18 +504,28 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
                         } else if (col.key === "specifications") {
                           const s = String(val || "");
                           const isExpanded = expandedSpec === p.id;
-                          display = isExpanded ? s : s.length > 80 ? s.slice(0, 80) + "…" : s;
+                          display = isExpanded
+                            ? s
+                            : s.length > 60
+                              ? s.slice(0, 60) + "…"
+                              : s;
                         } else {
                           display =
                             val === null || val === undefined || val === ""
                               ? "—"
                               : String(val);
                         }
+                        const rawTitle =
+                          val === null || val === undefined || val === ""
+                            ? undefined
+                            : String(val);
                         return (
                           <td
                             key={col.key}
-                            className={`px-3 py-1.5 ${
-                              col.wide ? "max-w-[250px]" : "whitespace-nowrap"
+                            className={`px-2 py-1.5 align-top ${
+                              col.wrap
+                                ? "whitespace-normal break-words"
+                                : "truncate whitespace-nowrap"
                             } ${
                               col.key === "model"
                                 ? "font-semibold text-magic-ink"
@@ -519,7 +544,7 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
                             title={
                               col.key === "specifications"
                                 ? "Click to expand/collapse"
-                                : undefined
+                                : rawTitle
                             }
                             style={
                               col.key === "specifications"

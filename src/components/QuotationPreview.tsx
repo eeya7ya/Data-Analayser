@@ -293,13 +293,16 @@ export default function QuotationPreview({
 
   return (
     <div className="quotation-doc">
+      {/* Fixed cover page — printed first, before any system pages. */}
+      <StaticSheet src="/quote-page-1.jpg" alt="Magic Tech cover page" />
+
       {systemPages.length === 0 && (
         <QuotationPage
           header={header}
           setHeader={setHeader}
           editable={editable}
           logoUrl={logoUrl}
-          isLast={!editable}
+          isLast={false}
         >
           <p className="py-6 text-center text-magic-ink/50 text-xs">
             No items yet. Add products from the Catalog, use the AI Designer,
@@ -401,7 +404,7 @@ export default function QuotationPreview({
           editable={editable}
           logoUrl={logoUrl}
           pageLabel={`Page ${systemPages.length + 1} of ${systemPages.length + 1}`}
-          isLast
+          isLast={false}
           hideInfoHeader
         >
           <ScopeIntro
@@ -438,6 +441,30 @@ export default function QuotationPreview({
           />
         </QuotationPage>
       )}
+
+      {/* Fixed about-us page — always printed last after the totals page. */}
+      <StaticSheet src="/quote-page-2.jpg" alt="Magic Tech about us page" isLast />
+    </div>
+  );
+}
+
+// ─── Fixed full-bleed page (cover / about us) ────────────────────────────────
+
+function StaticSheet({
+  src,
+  alt,
+  isLast,
+}: {
+  src: string;
+  alt: string;
+  isLast?: boolean;
+}) {
+  return (
+    <div
+      className={`quotation-sheet full-bleed ${isLast ? "" : "page-break-after"}`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} />
     </div>
   );
 }
