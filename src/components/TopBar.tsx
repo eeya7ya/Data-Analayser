@@ -42,6 +42,9 @@ export default function TopBar({ user }: { user: SessionUser }) {
           <Link href={designerHref} className="text-magic-ink hover:text-magic-red">
             Designer
           </Link>
+          <Link href="/ai-designer" className="text-magic-ink hover:text-magic-red">
+            AI Designer
+          </Link>
           <Link href="/catalog" className="text-magic-ink hover:text-magic-red">
             Catalog
           </Link>
