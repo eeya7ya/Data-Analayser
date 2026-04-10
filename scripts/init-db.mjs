@@ -110,10 +110,25 @@ async function main() {
   `;
   await sql`create index if not exists products_vendor_system_idx on products(vendor, system)`;
   await sql`create index if not exists products_model_idx on products(model)`;
-  // Migrate from old (vendor, model) constraint to model-only if table already existed
+  // Migrate: drop old (vendor, model) constraint, ensure model-only unique exists
+  await sql`alter table products drop constraint if exists products_vendor_model_key`;
   await sql`
-    alter table products drop constraint if exists products_vendor_model_key
-  `.catch(() => {});
+    do $$
+    begin
+      if not exists (
+        select 1 from pg_constraint
+        where conrelid = 'products'::regclass
+          and contype = 'u'
+          and array_length(conkey, 1) = 1
+          and conkey[1] = (
+            select attnum from pg_attribute
+            where attrelid = 'products'::regclass and attname = 'model'
+          )
+      ) then
+        alter table products add constraint products_model_key unique (model);
+      end if;
+    end $$
+  `;
 
   const adminUser = process.env.DEFAULT_ADMIN_USER || "admin";
   const adminPass = process.env.DEFAULT_ADMIN_PASS || "admin123";
