@@ -19,6 +19,14 @@ export default function UserManager() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Edit state
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editRole, setEditRole] = useState<"user" | "admin">("user");
+  const [editPassword, setEditPassword] = useState("");
+  const [editErr, setEditErr] = useState<string | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+
   async function load() {
     const res = await fetch("/api/users");
     const data = await res.json();
@@ -56,6 +64,46 @@ export default function UserManager() {
     if (!confirm("Delete this user?")) return;
     await fetch(`/api/users?id=${id}`, { method: "DELETE" });
     await load();
+  }
+
+  function startEdit(u: U) {
+    setEditId(u.id);
+    setEditDisplayName(u.display_name || "");
+    setEditRole(u.role as "user" | "admin");
+    setEditPassword("");
+    setEditErr(null);
+  }
+
+  function cancelEdit() {
+    setEditId(null);
+    setEditErr(null);
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editId === null) return;
+    setEditErr(null);
+    setEditLoading(true);
+    try {
+      const body: Record<string, string> = {
+        display_name: editDisplayName,
+        role: editRole,
+      };
+      if (editPassword) body.password = editPassword;
+      const res = await fetch(`/api/users?id=${editId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "failed");
+      setEditId(null);
+      await load();
+    } catch (e) {
+      setEditErr((e as Error).message);
+    } finally {
+      setEditLoading(false);
+    }
   }
 
   return (
@@ -118,25 +166,83 @@ export default function UserManager() {
           </thead>
           <tbody>
             {users.map((u) => (
-              <tr key={u.id} className="border-t border-magic-border">
-                <td className="p-3 font-mono">{u.id}</td>
-                <td className="p-3">{u.username}</td>
-                <td className="p-3">{u.display_name || "—"}</td>
-                <td className="p-3">{u.role}</td>
-                <td className="p-3 text-xs text-magic-ink/60">
-                  {new Date(u.created_at).toLocaleString()}
-                </td>
-                <td className="p-3 text-right">
-                  {u.role !== "admin" && (
-                    <button
-                      onClick={() => remove(u.id)}
-                      className="text-red-500 text-xs hover:underline"
+              editId === u.id ? (
+                <tr key={u.id} className="border-t border-magic-border bg-amber-50/50">
+                  <td className="p-3 font-mono">{u.id}</td>
+                  <td className="p-3 text-magic-ink/60">{u.username}</td>
+                  <td className="p-2">
+                    <input
+                      className="rounded-md border border-magic-border px-2 py-1 text-sm w-full"
+                      placeholder="display name"
+                      value={editDisplayName}
+                      onChange={(e) => setEditDisplayName(e.target.value)}
+                    />
+                  </td>
+                  <td className="p-2">
+                    <select
+                      className="rounded-md border border-magic-border px-2 py-1 text-sm"
+                      value={editRole}
+                      onChange={(e) => setEditRole(e.target.value as "user" | "admin")}
                     >
-                      Delete
+                      <option value="user">user</option>
+                      <option value="admin">admin</option>
+                    </select>
+                  </td>
+                  <td className="p-2">
+                    <input
+                      className="rounded-md border border-magic-border px-2 py-1 text-sm w-full"
+                      type="password"
+                      placeholder="new password (optional)"
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                    />
+                  </td>
+                  <td className="p-2 text-right space-x-2 whitespace-nowrap">
+                    <button
+                      onClick={saveEdit}
+                      disabled={editLoading}
+                      className="rounded-md bg-green-600 text-white px-3 py-1 text-xs font-semibold hover:bg-green-700 disabled:opacity-60"
+                    >
+                      {editLoading ? "Saving…" : "Save"}
                     </button>
-                  )}
-                </td>
-              </tr>
+                    <button
+                      onClick={cancelEdit}
+                      className="rounded-md border border-magic-border px-3 py-1 text-xs hover:bg-gray-100"
+                    >
+                      Cancel
+                    </button>
+                    {editErr && (
+                      <span className="text-xs text-red-600 block mt-1">{editErr}</span>
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                <tr key={u.id} className="border-t border-magic-border">
+                  <td className="p-3 font-mono">{u.id}</td>
+                  <td className="p-3">{u.username}</td>
+                  <td className="p-3">{u.display_name || "—"}</td>
+                  <td className="p-3">{u.role}</td>
+                  <td className="p-3 text-xs text-magic-ink/60">
+                    {new Date(u.created_at).toLocaleString()}
+                  </td>
+                  <td className="p-3 text-right space-x-2 whitespace-nowrap">
+                    <button
+                      onClick={() => startEdit(u)}
+                      className="text-blue-600 text-xs hover:underline"
+                    >
+                      Edit
+                    </button>
+                    {u.role !== "admin" && (
+                      <button
+                        onClick={() => remove(u.id)}
+                        className="text-red-500 text-xs hover:underline"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
             ))}
           </tbody>
         </table>

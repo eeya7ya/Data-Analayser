@@ -4,6 +4,7 @@ import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
 import QuotationViewer from "@/components/QuotationViewer";
 import FolderExportImport from "@/components/FolderExportImport";
+import MoveToFolder from "@/components/MoveToFolder";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +94,8 @@ export default async function QuotationPage({
   }
   if (grouped.has(null)) folderOrder.push(null);
 
+  const foldersForMove = folders.map((f) => ({ id: f.id, name: f.name }));
+
   function renderTable(
     items: typeof rows,
   ) {
@@ -105,6 +108,7 @@ export default async function QuotationPage({
             <th className="p-3 text-left">Client</th>
             <th className="p-3 text-left">Site</th>
             <th className="p-3 text-left">Created</th>
+            <th className="p-3"></th>
           </tr>
         </thead>
         <tbody>
@@ -123,6 +127,13 @@ export default async function QuotationPage({
               <td className="p-3">{r.site_name}</td>
               <td className="p-3 text-xs text-magic-ink/60">
                 {new Date(r.created_at).toLocaleString()}
+              </td>
+              <td className="p-3 text-right">
+                <MoveToFolder
+                  quotationId={r.id}
+                  currentFolderId={r.folder_id}
+                  folders={foldersForMove}
+                />
               </td>
             </tr>
           ))}
