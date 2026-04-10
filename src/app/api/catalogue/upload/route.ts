@@ -53,16 +53,26 @@ export async function POST(req: NextRequest) {
     }));
 
     // Filter out rows without a model
-    const valid = clean.filter((r) => r.model && r.vendor);
-    if (valid.length === 0) {
+    const validAll = clean.filter((r) => r.model && r.vendor);
+    if (validAll.length === 0) {
       return NextResponse.json(
         { error: "No valid rows (every row needs at least vendor and model)" },
         { status: 400 },
       );
     }
 
+    // Deduplicate by model — keep last occurrence so later rows in the
+    // spreadsheet win. This prevents "ON CONFLICT DO UPDATE command
+    // cannot affect row a second time" when the same model appears twice.
+    const seen = new Map<string, number>();
+    for (let i = 0; i < validAll.length; i++) {
+      seen.set(validAll[i].model, i);
+    }
+    const valid = [...seen.values()].sort((a, b) => a - b).map((i) => validAll[i]);
+
     const q = sql();
     let upserted = 0;
+    const dupes = validAll.length - valid.length;
 
     // Upsert in batches of 50
     for (let i = 0; i < valid.length; i += 50) {
@@ -81,7 +91,8 @@ export async function POST(req: NextRequest) {
           "price_si",
           "specifications",
         )}
-        on conflict (vendor, model) do update set
+        on conflict (model) do update set
+          vendor         = excluded.vendor,
           system         = excluded.system,
           category       = excluded.category,
           sub_category   = excluded.sub_category,
@@ -95,7 +106,7 @@ export async function POST(req: NextRequest) {
       upserted += batch.length;
     }
 
-    return NextResponse.json({ ok: true, upserted });
+    return NextResponse.json({ ok: true, upserted, duplicatesRemoved: dupes });
   } catch (err) {
     const msg = (err as Error).message;
     if (msg === "UNAUTHENTICATED")

@@ -105,11 +105,15 @@ async function main() {
       specifications text not null default '',
       created_at     timestamptz not null default now(),
       updated_at     timestamptz not null default now(),
-      unique(vendor, model)
+      unique(model)
     )
   `;
   await sql`create index if not exists products_vendor_system_idx on products(vendor, system)`;
   await sql`create index if not exists products_model_idx on products(model)`;
+  // Migrate from old (vendor, model) constraint to model-only if table already existed
+  await sql`
+    alter table products drop constraint if exists products_vendor_model_key
+  `.catch(() => {});
 
   const adminUser = process.env.DEFAULT_ADMIN_USER || "admin";
   const adminPass = process.env.DEFAULT_ADMIN_PASS || "admin123";

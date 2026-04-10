@@ -56,7 +56,7 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; upserted?: number; error?: string } | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; upserted?: number; duplicatesRemoved?: number; error?: string } | null>(null);
   const [headerMap, setHeaderMap] = useState<Record<string, string>>({});
 
   const parseFile = useCallback((file: File) => {
@@ -147,7 +147,7 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
       if (!res.ok) {
         setResult({ ok: false, error: data.error || "Upload failed" });
       } else {
-        setResult({ ok: true, upserted: data.upserted });
+        setResult({ ok: true, upserted: data.upserted, duplicatesRemoved: data.duplicatesRemoved });
         setRows([]);
         setFileName("");
         onDone?.();
@@ -207,7 +207,7 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
           }`}
         >
           {result.ok
-            ? `Successfully uploaded ${result.upserted} product(s).`
+            ? `Successfully uploaded ${result.upserted} product(s).${result.duplicatesRemoved ? ` (${result.duplicatesRemoved} duplicate rows merged)` : ""}`
             : `Upload failed: ${result.error}`}
         </div>
       )}
