@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ mode: "global", hits });
     }
 
-    const system = findSystem(body.systemId);
+    const system = await findSystem(body.systemId);
     if (!system) {
       return NextResponse.json({ error: "System not found" }, { status: 404 });
     }

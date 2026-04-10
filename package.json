@@ -9,7 +9,10 @@
     "start": "next start",
     "lint": "next lint",
     "db:init": "node scripts/init-db.mjs",
-    "manifest:build": "node scripts/build-manifest.mjs"
+    "manifest:build": "node scripts/build-manifest.mjs",
+    "catalogue:migrate": "node scripts/migrate-catalogue.mjs",
+    "catalogue:seed": "node scripts/seed-catalogue.mjs",
+    "catalogue:describe": "node scripts/generate-descriptions.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
@@ -20,7 +23,8 @@
     "postgres": "^3.4.7",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "tailwind-merge": "^2.5.5"
+    "tailwind-merge": "^2.5.5",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

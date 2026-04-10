@@ -52,12 +52,20 @@ export default function TopBar({ user }: { user: SessionUser }) {
             Quotations
           </Link>
           {user.role === "admin" && (
-            <Link
-              href="/admin"
-              className="text-magic-ink hover:text-magic-red"
-            >
-              Admin
-            </Link>
+            <>
+              <Link
+                href="/admin/catalogue"
+                className="text-magic-ink hover:text-magic-red"
+              >
+                Catalogue
+              </Link>
+              <Link
+                href="/admin"
+                className="text-magic-ink hover:text-magic-red"
+              >
+                Admin
+              </Link>
+            </>
           )}
           <span className="text-xs text-magic-ink/50">
             {user.username} · {user.role}
