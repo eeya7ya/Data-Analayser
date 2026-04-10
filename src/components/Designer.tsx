@@ -162,7 +162,7 @@ export default function Designer({
       );
       setScopeIntro(existing.config_json?.scopeIntro || "");
       setDesignEngState(
-        existing.config_json?.designEng || loadDesignEngineerPref() || "",
+        existing.config_json?.designEng || loadDesignEngineerPref() || user.username,
       );
       setPricingCategoryState(existing.config_json?.pricingCategory || "si");
       hydratedRef.current = true;
@@ -187,7 +187,7 @@ export default function Designer({
     setTerms(d.terms.length > 0 ? d.terms : [...DEFAULT_TERMS]);
     setExtraColumns(d.extraColumns || []);
     setScopeIntro(d.scopeIntro || "");
-    setDesignEngState(d.designEng || loadDesignEngineerPref() || "");
+    setDesignEngState(d.designEng || loadDesignEngineerPref() || user.username);
     setPricingCategoryState(d.pricingCategory || "si");
     hydratedRef.current = true;
   }, [existing, user.username]);
