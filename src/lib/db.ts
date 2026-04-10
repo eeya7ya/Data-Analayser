@@ -141,8 +141,12 @@ async function _ensureSchemaOnce(): Promise<void> {
     create table if not exists client_folders (
       id         serial primary key,
       name       text unique not null,
-      created_at timestamptz not null default now()
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
     )
+  `;
+  await q`
+    alter table client_folders add column if not exists updated_at timestamptz not null default now()
   `;
   await q`
     alter table quotations add column if not exists folder_id integer references client_folders(id) on delete set null

@@ -4,6 +4,7 @@ import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
 import QuotationViewer from "@/components/QuotationViewer";
 import FolderExportImport from "@/components/FolderExportImport";
+import FolderManager from "@/components/FolderManager";
 import MoveToFolder from "@/components/MoveToFolder";
 import Link from "next/link";
 
@@ -55,7 +56,7 @@ export default async function QuotationPage({
   // Fetch quotations and folders in parallel
   const [rows, folders] = await Promise.all([
     q`
-      select id, ref, project_name, client_name, site_name, folder_id, created_at
+      select id, ref, project_name, client_name, site_name, folder_id, created_at, updated_at
       from quotations
       where owner_id = ${user.id} or ${user.role} = 'admin'
       order by id desc
@@ -69,11 +70,12 @@ export default async function QuotationPage({
         site_name: string;
         folder_id: number | null;
         created_at: string;
+        updated_at: string;
       }>
     >,
     q`
-      select id, name from client_folders order by name asc
-    ` as Promise<Array<{ id: number; name: string }>>,
+      select id, name, created_at, updated_at from client_folders order by name asc
+    ` as Promise<Array<{ id: number; name: string; created_at: string; updated_at: string }>>,
   ]);
 
   // Build folder lookup
@@ -96,9 +98,21 @@ export default async function QuotationPage({
 
   const foldersForMove = folders.map((f) => ({ id: f.id, name: f.name }));
 
-  function renderTable(
-    items: typeof rows,
-  ) {
+  function formatDateTime(dt: string) {
+    const d = new Date(dt);
+    const date = d.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    const time = d.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return { date, time };
+  }
+
+  function renderTable(items: typeof rows) {
     return (
       <table className="w-full text-sm">
         <thead className="bg-magic-header text-magic-red text-xs uppercase">
@@ -108,35 +122,52 @@ export default async function QuotationPage({
             <th className="p-3 text-left">Client</th>
             <th className="p-3 text-left">Site</th>
             <th className="p-3 text-left">Created</th>
+            <th className="p-3 text-left">Last Edited</th>
             <th className="p-3"></th>
           </tr>
         </thead>
         <tbody>
-          {items.map((r) => (
-            <tr key={r.id} className="border-t border-magic-border">
-              <td className="p-3 font-mono">
-                <Link
-                  href={`/quotation?id=${r.id}`}
-                  className="text-magic-red hover:underline"
-                >
-                  {r.ref}
-                </Link>
-              </td>
-              <td className="p-3">{r.project_name}</td>
-              <td className="p-3">{r.client_name || "—"}</td>
-              <td className="p-3">{r.site_name}</td>
-              <td className="p-3 text-xs text-magic-ink/60">
-                {new Date(r.created_at).toLocaleString()}
-              </td>
-              <td className="p-3 text-right">
-                <MoveToFolder
-                  quotationId={r.id}
-                  currentFolderId={r.folder_id}
-                  folders={foldersForMove}
-                />
-              </td>
-            </tr>
-          ))}
+          {items.map((r) => {
+            const created = formatDateTime(r.created_at);
+            const updated = formatDateTime(r.updated_at);
+            const wasEdited = r.updated_at !== r.created_at;
+            return (
+              <tr key={r.id} className="border-t border-magic-border">
+                <td className="p-3 font-mono">
+                  <Link
+                    href={`/quotation?id=${r.id}`}
+                    className="text-magic-red hover:underline"
+                  >
+                    {r.ref}
+                  </Link>
+                </td>
+                <td className="p-3">{r.project_name}</td>
+                <td className="p-3">{r.client_name || "—"}</td>
+                <td className="p-3">{r.site_name}</td>
+                <td className="p-3 text-xs text-magic-ink/60">
+                  <div>{created.date}</div>
+                  <div className="text-magic-ink/40">{created.time}</div>
+                </td>
+                <td className="p-3 text-xs text-magic-ink/60">
+                  {wasEdited ? (
+                    <>
+                      <div>{updated.date}</div>
+                      <div className="text-magic-ink/40">{updated.time}</div>
+                    </>
+                  ) : (
+                    <span className="text-magic-ink/30">—</span>
+                  )}
+                </td>
+                <td className="p-3 text-right">
+                  <MoveToFolder
+                    quotationId={r.id}
+                    currentFolderId={r.folder_id}
+                    folders={foldersForMove}
+                  />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     );
@@ -145,13 +176,24 @@ export default async function QuotationPage({
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
-      <main className="max-w-5xl mx-auto p-6">
+      <main className="max-w-6xl mx-auto p-6">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-magic-ink">
             Saved Quotations
           </h1>
           {user.role === "admin" && <FolderExportImport />}
         </div>
+
+        {/* Folder Manager */}
+        <FolderManager
+          folders={folders.map((f) => ({
+            id: f.id,
+            name: f.name,
+            created_at: f.created_at,
+            updated_at: f.updated_at,
+          }))}
+          isAdmin={user.role === "admin"}
+        />
 
         {rows.length === 0 ? (
           <div className="rounded-2xl border border-magic-border bg-white p-6 text-center text-magic-ink/50">
@@ -165,16 +207,32 @@ export default async function QuotationPage({
           <div className="space-y-4">
             {folderOrder.map((fid) => {
               const items = grouped.get(fid)!;
-              const folderName = fid === null ? "Unfiled" : folderMap.get(fid) || "Unknown";
+              const folderName =
+                fid === null ? "Unfiled" : folderMap.get(fid) || "Unknown";
               return (
-                <details key={fid ?? "unfiled"} open className="rounded-2xl border border-magic-border bg-white overflow-hidden">
+                <details
+                  key={fid ?? "unfiled"}
+                  open
+                  className="rounded-2xl border border-magic-border bg-white overflow-hidden"
+                >
                   <summary className="p-3 font-semibold text-magic-ink cursor-pointer bg-magic-header flex items-center gap-2 select-none">
-                    <svg className="w-4 h-4 text-magic-ink/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    <svg
+                      className="w-4 h-4 text-magic-ink/60"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                      />
                     </svg>
                     {folderName}
                     <span className="text-xs font-normal text-magic-ink/50">
-                      ({items.length} quotation{items.length !== 1 ? "s" : ""})
+                      ({items.length} quotation
+                      {items.length !== 1 ? "s" : ""})
                     </span>
                   </summary>
                   {renderTable(items)}
