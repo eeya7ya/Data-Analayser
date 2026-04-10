@@ -63,7 +63,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
             </Link>
           )}
           <span className="text-xs text-magic-ink/50">
-            {user.username} · {user.role}
+            {user.display_name || user.username} · {user.role}
           </span>
           <button
             onClick={logout}

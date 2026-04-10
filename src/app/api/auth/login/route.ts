@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     }
     const q = sql();
     const rows = (await q`
-      select id, username, password_hash, role
+      select id, username, password_hash, role, display_name
       from users
       where username = ${username}
       limit 1
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
       username: string;
       password_hash: string;
       role: "admin" | "user";
+      display_name: string;
     }>;
     if (rows.length === 0) {
       return NextResponse.json(
@@ -51,10 +52,11 @@ export async function POST(req: NextRequest) {
       id: row.id,
       username: row.username,
       role: row.role,
+      display_name: row.display_name || "",
     });
     return NextResponse.json({
       ok: true,
-      user: { id: row.id, username: row.username, role: row.role },
+      user: { id: row.id, username: row.username, role: row.role, display_name: row.display_name || "" },
     });
   } catch (err) {
     return NextResponse.json(

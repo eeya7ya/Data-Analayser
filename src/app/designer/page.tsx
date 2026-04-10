@@ -63,6 +63,7 @@ export default async function DesignerPage({
         prepared_by: (row.prepared_by as string) || null,
         site_name: String(row.site_name),
         tax_percent: Number(row.tax_percent ?? 16),
+        folder_id: row.folder_id ? Number(row.folder_id) : null,
         items_json: itemsArray,
         config_json: configObject,
       };
