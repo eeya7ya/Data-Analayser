@@ -11,15 +11,23 @@ interface Quotation {
   client_name: string | null;
   site_name: string;
   folder_id: number | null;
+  owner_id?: number | null;
   created_at: string;
   updated_at: string;
+  // Admin-only fields populated by a join on users.
+  owner_username?: string | null;
+  owner_display_name?: string | null;
 }
 
 interface Folder {
   id: number;
   name: string;
+  owner_id?: number | null;
   created_at: string;
   updated_at: string;
+  // Admin-only fields populated by a join on users.
+  owner_username?: string | null;
+  owner_display_name?: string | null;
 }
 
 function formatDateTime(dt: string) {
@@ -100,11 +108,12 @@ export default function QuotationListClient({
   }, [quotations, debouncedSearch, isSearching]);
 
   const groups = useMemo(() => {
-    const grouped = new Map<number | null, Quotation[]>();
+    // Bucket quotations by folder id.
+    const byFolder = new Map<number | null, Quotation[]>();
     for (const r of filtered) {
       const key = r.folder_id;
-      if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key)!.push(r);
+      if (!byFolder.has(key)) byFolder.set(key, []);
+      byFolder.get(key)!.push(r);
     }
 
     const result: {
@@ -112,28 +121,76 @@ export default function QuotationListClient({
       folderId: number | null;
       folder: Folder | null;
       items: Quotation[];
+      unfiledOwnerLabel?: string | null;
     }[] = [];
 
-    // Named folders (alphabetical)
+    // Named folders — already sorted server-side.
     for (const f of folders) {
-      const items = grouped.get(f.id) || [];
-      if (isSearching && items.length === 0) continue; // hide empty during search
+      const items = byFolder.get(f.id) || [];
+      if (isSearching && items.length === 0) continue;
       result.push({ key: String(f.id), folderId: f.id, folder: f, items });
     }
 
-    // Unfiled
-    const unfiled = grouped.get(null) || [];
-    if (!isSearching || unfiled.length > 0) {
-      result.push({
-        key: "unfiled",
-        folderId: null,
-        folder: null,
-        items: unfiled,
+    // Unfiled section.
+    const unfiled = byFolder.get(null) || [];
+    if (!isAdmin) {
+      // Regular users see a single flat "Unfiled" bucket.
+      if (!isSearching || unfiled.length > 0) {
+        result.push({
+          key: "unfiled",
+          folderId: null,
+          folder: null,
+          items: unfiled,
+        });
+      }
+    } else {
+      // Admin: one unfiled bucket per owning user so the UI stays readable
+      // across the whole org.
+      const perOwner = new Map<number | null, Quotation[]>();
+      for (const r of unfiled) {
+        const ownerKey = r.owner_id ?? null;
+        if (!perOwner.has(ownerKey)) perOwner.set(ownerKey, []);
+        perOwner.get(ownerKey)!.push(r);
+      }
+      const sortedOwners = [...perOwner.entries()].sort(([aKey, aArr], [bKey, bArr]) => {
+        const aLabel =
+          aArr[0]?.owner_display_name?.trim() ||
+          aArr[0]?.owner_username ||
+          (aKey === null ? "—" : `user#${aKey}`);
+        const bLabel =
+          bArr[0]?.owner_display_name?.trim() ||
+          bArr[0]?.owner_username ||
+          (bKey === null ? "—" : `user#${bKey}`);
+        return aLabel.localeCompare(bLabel);
       });
+      for (const [ownerKey, items] of sortedOwners) {
+        if (isSearching && items.length === 0) continue;
+        const label =
+          items[0]?.owner_display_name?.trim() ||
+          items[0]?.owner_username ||
+          null;
+        result.push({
+          key: `unfiled-${ownerKey ?? "null"}`,
+          folderId: null,
+          folder: null,
+          items,
+          unfiledOwnerLabel: label,
+        });
+      }
+      // Make sure the section shows up (even if empty) for the current admin
+      // when there are no unfiled items at all — preserves the old behaviour.
+      if (!isSearching && sortedOwners.length === 0) {
+        result.push({
+          key: "unfiled",
+          folderId: null,
+          folder: null,
+          items: [],
+        });
+      }
     }
 
     return result;
-  }, [filtered, folders, isSearching]);
+  }, [filtered, folders, isSearching, isAdmin]);
 
   const foldersForMove = useMemo(
     () => folders.map((f) => ({ id: f.id, name: f.name })),
@@ -433,6 +490,16 @@ export default function QuotationListClient({
                 ) : (
                   <span className="font-semibold text-magic-ink">
                     {isUnfiled ? "Unfiled" : g.folder!.name}
+                    {isAdmin && !isUnfiled && g.folder?.owner_username && (
+                      <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-magic-red/10 text-magic-red text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide">
+                        @{g.folder.owner_display_name?.trim() || g.folder.owner_username}
+                      </span>
+                    )}
+                    {isAdmin && isUnfiled && g.unfiledOwnerLabel && (
+                      <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-magic-red/10 text-magic-red text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide">
+                        @{g.unfiledOwnerLabel}
+                      </span>
+                    )}
                   </span>
                 )}
 

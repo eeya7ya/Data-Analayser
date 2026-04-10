@@ -79,6 +79,24 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
+    // If the caller is moving the quotation into a folder, make sure the
+    // target folder belongs to the quotation's owner (admins are exempt).
+    if (
+      user.role !== "admin" &&
+      body.folder_id !== undefined &&
+      body.folder_id !== null
+    ) {
+      const folderRows = (await q`
+        select owner_id from client_folders where id = ${body.folder_id} limit 1
+      `) as Array<{ owner_id: number | null }>;
+      if (folderRows.length === 0) {
+        return NextResponse.json({ error: "folder not found" }, { status: 404 });
+      }
+      if (folderRows[0].owner_id !== user.id) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+    }
+
     const pick = <K extends keyof typeof body>(key: K, fallback: unknown) =>
       body[key] !== undefined ? body[key] : fallback;
 
@@ -151,6 +169,15 @@ export async function POST(req: NextRequest) {
     const ref = body.ref && body.ref.trim() ? body.ref.trim() : genRef();
     const folderId = body.folder_id || null;
     const q = sql();
+    // Normal users can only file quotations into folders they own.
+    if (user.role !== "admin" && folderId) {
+      const folderRows = (await q`
+        select owner_id from client_folders where id = ${folderId} limit 1
+      `) as Array<{ owner_id: number | null }>;
+      if (folderRows.length === 0 || folderRows[0].owner_id !== user.id) {
+        return NextResponse.json({ error: "forbidden folder" }, { status: 403 });
+      }
+    }
     const rows = (await q`
       insert into quotations (
         ref, owner_id, project_name, client_name, client_email, client_phone,

@@ -1,29 +1,44 @@
 import { NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    await requireAdmin();
+    const user = await requireUser();
     await ensureSchema();
     const q = sql();
+    const isAdmin = user.role === "admin";
 
-    // Fetch all folders
-    const folders = (await q`
-      select id, name from client_folders order by name asc
-    `) as Array<{ id: number; name: string }>;
+    // Fetch folders — admins export everything, users only export their own.
+    const folders = isAdmin
+      ? ((await q`
+          select id, name from client_folders order by name asc
+        `) as Array<{ id: number; name: string }>)
+      : ((await q`
+          select id, name from client_folders where owner_id = ${user.id} order by name asc
+        `) as Array<{ id: number; name: string }>);
 
-    // Fetch all quotations with folder info
-    const quotations = (await q`
-      select q.ref, q.project_name, q.client_name, q.client_email,
-             q.client_phone, q.sales_engineer, q.prepared_by, q.site_name,
-             q.tax_percent, q.items_json, q.totals_json, q.config_json,
-             q.folder_id, q.created_at, q.updated_at
-      from quotations q
-      order by q.folder_id nulls last, q.id
-    `) as Array<Record<string, unknown>>;
+    // Fetch quotations — same scope as folders.
+    const quotations = isAdmin
+      ? ((await q`
+          select q.ref, q.project_name, q.client_name, q.client_email,
+                 q.client_phone, q.sales_engineer, q.prepared_by, q.site_name,
+                 q.tax_percent, q.items_json, q.totals_json, q.config_json,
+                 q.folder_id, q.created_at, q.updated_at
+          from quotations q
+          order by q.folder_id nulls last, q.id
+        `) as Array<Record<string, unknown>>)
+      : ((await q`
+          select q.ref, q.project_name, q.client_name, q.client_email,
+                 q.client_phone, q.sales_engineer, q.prepared_by, q.site_name,
+                 q.tax_percent, q.items_json, q.totals_json, q.config_json,
+                 q.folder_id, q.created_at, q.updated_at
+          from quotations q
+          where q.owner_id = ${user.id}
+          order by q.folder_id nulls last, q.id
+        `) as Array<Record<string, unknown>>);
 
     // Build folder map
     const folderMap = new Map(folders.map((f) => [f.id, f.name]));

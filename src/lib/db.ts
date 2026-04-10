@@ -148,6 +148,31 @@ async function _ensureSchemaOnce(): Promise<void> {
   await q`
     alter table client_folders add column if not exists updated_at timestamptz not null default now()
   `;
+  // Per-user folder ownership. Legacy folders (NULL owner_id) are treated as
+  // admin-owned / shared so they remain visible to admins after the migration.
+  await q`
+    alter table client_folders add column if not exists owner_id integer references users(id) on delete cascade
+  `;
+  await q`
+    create index if not exists client_folders_owner_idx on client_folders(owner_id)
+  `;
+  // Folder names are unique **per owner**, not globally. Drop the old
+  // unconditional unique constraint if it exists and replace with a
+  // composite one so two users can each have a "Clients" folder.
+  await q`alter table client_folders drop constraint if exists client_folders_name_key`;
+  await q`
+    do $$
+    begin
+      if not exists (
+        select 1 from pg_constraint
+        where conrelid = 'client_folders'::regclass
+          and conname = 'client_folders_owner_name_key'
+      ) then
+        alter table client_folders
+          add constraint client_folders_owner_name_key unique (owner_id, name);
+      end if;
+    end $$
+  `;
   await q`
     alter table quotations add column if not exists folder_id integer references client_folders(id) on delete set null
   `;
