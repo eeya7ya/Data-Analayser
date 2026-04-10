@@ -16,7 +16,7 @@ export default function CatalogUploadSection() {
       </button>
       {show && (
         <div className="mt-4">
-          <CatalogueUpload onDone={() => setShow(false)} />
+          <CatalogueUpload onDone={() => { setShow(false); window.location.reload(); }} />
         </div>
       )}
     </div>
