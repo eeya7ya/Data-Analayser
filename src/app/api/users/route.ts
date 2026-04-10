@@ -76,6 +76,55 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  try {
+    await requireAdmin();
+    const { searchParams } = new URL(req.url);
+    const id = Number(searchParams.get("id"));
+    if (!id) {
+      return NextResponse.json({ error: "id required" }, { status: 400 });
+    }
+    const body = (await req.json()) as {
+      display_name?: string;
+      role?: "admin" | "user";
+      password?: string;
+    };
+    const q = sql();
+
+    if (body.display_name !== undefined) {
+      await q`update users set display_name = ${body.display_name} where id = ${id}`;
+    }
+    if (body.role === "admin" || body.role === "user") {
+      await q`update users set role = ${body.role} where id = ${id}`;
+    }
+    if (body.password) {
+      const hash = await hashPassword(body.password);
+      await q`update users set password_hash = ${hash} where id = ${id}`;
+    }
+
+    const rows = (await q`
+      select id, username, display_name, role, created_at
+      from users where id = ${id}
+    `) as Array<{
+      id: number;
+      username: string;
+      display_name: string;
+      role: string;
+      created_at: string;
+    }>;
+    if (rows.length === 0) {
+      return NextResponse.json({ error: "user not found" }, { status: 404 });
+    }
+    return NextResponse.json({ user: rows[0] });
+  } catch (err) {
+    const msg = (err as Error).message;
+    return NextResponse.json(
+      { error: msg },
+      { status: msg === "UNAUTHENTICATED" ? 401 : 403 },
+    );
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     await requireAdmin();
