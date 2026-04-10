@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MagicTech — AI Quotation Designer",
+  title: "MagicTech — Data Analytics & Quotation Platform",
   description:
-    "AI-driven quotation designer powered by Groq, serverless Postgres, and live GitHub product databases.",
+    "Data analytics and quotation platform powered by AI.",
 };
 
 export default function RootLayout({
