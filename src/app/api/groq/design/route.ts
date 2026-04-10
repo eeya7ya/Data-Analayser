@@ -7,18 +7,13 @@ import {
   groqClient,
   type GroqChatModelId,
 } from "@/lib/groq";
-import {
-  findSystem,
-  loadSystem,
-  searchProducts,
-  globalSearch,
-} from "@/lib/search";
+import { searchProducts, globalSearch } from "@/lib/search";
 
 export const runtime = "nodejs";
 
 /**
  * POST /api/groq/design
- * Body: { systemId, userBrief, history?, answers? }
+ * Body: { systemKey, userBrief, history?, answers? }
  *
  * Returns the strict JSON the DESIGNER_SYSTEM_PROMPT asks for.
  */
@@ -26,7 +21,8 @@ export async function POST(req: NextRequest) {
   try {
     await requireUser();
     const body = (await req.json()) as {
-      systemId?: number | string;
+      systemKey?: string; // "vendor||system"
+      systemId?: string; // legacy alias
       userBrief: string;
       history?: Array<{ role: "user" | "assistant"; content: string }>;
       answers?: Record<string, string>;
@@ -40,29 +36,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Build grounded DB context — prefer a specific system, else global search.
+    // Build grounded DB context
     let dbContext: unknown;
-    let theoryContext: unknown = null;
     let systemMeta: unknown = null;
 
-    if (body.systemId) {
-      const system = findSystem(body.systemId);
-      if (!system) {
-        return NextResponse.json(
-          { error: "System not found" },
-          { status: 404 },
-        );
-      }
-      const { db, theory } = await loadSystem(system);
-      const hits = searchProducts(db, { text: body.userBrief, limit: 25 });
-      dbContext = hits.length > 0 ? hits : db.products?.slice(0, 25) || [];
-      theoryContext = theory;
-      systemMeta = {
-        vendor: system.vendor,
-        category: system.category,
-        name: system.name,
-        currency: system.currency,
-      };
+    const sysKey = body.systemKey || body.systemId || "";
+    if (sysKey) {
+      const [vendor, system] = sysKey.split("||");
+      const hits = await searchProducts({
+        text: body.userBrief,
+        vendor,
+        system: system || "",
+        limit: 25,
+      });
+      dbContext = hits.length > 0 ? hits : [];
+      systemMeta = { vendor, system: system || "", category: system || "" };
     } else {
       const hits = await globalSearch(body.userBrief, 20);
       dbContext = hits;
@@ -73,7 +61,6 @@ export async function POST(req: NextRequest) {
 
     const contextPayload = {
       system: systemMeta,
-      theory_excerpt: theoryContext,
       db_candidates: dbContext,
       prior_answers: body.answers || {},
     };
@@ -91,7 +78,6 @@ export async function POST(req: NextRequest) {
       { role: "user" as const, content: body.userBrief },
     ];
 
-    // Use caller-supplied model if it is in the known catalog, else env/default.
     const allowedIds = GROQ_CHAT_MODELS.map((m) => m.id as string);
     const requestedModel = body.model && allowedIds.includes(body.model)
       ? body.model

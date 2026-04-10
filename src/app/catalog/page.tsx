@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { SYSTEMS } from "@/lib/manifest.generated";
 import CatalogBrowser from "@/components/CatalogBrowser";
 import TopBar from "@/components/TopBar";
+import CatalogUploadSection from "./CatalogUploadSection";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,8 @@ export default async function CatalogPage() {
             column, and build a quotation manually.
           </p>
         </header>
-        <CatalogBrowser systems={SYSTEMS} user={user} />
+        {user.role === "admin" && <CatalogUploadSection />}
+        <CatalogBrowser user={user} />
       </main>
     </div>
   );

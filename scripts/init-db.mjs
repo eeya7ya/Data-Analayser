@@ -89,6 +89,28 @@ async function main() {
   `;
   await sql`create index if not exists quotations_owner_idx on quotations(owner_id)`;
 
+  // ── Products catalogue table ──
+  await sql`
+    create table if not exists products (
+      id             serial primary key,
+      vendor         text not null,
+      system         text not null,
+      category       text not null,
+      sub_category   text not null default '',
+      fast_view      text not null default '',
+      model          text not null,
+      description    text not null default '',
+      currency       text not null default 'USD',
+      price_si       numeric not null default 0,
+      specifications text not null default '',
+      created_at     timestamptz not null default now(),
+      updated_at     timestamptz not null default now(),
+      unique(vendor, model)
+    )
+  `;
+  await sql`create index if not exists products_vendor_system_idx on products(vendor, system)`;
+  await sql`create index if not exists products_model_idx on products(model)`;
+
   const adminUser = process.env.DEFAULT_ADMIN_USER || "admin";
   const adminPass = process.env.DEFAULT_ADMIN_PASS || "admin123";
   const rows = await sql`select id from users where username = ${adminUser}`;

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { SYSTEMS } from "@/lib/manifest.generated";
+import { listSystems } from "@/lib/search";
 import Designer, { type ExistingQuotation } from "@/components/Designer";
 import TopBar from "@/components/TopBar";
 import { sql, ensureSchema } from "@/lib/db";
@@ -84,7 +84,7 @@ export default async function DesignerPage({
               : "Pick a system, describe the project in a sentence, and the AI will fill the rest from the live GitHub catalog. When the catalog can't answer, we escalate to Groq web-search."}
           </p>
         </header>
-        <Designer systems={SYSTEMS} user={user} existing={existing} />
+        <Designer systems={await listSystems()} user={user} existing={existing} />
       </main>
     </div>
   );
