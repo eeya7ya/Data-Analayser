@@ -42,6 +42,7 @@ export interface ExistingQuotation {
     designEng?: string;
     pricingCategory?: PricingCategory;
     includeTax?: boolean;
+    taxInclusive?: boolean;
   };
 }
 
@@ -74,6 +75,7 @@ export default function Designer({
   const [designEng, setDesignEngState] = useState("");
   const [pricingCategory, setPricingCategoryState] = useState<PricingCategory>("si");
   const [includeTax, setIncludeTax] = useState(true);
+  const [taxInclusive, setTaxInclusive] = useState(false);
   const hydratedRef = useRef(false);
 
   function setDesignEng(value: string) {
@@ -168,6 +170,7 @@ export default function Designer({
       );
       setPricingCategoryState(existing.config_json?.pricingCategory || "si");
       setIncludeTax(existing.config_json?.includeTax !== false);
+      setTaxInclusive(Boolean(existing.config_json?.taxInclusive));
       hydratedRef.current = true;
       return;
     }
@@ -193,6 +196,7 @@ export default function Designer({
     setDesignEngState(d.designEng || loadDesignEngineerPref() || user.username);
     setPricingCategoryState(d.pricingCategory || "si");
     setIncludeTax(d.includeTax !== false);
+    setTaxInclusive(Boolean(d.taxInclusive));
     hydratedRef.current = true;
   }, [existing, user.username]);
 
@@ -218,6 +222,7 @@ export default function Designer({
       designEng,
       pricingCategory,
       includeTax,
+      taxInclusive,
     });
   }, [
     editMode,
@@ -239,13 +244,14 @@ export default function Designer({
     designEng,
     pricingCategory,
     includeTax,
+    taxInclusive,
   ]);
 
   async function saveQuotation() {
     setSaving(true);
     setSaveStatus("");
     try {
-      const totals = computeQuotationTotals(items, includeTax ? taxPercent : 0);
+      const totals = computeQuotationTotals(items, includeTax ? taxPercent : 0, includeTax && taxInclusive);
       const payload = {
         ref: refCode || undefined,
         project_name: projectName || "Untitled Quotation",
@@ -267,6 +273,7 @@ export default function Designer({
           designEng,
           pricingCategory,
           includeTax,
+          taxInclusive,
         },
       };
       const res = editMode
@@ -381,6 +388,17 @@ export default function Designer({
                 >
                   {includeTax ? "Tax ON" : "Tax OFF"}
                 </button>
+                <button
+                  onClick={() => setTaxInclusive(!taxInclusive)}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    taxInclusive
+                      ? "bg-orange-500 text-white hover:bg-orange-600"
+                      : "bg-gray-300 text-magic-ink/70 hover:bg-gray-400"
+                  }`}
+                  title={taxInclusive ? "Prices shown are tax-excluded" : "Click to exclude tax from prices"}
+                >
+                  {taxInclusive ? "Excl. Tax" : "Incl. Tax"}
+                </button>
               </div>
             </div>
             <label className="flex items-center gap-2 text-xs text-magic-ink/80 pb-1">
@@ -479,6 +497,7 @@ export default function Designer({
           terms={terms}
           setTerms={setTerms}
           includeTax={includeTax}
+          taxInclusive={taxInclusive}
         />
       </div>
     </div>

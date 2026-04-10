@@ -57,22 +57,43 @@ export function effectiveRowTotal(rows: QuotationItem[], rowIdx: number): number
 }
 
 /**
+ * Returns the divisor to apply when entered prices already include tax.
+ * E.g. taxDivisor(16, true) → 1.16;  taxDivisor(16, false) → 1.
+ */
+export function taxDivisor(taxPercent: number, taxInclusive: boolean): number {
+  if (!taxInclusive) return 1;
+  const rate = (Number(taxPercent) || 0) / 100;
+  return rate > 0 ? 1 + rate : 1;
+}
+
+/**
  * Computes subtotal / tax / total the same way the preview renders
  * them: group items by system, resolve the effective unit price for
  * every row inside each group, and sum. Keeps the saved totals and the
  * on-screen numbers in lockstep, even when the user merges unit-price
  * cells.
+ *
+ * When `taxInclusive` is true the entered prices already contain tax,
+ * so the raw sum is divided by the tax factor to obtain the base
+ * subtotal, and the tax is the difference. This avoids double-counting.
  */
 export function computeQuotationTotals(
   items: QuotationItem[],
   taxPercent: number,
+  taxInclusive: boolean = false,
 ): { subtotal: number; tax: number; total: number } {
-  let subtotal = 0;
+  let rawSum = 0;
   for (const group of groupBySystem(items)) {
     for (let i = 0; i < group.length; i++) {
-      subtotal += effectiveRowTotal(group, i);
+      rawSum += effectiveRowTotal(group, i);
     }
   }
-  const tax = (subtotal * (Number(taxPercent) || 0)) / 100;
-  return { subtotal, tax, total: subtotal + tax };
+  const rate = (Number(taxPercent) || 0) / 100;
+  if (taxInclusive && rate > 0) {
+    const subtotal = rawSum / (1 + rate);
+    const tax = subtotal * rate;
+    return { subtotal, tax, total: rawSum };
+  }
+  const tax = rawSum * rate;
+  return { subtotal: rawSum, tax, total: rawSum + tax };
 }
