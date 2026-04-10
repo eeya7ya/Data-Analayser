@@ -27,13 +27,26 @@ export async function GET(req: NextRequest) {
       `) as Array<Record<string, unknown>>;
       return NextResponse.json({ quotation: rows[0] || null });
     }
-    const rows = (await q`
-      select id, ref, project_name, client_name, site_name, folder_id, created_at
-      from quotations
-      where owner_id = ${user.id} or ${user.role} = 'admin'
-      order by id desc
-      limit 200
-    `) as Array<Record<string, unknown>>;
+    const rows =
+      user.role === "admin"
+        ? ((await q`
+            select q.id, q.ref, q.project_name, q.client_name, q.site_name,
+                   q.folder_id, q.owner_id, q.created_at, q.updated_at,
+                   u.username as owner_username,
+                   u.display_name as owner_display_name
+            from quotations q
+            left join users u on u.id = q.owner_id
+            order by q.id desc
+            limit 500
+          `) as Array<Record<string, unknown>>)
+        : ((await q`
+            select id, ref, project_name, client_name, site_name,
+                   folder_id, owner_id, created_at, updated_at
+            from quotations
+            where owner_id = ${user.id}
+            order by id desc
+            limit 200
+          `) as Array<Record<string, unknown>>);
     return NextResponse.json({ quotations: rows });
   } catch (err) {
     return NextResponse.json(

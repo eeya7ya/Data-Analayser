@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SystemEntry } from "@/lib/search";
 import type { SessionUser } from "@/lib/auth";
 import { GROQ_CHAT_MODELS, type GroqChatModelId } from "@/lib/groq";
@@ -31,12 +31,30 @@ interface DesignResult {
 }
 
 export default function AIDesigner({
-  systems,
+  systems: initialSystems,
   user,
 }: {
-  systems: SystemEntry[];
+  systems?: SystemEntry[];
   user: SessionUser;
 }) {
+  // Systems are fetched client-side on mount so server navigation to this
+  // page is instant instead of blocking on a Postgres round-trip.
+  const [systems, setSystems] = useState<SystemEntry[]>(initialSystems ?? []);
+  useEffect(() => {
+    if (initialSystems && initialSystems.length > 0) return;
+    let cancelled = false;
+    fetch("/api/catalogue/systems")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setSystems(d.systems || []);
+      })
+      .catch(() => {
+        if (!cancelled) setSystems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialSystems]);
   const [systemId, setSystemId] = useState("");
   const [designModel, setDesignModel] = useState<GroqChatModelId>(
     GROQ_CHAT_MODELS[0].id,

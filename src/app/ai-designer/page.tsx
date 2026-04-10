@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { listSystems } from "@/lib/search";
 import AIDesigner from "@/components/AIDesigner";
 import TopBar from "@/components/TopBar";
 
 export const dynamic = "force-dynamic";
 
 export default async function AIDesignerPage() {
+  // Server render = auth check only. The systems list is loaded in the
+  // client component so navigation to this page never waits on a DB call.
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
@@ -24,7 +25,7 @@ export default async function AIDesignerPage() {
             to your quotation draft.
           </p>
         </header>
-        <AIDesigner systems={await listSystems()} user={user} />
+        <AIDesigner user={user} />
       </main>
     </div>
   );

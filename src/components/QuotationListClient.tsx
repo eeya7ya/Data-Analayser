@@ -45,14 +45,40 @@ function formatDateTime(dt: string) {
 }
 
 export default function QuotationListClient({
-  quotations,
-  folders: initialFolders,
   isAdmin,
 }: {
-  quotations: Quotation[];
-  folders: Folder[];
   isAdmin: boolean;
 }) {
+  // ── Data loaded client-side so navigation to /quotation is instant ───
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDataLoading(true);
+    setLoadError(null);
+    Promise.all([
+      fetch("/api/quotations").then((r) => r.json()),
+      fetch("/api/folders").then((r) => r.json()),
+    ])
+      .then(([qRes, fRes]) => {
+        if (cancelled) return;
+        setQuotations((qRes.quotations || []) as Quotation[]);
+        setFolders((fRes.folders || []) as Folder[]);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError((err as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setDataLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // ── Search ────────────────────────────────────────────────────────────
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -62,16 +88,20 @@ export default function QuotationListClient({
     return () => clearTimeout(t);
   }, [search]);
 
-  // ── Folders (mutable for create / rename / delete) ────────────────────
-  const [folders, setFolders] = useState(initialFolders);
-
   // ── Expand / collapse ────────────────────────────────────────────────
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     const s = new Set<string>();
-    for (const f of initialFolders) s.add(String(f.id));
     s.add("unfiled");
     return s;
   });
+  useEffect(() => {
+    // Auto-expand every folder once data arrives.
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      for (const f of folders) next.add(String(f.id));
+      return next;
+    });
+  }, [folders]);
 
   function toggle(key: string) {
     setExpanded((prev) => {
@@ -391,14 +421,44 @@ export default function QuotationListClient({
       )}
 
       {/* Search results summary */}
-      {isSearching && (
+      {isSearching && !dataLoading && (
         <div className="mb-3 text-sm text-magic-ink/50">
           {filtered.length} result{filtered.length !== 1 ? "s" : ""} for &ldquo;
           {debouncedSearch}&rdquo;
         </div>
       )}
 
+      {loadError && (
+        <div className="mb-4 px-4 py-3 text-sm text-red-600 bg-red-50 rounded-xl border border-red-200">
+          Failed to load quotations: {loadError}
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {dataLoading && (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-14 rounded-2xl border border-magic-border bg-white animate-pulse"
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!dataLoading && !loadError && quotations.length === 0 && (
+        <div className="rounded-2xl border border-magic-border bg-white p-6 text-center text-magic-ink/50">
+          No quotations yet. Go to{" "}
+          <a href="/designer" className="text-magic-red underline">
+            the Designer
+          </a>{" "}
+          to create one.
+        </div>
+      )}
+
       {/* Folder sections */}
+      {!dataLoading && quotations.length > 0 && (
       <div className="space-y-3">
         {groups.map((g) => {
           const isExpanded =
@@ -630,9 +690,10 @@ export default function QuotationListClient({
           );
         })}
       </div>
+      )}
 
       {/* No results for search */}
-      {isSearching && filtered.length === 0 && (
+      {!dataLoading && isSearching && filtered.length === 0 && (
         <div className="rounded-2xl border border-magic-border bg-white p-6 text-center text-magic-ink/50 mt-3">
           No quotations match your search.
         </div>

@@ -5,7 +5,6 @@ import TopBar from "@/components/TopBar";
 import QuotationViewer from "@/components/QuotationViewer";
 import FolderExportImport from "@/components/FolderExportImport";
 import QuotationListClient from "@/components/QuotationListClient";
-import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -22,15 +21,17 @@ export default async function QuotationPage({
   if (!user) redirect("/login");
 
   const sp = await searchParams;
-  await ensureSchema();
-  const q = sql();
 
+  // Single-quotation view still needs the server-side lookup because it
+  // drives the full printable document. The list view (no id) is handled
+  // entirely client-side so nav to /quotation is instant.
   if (sp.id) {
+    await ensureSchema();
+    const q = sql();
     const rows = (await q`
       select * from quotations where id = ${Number(sp.id)} limit 1
     `) as Array<Record<string, unknown>>;
     const row = rows[0];
-    // Users can only view their own quotations; admins can view any.
     if (
       row &&
       user.role !== "admin" &&
@@ -69,93 +70,6 @@ export default async function QuotationPage({
     );
   }
 
-  // Fetch quotations and folders in parallel.
-  //
-  // Scoping rules:
-  //   • Admin → sees everyone's quotations and folders (grouped per owner).
-  //   • User  → only their own quotations and their own folders.
-  const isAdmin = user.role === "admin";
-  const [rows, folders] = await Promise.all([
-    isAdmin
-      ? (q`
-          select q.id, q.ref, q.project_name, q.client_name, q.site_name,
-                 q.folder_id, q.owner_id, q.created_at, q.updated_at,
-                 u.username as owner_username,
-                 u.display_name as owner_display_name
-          from quotations q
-          left join users u on u.id = q.owner_id
-          order by q.id desc
-          limit 500
-        ` as Promise<
-          Array<{
-            id: number;
-            ref: string;
-            project_name: string;
-            client_name: string | null;
-            site_name: string;
-            folder_id: number | null;
-            owner_id: number | null;
-            created_at: string;
-            updated_at: string;
-            owner_username: string | null;
-            owner_display_name: string | null;
-          }>
-        >)
-      : (q`
-          select id, ref, project_name, client_name, site_name,
-                 folder_id, owner_id, created_at, updated_at
-          from quotations
-          where owner_id = ${user.id}
-          order by id desc
-          limit 200
-        ` as Promise<
-          Array<{
-            id: number;
-            ref: string;
-            project_name: string;
-            client_name: string | null;
-            site_name: string;
-            folder_id: number | null;
-            owner_id: number | null;
-            created_at: string;
-            updated_at: string;
-          }>
-        >),
-    isAdmin
-      ? (q`
-          select f.id, f.name, f.owner_id, f.created_at, f.updated_at,
-                 u.username as owner_username,
-                 u.display_name as owner_display_name
-          from client_folders f
-          left join users u on u.id = f.owner_id
-          order by u.username nulls first, f.name asc
-        ` as Promise<
-          Array<{
-            id: number;
-            name: string;
-            owner_id: number | null;
-            created_at: string;
-            updated_at: string;
-            owner_username: string | null;
-            owner_display_name: string | null;
-          }>
-        >)
-      : (q`
-          select id, name, owner_id, created_at, updated_at
-          from client_folders
-          where owner_id = ${user.id}
-          order by name asc
-        ` as Promise<
-          Array<{
-            id: number;
-            name: string;
-            owner_id: number | null;
-            created_at: string;
-            updated_at: string;
-          }>
-        >),
-  ]);
-
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
@@ -166,22 +80,7 @@ export default async function QuotationPage({
           </h1>
           <FolderExportImport />
         </div>
-
-        {rows.length === 0 ? (
-          <div className="rounded-2xl border border-magic-border bg-white p-6 text-center text-magic-ink/50">
-            No quotations yet. Go to{" "}
-            <Link href="/designer" className="text-magic-red underline">
-              the Designer
-            </Link>{" "}
-            to create one.
-          </div>
-        ) : (
-          <QuotationListClient
-            quotations={rows}
-            folders={folders}
-            isAdmin={user.role === "admin"}
-          />
-        )}
+        <QuotationListClient isAdmin={user.role === "admin"} />
       </main>
     </div>
   );
