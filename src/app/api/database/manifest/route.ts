@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { MANIFEST } from "@/lib/manifest.generated";
 import { requireUser } from "@/lib/auth";
+import { listSystems } from "@/lib/search";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   try {
     await requireUser();
-    return NextResponse.json({ manifest: MANIFEST });
+    const systems = await listSystems();
+    // Return in manifest-like format for backwards compat
+    return NextResponse.json({ manifest: systems, systems });
   } catch {
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }

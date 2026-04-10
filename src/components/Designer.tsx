@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { SystemEntry } from "@/lib/manifest.generated";
+import type { SystemEntry } from "@/lib/search";
 import type { SessionUser } from "@/lib/auth";
 import { GROQ_CHAT_MODELS, type GroqChatModelId } from "@/lib/groq";
 import QuotationPreview, {
@@ -72,7 +72,7 @@ export default function Designer({
 }) {
   const router = useRouter();
   const editMode = !!existing;
-  const [systemId, setSystemId] = useState<number | "">("");
+  const [systemId, setSystemId] = useState("");
   const [designModel, setDesignModel] = useState<GroqChatModelId>(
     GROQ_CHAT_MODELS[0].id,
   );
@@ -266,9 +266,8 @@ export default function Designer({
   const systemsBy = useMemo(() => {
     const map = new Map<string, SystemEntry[]>();
     for (const s of systems) {
-      const g = s.vendor;
-      if (!map.has(g)) map.set(g, []);
-      map.get(g)!.push(s);
+      if (!map.has(s.vendor)) map.set(s.vendor, []);
+      map.get(s.vendor)!.push(s);
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [systems]);
@@ -291,7 +290,7 @@ export default function Designer({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          systemId: systemId || undefined,
+          systemKey: systemId || undefined,
           userBrief,
           history: hasAnswers ? convHistory : [],
           answers,
@@ -313,9 +312,10 @@ export default function Designer({
       }
 
       if (r.ready && r.items) {
-        const sysLabel = systems.find((s) => s.id === systemId);
+        const [selVendor, selSystem] = systemId ? systemId.split("||") : ["", ""];
+        const sysLabel = systems.find((s) => s.vendor === selVendor && s.system === (selSystem || ""));
         const sysName = sysLabel
-          ? `${sysLabel.vendor} ${sysLabel.category || ""}`.trim()
+          ? `${sysLabel.vendor} ${sysLabel.system || ""}`.trim()
           : "AI Design";
         // Merge AI-generated items into existing list (append, not replace).
         const base = items.slice();
@@ -513,17 +513,15 @@ export default function Designer({
         <Card title="1 · Select a system &amp; AI model">
           <select
             value={systemId}
-            onChange={(e) =>
-              setSystemId(e.target.value ? Number(e.target.value) : "")
-            }
+            onChange={(e) => setSystemId(e.target.value)}
             className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
           >
             <option value="">— Auto (cross-vendor) —</option>
             {systemsBy.map(([vendor, list]) => (
               <optgroup key={vendor} label={vendor}>
-                {list.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.category || s.vendor} ({s.productCount} products)
+                {list.map((s, i) => (
+                  <option key={`${vendor}-${i}`} value={`${s.vendor}||${s.system}`}>
+                    {s.system || s.vendor} ({s.product_count} products)
                   </option>
                 ))}
               </optgroup>

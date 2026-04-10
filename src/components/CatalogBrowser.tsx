@@ -2,9 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import type { SystemEntry } from "@/lib/manifest.generated";
 import type { SessionUser } from "@/lib/auth";
-import type { ScoredProduct } from "@/lib/search";
 import {
   appendItem,
   loadDraft,
@@ -15,135 +13,60 @@ import type { QuotationItem } from "@/components/QuotationPreview";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface HitWithSystem extends ScoredProduct {
-  system?: SystemEntry;
+interface Product {
+  id: number;
+  vendor: string;
+  system: string;
+  category: string;
+  sub_category: string;
+  fast_view: string;
+  model: string;
+  description: string;
+  currency: string;
+  price_si: number;
+  specifications: string;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+interface SystemInfo {
+  vendor: string;
+  system: string;
+  currency: string;
+  product_count: number;
+}
 
-function getPrice(p: Record<string, unknown>): { si: number; dpp: number } {
-  const pr = (p.pricing || {}) as Record<string, unknown>;
+// ─── Fixed columns ──────────────────────────────────────────────────────────
+
+const DISPLAY_COLUMNS: Array<{ key: keyof Product; label: string; wide?: boolean }> = [
+  { key: "vendor", label: "Vendor" },
+  { key: "system", label: "System" },
+  { key: "category", label: "Category" },
+  { key: "sub_category", label: "Sub Category" },
+  { key: "fast_view", label: "Fast View", wide: true },
+  { key: "model", label: "Model" },
+  { key: "description", label: "Description", wide: true },
+  { key: "currency", label: "Currency" },
+  { key: "price_si", label: "Price SI" },
+  { key: "specifications", label: "Specifications", wide: true },
+];
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function toQuotationItem(p: Product, qty: number): QuotationItem {
   return {
-    si: typeof pr.si === "number" ? pr.si : typeof pr.price === "number" ? pr.price : 0,
-    dpp: typeof pr.dpp === "number" ? pr.dpp : 0,
-  };
-}
-
-function flatSpecs(p: Record<string, unknown>): string {
-  // Fields that carry metadata, not user-facing specs.
-  const skip = new Set([
-    "id",
-    "model",
-    "category",
-    "sub_category",
-    "pricing",
-    "series",
-    "vendor",
-    "brand",
-  ]);
-
-  const parts: string[] = [];
-
-  function formatLeaf(v: unknown): string | null {
-    if (v === null || v === undefined || v === "" || v === false) return null;
-    if (v === true) return "Yes";
-    if (typeof v === "number" || typeof v === "string") return String(v);
-    return null;
-  }
-
-  function walk(key: string, value: unknown) {
-    if (value === null || value === undefined || value === "" || value === false)
-      return;
-    const label = key.replace(/_/g, " ");
-    // Arrays render as comma-joined leaf values (filters out nested objects).
-    if (Array.isArray(value)) {
-      const items = value
-        .map((v) => (typeof v === "object" && v !== null ? null : formatLeaf(v)))
-        .filter((x): x is string => !!x);
-      if (items.length) parts.push(`${label}: ${items.join(", ")}`);
-      return;
-    }
-    // Nested objects get flattened so their leaf entries show up as top-level.
-    if (typeof value === "object") {
-      for (const [nk, nv] of Object.entries(value as Record<string, unknown>)) {
-        walk(nk, nv);
-      }
-      return;
-    }
-    const formatted = formatLeaf(value);
-    if (formatted) parts.push(`${label}: ${formatted}`);
-  }
-
-  for (const [k, v] of Object.entries(p)) {
-    if (skip.has(k)) continue;
-    walk(k, v);
-  }
-
-  return parts.join("  •  ");
-}
-
-function sortVal(product: Record<string, unknown>, key: string, unitPrice: number): string | number {
-  if (key === "si_price") return unitPrice;
-  if (key === "dpp_price") return getPrice(product).dpp;
-  const v = product[key];
-  if (typeof v === "number") return v;
-  return String(v ?? "");
-}
-
-function systemLabel(sys: SystemEntry | undefined): string {
-  if (!sys) return "General";
-  return `${sys.vendor} ${sys.category || ""}`.trim();
-}
-
-function buildDescription(
-  product: Record<string, unknown>,
-  sys: SystemEntry | undefined,
-): string {
-  // Prefer the rich flattened spec description, but always fall back to
-  // something meaningful so no row ships with a blank description cell.
-  const flat = flatSpecs(product).trim();
-  if (flat) return flat;
-
-  const parts: string[] = [];
-  const model = product.model ? String(product.model) : "";
-  const category: string = product.category
-    ? String(product.category)
-    : sys?.category || "";
-  const subCat =
-    product.sub_category ? String(product.sub_category) : "";
-  const vendor: string =
-    sys?.vendor || (product.vendor ? String(product.vendor) : "");
-
-  if (vendor) parts.push(vendor);
-  if (model) parts.push(model);
-  if (subCat) parts.push(subCat);
-  else if (category) parts.push(category);
-
-  const joined = parts.filter(Boolean).join(" — ");
-  return joined || "Product (no spec data available — please add details).";
-}
-
-function toQuotationItem(
-  h: HitWithSystem,
-  sys: SystemEntry | undefined,
-  qty: number,
-): QuotationItem {
-  return {
-    no: 0, // renumbered by appendItem
-    system: systemLabel(sys),
-    brand: sys?.vendor ?? "",
-    model: String(h.product.model ?? ""),
-    description: buildDescription(h.product, sys),
+    no: 0,
+    system: `${p.vendor} ${p.system}`.trim(),
+    brand: p.vendor,
+    model: p.model,
+    description: p.description || p.fast_view || `${p.category} ${p.sub_category}`.trim(),
     quantity: qty,
-    unit_price: h.unitPrice,
+    unit_price: Number(p.price_si) || 0,
     delivery: "Available",
-    picture_hint: String(h.product.form_factor ?? h.product.category ?? ""),
+    picture_hint: p.category,
   };
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Suggested page names ───────────────────────────────────────────────────
 
-// Suggested page names — users can also type their own.
 const PAGE_SUGGESTIONS = [
   "CCTV",
   "Sound System",
@@ -154,38 +77,41 @@ const PAGE_SUGGESTIONS = [
   "Display & Video Wall",
 ];
 
-export default function CatalogBrowser({
-  systems,
-  user: _user,
-}: {
-  systems: SystemEntry[];
-  user: SessionUser;
-}) {
+// ─── Main component ─────────────────────────────────────────────────────────
+
+export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
   const router = useRouter();
 
+  // ── System list ──────────────────────────────────────────────────────────
+  const [systems, setSystems] = useState<SystemInfo[]>([]);
+  useEffect(() => {
+    fetch("/api/catalogue/systems")
+      .then((r) => r.json())
+      .then((d) => setSystems(d.systems || []))
+      .catch(() => setSystems([]));
+  }, []);
+
   // ── Browsing state ────────────────────────────────────────────────────────
-  const [systemId, setSystemId] = useState<number | "">("");
+  const [selectedVendor, setSelectedVendor] = useState("");
+  const [selectedSystem, setSelectedSystem] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [hits, setHits] = useState<HitWithSystem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [sortKey, setSortKey] = useState("model");
+  const [sortKey, setSortKey] = useState<keyof Product>("model");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [globalMode, setGlobalMode] = useState(false);
 
-  // ── Page-picker modal state ──────────────────────────────────────────────
-  // When a product is clicked we park it here and pop a modal asking the
-  // user which quotation page it should be added to. The user stays on the
-  // catalog and only goes to the designer when they explicitly click the
-  // "Open designer" button in the header.
-  const [pendingItem, setPendingItem] = useState<HitWithSystem | null>(null);
+  // ── Page-picker modal ───────────────────────────────────────────────────
+  const [pendingItem, setPendingItem] = useState<Product | null>(null);
   const [lastUsedPage, setLastUsedPage] = useState("");
 
-  // ── Draft summary (items + existing page names already in the designer) ──
+  // ── Draft summary ──────────────────────────────────────────────────────
   const [draftCount, setDraftCount] = useState(0);
   const [existingPages, setExistingPages] = useState<string[]>([]);
-  // ── Editing context (set by Designer when the user is editing a saved quote)
   const [editing, setEditing] = useState<EditingContext | null>(null);
+
   const refreshDraftSummary = useCallback(() => {
     const d = loadDraft();
     setDraftCount(d.items.length);
@@ -196,93 +122,65 @@ export default function CatalogBrowser({
     setExistingPages([...set]);
     setEditing(loadEditingContext());
   }, []);
+
   useEffect(() => {
     refreshDraftSummary();
   }, [refreshDraftSummary]);
 
-  // ── Debounce search ───────────────────────────────────────────────────────
+  // ── Debounce ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350);
     return () => clearTimeout(t);
   }, [search]);
 
   // ── Fetch products ────────────────────────────────────────────────────────
-  // - System selected → list/search within that system
-  // - No system but a search term → run a global cross-vendor search
-  // - Nothing selected and empty search → show prompt
   useEffect(() => {
-    const hasSystem = !!systemId;
+    const hasSystem = !!selectedVendor;
     const trimmed = debouncedSearch.trim();
     if (!hasSystem && !trimmed) {
-      setHits([]);
+      setProducts([]);
+      setTotal(0);
       setGlobalMode(false);
       return;
     }
+
     setLoading(true);
-    fetch("/api/database/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        hasSystem
-          ? { systemId, text: trimmed || undefined, limit: 2000 }
-          : { global: true, text: trimmed, limit: 200 },
-      ),
-    })
+    const params = new URLSearchParams();
+    if (selectedVendor) params.set("vendor", selectedVendor);
+    if (selectedSystem) params.set("system", selectedSystem);
+    if (trimmed) params.set("q", trimmed);
+    params.set("limit", "2000");
+
+    fetch(`/api/catalogue/products?${params}`)
       .then((r) => r.json())
       .then((data) => {
-        setHits(data.hits || []);
-        setGlobalMode(data.mode === "global");
+        setProducts(data.products || []);
+        setTotal(data.total || 0);
+        setGlobalMode(!selectedVendor && !!trimmed);
       })
       .catch(() => {
-        setHits([]);
+        setProducts([]);
+        setTotal(0);
         setGlobalMode(false);
       })
       .finally(() => setLoading(false));
-  }, [systemId, debouncedSearch]);
+  }, [selectedVendor, selectedSystem, debouncedSearch]);
 
-  // ── Dynamic visible columns ───────────────────────────────────────────────
-  const columns = useMemo(() => {
-    const CORE = globalMode
-      ? ["vendor", "model", "category", "sub_category"]
-      : ["model", "category", "sub_category"];
-    const ALWAYS_SKIP = new Set(["id", "pricing", "series"]);
-    const extra = new Set<string>();
-    for (const h of hits.slice(0, 50)) {
-      for (const k of Object.keys(h.product)) {
-        if (!ALWAYS_SKIP.has(k) && !CORE.includes(k)) extra.add(k);
-      }
-    }
-    const sortedExtra = [...extra].sort((a, b) => {
-      const av = hits[0]?.product[a];
-      const bv = hits[0]?.product[b];
-      const aIsNum = typeof av === "number";
-      const bIsNum = typeof bv === "number";
-      const aIsBool = typeof av === "boolean";
-      const bIsBool = typeof bv === "boolean";
-      if (aIsBool && !bIsBool) return 1;
-      if (!aIsBool && bIsBool) return -1;
-      if (aIsNum && !bIsNum) return -1;
-      if (!aIsNum && bIsNum) return 1;
-      return a.localeCompare(b);
-    });
-    return [...CORE, ...sortedExtra, "si_price", "dpp_price"];
-  }, [hits, globalMode]);
-
-  // ── Sorted hits ───────────────────────────────────────────────────────────
-  const sortedHits = useMemo(() => {
-    return [...hits].sort((a, b) => {
-      const av = sortVal(a.product, sortKey, a.unitPrice);
-      const bv = sortVal(b.product, sortKey, b.unitPrice);
+  // ── Sorted products ───────────────────────────────────────────────────────
+  const sorted = useMemo(() => {
+    return [...products].sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
       if (typeof av === "number" && typeof bv === "number") {
         return sortDir === "asc" ? av - bv : bv - av;
       }
       return sortDir === "asc"
-        ? String(av).localeCompare(String(bv))
-        : String(bv).localeCompare(String(av));
+        ? String(av ?? "").localeCompare(String(bv ?? ""))
+        : String(bv ?? "").localeCompare(String(av ?? ""));
     });
-  }, [hits, sortKey, sortDir]);
+  }, [products, sortKey, sortDir]);
 
-  function toggleSort(key: string) {
+  function toggleSort(key: keyof Product) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSortKey(key);
@@ -290,33 +188,25 @@ export default function CatalogBrowser({
     }
   }
 
-  // ── Open the page-picker modal for a selected product ───────────────────
-  const openPagePicker = useCallback((h: HitWithSystem) => {
-    setPendingItem(h);
-  }, []);
-
-  // ── Confirm the pending item's destination page and add it to the draft ─
-  // Never navigates away — the user can keep selecting products.
+  // ── Page picker ───────────────────────────────────────────────────────────
   const confirmAddToPage = useCallback(
     (pageName: string, qty: number) => {
       if (!pendingItem) return;
       const trimmed = pageName.trim();
       if (!trimmed) return;
-      const sys =
-        systems.find((s) => s.id === systemId) || pendingItem.system;
-      const item = toQuotationItem(pendingItem, sys, qty);
+      const item = toQuotationItem(pendingItem, qty);
       item.system = trimmed;
       appendItem(item);
       setLastUsedPage(trimmed);
       setPendingItem(null);
       refreshDraftSummary();
     },
-    [pendingItem, systems, systemId, refreshDraftSummary],
+    [pendingItem, refreshDraftSummary],
   );
 
   // ── Systems grouped by vendor ─────────────────────────────────────────────
   const systemsByVendor = useMemo(() => {
-    const map = new Map<string, SystemEntry[]>();
+    const map = new Map<string, SystemInfo[]>();
     for (const s of systems) {
       if (!map.has(s.vendor)) map.set(s.vendor, []);
       map.get(s.vendor)!.push(s);
@@ -324,7 +214,8 @@ export default function CatalogBrowser({
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [systems]);
 
-  const currentSystem = systems.find((s) => s.id === systemId);
+  // ── Expanded specs state ──────────────────────────────────────────────────
+  const [expandedSpec, setExpandedSpec] = useState<number | null>(null);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -333,23 +224,31 @@ export default function CatalogBrowser({
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-48">
           <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
-            Select system / vendor
+            Select vendor / system
           </label>
           <select
-            value={systemId}
+            value={selectedVendor ? `${selectedVendor}||${selectedSystem}` : ""}
             onChange={(e) => {
-              setSystemId(e.target.value ? Number(e.target.value) : "");
+              const val = e.target.value;
+              if (!val) {
+                setSelectedVendor("");
+                setSelectedSystem("");
+              } else {
+                const [v, s] = val.split("||");
+                setSelectedVendor(v);
+                setSelectedSystem(s || "");
+              }
               setSearch("");
-              setHits([]);
+              setProducts([]);
             }}
             className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
           >
             <option value="">— Pick a system —</option>
             {systemsByVendor.map(([vendor, list]) => (
               <optgroup key={vendor} label={vendor}>
-                {list.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.category || s.vendor} — {s.productCount} products
+                {list.map((s, i) => (
+                  <option key={`${vendor}-${i}`} value={`${s.vendor}||${s.system}`}>
+                    {s.system || s.vendor} — {s.product_count} products
                   </option>
                 ))}
               </optgroup>
@@ -359,13 +258,13 @@ export default function CatalogBrowser({
 
         <div className="flex-1 min-w-48">
           <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
-            {systemId ? "Filter / search" : "Global search (all vendors)"}
+            {selectedVendor ? "Filter / search" : "Global search (all vendors)"}
           </label>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={
-              systemId
+              selectedVendor
                 ? "e.g. 4MP bullet ColorVu PoE"
                 : "Search by keyword, model, vendor, category…"
             }
@@ -437,7 +336,7 @@ export default function CatalogBrowser({
 
       {/* ── Product table ── */}
       <div className="flex-1 min-w-0">
-        {!systemId && !debouncedSearch.trim() && (
+        {!selectedVendor && !debouncedSearch.trim() && (
           <div className="rounded-2xl border border-magic-border bg-white p-12 text-center text-magic-ink/40 text-sm">
             Select a system above to browse its full product catalog, or type
             in the global search box to find products across every vendor.
@@ -451,8 +350,8 @@ export default function CatalogBrowser({
         )}
 
         {!loading &&
-          (systemId || debouncedSearch.trim()) &&
-          sortedHits.length === 0 && (
+          (selectedVendor || debouncedSearch.trim()) &&
+          sorted.length === 0 && (
             <div className="rounded-2xl border border-magic-border bg-white p-12 text-center text-magic-ink/40 text-sm">
               No products found{search ? ` for "${search}"` : ""}.
             </div>
@@ -469,7 +368,7 @@ export default function CatalogBrowser({
           />
         )}
 
-        {sortedHits.length > 0 && (
+        {sorted.length > 0 && (
           <div className="rounded-2xl border border-magic-border bg-white overflow-hidden">
             <div className="px-4 py-3 border-b border-magic-border flex items-center justify-between">
               <span className="text-xs font-semibold text-magic-ink">
@@ -477,12 +376,11 @@ export default function CatalogBrowser({
                   <>Global search results</>
                 ) : (
                   <>
-                    {currentSystem?.vendor} —{" "}
-                    {currentSystem?.category || "All"}
+                    {selectedVendor} — {selectedSystem || "All"}
                   </>
                 )}
                 <span className="ml-2 text-magic-ink/40 font-normal">
-                  {sortedHits.length} products
+                  {sorted.length} of {total} products
                 </span>
               </span>
             </div>
@@ -491,18 +389,14 @@ export default function CatalogBrowser({
                 <thead className="sticky top-0 bg-magic-soft/80 backdrop-blur z-10">
                   <tr>
                     <th className="px-3 py-2 text-left font-semibold text-magic-ink/60 w-8"></th>
-                    {columns.map((col) => (
+                    {DISPLAY_COLUMNS.map((col) => (
                       <th
-                        key={col}
-                        onClick={() => toggleSort(col)}
+                        key={col.key}
+                        onClick={() => toggleSort(col.key)}
                         className="px-3 py-2 text-left font-semibold text-magic-ink/60 whitespace-nowrap cursor-pointer hover:text-magic-red select-none"
                       >
-                        {col === "si_price"
-                          ? "SI Price"
-                          : col === "dpp_price"
-                            ? "DPP Price"
-                            : col.replace(/_/g, " ")}
-                        {sortKey === col && (
+                        {col.label}
+                        {sortKey === col.key && (
                           <span className="ml-1">
                             {sortDir === "asc" ? "↑" : "↓"}
                           </span>
@@ -512,72 +406,75 @@ export default function CatalogBrowser({
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedHits.map((h, rowIdx) => {
-                    const prices = getPrice(h.product);
-                    return (
-                      <tr
-                        key={rowIdx}
-                        className="border-t border-magic-border/50 hover:bg-magic-soft/30 transition-colors"
-                      >
-                        <td className="px-2 py-1.5">
-                          <button
-                            onClick={() => openPagePicker(h)}
-                            title="Select which page to add this product to"
-                            className="w-6 h-6 rounded-full bg-magic-red text-white flex items-center justify-center text-base leading-none hover:bg-red-700 font-bold"
-                          >
-                            +
-                          </button>
-                        </td>
-                        {columns.map((col) => {
-                          let val: unknown;
-                          if (col === "si_price") {
-                            val =
-                              prices.si > 0
-                                ? `${h.currency} ${prices.si.toFixed(2)}`
-                                : "—";
-                          } else if (col === "dpp_price") {
-                            val =
-                              prices.dpp > 0
-                                ? `${h.currency} ${prices.dpp.toFixed(2)}`
-                                : "—";
-                          } else if (col === "vendor") {
-                            val =
-                              h.system?.vendor ||
-                              h.system?.name ||
-                              h.product.vendor ||
-                              "";
-                          } else {
-                            val = h.product[col];
-                          }
-                          const display =
+                  {sorted.map((p) => (
+                    <tr
+                      key={p.id}
+                      className="border-t border-magic-border/50 hover:bg-magic-soft/30 transition-colors"
+                    >
+                      <td className="px-2 py-1.5">
+                        <button
+                          onClick={() => setPendingItem(p)}
+                          title="Select which page to add this product to"
+                          className="w-6 h-6 rounded-full bg-magic-red text-white flex items-center justify-center text-base leading-none hover:bg-red-700 font-bold"
+                        >
+                          +
+                        </button>
+                      </td>
+                      {DISPLAY_COLUMNS.map((col) => {
+                        const val = p[col.key];
+                        let display: string;
+                        if (col.key === "price_si") {
+                          display =
+                            Number(val) > 0
+                              ? `${p.currency} ${Number(val).toFixed(2)}`
+                              : "—";
+                        } else if (col.key === "specifications") {
+                          const s = String(val || "");
+                          const isExpanded = expandedSpec === p.id;
+                          display = isExpanded ? s : s.length > 80 ? s.slice(0, 80) + "…" : s;
+                        } else {
+                          display =
                             val === null || val === undefined || val === ""
                               ? "—"
-                              : val === true
-                                ? "✓"
-                                : val === false
-                                  ? ""
-                                  : String(val);
-                          return (
-                            <td
-                              key={col}
-                              className={`px-3 py-1.5 whitespace-nowrap ${
-                                col === "model"
-                                  ? "font-semibold text-magic-ink"
-                                  : val === true
-                                    ? "text-green-600 font-medium"
-                                    : col === "si_price" ||
-                                        col === "dpp_price"
-                                      ? "text-magic-red font-semibold"
-                                      : "text-magic-ink/70"
-                              }`}
-                            >
-                              {display}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
+                              : String(val);
+                        }
+                        return (
+                          <td
+                            key={col.key}
+                            className={`px-3 py-1.5 ${
+                              col.wide ? "max-w-[250px]" : "whitespace-nowrap"
+                            } ${
+                              col.key === "model"
+                                ? "font-semibold text-magic-ink"
+                                : col.key === "price_si"
+                                  ? "text-magic-red font-semibold whitespace-nowrap"
+                                  : "text-magic-ink/70"
+                            }`}
+                            onClick={
+                              col.key === "specifications"
+                                ? () =>
+                                    setExpandedSpec(
+                                      expandedSpec === p.id ? null : p.id,
+                                    )
+                                : undefined
+                            }
+                            title={
+                              col.key === "specifications"
+                                ? "Click to expand/collapse"
+                                : undefined
+                            }
+                            style={
+                              col.key === "specifications"
+                                ? { cursor: "pointer" }
+                                : undefined
+                            }
+                          >
+                            {display}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -589,9 +486,6 @@ export default function CatalogBrowser({
 }
 
 // ─── Page picker modal ───────────────────────────────────────────────────────
-// Pops up when the user clicks "+" on a product. Lets them pick one of the
-// existing quotation pages, one of the suggested names, or type a new page
-// name. Stays on the catalog after confirming so the user can keep picking.
 
 function PagePickerModal({
   product,
@@ -601,20 +495,18 @@ function PagePickerModal({
   onCancel,
   onConfirm,
 }: {
-  product: HitWithSystem;
+  product: Product;
   existingPages: string[];
   suggestions: string[];
   defaultPage: string;
   onCancel: () => void;
   onConfirm: (pageName: string, qty: number) => void;
 }) {
-  const seeded =
-    defaultPage || existingPages[0] || "";
+  const seeded = defaultPage || existingPages[0] || "";
   const [selected, setSelected] = useState(seeded);
   const [custom, setCustom] = useState("");
   const [qty, setQty] = useState(1);
 
-  // Merge existing pages and suggestions (existing first, no dupes).
   const quickOptions = useMemo(() => {
     const seen = new Set<string>();
     const out: Array<{ name: string; existing: boolean }> = [];
@@ -641,7 +533,6 @@ function PagePickerModal({
     onConfirm(resolvedName, qty);
   }
 
-  // Close on Escape.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onCancel();
@@ -661,9 +552,8 @@ function PagePickerModal({
       >
         <h2 className="text-lg font-bold text-magic-ink">Add to which page?</h2>
         <p className="mt-1 text-xs text-magic-ink/60">
-          <b>{String(product.product.model ?? "Product")}</b> will be added to
-          the page you pick. You&apos;ll stay on the catalog so you can keep
-          selecting.
+          <b>{product.model || "Product"}</b> will be added to the page you
+          pick. You&apos;ll stay on the catalog so you can keep selecting.
         </p>
 
         <div className="mt-4">
