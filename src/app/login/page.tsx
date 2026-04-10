@@ -8,25 +8,24 @@ export default async function LoginPage() {
   const user = await getSessionUser();
   if (user) redirect("/designer");
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-magic-soft via-white to-magic-soft p-6">
+    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6">
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <div className="inline-flex items-center gap-3">
-            <span className="text-4xl font-black text-magic-red tracking-tight">
+        <div className="mb-10 text-center">
+          <div className="inline-flex items-center gap-2">
+            <span className="text-5xl font-black text-magic-red tracking-tight">
               Magic
             </span>
-            <span className="text-4xl font-black text-magic-ink tracking-tight">
+            <span className="text-5xl font-black text-magic-ink tracking-tight">
               Tech
             </span>
           </div>
-          <p className="mt-2 text-sm text-magic-ink/70">
-            AI Quotation Designer · Vercel 2026
+          <p className="mt-3 text-sm text-slate-500 font-medium">
+            Data Analytics & Quotation Platform
           </p>
         </div>
         <LoginForm />
-        <p className="mt-6 text-center text-xs text-magic-ink/50">
-          Default admin: <b>admin</b> / <b>admin123</b> — change immediately
-          after first login.
+        <p className="mt-8 text-center text-xs text-slate-400">
+          &copy; {new Date().getFullYear()} MagicTech. All rights reserved.
         </p>
       </div>
     </main>
