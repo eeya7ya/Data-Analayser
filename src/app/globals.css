@@ -42,8 +42,11 @@ body {
 
 /* Full-bleed static A4 page — used for the fixed cover and about-us
  * pages that bracket every printed quotation. No padding so the supplied
- * artwork fills the sheet edge to edge. */
+ * artwork fills the sheet edge to edge. These sheets are hidden in the
+ * on-screen designer/viewer so the user only sees them on the actual
+ * printed output (they re-appear in @media print below). */
 .quotation-sheet.full-bleed {
+  display: none;
   padding: 0;
   overflow: hidden;
 }
@@ -142,6 +145,12 @@ body {
     width: 210mm;
     min-height: 297mm;
     padding: 14mm 12mm 18mm 12mm;
+  }
+  /* Re-enable the full-bleed cover/about-us sheets and drop their
+   * padding so the supplied artwork really does fill the whole A4. */
+  .quotation-sheet.full-bleed {
+    display: block;
+    padding: 0;
   }
   .quotation-sheet.page-break-after {
     page-break-after: always;
