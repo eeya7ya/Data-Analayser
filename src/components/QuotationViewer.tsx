@@ -5,7 +5,7 @@ import QuotationPreview, {
   QuotationItem,
   QuotationExtraColumn,
 } from "./QuotationPreview";
-import { DEFAULT_TERMS } from "@/lib/quotationDraft";
+import { DEFAULT_TERMS, termsMatchBuiltInDefault } from "@/lib/quotationDraft";
 import type { AppSettings } from "@/lib/settings";
 
 interface SavedConfig {
@@ -95,7 +95,13 @@ export default function QuotationViewer({
         editable={false}
         showPictures={Boolean(config.showPictures)}
         terms={
-          Array.isArray(config.terms) && config.terms.length > 0
+          // Saved quotations that still carry the pre-admin built-in list
+          // should yield to the admin-edited presets (fallbackTerms). Genuine
+          // per-quotation customisations (anything different from the
+          // built-in list) keep showing what the author saved.
+          Array.isArray(config.terms) &&
+          config.terms.length > 0 &&
+          !termsMatchBuiltInDefault(config.terms)
             ? config.terms
             : [...fallbackTerms]
         }

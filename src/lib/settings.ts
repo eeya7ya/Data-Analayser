@@ -58,12 +58,21 @@ export async function saveAppSettings(patch: Partial<AppSettings>): Promise<AppS
   const next = normalize({ ...current, ...patch });
   const q = sql();
   const json = JSON.stringify(next);
-  await q`
+  // Use RETURNING so we read back the row PostgreSQL actually wrote. If the
+  // insert silently no-ops (e.g. the jsonb cast rejects the payload), the
+  // returned array is empty and we throw instead of returning stale data.
+  const rows = (await q`
     insert into app_settings (key, value, updated_at)
     values (${KEY}, ${json}::jsonb, now())
     on conflict (key) do update
       set value = excluded.value,
           updated_at = now()
-  `;
-  return next;
+    returning value
+  `) as Array<{ value: unknown }>;
+  if (rows.length === 0) {
+    throw new Error(
+      "app_settings upsert did not return a row — the database rejected the payload",
+    );
+  }
+  return normalize(rows[0].value);
 }
