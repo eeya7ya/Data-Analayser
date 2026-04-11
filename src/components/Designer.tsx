@@ -44,6 +44,7 @@ export interface ExistingQuotation {
     scopeIntro?: string;
     designEng?: string;
     pricingCategory?: PricingCategory;
+    manualFactor?: number;
     includeTax?: boolean;
     taxInclusive?: boolean;
     // Legacy marker. Quotations saved before the "Excl. Tax" button was
@@ -109,6 +110,8 @@ export default function Designer({
   const [scopeIntro, setScopeIntro] = useState("");
   const [designEng, setDesignEngState] = useState("");
   const [pricingCategory, setPricingCategoryState] = useState<PricingCategory>("si");
+  const [manualFactor, setManualFactorState] = useState(1);
+  const [manualFactorInput, setManualFactorInput] = useState("1");
   const [includeTax, setIncludeTax] = useState(true);
   const [taxInclusive, setTaxInclusive] = useState(false);
   const [folders, setFolders] = useState<ClientFolder[]>([]);
@@ -139,8 +142,10 @@ export default function Designer({
   // ── Pricing category switching ────────────────────────────────────────────
   // When the user picks a new preset category (SI / DPP / End-user) we
   // recompute every row's unit_price from its stored price_si baseline.
-  // Switching TO "manual" leaves prices untouched so the user can edit
-  // freely. Switching FROM "manual" re-applies the chosen factor.
+  // Switching TO "manual" leaves prices untouched so the user can still
+  // edit any row individually, but the Manual-pricing panel also exposes a
+  // custom multiplication factor (applied via `setManualFactor` below) so
+  // the user can seed all rows with an arbitrary markup before fine-tuning.
   function setPricingCategory(next: PricingCategory) {
     setPricingCategoryState(next);
 
@@ -151,6 +156,27 @@ export default function Designer({
       cur.map((it) => {
         // Use stored SI price if available, otherwise treat current
         // unit_price as the SI baseline (backwards-compat with old items).
+        const base = it.price_si ?? it.unit_price;
+        return {
+          ...it,
+          price_si: base,
+          unit_price: Number((base * factor).toFixed(2)),
+        };
+      }),
+    );
+  }
+
+  // Apply a user-entered Manual-pricing factor: recomputes every row's
+  // unit_price from its SI baseline so the custom markup behaves the same
+  // way as the SI/DPP/End-user presets. Only runs while the Manual
+  // category is active — outside of Manual mode we just remember the value
+  // so it survives a category round-trip.
+  function setManualFactor(factor: number) {
+    setManualFactorState(factor);
+    if (!Number.isFinite(factor)) return;
+    if (pricingCategory !== "manual") return;
+    setItems((cur) =>
+      cur.map((it) => {
         const base = it.price_si ?? it.unit_price;
         return {
           ...it,
@@ -267,6 +293,13 @@ export default function Designer({
           user.username,
       );
       setPricingCategoryState(existing.config_json?.pricingCategory || "si");
+      {
+        const storedFactor = Number(existing.config_json?.manualFactor);
+        const initialFactor =
+          Number.isFinite(storedFactor) && storedFactor > 0 ? storedFactor : 1;
+        setManualFactorState(initialFactor);
+        setManualFactorInput(String(initialFactor));
+      }
       setIncludeTax(existing.config_json?.includeTax !== false);
       setTaxInclusive(Boolean(existing.config_json?.taxInclusive));
 
@@ -332,6 +365,13 @@ export default function Designer({
         user.username,
     );
     setPricingCategoryState(d.pricingCategory || "si");
+    {
+      const draftFactor = Number(d.manualFactor);
+      const initialFactor =
+        Number.isFinite(draftFactor) && draftFactor > 0 ? draftFactor : 1;
+      setManualFactorState(initialFactor);
+      setManualFactorInput(String(initialFactor));
+    }
     setIncludeTax(d.includeTax !== false);
     setTaxInclusive(Boolean(d.taxInclusive));
     hydratedRef.current = true;
@@ -433,6 +473,7 @@ export default function Designer({
       scopeIntro,
       designEng,
       pricingCategory,
+      manualFactor,
       includeTax,
       taxInclusive,
     });
@@ -455,6 +496,7 @@ export default function Designer({
     scopeIntro,
     designEng,
     pricingCategory,
+    manualFactor,
     includeTax,
     taxInclusive,
   ]);
@@ -492,6 +534,7 @@ export default function Designer({
           scopeIntro,
           designEng,
           pricingCategory,
+          manualFactor,
           includeTax,
           taxInclusive,
           // Stamped on every save so the legacy migration in the
@@ -539,6 +582,8 @@ export default function Designer({
     setShowPictures(false);
     setTerms([...adminDefaultTerms]);
     setPricingCategoryState("si");
+    setManualFactorState(1);
+    setManualFactorInput("1");
     if (!editMode) clearDraft();
   }
 
@@ -573,10 +618,16 @@ export default function Designer({
                   }`}
                 >
                   {PRICING_LABELS[cat]}
-                  {cat !== "manual" && (
+                  {cat !== "manual" ? (
                     <span className="ml-1 text-[10px] opacity-70">
                       ×{PRICING_FACTORS[cat as Exclude<PricingCategory, "manual">]}
                     </span>
+                  ) : (
+                    manualFactor !== 1 && (
+                      <span className="ml-1 text-[10px] opacity-70">
+                        ×{manualFactor}
+                      </span>
+                    )
                   )}
                 </button>
               ))}
@@ -587,9 +638,43 @@ export default function Designer({
               </p>
             )}
             {pricingCategory === "manual" && (
-              <p className="mt-1 text-[10px] text-magic-ink/50">
-                Edit each unit price individually in the table below.
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <label className="text-[10px] font-semibold uppercase text-magic-ink/60">
+                  Manual factor
+                </label>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  value={manualFactorInput}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setManualFactorInput(raw);
+                    const parsed = Number(raw);
+                    if (raw !== "" && Number.isFinite(parsed) && parsed >= 0) {
+                      setManualFactor(parsed);
+                    }
+                  }}
+                  onBlur={() => {
+                    // Snap back to the last valid factor if the user left
+                    // the input empty or typed something unparseable.
+                    const parsed = Number(manualFactorInput);
+                    if (
+                      manualFactorInput === "" ||
+                      !Number.isFinite(parsed) ||
+                      parsed < 0
+                    ) {
+                      setManualFactorInput(String(manualFactor));
+                    }
+                  }}
+                  className="w-24 rounded-md border border-magic-border px-2 py-1 text-xs"
+                  title="Custom multiplier applied to every SI base price"
+                />
+                <span className="text-[10px] text-magic-ink/50">
+                  All prices = SI base × {manualFactor}. You can still edit
+                  each row individually in the table below.
+                </span>
+              </div>
             )}
           </div>
 

@@ -59,6 +59,12 @@ export interface QuotationDraft {
   designEng: string;
   /** Active pricing category — determines the factor applied to SI prices. */
   pricingCategory: PricingCategory;
+  /**
+   * User-defined multiplication factor applied to SI base prices when the
+   * "Manual Pricing" category is selected. Lets the user set any custom
+   * markup/markdown instead of being limited to the SI/DPP/End-user presets.
+   */
+  manualFactor: number;
   /** Whether tax is included in the total cost. */
   includeTax: boolean;
   /** Whether entered prices already include tax (back-calculate base). */
@@ -161,6 +167,7 @@ export function emptyDraft(): QuotationDraft {
     scopeIntro: "",
     designEng: loadDesignEngineerPref(),
     pricingCategory: "si",
+    manualFactor: 1,
     includeTax: true,
     taxInclusive: false,
   };
