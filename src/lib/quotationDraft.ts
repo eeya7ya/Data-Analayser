@@ -152,7 +152,11 @@ export function emptyDraft(): QuotationDraft {
     siteName: "",
     taxPercent: 16,
     showPictures: false,
-    terms: [...DEFAULT_TERMS],
+    // Empty by default so the Designer falls back to the admin-edited
+    // defaults from the server (`adminDefaultTerms`) instead of the
+    // built-in hardcoded list. See Designer.tsx hydration for the
+    // `d.terms.length > 0 ? d.terms : adminDefaultTerms` switch.
+    terms: [],
     extraColumns: [],
     scopeIntro: "",
     designEng: loadDesignEngineerPref(),
@@ -162,13 +166,37 @@ export function emptyDraft(): QuotationDraft {
   };
 }
 
+/**
+ * Detect a stored `terms` array that is a verbatim copy of the old built-in
+ * DEFAULT_TERMS. Callers use this to decide whether the stored list is just
+ * a stale pre-admin-Settings snapshot that should yield to the current
+ * admin-edited presets, instead of masquerading as a "user customisation".
+ *
+ * Used in two places:
+ *   1. `loadDraft()` below — clears the localStorage draft's terms so new
+ *      quotations inherit the admin defaults.
+ *   2. Designer / QuotationViewer — saved quotations whose stamped terms
+ *      still match the pre-admin defaults fall back to adminDefaultTerms
+ *      instead of the old hardcoded list.
+ */
+export function termsMatchBuiltInDefault(terms: unknown): boolean {
+  if (!Array.isArray(terms)) return false;
+  if (terms.length !== DEFAULT_TERMS.length) return false;
+  return terms.every((t, i) => t === DEFAULT_TERMS[i]);
+}
+
 export function loadDraft(): QuotationDraft {
   if (typeof window === "undefined") return emptyDraft();
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyDraft();
     const parsed = JSON.parse(raw) as Partial<QuotationDraft>;
-    return { ...emptyDraft(), ...parsed };
+    const merged = { ...emptyDraft(), ...parsed };
+    // Discard stale cached defaults so the admin-edited presets win.
+    if (termsMatchBuiltInDefault(merged.terms)) {
+      merged.terms = [];
+    }
+    return merged;
   } catch {
     return emptyDraft();
   }

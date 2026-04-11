@@ -36,8 +36,19 @@ export default function AdminSettings({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ defaultTerms, footerText }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        settings?: AppSettings;
+        error?: string;
+      };
       if (!res.ok) throw new Error(data.error || "save failed");
+      // Re-seed the form from the server's normalised response so what the
+      // user sees after saving is exactly what's persisted — any trimming
+      // or fallback done on the server surfaces immediately instead of
+      // waiting for a manual refresh.
+      if (data.settings) {
+        setTermsText(data.settings.defaultTerms.join("\n"));
+        setFooterText(data.settings.footerText);
+      }
       setStatus("Saved.");
     } catch (e) {
       setErr((e as Error).message);

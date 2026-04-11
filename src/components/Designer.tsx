@@ -16,6 +16,7 @@ import {
   loadDesignEngineerPref,
   saveDesignEngineerPref,
   saveEditingContext,
+  termsMatchBuiltInDefault,
   PRICING_FACTORS,
   PRICING_LABELS,
   type PricingCategory,
@@ -234,12 +235,20 @@ export default function Designer({
       setSiteName(existing.site_name || "");
       setTaxPercent(Number(existing.tax_percent ?? 16));
       setShowPictures(Boolean(existing.config_json?.showPictures));
-      setTerms(
-        Array.isArray(existing.config_json?.terms) &&
-          existing.config_json!.terms!.length > 0
+      {
+        // Saved quotations created before the admin Settings tab existed
+        // have `config_json.terms` stamped with the old built-in defaults.
+        // Those should yield to the current admin-edited presets so the
+        // user's edits in /admin → Settings actually propagate; a genuine
+        // customisation (anything that differs from the built-in list)
+        // still wins.
+        const savedTerms = Array.isArray(existing.config_json?.terms)
           ? existing.config_json!.terms!
-          : [...adminDefaultTerms],
-      );
+          : [];
+        const useAdminDefaults =
+          savedTerms.length === 0 || termsMatchBuiltInDefault(savedTerms);
+        setTerms(useAdminDefaults ? [...adminDefaultTerms] : savedTerms);
+      }
       setExtraColumns(
         Array.isArray(existing.config_json?.extraColumns)
           ? existing.config_json!.extraColumns!
