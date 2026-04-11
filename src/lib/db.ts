@@ -85,6 +85,20 @@ const globalForSchema = globalThis as unknown as {
   __mtSchemaPromise?: Promise<void>;
 };
 
+/**
+ * Schema fingerprint. Bump this string any time `_ensureSchemaOnce` gains
+ * new DDL that must run against existing databases — it's the key we store
+ * in `migration_flags` to short-circuit the bootstrap on warm deployments.
+ *
+ * The full DDL block is ~35 sequential statements and each one is a
+ * Supabase round-trip. Running them on every Vercel cold start was adding
+ * 2-3 seconds of pure wait time to every request that landed on a new
+ * serverless instance, which is what drove the "every page takes way too
+ * long to open" complaint. With the fingerprint marker we turn the
+ * bootstrap into a single `select 1` on warm databases.
+ */
+const SCHEMA_FINGERPRINT = "schema_bootstrap_v2_2026_04";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -94,6 +108,21 @@ export async function ensureSchema(): Promise<void> {
 
 async function _ensureSchemaOnce(): Promise<void> {
   const q = sql();
+
+  // Fast path: once the DDL has been applied to this database we only pay
+  // for a single `select 1` on future cold starts. `migration_flags`
+  // itself might not exist yet on a brand-new database (the rest of this
+  // function creates it), so we swallow the "relation does not exist"
+  // error and fall through to the full bootstrap.
+  try {
+    const rows = (await q`
+      select 1 from migration_flags where key = ${SCHEMA_FINGERPRINT} limit 1
+    `) as unknown as Array<unknown>;
+    if (rows.length > 0) return;
+  } catch {
+    // migration_flags missing or unreadable — run the full DDL below.
+  }
+
   await q`
     create table if not exists users (
       id            serial primary key,
@@ -384,5 +413,13 @@ async function _ensureSchemaOnce(): Promise<void> {
         alter table products add constraint products_model_key unique (model);
       end if;
     end $$
+  `;
+
+  // Mark the schema as fully bootstrapped so the next cold start can
+  // take the single-`select` fast path above instead of replaying all of
+  // the CREATE / ALTER statements.
+  await q`
+    insert into migration_flags (key) values (${SCHEMA_FINGERPRINT})
+    on conflict (key) do nothing
   `;
 }
