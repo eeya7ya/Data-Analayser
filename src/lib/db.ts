@@ -99,6 +99,14 @@ const globalForSchema = globalThis as unknown as {
  */
 const SCHEMA_FINGERPRINT = "schema_bootstrap_v2_2026_04";
 
+/**
+ * Incremental migration: composite indexes for the two most common list
+ * queries. Both filter on (owner_id, deleted_at) but previously only had
+ * single-column indexes, forcing Postgres to intersect two bitmap scans.
+ * The composite index lets it satisfy the full WHERE clause in one pass.
+ */
+const PERF_INDEX_FLAG = "perf_composite_indexes_v1_2026_04";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -109,20 +117,30 @@ export async function ensureSchema(): Promise<void> {
 async function _ensureSchemaOnce(): Promise<void> {
   const q = sql();
 
-  // Fast path: once the DDL has been applied to this database we only pay
-  // for a single `select 1` on future cold starts. `migration_flags`
-  // itself might not exist yet on a brand-new database (the rest of this
-  // function creates it), so we swallow the "relation does not exist"
-  // error and fall through to the full bootstrap.
+  // Fast path: read both the main schema fingerprint AND the incremental
+  // performance-index flag in a single round-trip. On warm databases this
+  // is the ONLY query this function executes. `migration_flags` itself
+  // might not exist yet on a brand-new database (the rest of this function
+  // creates it), so we swallow the "relation does not exist" error and fall
+  // through to the full bootstrap.
+  let schemaBootstrapped = false;
+  let perfIndexesApplied = false;
   try {
     const rows = (await q`
-      select 1 from migration_flags where key = ${SCHEMA_FINGERPRINT} limit 1
-    `) as unknown as Array<unknown>;
-    if (rows.length > 0) return;
+      select key from migration_flags
+      where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG})
+    `) as Array<{ key: string }>;
+    const keys = new Set(rows.map((r) => r.key));
+    schemaBootstrapped = keys.has(SCHEMA_FINGERPRINT);
+    perfIndexesApplied = keys.has(PERF_INDEX_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
 
+  // Both migrations already applied — nothing to do.
+  if (schemaBootstrapped && perfIndexesApplied) return;
+
+  if (!schemaBootstrapped) {
   await q`
     create table if not exists users (
       id            serial primary key,
@@ -422,4 +440,27 @@ async function _ensureSchemaOnce(): Promise<void> {
     insert into migration_flags (key) values (${SCHEMA_FINGERPRINT})
     on conflict (key) do nothing
   `;
+  } // end if (!schemaBootstrapped)
+
+  // ── Incremental performance migration ────────────────────────────────────
+  // Composite indexes on (owner_id, deleted_at) for the two most-hit list
+  // queries. The previous single-column indexes forced Postgres to bitmap-
+  // scan owner_idx and deleted_idx separately and intersect the results.
+  // With a composite index it satisfies the full WHERE clause in one scan.
+  // Guarded by its own migration flag so it runs exactly once per database
+  // regardless of which deploy first triggers it.
+  if (!perfIndexesApplied) {
+    await q`
+      create index if not exists quotations_owner_deleted_idx
+      on quotations(owner_id, deleted_at)
+    `;
+    await q`
+      create index if not exists client_folders_owner_deleted_idx
+      on client_folders(owner_id, deleted_at)
+    `;
+    await q`
+      insert into migration_flags (key) values (${PERF_INDEX_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
 }
