@@ -1,11 +1,74 @@
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, type SessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import { getAppSettings } from "@/lib/settings";
 import TopBar from "@/components/TopBar";
 import QuotationViewer from "@/components/QuotationViewer";
 import FolderExportImport from "@/components/FolderExportImport";
 import QuotationsPageTabs from "@/components/QuotationsPageTabs";
+
+/**
+ * Server-side preload for the /quotation list view so the Clients & Quotations
+ * page renders with its data already in place. The client component used to
+ * mount with empty skeletons and fire off two parallel fetches, which felt
+ * laggy on cold starts — especially because this is the "home" screen most
+ * users open first. Loading here means Next.js streams the HTML with the
+ * groups already populated.
+ */
+async function loadListData(user: SessionUser): Promise<{
+  quotations: Array<Record<string, unknown>>;
+  folders: Array<Record<string, unknown>>;
+}> {
+  try {
+    await ensureSchema();
+    const q = sql();
+    const [quotations, folders] = await Promise.all([
+      user.role === "admin"
+        ? (q`
+            select q.id, q.ref, q.project_name, q.client_name, q.site_name,
+                   q.folder_id, q.owner_id, q.created_at, q.updated_at,
+                   u.username as owner_username,
+                   u.display_name as owner_display_name
+            from quotations q
+            left join users u on u.id = q.owner_id
+            where q.deleted_at is null
+            order by q.id desc
+            limit 500
+          ` as unknown as Promise<Array<Record<string, unknown>>>)
+        : (q`
+            select id, ref, project_name, client_name, site_name,
+                   folder_id, owner_id, created_at, updated_at
+            from quotations
+            where owner_id = ${user.id}
+              and deleted_at is null
+            order by id desc
+            limit 200
+          ` as unknown as Promise<Array<Record<string, unknown>>>),
+      user.role === "admin"
+        ? (q`
+            select f.id, f.name, f.owner_id, f.created_at, f.updated_at,
+                   f.client_email, f.client_phone, f.client_company,
+                   u.username as owner_username,
+                   u.display_name as owner_display_name
+            from client_folders f
+            left join users u on u.id = f.owner_id
+            where f.deleted_at is null
+            order by u.username nulls first, f.name asc
+          ` as unknown as Promise<Array<Record<string, unknown>>>)
+        : (q`
+            select id, name, owner_id, created_at, updated_at,
+                   client_email, client_phone, client_company
+            from client_folders
+            where owner_id = ${user.id}
+              and deleted_at is null
+            order by name asc
+          ` as unknown as Promise<Array<Record<string, unknown>>>),
+    ]);
+    return { quotations, folders };
+  } catch {
+    return { quotations: [], folders: [] };
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +87,9 @@ export default async function QuotationPage({
   const sp = await searchParams;
 
   // Single-quotation view still needs the server-side lookup because it
-  // drives the full printable document. The list view (no id) is handled
-  // entirely client-side so nav to /quotation is instant.
+  // drives the full printable document. The list view (no id) now also
+  // fetches data on the server so the first paint shows the real groups
+  // instead of skeleton placeholders.
   if (sp.id) {
     await ensureSchema();
     const appSettings = await getAppSettings();
@@ -74,6 +138,8 @@ export default async function QuotationPage({
     );
   }
 
+  const { quotations, folders } = await loadListData(user);
+
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
@@ -84,7 +150,11 @@ export default async function QuotationPage({
           </h1>
           <FolderExportImport />
         </div>
-        <QuotationsPageTabs isAdmin={user.role === "admin"} />
+        <QuotationsPageTabs
+          isAdmin={user.role === "admin"}
+          initialQuotations={quotations}
+          initialFolders={folders}
+        />
       </main>
     </div>
   );

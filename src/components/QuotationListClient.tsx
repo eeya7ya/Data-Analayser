@@ -50,16 +50,35 @@ function formatDateTime(dt: string) {
 
 export default function QuotationListClient({
   isAdmin,
+  initialQuotations,
+  initialFolders,
 }: {
   isAdmin: boolean;
+  /**
+   * Server-rendered initial data. When provided, the component mounts with
+   * the real rows already in state and skips the initial `/api/quotations`
+   * + `/api/folders` round-trip entirely — killing the skeleton flash on
+   * cold starts.
+   */
+  initialQuotations?: Array<Record<string, unknown>>;
+  initialFolders?: Array<Record<string, unknown>>;
 }) {
-  // ── Data loaded client-side so navigation to /quotation is instant ───
-  const [quotations, setQuotations] = useState<Quotation[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  // ── Data loaded client-side (or hydrated from the server page) ───
+  const hasInitial =
+    Array.isArray(initialQuotations) && Array.isArray(initialFolders);
+  const [quotations, setQuotations] = useState<Quotation[]>(
+    () => (initialQuotations as Quotation[] | undefined) || [],
+  );
+  const [folders, setFolders] = useState<Folder[]>(
+    () => (initialFolders as Folder[] | undefined) || [],
+  );
+  const [dataLoading, setDataLoading] = useState(!hasInitial);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    // The server page already handed us the full dataset on first paint.
+    // Skip the client fetch entirely.
+    if (hasInitial) return;
     let cancelled = false;
     setDataLoading(true);
     setLoadError(null);
@@ -81,7 +100,7 @@ export default function QuotationListClient({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hasInitial]);
 
   // ── Search ────────────────────────────────────────────────────────────
   const [search, setSearch] = useState("");
