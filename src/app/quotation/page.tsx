@@ -22,15 +22,27 @@ import QuotationsPageTabs from "@/components/QuotationsPageTabs";
  * returns `null` and the page hands `undefined` to the client component,
  * which triggers its own /api/quotations + /api/folders round-trip with a
  * visible loading state.
+ *
+ * 5 000 ms is enough to cover a Supabase cold start (TCP+TLS ~500 ms,
+ * schema check ~150 ms, data query ~300 ms → ~950 ms typical; worst-case
+ * slow DB ~3–4 s). The previous 2 500 ms was too tight: slow connections
+ * tripped the timeout, sent the page with skeletons, and then forced a
+ * second round-trip from the browser — doubling the perceived load time.
  */
-const PRELOAD_BUDGET_MS = 2500;
+const PRELOAD_BUDGET_MS = 5000;
 
-async function loadListData(user: SessionUser): Promise<{
+async function loadListData(
+  user: SessionUser,
+  schemaPromise: Promise<void>,
+): Promise<{
   quotations: Array<Record<string, unknown>>;
   folders: Array<Record<string, unknown>>;
 } | null> {
   const work = (async () => {
-    await ensureSchema();
+    // schemaPromise was kicked off before this function was called so the
+    // TCP+TLS handshake to Supabase overlapped with the auth check. By the
+    // time we await here it is usually already settled.
+    await schemaPromise;
     const q = sql();
     const [quotations, folders] = await Promise.all([
       user.role === "admin"
@@ -107,6 +119,14 @@ export default async function QuotationPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  // Kick off the schema bootstrap immediately — this starts the DB
+  // connection (TCP+TLS to Supabase) while the rest of the function
+  // does its own cheap synchronous work (JWT verification, searchParams
+  // resolution). By the time loadListData awaits this promise it is
+  // usually already in-flight or settled, shaving the schema check off
+  // the critical preload path.
+  const schemaPromise = ensureSchema();
+
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
@@ -156,7 +176,7 @@ export default async function QuotationPage({
   // we handed the fetch back to the client so the page can still stream its
   // shell immediately. `initialQuotations` / `initialFolders` stay
   // `undefined` in that case and QuotationListClient's own loader kicks in.
-  const loaded = await loadListData(user);
+  const loaded = await loadListData(user, schemaPromise);
 
   // Read the active tab here on the server so QuotationsPageTabs doesn't
   // have to call `useSearchParams()`. That client-side hook opts the
