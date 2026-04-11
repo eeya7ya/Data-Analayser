@@ -46,7 +46,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
             AI Designer
           </Link>
           <Link href="/catalog" className="text-magic-ink hover:text-magic-red">
-            Catalog
+            Catalogue
           </Link>
           <Link
             href="/quotation"
