@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MoveToFolder from "@/components/MoveToFolder";
@@ -78,6 +78,16 @@ export default function QuotationListClient({
   initialFolders?: Array<Record<string, unknown>>;
 }) {
   const router = useRouter();
+
+  // ── Row navigation pending state ─────────────────────────────────────
+  // router.push() on its own gives no visual feedback at all: the user
+  // clicks a row, nothing visibly happens for however long the server
+  // takes to render /quotation?id=<n>, and they conclude the app is
+  // broken. Wrapping the push in useTransition lets us dim the row that
+  // was clicked *on the very next frame*, and Next.js's loading.tsx
+  // boundary takes over from there.
+  const [, startNavigation] = useTransition();
+  const [openingId, setOpeningId] = useState<number | null>(null);
 
   // ── Data loaded client-side (or hydrated from the server page) ───
   const hasInitial =
@@ -809,10 +819,18 @@ export default function QuotationListClient({
                           return (
                             <tr
                               key={r.id}
-                              onClick={() =>
-                                router.push(`/quotation?id=${r.id}`)
-                              }
-                              className="border-t border-magic-border hover:bg-magic-soft/10 cursor-pointer"
+                              onClick={() => {
+                                setOpeningId(r.id);
+                                startNavigation(() =>
+                                  router.push(`/quotation?id=${r.id}`),
+                                );
+                              }}
+                              aria-busy={openingId === r.id}
+                              className={`border-t border-magic-border cursor-pointer transition-colors ${
+                                openingId === r.id
+                                  ? "bg-magic-soft/40 opacity-70"
+                                  : "hover:bg-magic-soft/10"
+                              }`}
                             >
                               <td className="p-3 font-mono">
                                 <Link
