@@ -38,17 +38,42 @@ function normalize(value: unknown): AppSettings {
   };
 }
 
+/**
+ * In-process cache so /designer, /quotation?id=N and /admin don't each
+ * pay for a `select value from app_settings` round-trip on every request.
+ * Settings are only written from the admin UI; `saveAppSettings` busts
+ * the cache so admins still see their own edits immediately.
+ *
+ * Kept on `globalThis` so Next's HMR in dev and warm Vercel lambdas both
+ * reuse the same entry across requests.
+ */
+const SETTINGS_CACHE_TTL_MS = 60_000;
+const globalForSettings = globalThis as unknown as {
+  __mtAppSettingsCache?: { at: number; data: AppSettings };
+};
+
 export async function getAppSettings(): Promise<AppSettings> {
+  const cached = globalForSettings.__mtAppSettingsCache;
+  if (cached && Date.now() - cached.at < SETTINGS_CACHE_TTL_MS) {
+    return cached.data;
+  }
   try {
     await ensureSchema();
     const q = sql();
     const rows = (await q`
       select value from app_settings where key = ${KEY} limit 1
     `) as Array<{ value: unknown }>;
-    if (rows.length === 0) return { ...DEFAULT_APP_SETTINGS };
-    return normalize(rows[0].value);
+    const data =
+      rows.length === 0
+        ? { ...DEFAULT_APP_SETTINGS }
+        : normalize(rows[0].value);
+    globalForSettings.__mtAppSettingsCache = { at: Date.now(), data };
+    return data;
   } catch {
-    return { ...DEFAULT_APP_SETTINGS };
+    // On a query error fall back to stale cache if we have one, otherwise
+    // the hardcoded defaults. Never throw — callers embed this in render
+    // paths that must not hard-fail the whole page.
+    return cached?.data ?? { ...DEFAULT_APP_SETTINGS };
   }
 }
 
@@ -74,5 +99,9 @@ export async function saveAppSettings(patch: Partial<AppSettings>): Promise<AppS
       "app_settings upsert did not return a row — the database rejected the payload",
     );
   }
-  return normalize(rows[0].value);
+  const saved = normalize(rows[0].value);
+  // Bust the cache so the next getAppSettings() call picks up the edit
+  // instead of serving the old copy for up to a minute.
+  globalForSettings.__mtAppSettingsCache = { at: Date.now(), data: saved };
+  return saved;
 }
