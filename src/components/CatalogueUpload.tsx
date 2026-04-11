@@ -1,7 +1,22 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import * as XLSX from "xlsx";
+
+/**
+ * `xlsx` is ~900 KB gzipped and is only needed if the user actually picks
+ * an Excel file to upload. Eagerly importing it at module scope dragged
+ * the entire parser into the /catalog initial JS bundle, doubling the
+ * page's time-to-interactive for every visit — including read-only users
+ * who will never touch this widget. Load it on demand inside `parseFile`
+ * so the catalog page paints fast and the cost is only paid once, when
+ * the admin clicks "Choose file".
+ */
+type XlsxModule = typeof import("xlsx");
+let xlsxPromise: Promise<XlsxModule> | null = null;
+function loadXlsx(): Promise<XlsxModule> {
+  if (!xlsxPromise) xlsxPromise = import("xlsx");
+  return xlsxPromise;
+}
 
 /** Expected Excel columns (case-insensitive matching). */
 const EXPECTED_COLUMNS = [
@@ -64,9 +79,14 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
     setResult(null);
     setFileName(file.name);
 
+    // Kick off the xlsx dynamic import in parallel with the FileReader so
+    // the two wait times overlap instead of stacking serially.
+    const xlsxReady = loadXlsx();
+
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
+        const XLSX = await xlsxReady;
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: "array" });
         const sheet = wb.Sheets[wb.SheetNames[0]];

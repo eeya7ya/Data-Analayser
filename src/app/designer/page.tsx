@@ -22,11 +22,22 @@ export default async function DesignerPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  // Fire the schema bootstrap and the (raced, short-budget) settings fetch
+  // immediately so their TCP handshakes to Supabase overlap with the local
+  // JWT verification and searchParams resolution. By the time we await
+  // them below they are almost always either already resolved or already
+  // in flight. This is the same "start I/O before you need it" pattern the
+  // quotation list page uses and was the biggest remaining blocker on the
+  // designer server render — the old code awaited each of them serially
+  // (getSessionUser → getAppSettings → optional ensureSchema+select) which
+  // added ~1–2 s on a cold pooler.
+  const schemaPromise = ensureSchema();
+  const settingsPromise = getAppSettings();
+
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
   const sp = await searchParams;
-  const appSettings = await getAppSettings();
   let existing: ExistingQuotation | undefined;
   let initialFolderId: number | null = null;
   if (sp.folder && !sp.id) {
@@ -34,7 +45,7 @@ export default async function DesignerPage({
     if (Number.isFinite(n) && n > 0) initialFolderId = n;
   }
   if (sp.id) {
-    await ensureSchema();
+    await schemaPromise;
     const q = sql();
     const rows = (await q`
       select * from quotations
@@ -103,7 +114,7 @@ export default async function DesignerPage({
           user={user}
           existing={existing}
           initialFolderId={initialFolderId}
-          appSettings={appSettings}
+          appSettings={await settingsPromise}
         />
       </main>
     </div>
