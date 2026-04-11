@@ -24,7 +24,9 @@ export default async function DesignerPage({
     await ensureSchema();
     const q = sql();
     const rows = (await q`
-      select * from quotations where id = ${Number(sp.id)} limit 1
+      select * from quotations
+      where id = ${Number(sp.id)} and deleted_at is null
+      limit 1
     `) as Array<Record<string, unknown>>;
     const row = rows[0];
     if (row && (user.role === "admin" || row.owner_id === user.id)) {

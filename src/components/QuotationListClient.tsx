@@ -25,6 +25,10 @@ interface Folder {
   owner_id?: number | null;
   created_at: string;
   updated_at: string;
+  // CRM fields (a folder is a client record).
+  client_email?: string | null;
+  client_phone?: string | null;
+  client_company?: string | null;
   // Admin-only fields populated by a join on users.
   owner_username?: string | null;
   owner_display_name?: string | null;
@@ -112,14 +116,21 @@ export default function QuotationListClient({
     });
   }
 
-  // ── Folder CRUD state ────────────────────────────────────────────────
+  // ── Client-folder CRUD state (folder == client record) ──────────────
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newCompany, setNewCompany] = useState("");
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editCompany, setEditCompany] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingQuotationId, setDeletingQuotationId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   // ── Filtering + grouping (recomputed on search / folder changes) ────
@@ -227,7 +238,7 @@ export default function QuotationListClient({
     [folders],
   );
 
-  // ── Folder CRUD handlers ─────────────────────────────────────────────
+  // ── Client/folder CRUD handlers ──────────────────────────────────────
   async function createFolder() {
     if (!newName.trim()) return;
     setCreating(true);
@@ -236,11 +247,16 @@ export default function QuotationListClient({
       const res = await fetch("/api/folders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName.trim() }),
+        body: JSON.stringify({
+          name: newName.trim(),
+          client_email: newEmail.trim() || null,
+          client_phone: newPhone.trim() || null,
+          client_company: newCompany.trim() || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to create folder");
+        setError(data.error || "Failed to create client");
         return;
       }
       setFolders((prev) =>
@@ -250,13 +266,17 @@ export default function QuotationListClient({
       );
       setExpanded((prev) => new Set(prev).add(String(data.folder.id)));
       setNewName("");
+      setNewEmail("");
+      setNewPhone("");
+      setNewCompany("");
       setShowCreate(false);
     } finally {
       setCreating(false);
     }
   }
 
-  async function renameFolder(id: number) {
+  /** Save CRM edits (name + email/phone/company) for an existing client. */
+  async function saveFolderEdit(id: number) {
     if (!editName.trim()) return;
     setRenaming(true);
     setError("");
@@ -264,11 +284,16 @@ export default function QuotationListClient({
       const res = await fetch(`/api/folders?id=${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editName.trim() }),
+        body: JSON.stringify({
+          name: editName.trim(),
+          client_email: editEmail.trim() || null,
+          client_phone: editPhone.trim() || null,
+          client_company: editCompany.trim() || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to rename folder");
+        setError(data.error || "Failed to update client");
         return;
       }
       setFolders((prev) =>
@@ -278,23 +303,52 @@ export default function QuotationListClient({
       );
       setEditingId(null);
       setEditName("");
+      setEditEmail("");
+      setEditPhone("");
+      setEditCompany("");
     } finally {
       setRenaming(false);
     }
   }
 
   async function deleteFolder(id: number) {
-    if (!confirm("Delete this folder? Quotations inside will become Unfiled."))
+    if (
+      !confirm(
+        "Move this client and all of its quotations to the Trash? They can be restored from the Trash tab later.",
+      )
+    )
       return;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/folders?id=${id}`, { method: "DELETE" });
       if (res.ok) {
         setFolders((prev) => prev.filter((f) => f.id !== id));
-        window.location.reload();
+        // The server cascade-soft-deleted the folder's quotations too; drop
+        // them from local state so the UI updates without a reload.
+        setQuotations((prev) => prev.filter((r) => r.folder_id !== id));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Failed to move client to trash");
       }
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function deleteQuotation(id: number) {
+    if (!confirm("Move this quotation to the Trash? It can be restored later."))
+      return;
+    setDeletingQuotationId(id);
+    try {
+      const res = await fetch(`/api/quotations?id=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setQuotations((prev) => prev.filter((r) => r.id !== id));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Failed to move quotation to trash");
+      }
+    } finally {
+      setDeletingQuotationId(null);
     }
   }
 
@@ -365,52 +419,68 @@ export default function QuotationListClient({
               d="M12 4v16m8-8H4"
             />
           </svg>
-          New Folder
+          New Client
         </button>
       </div>
 
-      {/* Create folder form */}
+      {/* Create client form — a client is a folder with CRM fields */}
       {showCreate && (
-        <div className="mb-4 p-3 rounded-xl border border-magic-border bg-white flex items-center gap-2">
-          <svg
-            className="w-5 h-5 text-magic-ink/40 shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+        <div className="mb-4 p-3 rounded-xl border border-magic-border bg-white">
+          <div className="flex flex-wrap items-start gap-2">
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && createFolder()}
+              placeholder="Client name *"
+              autoFocus
+              className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
             />
-          </svg>
-          <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && createFolder()}
-            placeholder="Folder name…"
-            autoFocus
-            className="flex-1 px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
-          />
-          <button
-            onClick={createFolder}
-            disabled={creating || !newName.trim()}
-            className="px-4 py-1.5 text-sm font-medium rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
-          >
-            {creating ? "Creating…" : "Create"}
-          </button>
-          <button
-            onClick={() => {
-              setShowCreate(false);
-              setNewName("");
-              setError("");
-            }}
-            className="px-3 py-1.5 text-sm text-magic-ink/60 hover:text-magic-ink transition-colors"
-          >
-            Cancel
-          </button>
+            <input
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="Email"
+              className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+            />
+            <input
+              type="tel"
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value)}
+              placeholder="Phone"
+              className="flex-1 min-w-[150px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+            />
+            <input
+              type="text"
+              value={newCompany}
+              onChange={(e) => setNewCompany(e.target.value)}
+              placeholder="Company"
+              className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+            />
+            <button
+              onClick={createFolder}
+              disabled={creating || !newName.trim()}
+              className="px-4 py-1.5 text-sm font-medium rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+            >
+              {creating ? "Creating…" : "Create"}
+            </button>
+            <button
+              onClick={() => {
+                setShowCreate(false);
+                setNewName("");
+                setNewEmail("");
+                setNewPhone("");
+                setNewCompany("");
+                setError("");
+              }}
+              className="px-3 py-1.5 text-sm text-magic-ink/60 hover:text-magic-ink transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-magic-ink/50">
+            Clients are reused across quotations — typing their info once here means it auto-fills on every future quotation you create for them.
+          </p>
         </div>
       )}
 
@@ -508,10 +578,10 @@ export default function QuotationListClient({
                   />
                 </svg>
 
-                {/* Name (or rename input) */}
+                {/* Name + CRM info (or edit form) */}
                 {isEditing && !isUnfiled ? (
                   <div
-                    className="flex items-center gap-2"
+                    className="flex flex-wrap items-center gap-2"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <input
@@ -519,7 +589,7 @@ export default function QuotationListClient({
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") renameFolder(g.folderId!);
+                        if (e.key === "Enter") saveFolderEdit(g.folderId!);
                         if (e.key === "Escape") {
                           setEditingId(null);
                           setEditName("");
@@ -527,10 +597,32 @@ export default function QuotationListClient({
                         }
                       }}
                       autoFocus
+                      placeholder="Client name *"
+                      className="px-2 py-1 text-sm border border-magic-border rounded focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                    />
+                    <input
+                      type="email"
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      placeholder="Email"
+                      className="px-2 py-1 text-sm border border-magic-border rounded focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                    />
+                    <input
+                      type="tel"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      placeholder="Phone"
+                      className="px-2 py-1 text-sm border border-magic-border rounded focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                    />
+                    <input
+                      type="text"
+                      value={editCompany}
+                      onChange={(e) => setEditCompany(e.target.value)}
+                      placeholder="Company"
                       className="px-2 py-1 text-sm border border-magic-border rounded focus:outline-none focus:ring-2 focus:ring-magic-red/30"
                     />
                     <button
-                      onClick={() => renameFolder(g.folderId!)}
+                      onClick={() => saveFolderEdit(g.folderId!)}
                       disabled={renaming || !editName.trim()}
                       className="text-xs font-medium text-green-600 hover:underline disabled:opacity-50"
                     >
@@ -540,6 +632,9 @@ export default function QuotationListClient({
                       onClick={() => {
                         setEditingId(null);
                         setEditName("");
+                        setEditEmail("");
+                        setEditPhone("");
+                        setEditCompany("");
                         setError("");
                       }}
                       className="text-xs text-magic-ink/50 hover:underline"
@@ -548,32 +643,40 @@ export default function QuotationListClient({
                     </button>
                   </div>
                 ) : (
-                  <span className="font-semibold text-magic-ink">
-                    {isUnfiled ? "Unfiled" : g.folder!.name}
-                    {isAdmin && !isUnfiled && g.folder?.owner_username && (
-                      <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-magic-red/10 text-magic-red text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide">
-                        @{g.folder.owner_display_name?.trim() || g.folder.owner_username}
+                  <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5">
+                    <span className="font-semibold text-magic-ink">
+                      {isUnfiled ? "Unfiled" : g.folder!.name}
+                      {isAdmin && !isUnfiled && g.folder?.owner_username && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-magic-red/10 text-magic-red text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide">
+                          @{g.folder.owner_display_name?.trim() || g.folder.owner_username}
+                        </span>
+                      )}
+                      {isAdmin && isUnfiled && g.unfiledOwnerLabel && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-magic-red/10 text-magic-red text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide">
+                          @{g.unfiledOwnerLabel}
+                        </span>
+                      )}
+                    </span>
+                    {/* Count */}
+                    <span className="text-xs text-magic-ink/50">
+                      ({g.items.length} quotation
+                      {g.items.length !== 1 ? "s" : ""})
+                    </span>
+                    {/* CRM summary (named folders only) */}
+                    {!isUnfiled && g.folder && (
+                      <span className="hidden md:inline text-[11px] text-magic-ink/60">
+                        {g.folder.client_email && (
+                          <span className="mr-3">{g.folder.client_email}</span>
+                        )}
+                        {g.folder.client_phone && (
+                          <span className="mr-3">{g.folder.client_phone}</span>
+                        )}
+                        {g.folder.client_company && (
+                          <span className="mr-3 italic">{g.folder.client_company}</span>
+                        )}
                       </span>
                     )}
-                    {isAdmin && isUnfiled && g.unfiledOwnerLabel && (
-                      <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-magic-red/10 text-magic-red text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide">
-                        @{g.unfiledOwnerLabel}
-                      </span>
-                    )}
-                  </span>
-                )}
-
-                {/* Count */}
-                <span className="text-xs text-magic-ink/50">
-                  ({g.items.length} quotation
-                  {g.items.length !== 1 ? "s" : ""})
-                </span>
-
-                {/* Folder dates (named folders only) */}
-                {!isUnfiled && g.folder && !isEditing && (
-                  <span className="hidden sm:inline text-xs text-magic-ink/40 ml-2">
-                    Created {new Date(g.folder.created_at).toLocaleDateString()}
-                  </span>
+                  </div>
                 )}
 
                 {/* Spacer */}
@@ -589,21 +692,22 @@ export default function QuotationListClient({
                       onClick={() => {
                         setEditingId(g.folderId);
                         setEditName(g.folder!.name);
+                        setEditEmail(g.folder!.client_email || "");
+                        setEditPhone(g.folder!.client_phone || "");
+                        setEditCompany(g.folder!.client_company || "");
                         setError("");
                       }}
                       className="text-xs text-blue-600 hover:underline"
                     >
-                      Rename
+                      Edit
                     </button>
-                    {isAdmin && (
-                      <button
-                        onClick={() => deleteFolder(g.folderId!)}
-                        disabled={deletingId === g.folderId}
-                        className="text-xs text-red-500 hover:underline disabled:opacity-50"
-                      >
-                        {deletingId === g.folderId ? "Deleting…" : "Delete"}
-                      </button>
-                    )}
+                    <button
+                      onClick={() => deleteFolder(g.folderId!)}
+                      disabled={deletingId === g.folderId}
+                      className="text-xs text-red-500 hover:underline disabled:opacity-50"
+                    >
+                      {deletingId === g.folderId ? "Moving…" : "Trash"}
+                    </button>
                   </div>
                 )}
               </div>
@@ -672,11 +776,23 @@ export default function QuotationListClient({
                                 )}
                               </td>
                               <td className="p-3 text-right">
-                                <MoveToFolder
-                                  quotationId={r.id}
-                                  currentFolderId={r.folder_id}
-                                  folders={foldersForMove}
-                                />
+                                <div className="flex items-center justify-end gap-3">
+                                  <MoveToFolder
+                                    quotationId={r.id}
+                                    currentFolderId={r.folder_id}
+                                    folders={foldersForMove}
+                                  />
+                                  <button
+                                    onClick={() => deleteQuotation(r.id)}
+                                    disabled={deletingQuotationId === r.id}
+                                    title="Move to trash"
+                                    className="text-xs text-red-500 hover:underline disabled:opacity-50"
+                                  >
+                                    {deletingQuotationId === r.id
+                                      ? "Moving…"
+                                      : "Trash"}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );

@@ -50,6 +50,9 @@ export interface ExistingQuotation {
 interface ClientFolder {
   id: number;
   name: string;
+  client_email?: string | null;
+  client_phone?: string | null;
+  client_company?: string | null;
 }
 
 export default function Designer({
@@ -84,9 +87,23 @@ export default function Designer({
   const [taxInclusive, setTaxInclusive] = useState(false);
   const [folders, setFolders] = useState<ClientFolder[]>([]);
   const [folderId, setFolderId] = useState<number | null>(null);
-  const [newFolderName, setNewFolderName] = useState("");
   const [showNewFolder, setShowNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderEmail, setNewFolderEmail] = useState("");
+  const [newFolderPhone, setNewFolderPhone] = useState("");
+  const [newFolderCompany, setNewFolderCompany] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const hydratedRef = useRef(false);
+
+  /**
+   * A folder acts as the CRM record for the client: when one is selected
+   * the Designer treats the folder's email/phone/name as the source of
+   * truth for the quotation header and locks those inputs so the only
+   * thing the user types for a new quotation is the project name.
+   */
+  const selectedFolder =
+    folderId != null ? folders.find((f) => f.id === folderId) || null : null;
+  const clientLocked = !!selectedFolder;
 
   function setDesignEng(value: string) {
     setDesignEngState(value);
@@ -231,23 +248,47 @@ export default function Designer({
     }
   }, [existing, folders]);
 
+  // When the user picks a client folder, snap the client header fields to
+  // the folder's CRM data. This is the mechanism that implements
+  // "select a folder, only type the project name" — the inputs become
+  // read-only via `clientLocked` and their values are sourced from here.
+  useEffect(() => {
+    if (!selectedFolder) return;
+    setClientName(selectedFolder.name || "");
+    setClientEmail(selectedFolder.client_email || "");
+    setClientPhone(selectedFolder.client_phone || "");
+  }, [selectedFolder]);
+
   async function createFolder() {
     const name = newFolderName.trim();
     if (!name) return;
+    setCreatingFolder(true);
     try {
       const res = await fetch("/api/folders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name,
+          client_email: newFolderEmail.trim() || null,
+          client_phone: newFolderPhone.trim() || null,
+          client_company: newFolderCompany.trim() || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed");
-      setFolders((prev) => [...prev, data.folder].sort((a, b) => a.name.localeCompare(b.name)));
+      setFolders((prev) =>
+        [...prev, data.folder].sort((a, b) => a.name.localeCompare(b.name)),
+      );
       setFolderId(data.folder.id);
       setNewFolderName("");
+      setNewFolderEmail("");
+      setNewFolderPhone("");
+      setNewFolderCompany("");
       setShowNewFolder(false);
-    } catch {
-      alert("Failed to create folder");
+    } catch (err) {
+      alert((err as Error).message || "Failed to create client folder");
+    } finally {
+      setCreatingFolder(false);
     }
   }
 
@@ -299,6 +340,13 @@ export default function Designer({
   ]);
 
   async function saveQuotation() {
+    // In create mode, a client folder is required — it's how the quotation
+    // inherits client_name/email/phone. In edit mode we preserve whatever
+    // folder state the existing row had (may be null for legacy rows).
+    if (!editMode && !folderId) {
+      alert("Please select or create a client before saving the quotation.");
+      return;
+    }
     setSaving(true);
     setSaveStatus("");
     try {
@@ -465,12 +513,15 @@ export default function Designer({
         </div>
       </div>
 
-      {/* ── Client folder assignment (not printed) ────────────────────────── */}
+      {/* ── Client folder (CRM) ─────────────────────────────────────────────
+          A client folder IS the client record. Selecting one populates the
+          email / phone / name on the printable quotation and locks those
+          fields so the user only needs to fill in the project name. */}
       <div className="rounded-2xl border border-magic-border bg-white p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-[200px]">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex-1 min-w-[220px]">
             <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
-              Client Folder
+              Client {editMode ? "" : <span className="text-magic-red">*</span>}
             </label>
             {!showNewFolder ? (
               <div className="flex items-center gap-2">
@@ -484,39 +535,72 @@ export default function Designer({
                       setFolderId(v ? Number(v) : null);
                     }
                   }}
-                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[200px]"
+                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[240px]"
                 >
-                  <option value="">No folder (unfiled)</option>
+                  <option value="">
+                    {editMode ? "No client (unfiled)" : "— Select a client —"}
+                  </option>
                   {folders.map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.name}
+                      {f.client_company ? ` · ${f.client_company}` : ""}
                     </option>
                   ))}
-                  <option value="__new__">+ New folder...</option>
+                  <option value="__new__">+ New client…</option>
                 </select>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-start gap-2">
                 <input
                   autoFocus
-                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[200px]"
-                  placeholder="Folder name"
+                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[180px]"
+                  placeholder="Client name *"
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") { e.preventDefault(); createFolder(); }
-                    if (e.key === "Escape") { setShowNewFolder(false); setNewFolderName(""); }
+                    if (e.key === "Escape") {
+                      setShowNewFolder(false);
+                      setNewFolderName("");
+                      setNewFolderEmail("");
+                      setNewFolderPhone("");
+                      setNewFolderCompany("");
+                    }
                   }}
+                />
+                <input
+                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[180px]"
+                  placeholder="Email"
+                  value={newFolderEmail}
+                  onChange={(e) => setNewFolderEmail(e.target.value)}
+                />
+                <input
+                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[150px]"
+                  placeholder="Phone"
+                  value={newFolderPhone}
+                  onChange={(e) => setNewFolderPhone(e.target.value)}
+                />
+                <input
+                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[170px]"
+                  placeholder="Company"
+                  value={newFolderCompany}
+                  onChange={(e) => setNewFolderCompany(e.target.value)}
                 />
                 <button
                   onClick={createFolder}
-                  disabled={!newFolderName.trim()}
+                  disabled={!newFolderName.trim() || creatingFolder}
                   className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
                 >
-                  Create
+                  {creatingFolder ? "Creating…" : "Create client"}
                 </button>
                 <button
-                  onClick={() => { setShowNewFolder(false); setNewFolderName(""); }}
+                  onClick={() => {
+                    setShowNewFolder(false);
+                    setNewFolderName("");
+                    setNewFolderEmail("");
+                    setNewFolderPhone("");
+                    setNewFolderCompany("");
+                  }}
                   className="rounded-md border border-magic-border px-3 py-1.5 text-xs hover:bg-magic-soft"
                 >
                   Cancel
@@ -524,6 +608,16 @@ export default function Designer({
               </div>
             )}
           </div>
+          {selectedFolder && !showNewFolder && (
+            <div className="text-[11px] text-magic-ink/70 space-y-0.5 pt-4">
+              <div><span className="font-semibold">Email:</span> {selectedFolder.client_email || "—"}</div>
+              <div><span className="font-semibold">Phone:</span> {selectedFolder.client_phone || "—"}</div>
+              <div><span className="font-semibold">Company:</span> {selectedFolder.client_company || "—"}</div>
+              <div className="text-magic-ink/40 italic">
+                Client info comes from this folder. Edit it on the Quotations page.
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -552,7 +646,14 @@ export default function Designer({
             </button>
             <button
               onClick={saveQuotation}
-              disabled={items.length === 0 || saving}
+              disabled={
+                items.length === 0 || saving || (!editMode && !folderId)
+              }
+              title={
+                !editMode && !folderId
+                  ? "Select a client before saving"
+                  : undefined
+              }
               className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
             >
               {saving
@@ -612,6 +713,7 @@ export default function Designer({
           setTerms={setTerms}
           includeTax={includeTax}
           taxInclusive={taxInclusive}
+          clientLocked={clientLocked}
         />
       </div>
     </div>

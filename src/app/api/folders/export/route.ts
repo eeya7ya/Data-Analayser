@@ -12,13 +12,29 @@ export async function GET() {
     const isAdmin = user.role === "admin";
 
     // Fetch folders — admins export everything, users only export their own.
+    // Soft-deleted (trashed) folders and quotations are excluded from the
+    // export so re-importing a backup doesn't resurrect items the user
+    // chose to remove.
+    type ExportedFolder = {
+      id: number;
+      name: string;
+      client_email: string | null;
+      client_phone: string | null;
+      client_company: string | null;
+    };
     const folders = isAdmin
       ? ((await q`
-          select id, name from client_folders order by name asc
-        `) as Array<{ id: number; name: string }>)
+          select id, name, client_email, client_phone, client_company
+          from client_folders
+          where deleted_at is null
+          order by name asc
+        `) as ExportedFolder[])
       : ((await q`
-          select id, name from client_folders where owner_id = ${user.id} order by name asc
-        `) as Array<{ id: number; name: string }>);
+          select id, name, client_email, client_phone, client_company
+          from client_folders
+          where owner_id = ${user.id} and deleted_at is null
+          order by name asc
+        `) as ExportedFolder[]);
 
     // Fetch quotations — same scope as folders.
     const quotations = isAdmin
@@ -28,6 +44,7 @@ export async function GET() {
                  q.tax_percent, q.items_json, q.totals_json, q.config_json,
                  q.folder_id, q.created_at, q.updated_at
           from quotations q
+          where q.deleted_at is null
           order by q.folder_id nulls last, q.id
         `) as Array<Record<string, unknown>>)
       : ((await q`
@@ -36,7 +53,7 @@ export async function GET() {
                  q.tax_percent, q.items_json, q.totals_json, q.config_json,
                  q.folder_id, q.created_at, q.updated_at
           from quotations q
-          where q.owner_id = ${user.id}
+          where q.owner_id = ${user.id} and q.deleted_at is null
           order by q.folder_id nulls last, q.id
         `) as Array<Record<string, unknown>>);
 
@@ -74,12 +91,15 @@ export async function GET() {
       }
     }
 
-    // Build export payload
+    // Build export payload — `version: 2` carries the folder CRM columns.
     const payload = {
-      version: 1,
+      version: 2,
       exported_at: new Date().toISOString(),
       folders: folders.map((f) => ({
         name: f.name,
+        client_email: f.client_email,
+        client_phone: f.client_phone,
+        client_company: f.client_company,
         quotations: folderGroups.get(f.name) || [],
       })),
       unfiled_quotations: unfiled,

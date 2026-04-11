@@ -4,7 +4,7 @@ import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
 import QuotationViewer from "@/components/QuotationViewer";
 import FolderExportImport from "@/components/FolderExportImport";
-import QuotationListClient from "@/components/QuotationListClient";
+import QuotationsPageTabs from "@/components/QuotationsPageTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,9 @@ export default async function QuotationPage({
     await ensureSchema();
     const q = sql();
     const rows = (await q`
-      select * from quotations where id = ${Number(sp.id)} limit 1
+      select * from quotations
+      where id = ${Number(sp.id)} and deleted_at is null
+      limit 1
     `) as Array<Record<string, unknown>>;
     const row = rows[0];
     if (
@@ -76,11 +78,11 @@ export default async function QuotationPage({
       <main className="max-w-6xl mx-auto p-6">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-magic-ink">
-            Saved Quotations
+            Clients &amp; Quotations
           </h1>
           <FolderExportImport />
         </div>
-        <QuotationListClient isAdmin={user.role === "admin"} />
+        <QuotationsPageTabs isAdmin={user.role === "admin"} />
       </main>
     </div>
   );

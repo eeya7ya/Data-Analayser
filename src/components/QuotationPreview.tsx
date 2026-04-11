@@ -91,6 +91,13 @@ interface Props {
   includeTax?: boolean;
   /** When true, entered prices already contain tax — back-calculate base. */
   taxInclusive?: boolean;
+  /**
+   * When true, the client name / email / phone header fields render as
+   * read-only even if the rest of the header is editable. Used by the
+   * Designer when a client folder (CRM record) is selected — those
+   * values come from the folder and are edited in the folder card.
+   */
+  clientLocked?: boolean;
 }
 
 function money(n: number): string {
@@ -134,6 +141,7 @@ export default function QuotationPreview({
   setTerms,
   includeTax = true,
   taxInclusive = false,
+  clientLocked = false,
 }: Props) {
   // Resolve merged cells when summing so the Final Totals page matches
   // the per-group subtotals (and what the user visually sees in each
@@ -331,6 +339,7 @@ export default function QuotationPreview({
           setHeader={setHeader}
           editable={editable}
           logoUrl={logoUrl}
+          clientLocked={clientLocked}
           isLast={!editable}
         >
           <p className="py-6 text-center text-magic-ink/50 text-xs">
@@ -372,6 +381,7 @@ export default function QuotationPreview({
           setHeader={setHeader}
           editable={editable}
           logoUrl={logoUrl}
+          clientLocked={clientLocked}
           pageLabel={`Page ${pageIdx + 1} of ${systemPages.length + 1}`}
           isLast={false}
         >
@@ -433,6 +443,7 @@ export default function QuotationPreview({
           setHeader={setHeader}
           editable={editable}
           logoUrl={logoUrl}
+          clientLocked={clientLocked}
           pageLabel={`Page ${systemPages.length + 1} of ${systemPages.length + 1}`}
           isLast
           hideInfoHeader
@@ -506,6 +517,7 @@ function QuotationPage({
   pageLabel,
   isLast,
   hideInfoHeader,
+  clientLocked = false,
   children,
 }: {
   header: QuotationHeader;
@@ -516,6 +528,8 @@ function QuotationPage({
   isLast?: boolean;
   /** When true, skip the project/client/engineer info grid on this page. */
   hideInfoHeader?: boolean;
+  /** When true, the client name/email/phone inputs render read-only. */
+  clientLocked?: boolean;
   children: React.ReactNode;
 }) {
   // Default to /logo.png in /public. Drop the real PNG at
@@ -587,7 +601,7 @@ function QuotationPage({
               <HeaderField
                 value={header.client_name || ""}
                 placeholder="—"
-                editable={editable && !!setHeader}
+                editable={editable && !!setHeader && !clientLocked}
                 onChange={(v) => setHeader?.({ client_name: v })}
               />
             </div>
@@ -596,7 +610,7 @@ function QuotationPage({
               <HeaderField
                 value={header.client_email || ""}
                 placeholder="—"
-                editable={editable && !!setHeader}
+                editable={editable && !!setHeader && !clientLocked}
                 onChange={(v) => setHeader?.({ client_email: v })}
               />
             </div>
@@ -605,7 +619,7 @@ function QuotationPage({
               <HeaderField
                 value={header.client_phone || ""}
                 placeholder="—"
-                editable={editable && !!setHeader}
+                editable={editable && !!setHeader && !clientLocked}
                 onChange={(v) => setHeader?.({ client_phone: v })}
               />
             </div>
