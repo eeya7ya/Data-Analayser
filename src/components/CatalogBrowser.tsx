@@ -392,9 +392,9 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
       )}
 
       <p className="text-[11px] text-magic-ink/60 -mt-2">
-        Pick a system to browse its full catalog, or just type in the search
+        Pick a system to browse its full catalogue, or just type in the search
         box to find products across <b>every vendor</b>. Click <b>+</b> on any
-        product to add it to a quotation page. You stay on the catalog while
+        product to add it to a quotation page. You stay on the catalogue while
         you select — when you&apos;re done, click{" "}
         <b>{editing ? "Back to editor" : "Open designer"}</b> to review and
         edit the quotation.
@@ -404,7 +404,7 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
       <div className="flex-1 min-w-0">
         {!selectedVendor && !debouncedSearch.trim() && (
           <div className="rounded-2xl border border-magic-border bg-white p-12 text-center text-magic-ink/40 text-sm">
-            Select a system above to browse its full product catalog, or type
+            Select a system above to browse its full product catalogue, or type
             in the global search box to find products across every vendor.
           </div>
         )}
@@ -636,7 +636,7 @@ function PagePickerModal({
         <h2 className="text-lg font-bold text-magic-ink">Add to which page?</h2>
         <p className="mt-1 text-xs text-magic-ink/60">
           <b>{product.model || "Product"}</b> will be added to the page you
-          pick. You&apos;ll stay on the catalog so you can keep selecting.
+          pick. You&apos;ll stay on the catalogue so you can keep selecting.
         </p>
 
         <div className="mt-4">

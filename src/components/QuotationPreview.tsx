@@ -37,6 +37,14 @@ export interface QuotationItem {
    */
   merge_up?: Record<string, boolean>;
   /**
+   * Per-column "merge with left neighbour" flags. Currently supported on
+   * the contiguous text columns — brand, model, description — so users
+   * can collapse a product's text cells into a single wide cell (rendered
+   * via colSpan). Non-contiguous columns or numeric columns are never
+   * merged horizontally so totals math stays sound.
+   */
+  merge_left?: Record<string, boolean>;
+  /**
    * Original System Installer price from the product database. Stored so
    * that switching between pricing categories (SI / DPP / End-user) can
    * always recompute from the canonical base price.
@@ -238,6 +246,25 @@ export default function QuotationPreview({
     setItems(next);
   }
 
+  // Toggles the `merge_left` flag for a specific column on a specific row.
+  // Pairs with SystemTable's `computeHRowPlan` to render colSpan correctly.
+  // Horizontal merging is scoped to the contiguous text columns (brand,
+  // model, description) so numeric totals never read from a collapsed cell.
+  function toggleMergeLeft(globalIndex: number, col: HMergeCol) {
+    if (!setItems) return;
+    const next = items.slice();
+    const cur = next[globalIndex];
+    if (!cur) return;
+    const merge_left = { ...(cur.merge_left || {}) };
+    if (merge_left[col]) {
+      delete merge_left[col];
+    } else {
+      merge_left[col] = true;
+    }
+    next[globalIndex] = { ...cur, merge_left };
+    setItems(next);
+  }
+
   function renameSystem(oldName: string, newName: string) {
     if (!setItems || !newName.trim() || newName === oldName) return;
     setItems(
@@ -293,8 +320,10 @@ export default function QuotationPreview({
 
   return (
     <div className="quotation-doc">
-      {/* Fixed cover page — printed first, before any system pages. */}
+      {/* Fixed front matter — printed in order: cover, then about us. Both
+       * are only visible in the print output (hidden on screen via CSS). */}
       <StaticSheet src="/quote-page-1.jpg" alt="Magic Tech cover page" />
+      <StaticSheet src="/quote-page-2.jpg" alt="Magic Tech about us page" />
 
       {systemPages.length === 0 && (
         <QuotationPage
@@ -302,10 +331,10 @@ export default function QuotationPreview({
           setHeader={setHeader}
           editable={editable}
           logoUrl={logoUrl}
-          isLast={false}
+          isLast={!editable}
         >
           <p className="py-6 text-center text-magic-ink/50 text-xs">
-            No items yet. Add products from the Catalog, use the AI Designer,
+            No items yet. Add products from the Catalogue, use the AI Designer,
             or start from scratch with the buttons below.
           </p>
           {editable && (
@@ -361,6 +390,7 @@ export default function QuotationPreview({
             onUpdate={update}
             onRemove={removeRow}
             onToggleMerge={toggleMerge}
+            onToggleMergeLeft={toggleMergeLeft}
             onRenameExtraColumn={renameExtraColumn}
             onRemoveExtraColumn={removeExtraColumn}
           />
@@ -404,7 +434,7 @@ export default function QuotationPreview({
           editable={editable}
           logoUrl={logoUrl}
           pageLabel={`Page ${systemPages.length + 1} of ${systemPages.length + 1}`}
-          isLast={false}
+          isLast
           hideInfoHeader
         >
           <ScopeIntro
@@ -441,9 +471,6 @@ export default function QuotationPreview({
           />
         </QuotationPage>
       )}
-
-      {/* Fixed about-us page — always printed last after the totals page. */}
-      <StaticSheet src="/quote-page-2.jpg" alt="Magic Tech about us page" isLast />
     </div>
   );
 }
@@ -709,6 +736,16 @@ const MERGEABLE_COLUMNS = [
 
 type MergeCol = (typeof MERGEABLE_COLUMNS)[number];
 
+// Columns that support horizontal cell merging via `merge_left`. Scoped to
+// the three contiguous text columns so a user can collapse a product's
+// brand/model/description trio into a single wide cell without ever
+// touching a numeric column. Because these three are rendered right next
+// to each other (no Picture/Quantity in between), colSpan maths stay
+// intuitive.
+const H_MERGEABLE_COLUMNS = ["brand", "model", "description"] as const;
+
+type HMergeCol = (typeof H_MERGEABLE_COLUMNS)[number];
+
 interface MergePlan {
   /** rowSpan to apply when rendering this row's cell (≥ 1). */
   spans: Record<MergeCol, number[]>;
@@ -742,6 +779,52 @@ function computeMergePlan(
   return { spans, skip };
 }
 
+interface HRowPlan {
+  /** true → this cell is absorbed into an anchor to its left (don't render). */
+  skip: Record<HMergeCol, boolean>;
+  /** colSpan to apply when rendering this cell (≥ 1). */
+  span: Record<HMergeCol, number>;
+}
+
+/**
+ * Compute the horizontal merge plan for a single row. Walks the three
+ * contiguous text columns left-to-right and, whenever a cell has
+ * `merge_left` set, folds it into the most recent visible anchor on the
+ * same row. Cells that the vertical plan has already skipped (merged
+ * upward into a previous row) break the horizontal chain because the
+ * spanned cell from above visually occupies that slot.
+ */
+function computeHRowPlan(
+  item: QuotationItem,
+  vSkip: Record<MergeCol, boolean[]>,
+  rowIdx: number,
+): HRowPlan {
+  const skip = {} as Record<HMergeCol, boolean>;
+  const span = {} as Record<HMergeCol, number>;
+  for (const c of H_MERGEABLE_COLUMNS) {
+    skip[c] = false;
+    span[c] = 1;
+  }
+  let anchor: HMergeCol | null = null;
+  for (const c of H_MERGEABLE_COLUMNS) {
+    // Cell folded into a row above → not in this row's DOM at all.
+    if (vSkip[c]?.[rowIdx]) {
+      anchor = null;
+      continue;
+    }
+    if (anchor && item.merge_left?.[c]) {
+      skip[c] = true;
+      span[anchor] += 1;
+      // Keep the current anchor so a further-right column can still fold
+      // into the same cell (e.g. description merging into the brand cell
+      // that already absorbed model).
+    } else {
+      anchor = c;
+    }
+  }
+  return { skip, span };
+}
+
 function SystemTable({
   group,
   allPages,
@@ -752,6 +835,7 @@ function SystemTable({
   onUpdate,
   onRemove,
   onToggleMerge,
+  onToggleMergeLeft,
   onRenameExtraColumn,
   onRemoveExtraColumn,
 }: {
@@ -764,6 +848,7 @@ function SystemTable({
   onUpdate: (globalIndex: number, patch: Partial<QuotationItem>) => void;
   onRemove: (globalIndex: number) => void;
   onToggleMerge: (globalIndex: number, col: MergeCol) => void;
+  onToggleMergeLeft: (globalIndex: number, col: HMergeCol) => void;
   onRenameExtraColumn: (id: string, label: string) => void;
   onRemoveExtraColumn: (id: string) => void;
 }) {
@@ -787,22 +872,33 @@ function SystemTable({
   const plan = computeMergePlan(group.rows);
 
   // Renders a mergeable cell that either:
-  //   - is skipped (cell was folded into an anchor above), or
-  //   - gets a rowSpan from the plan and an optional "merge up" toggle.
+  //   - is skipped (folded into an anchor above or to the left), or
+  //   - gets a rowSpan / colSpan from the plan and the matching toggles.
+  // Horizontal merging (merge_left) only applies on the three contiguous
+  // text columns — for every other MergeCol `hPlan` is effectively a
+  // no-op (span=1, skip=false), so the maths is identical to before.
   function mergeableCell(
     col: MergeCol,
     rowIdx: number,
     globalIndex: number,
+    hPlan: HRowPlan,
     className: string,
     children: React.ReactNode,
   ): React.ReactNode {
     if (plan.skip[col][rowIdx]) return null;
-    const span = plan.spans[col][rowIdx];
-    const isMerged = rowIdx > 0 && !!group.rows[rowIdx].item.merge_up?.[col];
+    const isHMergeable = (H_MERGEABLE_COLUMNS as readonly string[]).includes(col);
+    if (isHMergeable && hPlan.skip[col as HMergeCol]) return null;
+    const rowSpan = plan.spans[col][rowIdx];
+    const colSpan = isHMergeable ? hPlan.span[col as HMergeCol] : 1;
+    const item = group.rows[rowIdx].item;
+    const isMergedUp = rowIdx > 0 && !!item.merge_up?.[col];
+    const isMergedLeft =
+      isHMergeable && !!item.merge_left?.[col as HMergeCol];
     return (
       <td
         className={`relative ${className}`}
-        rowSpan={span > 1 ? span : undefined}
+        rowSpan={rowSpan > 1 ? rowSpan : undefined}
+        colSpan={colSpan > 1 ? colSpan : undefined}
       >
         {children}
         {editable && rowIdx > 0 && (
@@ -810,17 +906,35 @@ function SystemTable({
             type="button"
             onClick={() => onToggleMerge(globalIndex, col)}
             title={
-              isMerged
+              isMergedUp
                 ? "Unmerge this cell from the row above"
                 : "Merge this cell with the row above"
             }
             className={`no-print absolute top-0 right-0 w-4 h-4 text-[9px] leading-none rounded-bl ${
-              isMerged
+              isMergedUp
                 ? "bg-magic-red text-white"
                 : "bg-white/80 text-magic-ink/50 hover:bg-magic-soft"
             }`}
           >
             ⇧
+          </button>
+        )}
+        {editable && isHMergeable && col !== "brand" && (
+          <button
+            type="button"
+            onClick={() => onToggleMergeLeft(globalIndex, col as HMergeCol)}
+            title={
+              isMergedLeft
+                ? "Unmerge this cell from the column on its left"
+                : "Merge this cell with the column on its left"
+            }
+            className={`no-print absolute top-0 left-0 w-4 h-4 text-[9px] leading-none rounded-br ${
+              isMergedLeft
+                ? "bg-magic-red text-white"
+                : "bg-white/80 text-magic-ink/50 hover:bg-magic-soft"
+            }`}
+          >
+            ←
           </button>
         )}
       </td>
@@ -874,13 +988,16 @@ function SystemTable({
             </td>
           </tr>
         )}
-        {group.rows.map(({ item, globalIndex }, rowIdx) => (
+        {group.rows.map(({ item, globalIndex }, rowIdx) => {
+          const hPlan = computeHRowPlan(item, plan.skip, rowIdx);
+          return (
           <tr key={globalIndex}>
             <td>{item.no}</td>
             {mergeableCell(
               "brand",
               rowIdx,
               globalIndex,
+              hPlan,
               "font-bold",
               editable ? (
                 <input
@@ -896,6 +1013,7 @@ function SystemTable({
               "model",
               rowIdx,
               globalIndex,
+              hPlan,
               "font-semibold",
               editable ? (
                 <input
@@ -911,6 +1029,7 @@ function SystemTable({
               "description",
               rowIdx,
               globalIndex,
+              hPlan,
               "text-left align-top",
               editable ? (
                 <textarea
@@ -958,6 +1077,7 @@ function SystemTable({
               "delivery",
               rowIdx,
               globalIndex,
+              hPlan,
               "",
               editable ? (
                 <input
@@ -973,6 +1093,7 @@ function SystemTable({
               "unit_price",
               rowIdx,
               globalIndex,
+              hPlan,
               "",
               editable ? (
                 <input
@@ -1053,7 +1174,8 @@ function SystemTable({
               );
             })}
           </tr>
-        ))}
+          );
+        })}
         <tr className="totals-row">
           <td colSpan={colCount - 1}>{group.system} Subtotal</td>
           <td>{money(subtotal)}</td>

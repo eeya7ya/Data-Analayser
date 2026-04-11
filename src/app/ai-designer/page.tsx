@@ -21,7 +21,7 @@ export default async function AIDesignerPage() {
           </h1>
           <p className="text-sm text-magic-ink/70">
             Pick a system, describe the project in a sentence, and the AI will
-            generate a bill of quantities from the live catalog. Items are added
+            generate a bill of quantities from the live catalogue. Items are added
             to your quotation draft.
           </p>
         </header>

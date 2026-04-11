@@ -369,7 +369,7 @@ export default function AIDesigner({
             <p className="text-sm text-magic-ink/50">
               Describe your project and click &ldquo;Design with Groq&rdquo; to
               generate a bill of quantities. The AI will recommend products from
-              the catalog and you can add them to your quotation draft.
+              the catalogue and you can add them to your quotation draft.
             </p>
           </div>
         )}

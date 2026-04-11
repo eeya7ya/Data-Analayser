@@ -15,7 +15,7 @@ export default async function CatalogPage() {
       <main className="max-w-7xl mx-auto p-6">
         <header className="mb-6">
           <h1 className="text-2xl font-bold text-magic-ink">
-            Product Catalog
+            Product Catalogue
           </h1>
           <p className="text-sm text-magic-ink/70">
             Pick a system, browse every product with full specs, sort by any

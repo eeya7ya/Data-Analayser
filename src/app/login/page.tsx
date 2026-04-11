@@ -56,13 +56,13 @@ export default async function LoginPage() {
               in minutes.
             </h1>
             <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-white/70 lg:mx-0">
-              One intelligent workspace to browse the live catalog, assemble
+              One intelligent workspace to browse the live catalogue, assemble
               projects with AI, and deliver branded quotations your clients
               will love.
             </p>
 
             <ul className="mx-auto mt-7 grid max-w-md gap-3 text-sm text-white/80 lg:mx-0">
-              <FeatureRow text="Live product catalog from Supabase" />
+              <FeatureRow text="Live product catalogue from Supabase" />
               <FeatureRow text="AI-powered bill of quantities" />
               <FeatureRow text="Per-user folders and team collaboration" />
               <FeatureRow text="Beautiful, print-ready quotation PDFs" />
