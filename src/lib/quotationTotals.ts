@@ -49,8 +49,14 @@ function groupBySystem(items: QuotationItem[]): QuotationItem[][] {
   return order.map((k) => map.get(k)!);
 }
 
-/** Total price for a single row, using the merge-resolved unit price. */
+/**
+ * Total price for a single row, using the merge-resolved unit price.
+ * Rows flagged with `optional` are presented to the client as add-ons
+ * whose price is visible but not part of the offer, so they contribute
+ * 0 here and drop out of every downstream total.
+ */
 export function effectiveRowTotal(rows: QuotationItem[], rowIdx: number): number {
+  if (rows[rowIdx].optional) return 0;
   const qty = Number(rows[rowIdx].quantity) || 0;
   const price = Number(effectiveMergedValue(rows, rowIdx, "unit_price")) || 0;
   return qty * price;
