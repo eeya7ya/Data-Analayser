@@ -13,8 +13,6 @@ import {
   loadDraft,
   saveDraft,
   clearDraft,
-  loadDesignEngineerPref,
-  saveDesignEngineerPref,
   saveEditingContext,
   termsMatchBuiltInDefault,
   PRICING_FACTORS,
@@ -119,7 +117,19 @@ export default function Designer({
   const [newFolderPhone, setNewFolderPhone] = useState("");
   const [newFolderCompany, setNewFolderCompany] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
+  // When true, the embedded QuotationPreview is rendered in non-editable
+  // mode for the duration of a browser print dialog, so the printed output
+  // matches the /quotation viewer exactly (no editable chrome, no extra
+  // "Add row / Add column" toolbars). The toggle flips back off as soon as
+  // the print dialog closes via `onafterprint`.
+  const [printMode, setPrintMode] = useState(false);
   const hydratedRef = useRef(false);
+
+  // Presales Engineer for this session — always anchored to the logged-in
+  // user so an admin signed in after a sales engineer on the same browser
+  // never inherits the previous person's name. Edit mode still lets saved
+  // quotations keep whatever `config_json.designEng` the author stamped.
+  const defaultDesignEng = user.display_name || user.username;
 
   /**
    * A folder acts as the CRM record for the client: when one is selected
@@ -132,8 +142,11 @@ export default function Designer({
   const clientLocked = !!selectedFolder;
 
   function setDesignEng(value: string) {
+    // Session-local only: changes stay in the draft / saved config but do
+    // not leak to a browser-wide localStorage pref. A previous global
+    // "last Presales Engineer" key leaked between users on shared browsers
+    // so an admin would see a sales engineer's name under their own login.
     setDesignEngState(value);
-    saveDesignEngineerPref(value);
   }
 
   // ── Pricing category switching ────────────────────────────────────────────
@@ -255,16 +268,13 @@ export default function Designer({
           : [],
       );
       setScopeIntro(existing.config_json?.scopeIntro || "");
-      // Presales Engineer defaults to the logged-in user's **display name**
-      // (the "display name" set in Admin → Users). The saved config and the
-      // per-user localStorage override still win so previously-edited
-      // quotations keep whatever the user typed last. Falls back to the
-      // username only if display_name hasn't been set.
+      // Presales Engineer: prefer whatever the quotation was saved with so
+      // reopening an old record is lossless; otherwise anchor to the
+      // logged-in user's display name. The previous fallback chain also
+      // consulted a browser-wide localStorage pref, which leaked names
+      // between users on shared machines — that step is intentionally gone.
       setDesignEngState(
-        existing.config_json?.designEng ||
-          loadDesignEngineerPref() ||
-          user.display_name ||
-          user.username,
+        existing.config_json?.designEng || defaultDesignEng,
       );
       setPricingCategoryState(existing.config_json?.pricingCategory || "si");
       setIncludeTax(existing.config_json?.includeTax !== false);
@@ -321,16 +331,12 @@ export default function Designer({
     setTerms(d.terms.length > 0 ? d.terms : [...adminDefaultTerms]);
     setExtraColumns(d.extraColumns || []);
     setScopeIntro(d.scopeIntro || "");
-    // Presales Engineer defaults to the logged-in user's **display name**
-    // for new quotations. Falls through to the localStorage override (what
-    // the user last typed) and finally to the username if no display name
-    // is set.
-    setDesignEngState(
-      d.designEng ||
-        loadDesignEngineerPref() ||
-        user.display_name ||
-        user.username,
-    );
+    // Presales Engineer for a brand-new quotation is ALWAYS the logged-in
+    // user. We deliberately ignore anything `loadDraft()` returned for
+    // `designEng` so switching accounts on a shared browser doesn't
+    // resurface the previous user's name; the helper already scrubs that
+    // field, this line is defence in depth.
+    setDesignEngState(defaultDesignEng);
     setPricingCategoryState(d.pricingCategory || "si");
     setIncludeTax(d.includeTax !== false);
     setTaxInclusive(Boolean(d.taxInclusive));
@@ -543,13 +549,48 @@ export default function Designer({
   }
 
   // Prints the current in-memory quotation preview straight from the
-  // Designer without first saving. The global `@media print` rules hide
-  // everything tagged `.no-print`, so the settings toolbar, client-info
-  // card, and preview header row drop out and only the `.quotation-sheet`
-  // pages render.
+  // Designer without first saving. We flip `printMode` on so the embedded
+  // <QuotationPreview> re-renders in its non-editable form — same code
+  // path as the /quotation viewer — and only then open the browser print
+  // dialog. Without this, the printed output picked up the editable
+  // chrome (manual-column toolbars, add-row buttons, inline form inputs)
+  // and the empty-state "Add manual item" sheet, giving the user the
+  // extra "unrequired slide" and mis-styled layout they reported.
   function printQuotation() {
-    if (typeof window !== "undefined") window.print();
+    if (typeof window === "undefined") return;
+    setPrintMode(true);
   }
+
+  // Once `printMode` is committed the DOM now mirrors the read-only
+  // viewer, so opening the browser print dialog produces an identical
+  // printed document. We wait one frame for React to flush, call
+  // `window.print()` (which blocks until the user confirms/cancels),
+  // then drop back into editable mode on the next tick. Using
+  // `onafterprint` as a safety net covers the Safari path where
+  // `window.print()` returns before the dialog closes.
+  useEffect(() => {
+    if (!printMode) return;
+    let cancelled = false;
+    const restore = () => {
+      if (cancelled) return;
+      setPrintMode(false);
+    };
+    window.addEventListener("afterprint", restore);
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        window.print();
+      } finally {
+        // Some browsers (Chrome) return synchronously from window.print();
+        // flip back immediately so the editable UI comes back.
+        restore();
+      }
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("afterprint", restore);
+    };
+  }, [printMode]);
 
   return (
     <div className="space-y-4">
@@ -847,7 +888,11 @@ export default function Designer({
             if (patch.design_engineer !== undefined)
               setDesignEng(patch.design_engineer);
           }}
-          editable
+          // While `printMode` is on we re-render in read-only form so the
+          // browser print dialog captures the same DOM the /quotation
+          // viewer produces — no editable inputs, no add-row toolbars, no
+          // empty-state sheet with an "Add manual item" button.
+          editable={!printMode}
           showPictures={showPictures}
           terms={terms}
           setTerms={setTerms}

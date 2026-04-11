@@ -65,27 +65,20 @@ export interface QuotationDraft {
   taxInclusive: boolean;
 }
 
-// Per-user preference keys that survive individual draft resets so the
-// fields only need to be filled in once.
-const PREF_DESIGN_ENG = "mt_design_engineer_v1";
+// Legacy per-browser "last Design Engineer name" key. We used to remember
+// this across quotations so users only typed it once, but the key was shared
+// across every logged-in user on the same browser — which meant an admin
+// opening the Designer would see a previous user's name under "Presales
+// Engineer". The Designer now always defaults to the logged-in user's
+// display_name instead; this constant is only kept so `loadDraft` can scrub
+// the stale value out of any existing localStorage entries from before the
+// fix landed.
+const LEGACY_PREF_DESIGN_ENG = "mt_design_engineer_v1";
 
-export function loadDesignEngineerPref(): string {
-  if (typeof window === "undefined") return "";
-  try {
-    return window.localStorage.getItem(PREF_DESIGN_ENG) || "";
-  } catch {
-    return "";
-  }
-}
-
-export function saveDesignEngineerPref(value: string): void {
+function clearLegacyDesignEngineerPref(): void {
   if (typeof window === "undefined") return;
   try {
-    if (value && value.trim()) {
-      window.localStorage.setItem(PREF_DESIGN_ENG, value.trim());
-    } else {
-      window.localStorage.removeItem(PREF_DESIGN_ENG);
-    }
+    window.localStorage.removeItem(LEGACY_PREF_DESIGN_ENG);
   } catch {
     /* ignore */
   }
@@ -159,7 +152,10 @@ export function emptyDraft(): QuotationDraft {
     terms: [],
     extraColumns: [],
     scopeIntro: "",
-    designEng: loadDesignEngineerPref(),
+    // Presales Engineer is resolved by the Designer against the logged-in
+    // `SessionUser` at render time so it always tracks the current account,
+    // not whoever last typed a name on this browser.
+    designEng: "",
     pricingCategory: "si",
     includeTax: true,
     taxInclusive: false,
@@ -187,6 +183,8 @@ export function termsMatchBuiltInDefault(terms: unknown): boolean {
 
 export function loadDraft(): QuotationDraft {
   if (typeof window === "undefined") return emptyDraft();
+  // One-shot purge of the stale cross-user Presales Engineer pref.
+  clearLegacyDesignEngineerPref();
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyDraft();
@@ -196,6 +194,9 @@ export function loadDraft(): QuotationDraft {
     if (termsMatchBuiltInDefault(merged.terms)) {
       merged.terms = [];
     }
+    // Never carry a previous user's Presales Engineer name out of a cached
+    // draft — the Designer fills this in from the logged-in `SessionUser`.
+    merged.designEng = "";
     return merged;
   } catch {
     return emptyDraft();
