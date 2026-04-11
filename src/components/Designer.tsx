@@ -175,8 +175,12 @@ export default function Designer({
           : [],
       );
       setScopeIntro(existing.config_json?.scopeIntro || "");
+      // Presales engineer defaults to the currently logged-in username
+      // (NOT display_name) — an existing config override and the per-user
+      // localStorage preference both still win so previously-edited
+      // quotations keep whatever the user typed last.
       setDesignEngState(
-        existing.config_json?.designEng || loadDesignEngineerPref() || user.display_name || user.username,
+        existing.config_json?.designEng || loadDesignEngineerPref() || user.username,
       );
       setPricingCategoryState(existing.config_json?.pricingCategory || "si");
       setIncludeTax(existing.config_json?.includeTax !== false);
@@ -203,12 +207,14 @@ export default function Designer({
     setTerms(d.terms.length > 0 ? d.terms : [...DEFAULT_TERMS]);
     setExtraColumns(d.extraColumns || []);
     setScopeIntro(d.scopeIntro || "");
-    setDesignEngState(d.designEng || loadDesignEngineerPref() || user.display_name || user.username);
+    // Presales engineer defaults to the assigned username for new
+    // quotations — never display_name.
+    setDesignEngState(d.designEng || loadDesignEngineerPref() || user.username);
     setPricingCategoryState(d.pricingCategory || "si");
     setIncludeTax(d.includeTax !== false);
     setTaxInclusive(Boolean(d.taxInclusive));
     hydratedRef.current = true;
-  }, [existing, user.username, user.display_name]);
+  }, [existing, user.username]);
 
   // ── Fetch client folders ──────────────────────────────────────────────────
   useEffect(() => {
