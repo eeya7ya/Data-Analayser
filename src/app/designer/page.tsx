@@ -8,6 +8,12 @@ export const dynamic = "force-dynamic";
 
 interface SearchParams {
   id?: string;
+  /**
+   * Pre-select a client folder when creating a brand-new quotation.
+   * Sent by the "+ New quotation" button on each client card in
+   * /quotation so the Designer opens with the client already locked in.
+   */
+  folder?: string;
 }
 
 export default async function DesignerPage({
@@ -20,6 +26,11 @@ export default async function DesignerPage({
 
   const sp = await searchParams;
   let existing: ExistingQuotation | undefined;
+  let initialFolderId: number | null = null;
+  if (sp.folder && !sp.id) {
+    const n = Number(sp.folder);
+    if (Number.isFinite(n) && n > 0) initialFolderId = n;
+  }
   if (sp.id) {
     await ensureSchema();
     const q = sql();
@@ -86,7 +97,11 @@ export default async function DesignerPage({
               : "Build and edit your quotation. Choose a pricing category, modify the table, and save when ready."}
           </p>
         </header>
-        <Designer user={user} existing={existing} />
+        <Designer
+          user={user}
+          existing={existing}
+          initialFolderId={initialFolderId}
+        />
       </main>
     </div>
   );
