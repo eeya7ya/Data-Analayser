@@ -22,13 +22,35 @@ export async function GET(req: NextRequest) {
     const id = searchParams.get("id");
     const q = sql();
     if (id) {
-      // Single-row lookup still returns the trashed row so callers that need
-      // to peek at it (e.g. the trash UI building a preview) can do so. The
-      // list view below filters trashed rows out.
+      // Single-row lookup. Historically this returned even trashed rows so
+      // the trash UI could build a preview; now that the Quotation Viewer
+      // page fetches the row through this endpoint (instead of doing a
+      // server-component DB query), we also have to enforce the
+      // deleted_at filter and the owner check here. Regular users can
+      // only read their own quotations; admins can read any row.
       const rows = (await q`
-        select * from quotations where id = ${Number(id)} limit 1
+        select id, ref, owner_id, project_name, client_name, client_email,
+               client_phone, sales_engineer, prepared_by, tax_percent,
+               site_name, items_json, config_json, folder_id,
+               created_at, updated_at, deleted_at
+        from quotations
+        where id = ${Number(id)}
+        limit 1
       `) as Array<Record<string, unknown>>;
-      return NextResponse.json({ quotation: rows[0] || null });
+      const row = rows[0];
+      if (!row) {
+        return NextResponse.json({ quotation: null });
+      }
+      if (row.deleted_at) {
+        // Trashed rows never leak through the viewer path. The dedicated
+        // `/api/trash` endpoint is the only surface that hands out
+        // soft-deleted quotations.
+        return NextResponse.json({ quotation: null });
+      }
+      if (user.role !== "admin" && Number(row.owner_id) !== user.id) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+      return NextResponse.json({ quotation: row });
     }
     const rows =
       user.role === "admin"

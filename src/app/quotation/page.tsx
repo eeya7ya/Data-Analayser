@@ -112,44 +112,21 @@ export default async function QuotationPage({
 
   const sp = await searchParams;
 
-  // Single-quotation view still needs the server-side lookup because it
-  // drives the full printable document. The list view (no id) now also
-  // fetches data on the server so the first paint shows the real groups
-  // instead of skeleton placeholders.
+  // Single-quotation view: render the shell immediately and let the client
+  // component fetch `/api/quotations?id=<n>` on mount. The previous
+  // implementation did the DB lookup here in the server component, which
+  // meant a cold Supabase connection + a potentially huge `select *` on
+  // `items_json` sat on the critical rendering path — bad enough that the
+  // Vercel function occasionally hit its default ~10s timeout and returned
+  // an HTML "An error occurred…" page the list couldn't parse. Moving the
+  // fetch client-side caps the server-render to just `getSessionUser()` +
+  // `getAppSettings()` (both cached/cheap) so clicking a quotation ref
+  // feels instant even under slow-DB conditions, and scales cleanly to
+  // "mega" quotations because the heavy JSON never tromps through the
+  // React server renderer.
   if (sp.id) {
-    await ensureSchema();
-    // Run the settings read and the quotation lookup in parallel — they're
-    // independent, and the previous sequential `await … ; await …` pattern
-    // was stacking two Supabase round-trips into the page's critical path
-    // for no reason. With the schema fast path above, the whole page now
-    // pays at most two round-trips on a warm connection.
-    const q = sql();
-    const [appSettings, rows] = await Promise.all([
-      getAppSettings(),
-      q`
-        select * from quotations
-        where id = ${Number(sp.id)} and deleted_at is null
-        limit 1
-      ` as unknown as Promise<Array<Record<string, unknown>>>,
-    ]);
-    const row = rows[0];
-    if (
-      row &&
-      user.role !== "admin" &&
-      Number(row.owner_id) !== user.id
-    ) {
-      return (
-        <div className="min-h-screen bg-magic-soft/40">
-          <TopBar user={user} />
-          <main className="max-w-5xl mx-auto p-6">
-            <p className="text-sm text-magic-ink/70">
-              You don&apos;t have access to this quotation.
-            </p>
-          </main>
-        </div>
-      );
-    }
-    if (!row) {
+    const quotationId = Number(sp.id);
+    if (!Number.isFinite(quotationId) || quotationId <= 0) {
       return (
         <div className="min-h-screen bg-magic-soft/40">
           <TopBar user={user} />
@@ -159,13 +136,17 @@ export default async function QuotationPage({
         </div>
       );
     }
+    const appSettings = await getAppSettings();
     return (
       <div className="min-h-screen bg-magic-soft/40">
         <div className="no-print">
           <TopBar user={user} />
         </div>
         <main className="max-w-5xl mx-auto p-6">
-          <QuotationViewer row={row} appSettings={appSettings} />
+          <QuotationViewer
+            quotationId={quotationId}
+            appSettings={appSettings}
+          />
         </main>
       </div>
     );
