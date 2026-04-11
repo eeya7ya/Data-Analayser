@@ -156,14 +156,14 @@ export async function PATCH(req: NextRequest) {
 
     const rows = (await q`
       update quotations set
-        ref            = ${ref},
-        project_name   = ${pn},
-        client_name    = ${cn},
-        client_email   = ${ce},
-        client_phone   = ${cp},
-        sales_engineer = ${se},
-        prepared_by    = ${pb},
-        site_name      = ${sn},
+        ref            = ${ref as string},
+        project_name   = ${pn as string},
+        client_name    = ${cn as string | null},
+        client_email   = ${ce as string | null},
+        client_phone   = ${cp as string | null},
+        sales_engineer = ${se as string | null},
+        prepared_by    = ${pb as string | null},
+        site_name      = ${sn as string},
         tax_percent    = ${tp},
         items_json     = case when ${hasItems} then ${itemsText}::jsonb else items_json end,
         totals_json    = case when ${hasTotals} then ${totalsText}::jsonb else totals_json end,
@@ -172,7 +172,7 @@ export async function PATCH(req: NextRequest) {
         updated_at     = now()
       where id = ${id}
       returning id, ref
-    `) as Array<{ id: number; ref: string }>;
+    `) as unknown as Array<{ id: number; ref: string }>;
     return NextResponse.json({ quotation: rows[0] });
   } catch (err) {
     return NextResponse.json(
