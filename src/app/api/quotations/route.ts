@@ -110,43 +110,65 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    const pick = <K extends keyof typeof body>(key: K, fallback: unknown) =>
-      body[key] !== undefined ? body[key] : fallback;
+    // Only touch columns that the caller explicitly sent. The previous
+    // implementation read `existing.*` and re-wrote every column, which
+    // was catastrophic for jsonb fields: the round-trip
+    //   postgres → JS value → JSON.stringify(...) → ::jsonb
+    // is fragile, and for callers like MoveToFolder (which sends only
+    // { folder_id }) it silently rewrote items_json / totals_json /
+    // config_json with a possibly-empty or corrupted round-trip, wiping
+    // saved quotations. This build-only-what-changed approach makes the
+    // jsonb columns untouched unless the client actually sent new values.
+    const ref = body.ref !== undefined ? body.ref : existing.ref;
+    const pn =
+      body.project_name !== undefined ? body.project_name : existing.project_name;
+    const cn =
+      body.client_name !== undefined ? body.client_name : existing.client_name;
+    const ce =
+      body.client_email !== undefined ? body.client_email : existing.client_email;
+    const cp =
+      body.client_phone !== undefined ? body.client_phone : existing.client_phone;
+    const se =
+      body.sales_engineer !== undefined
+        ? body.sales_engineer
+        : existing.sales_engineer;
+    const pb =
+      body.prepared_by !== undefined ? body.prepared_by : existing.prepared_by;
+    const sn = body.site_name !== undefined ? body.site_name : existing.site_name;
+    const tp = Number(
+      body.tax_percent !== undefined ? body.tax_percent : existing.tax_percent,
+    );
+    const fid =
+      body.folder_id !== undefined ? body.folder_id : existing.folder_id;
 
-    const next = {
-      ref: pick("ref", existing.ref) as string,
-      project_name: pick("project_name", existing.project_name) as string,
-      client_name: pick("client_name", existing.client_name) as string | null,
-      client_email: pick("client_email", existing.client_email) as string | null,
-      client_phone: pick("client_phone", existing.client_phone) as string | null,
-      sales_engineer: pick(
-        "sales_engineer",
-        existing.sales_engineer,
-      ) as string | null,
-      prepared_by: pick("prepared_by", existing.prepared_by) as string | null,
-      site_name: pick("site_name", existing.site_name) as string,
-      tax_percent: Number(pick("tax_percent", existing.tax_percent)),
-      items_json: body.items ?? existing.items_json,
-      totals_json: body.totals ?? existing.totals_json,
-      config_json: body.config ?? existing.config_json,
-      folder_id: pick("folder_id", existing.folder_id) as number | null,
-    };
+    const hasItems = body.items !== undefined;
+    const hasTotals = body.totals !== undefined;
+    const hasConfig = body.config !== undefined;
+
+    // Serialize jsonb payloads up-front. When the client did not send a
+    // jsonb field, we pass a benign `'null'` literal and the UPDATE's
+    // CASE guard keeps the existing column value — PostgreSQL CASE
+    // short-circuits so the placeholder is never actually evaluated.
+    // `'null'::jsonb` is a valid cast just in case that guarantee slips.
+    const itemsText = hasItems ? JSON.stringify(body.items) : "null";
+    const totalsText = hasTotals ? JSON.stringify(body.totals) : "null";
+    const configText = hasConfig ? JSON.stringify(body.config) : "null";
 
     const rows = (await q`
       update quotations set
-        ref            = ${next.ref},
-        project_name   = ${next.project_name},
-        client_name    = ${next.client_name},
-        client_email   = ${next.client_email},
-        client_phone   = ${next.client_phone},
-        sales_engineer = ${next.sales_engineer},
-        prepared_by    = ${next.prepared_by},
-        site_name      = ${next.site_name},
-        tax_percent    = ${next.tax_percent},
-        items_json     = ${JSON.stringify(next.items_json)}::jsonb,
-        totals_json    = ${JSON.stringify(next.totals_json)}::jsonb,
-        config_json    = ${JSON.stringify(next.config_json)}::jsonb,
-        folder_id      = ${next.folder_id},
+        ref            = ${ref},
+        project_name   = ${pn},
+        client_name    = ${cn},
+        client_email   = ${ce},
+        client_phone   = ${cp},
+        sales_engineer = ${se},
+        prepared_by    = ${pb},
+        site_name      = ${sn},
+        tax_percent    = ${tp},
+        items_json     = case when ${hasItems} then ${itemsText}::jsonb else items_json end,
+        totals_json    = case when ${hasTotals} then ${totalsText}::jsonb else totals_json end,
+        config_json    = case when ${hasConfig} then ${configText}::jsonb else config_json end,
+        folder_id      = ${fid as number | null},
         updated_at     = now()
       where id = ${id}
       returning id, ref
