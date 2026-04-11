@@ -230,6 +230,37 @@ export default function QuotationPreview({
     setItems(renumber(items.filter((_, idx) => idx !== i)));
   }
 
+  /**
+   * Moves a row up or down within its own system group. Rows from
+   * different system pages are never interleaved — up at the first row
+   * of a group (or down at the last) is a no-op. The global items array
+   * is reordered in place and renumbered so the "No" column stays in
+   * sync with the new positions.
+   */
+  function moveRow(globalIndex: number, direction: "up" | "down") {
+    if (!setItems) return;
+    const cur = items[globalIndex];
+    if (!cur) return;
+    const curKey = cur.system || cur.brand || "General";
+    // Find the nearest sibling row within the same system group in the
+    // requested direction. Anything else (another group, end of list)
+    // means there's nothing to swap with.
+    const step = direction === "up" ? -1 : 1;
+    let swapIdx = -1;
+    for (let i = globalIndex + step; i >= 0 && i < items.length; i += step) {
+      const other = items[i];
+      const otherKey = other.system || other.brand || "General";
+      if (otherKey !== curKey) break;
+      swapIdx = i;
+      break;
+    }
+    if (swapIdx < 0) return;
+    const next = items.slice();
+    next[globalIndex] = items[swapIdx];
+    next[swapIdx] = items[globalIndex];
+    setItems(renumber(next));
+  }
+
   // Toggles the `merge_up` flag for a specific column on a specific row.
   // Pairs with SystemTable's `computeMergePlan` to render rowSpan correctly.
   // On merge (not unmerge) we also copy the anchor row's value into the
@@ -435,6 +466,7 @@ export default function QuotationPreview({
             extraColumns={extraColumns}
             onUpdate={update}
             onRemove={removeRow}
+            onMove={moveRow}
             onToggleMerge={toggleMerge}
             onToggleMergeLeft={toggleMergeLeft}
             onToggleOptional={toggleOptional}
@@ -891,6 +923,7 @@ function SystemTable({
   extraColumns,
   onUpdate,
   onRemove,
+  onMove,
   onToggleMerge,
   onToggleMergeLeft,
   onToggleOptional,
@@ -904,6 +937,7 @@ function SystemTable({
   extraColumns: QuotationExtraColumn[];
   onUpdate: (globalIndex: number, patch: Partial<QuotationItem>) => void;
   onRemove: (globalIndex: number) => void;
+  onMove: (globalIndex: number, direction: "up" | "down") => void;
   onToggleMerge: (globalIndex: number, col: MergeCol) => void;
   onToggleMergeLeft: (globalIndex: number, col: HMergeCol) => void;
   onToggleOptional: (globalIndex: number) => void;
@@ -1052,9 +1086,37 @@ function SystemTable({
         )}
         {group.rows.map(({ item, globalIndex }, rowIdx) => {
           const hPlan = computeHRowPlan(item, plan.skip, rowIdx);
+          const isFirstInGroup = rowIdx === 0;
+          const isLastInGroup = rowIdx === group.rows.length - 1;
           return (
           <tr key={globalIndex}>
-            <td>{item.no}</td>
+            <td>
+              <div className="flex items-center justify-center gap-1">
+                <span>{item.no}</span>
+                {editable && (
+                  <div className="no-print flex flex-col leading-none">
+                    <button
+                      type="button"
+                      onClick={() => onMove(globalIndex, "up")}
+                      disabled={isFirstInGroup}
+                      title="Move row up"
+                      className="text-[9px] text-magic-ink/50 hover:text-magic-red disabled:opacity-20 disabled:hover:text-magic-ink/50"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onMove(globalIndex, "down")}
+                      disabled={isLastInGroup}
+                      title="Move row down"
+                      className="text-[9px] text-magic-ink/50 hover:text-magic-red disabled:opacity-20 disabled:hover:text-magic-ink/50"
+                    >
+                      ▼
+                    </button>
+                  </div>
+                )}
+              </div>
+            </td>
             {mergeableCell(
               "brand",
               rowIdx,

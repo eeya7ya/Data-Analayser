@@ -14,6 +14,10 @@ import {
   saveDraft,
   clearDraft,
   saveEditingContext,
+  loadEditingContext,
+  loadEditDraft,
+  saveEditDraft,
+  clearEditDraft,
   termsMatchBuiltInDefault,
   PRICING_FACTORS,
   PRICING_LABELS,
@@ -42,6 +46,7 @@ export interface ExistingQuotation {
     scopeIntro?: string;
     designEng?: string;
     pricingCategory?: PricingCategory;
+    manualFactor?: number;
     includeTax?: boolean;
     taxInclusive?: boolean;
     // Legacy marker. Quotations saved before the "Excl. Tax" button was
@@ -107,6 +112,12 @@ export default function Designer({
   const [scopeIntro, setScopeIntro] = useState("");
   const [designEng, setDesignEngState] = useState("");
   const [pricingCategory, setPricingCategoryState] = useState<PricingCategory>("si");
+  // User-defined multiplier applied to SI base prices when pricing
+  // category == "manual". Stored as a string so the <input> can hold
+  // partial values like "1." while the user is still typing without the
+  // backing number collapsing to NaN.
+  const [manualFactor, setManualFactor] = useState<number>(1);
+  const [manualFactorText, setManualFactorText] = useState<string>("1");
   const [includeTax, setIncludeTax] = useState(true);
   const [taxInclusive, setTaxInclusive] = useState(false);
   const [folders, setFolders] = useState<ClientFolder[]>([]);
@@ -164,14 +175,21 @@ export default function Designer({
   // ── Pricing category switching ────────────────────────────────────────────
   // When the user picks a new preset category (SI / DPP / End-user) we
   // recompute every row's unit_price from its stored price_si baseline.
-  // Switching TO "manual" leaves prices untouched so the user can edit
-  // freely. Switching FROM "manual" re-applies the chosen factor.
+  // Manual pricing now also recomputes — using a user-defined multiplier
+  // (`manualFactor`) that the user types next to the button — so the rule
+  // is: unit_price = price_si × factor for every category, with the factor
+  // being the preset value for SI/DPP/End-user and the user-entered
+  // number for manual.
   function setPricingCategory(next: PricingCategory) {
     setPricingCategoryState(next);
 
-    if (next === "manual") return; // leave prices as-is
+    const factor =
+      next === "manual"
+        ? Number.isFinite(manualFactor) && manualFactor > 0
+          ? manualFactor
+          : 1
+        : PRICING_FACTORS[next];
 
-    const factor = PRICING_FACTORS[next];
     setItems((cur) =>
       cur.map((it) => {
         // Use stored SI price if available, otherwise treat current
@@ -181,6 +199,28 @@ export default function Designer({
           ...it,
           price_si: base,
           unit_price: Number((base * factor).toFixed(2)),
+        };
+      }),
+    );
+  }
+
+  // Applies the manual multiplier to every row's SI base price. Called
+  // from the manual-factor input whenever the user commits a new value
+  // (onBlur or Enter). We keep this separate from `setPricingCategory`
+  // so the factor can be re-applied without the user having to toggle
+  // the category button a second time.
+  function applyManualFactor(nextFactor: number) {
+    if (!Number.isFinite(nextFactor) || nextFactor <= 0) return;
+    setManualFactor(nextFactor);
+    setManualFactorText(String(nextFactor));
+    if (pricingCategory !== "manual") return;
+    setItems((cur) =>
+      cur.map((it) => {
+        const base = it.price_si ?? it.unit_price;
+        return {
+          ...it,
+          price_si: base,
+          unit_price: Number((base * nextFactor).toFixed(2)),
         };
       }),
     );
@@ -242,14 +282,30 @@ export default function Designer({
               price_si: it.price_si ?? it.unit_price,
             }))
           : [];
-      const combined = [...baseItems, ...stagedItems].map((it, i) => ({
+      // Per-quotation edit draft: unsaved edits made in a previous
+      // session (e.g. modified terms) are kept in localStorage under a
+      // per-id key so refreshing /designer?id=X doesn't blow them away.
+      // Only used when no catalog stagedItems are pending — staging
+      // takes priority because the user just pushed products in from
+      // the catalog and expects to see them.
+      const editDraft =
+        stagedItems.length === 0 ? loadEditDraft(existing.id) : null;
+      const combinedBase =
+        editDraft && Array.isArray(editDraft.items) && editDraft.items.length > 0
+          ? editDraft.items.map((it) => ({
+              ...it,
+              system: it.system || it.brand || "General",
+              price_si: it.price_si ?? it.unit_price,
+            }))
+          : [...baseItems, ...stagedItems];
+      const combined = combinedBase.map((it, i) => ({
         ...it,
         no: i + 1,
       }));
       setItems(combined);
       if (stagedItems.length > 0) clearDraft();
 
-      setProjectName(existing.project_name || "");
+      setProjectName(editDraft?.projectName ?? (existing.project_name || ""));
       setClientName(existing.client_name || "");
       setClientEmail(existing.client_email || "");
       setClientPhone(existing.client_phone || "");
@@ -257,40 +313,73 @@ export default function Designer({
       setSalesPhone(existing.config_json?.salesPhone || "+962 795172566");
       setPreparedBy(existing.prepared_by || user.username);
       setRefCode(existing.ref);
-      setSiteName(existing.site_name || "");
-      setTaxPercent(Number(existing.tax_percent ?? 16));
-      setShowPictures(Boolean(existing.config_json?.showPictures));
+      setSiteName(editDraft?.siteName ?? (existing.site_name || ""));
+      setTaxPercent(
+        Number(editDraft?.taxPercent ?? existing.tax_percent ?? 16),
+      );
+      setShowPictures(
+        editDraft ? Boolean(editDraft.showPictures) : Boolean(existing.config_json?.showPictures),
+      );
       {
         // Saved quotations created before the admin Settings tab existed
         // have `config_json.terms` stamped with the old built-in defaults.
         // Those should yield to the current admin-edited presets so the
         // user's edits in /admin → Settings actually propagate; a genuine
         // customisation (anything that differs from the built-in list)
-        // still wins.
+        // still wins. The per-id edit draft (if any) takes priority over
+        // both — that's the "unsaved in-flight edits survive refresh"
+        // path the terms-not-saving complaint hinges on.
         const savedTerms = Array.isArray(existing.config_json?.terms)
           ? existing.config_json!.terms!
           : [];
-        const useAdminDefaults =
-          savedTerms.length === 0 || termsMatchBuiltInDefault(savedTerms);
-        setTerms(useAdminDefaults ? [...adminDefaultTerms] : savedTerms);
+        const draftedTerms =
+          editDraft && Array.isArray(editDraft.terms) ? editDraft.terms : null;
+        if (draftedTerms && draftedTerms.length > 0) {
+          setTerms(draftedTerms);
+        } else {
+          const useAdminDefaults =
+            savedTerms.length === 0 || termsMatchBuiltInDefault(savedTerms);
+          setTerms(useAdminDefaults ? [...adminDefaultTerms] : savedTerms);
+        }
       }
       setExtraColumns(
-        Array.isArray(existing.config_json?.extraColumns)
-          ? existing.config_json!.extraColumns!
-          : [],
+        editDraft?.extraColumns ??
+          (Array.isArray(existing.config_json?.extraColumns)
+            ? existing.config_json!.extraColumns!
+            : []),
       );
-      setScopeIntro(existing.config_json?.scopeIntro || "");
+      setScopeIntro(editDraft?.scopeIntro ?? (existing.config_json?.scopeIntro || ""));
       // Presales Engineer: prefer whatever the quotation was saved with so
       // reopening an old record is lossless; otherwise anchor to the
       // logged-in user's display name. The previous fallback chain also
       // consulted a browser-wide localStorage pref, which leaked names
       // between users on shared machines — that step is intentionally gone.
       setDesignEngState(
-        existing.config_json?.designEng || defaultDesignEng,
+        editDraft?.designEng ||
+          existing.config_json?.designEng ||
+          defaultDesignEng,
       );
-      setPricingCategoryState(existing.config_json?.pricingCategory || "si");
-      setIncludeTax(existing.config_json?.includeTax !== false);
-      setTaxInclusive(Boolean(existing.config_json?.taxInclusive));
+      setPricingCategoryState(
+        editDraft?.pricingCategory || existing.config_json?.pricingCategory || "si",
+      );
+      {
+        const restoredManual =
+          editDraft && typeof editDraft.manualFactor === "number" && Number.isFinite(editDraft.manualFactor) && editDraft.manualFactor > 0
+            ? editDraft.manualFactor
+            : typeof existing.config_json?.manualFactor === "number" &&
+                Number.isFinite(existing.config_json.manualFactor) &&
+                existing.config_json.manualFactor > 0
+              ? existing.config_json.manualFactor
+              : 1;
+        setManualFactor(restoredManual);
+        setManualFactorText(String(restoredManual));
+      }
+      setIncludeTax(
+        editDraft ? editDraft.includeTax !== false : existing.config_json?.includeTax !== false,
+      );
+      setTaxInclusive(
+        editDraft ? Boolean(editDraft.taxInclusive) : Boolean(existing.config_json?.taxInclusive),
+      );
 
       // Legacy migration: quotations saved before the Excl./Incl. Tax
       // button was changed from a display overlay to a real unit_price
@@ -352,6 +441,19 @@ export default function Designer({
     setPricingCategoryState(d.pricingCategory || "si");
     setIncludeTax(d.includeTax !== false);
     setTaxInclusive(Boolean(d.taxInclusive));
+    const restoredManual =
+      typeof d.manualFactor === "number" && Number.isFinite(d.manualFactor) && d.manualFactor > 0
+        ? d.manualFactor
+        : 1;
+    setManualFactor(restoredManual);
+    setManualFactorText(String(restoredManual));
+    // Restore the previously picked client folder so a full-page refresh
+    // no longer drops the user back into the "pick a client" hero. The
+    // actual select dropdown is still wired up normally, so changing
+    // clients from this point onward works like before.
+    if (typeof d.folderId === "number" && Number.isFinite(d.folderId)) {
+      setFolderId(d.folderId);
+    }
     hydratedRef.current = true;
   }, [existing, user.username, user.display_name]);
 
@@ -451,8 +553,10 @@ export default function Designer({
       scopeIntro,
       designEng,
       pricingCategory,
+      manualFactor,
       includeTax,
       taxInclusive,
+      folderId,
     });
   }, [
     editMode,
@@ -473,9 +577,75 @@ export default function Designer({
     scopeIntro,
     designEng,
     pricingCategory,
+    manualFactor,
     includeTax,
     taxInclusive,
+    folderId,
   ]);
+
+  // ── Persist edit-mode draft per quotation id ──────────────────────────────
+  // Edit mode used to skip localStorage entirely, which meant any in-flight
+  // changes (notably term edits) were thrown away on refresh. We now
+  // mirror the relevant state into a per-id slot so refreshing
+  // /designer?id=X reinstates the user's unsaved work. The slot is
+  // cleared from saveQuotation() once the server confirms the PATCH.
+  useEffect(() => {
+    if (!hydratedRef.current || !editMode || !existing) return;
+    saveEditDraft(existing.id, {
+      items,
+      terms,
+      extraColumns,
+      scopeIntro,
+      designEng,
+      pricingCategory,
+      manualFactor,
+      includeTax,
+      taxInclusive,
+      projectName,
+      siteName,
+      showPictures,
+      taxPercent,
+    });
+  }, [
+    editMode,
+    existing,
+    items,
+    terms,
+    extraColumns,
+    scopeIntro,
+    designEng,
+    pricingCategory,
+    manualFactor,
+    includeTax,
+    taxInclusive,
+    projectName,
+    siteName,
+    showPictures,
+    taxPercent,
+  ]);
+
+  // ── Restore last-used saved quotation on fresh /designer load ─────────────
+  // If the user landed on /designer with no ?id= query string but there's
+  // an editing context in localStorage (meaning they were last working on
+  // a saved quotation), bounce them over to /designer?id=X so the refresh
+  // keeps them in their current project instead of dropping them into an
+  // empty new-quotation hero. The "+ New quotation" button next to the
+  // client picker is the explicit opt-out.
+  const autoRedirectCheckedRef = useRef(false);
+  useEffect(() => {
+    if (autoRedirectCheckedRef.current) return;
+    autoRedirectCheckedRef.current = true;
+    if (editMode) return;
+    if (typeof window === "undefined") return;
+    // Honour the ?new=1 opt-out so the "+ New quotation" button can
+    // land on a clean /designer without getting bounced back.
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.has("new")) return;
+    const ctx = loadEditingContext();
+    if (ctx && Number.isFinite(ctx.id)) {
+      router.replace(`/designer?id=${ctx.id}`);
+    }
+  }, [editMode, router]);
 
   async function saveQuotation() {
     // In create mode, a client folder is required — it's how the quotation
@@ -510,6 +680,7 @@ export default function Designer({
           scopeIntro,
           designEng,
           pricingCategory,
+          manualFactor,
           includeTax,
           taxInclusive,
           // Stamped on every save so the legacy migration in the
@@ -531,6 +702,11 @@ export default function Designer({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "save failed");
       if (editMode) {
+        // The in-flight edit draft has now been flushed to the DB, so
+        // the per-id localStorage slot can go. If the user keeps editing
+        // after this, fresh changes will repopulate it via the save
+        // effect above.
+        if (existing) clearEditDraft(existing.id);
         const now = new Date().toLocaleTimeString("en-GB");
         setSaveStatus(`Saved at ${now}`);
         return;
@@ -558,6 +734,30 @@ export default function Designer({
     setTerms([...adminDefaultTerms]);
     setPricingCategoryState("si");
     if (!editMode) clearDraft();
+  }
+
+  /**
+   * User-initiated "start a brand-new quotation" — the explicit opt-out
+   * from the "restore last-used project on refresh" behaviour. We drop
+   * any in-flight draft, clear the editing context (so the auto-redirect
+   * effect doesn't bounce us back), then navigate to /designer?new=1 so
+   * a fresh reload lands on the empty hero. The query flag lives only
+   * long enough for the redirect effect to see it once — subsequent
+   * edits populate a brand-new draft from zero.
+   */
+  function startNewQuotation() {
+    if (
+      items.length > 0 &&
+      !confirm(
+        "Start a new quotation? Any unsaved changes in the current draft will be discarded.",
+      )
+    ) {
+      return;
+    }
+    clearDraft();
+    saveEditingContext(null);
+    if (editMode && existing) clearEditDraft(existing.id);
+    router.push("/designer?new=1");
   }
 
   // Prints the current in-memory quotation preview straight from the
@@ -686,9 +886,40 @@ export default function Designer({
               </p>
             )}
             {pricingCategory === "manual" && (
-              <p className="mt-1 text-[10px] text-magic-ink/50">
-                Edit each unit price individually in the table below.
-              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <label className="text-[10px] font-semibold uppercase text-magic-ink/60">
+                  Factor
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={manualFactorText}
+                  onChange={(e) => setManualFactorText(e.target.value)}
+                  onBlur={() => {
+                    const n = Number(manualFactorText);
+                    if (Number.isFinite(n) && n > 0) {
+                      applyManualFactor(n);
+                    } else {
+                      // Revert the input text if the user typed nonsense
+                      // — the committed factor stays at whatever was last
+                      // successfully applied.
+                      setManualFactorText(String(manualFactor));
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  className="w-20 rounded-md border border-magic-border px-2 py-1 text-sm"
+                  title="Multiplier applied to each row's SI base price (e.g. 1.5 = +50%, 0.98 = −2%)"
+                />
+                <span className="text-[10px] text-magic-ink/50">
+                  Unit price = SI base × {Number.isFinite(manualFactor) && manualFactor > 0 ? manualFactor : 1}
+                </span>
+              </div>
             )}
           </div>
 
@@ -780,6 +1011,18 @@ export default function Designer({
                   ))}
                   <option value="__new__">+ New client…</option>
                 </select>
+                {/* Explicit opt-out of "restore last-used project on refresh".
+                    Clicking this discards the in-flight draft and lands on a
+                    fresh /designer?new=1 page — the designer no longer
+                    auto-redirects when the `new` flag is present. */}
+                <button
+                  type="button"
+                  onClick={startNewQuotation}
+                  title="Start a brand-new quotation (discards any unsaved draft)"
+                  className="rounded-md border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/80 hover:bg-magic-soft"
+                >
+                  + New quotation
+                </button>
               </div>
             ) : (
               <div className="flex flex-wrap items-start gap-2">

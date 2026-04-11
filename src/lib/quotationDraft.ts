@@ -59,10 +59,24 @@ export interface QuotationDraft {
   designEng: string;
   /** Active pricing category — determines the factor applied to SI prices. */
   pricingCategory: PricingCategory;
+  /**
+   * User-chosen multiplier applied to SI base prices when the pricing
+   * category is "manual". A factor of 1 leaves prices untouched, 1.5
+   * marks them up 50 %, 0.98 discounts them 2 %, etc. Ignored by the
+   * preset SI / DPP / End-user categories.
+   */
+  manualFactor: number;
   /** Whether tax is included in the total cost. */
   includeTax: boolean;
   /** Whether entered prices already include tax (back-calculate base). */
   taxInclusive: boolean;
+  /**
+   * Client folder id selected in the Designer. Persisting this means the
+   * user's client selection survives a page refresh — without it the
+   * Designer drops back into its "pick a client" hero every time the
+   * browser tab reloads, wiping any in-progress draft from view.
+   */
+  folderId: number | null;
 }
 
 // Legacy per-browser "last Design Engineer name" key. We used to remember
@@ -157,8 +171,10 @@ export function emptyDraft(): QuotationDraft {
     // not whoever last typed a name on this browser.
     designEng: "",
     pricingCategory: "si",
+    manualFactor: 1,
     includeTax: true,
     taxInclusive: false,
+    folderId: null,
   };
 }
 
@@ -216,6 +232,68 @@ export function clearDraft(): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+// ── Per-quotation edit-mode draft ──────────────────────────────────────────
+// The main draft (above) only backs the "new quotation" flow. When the user
+// is editing an already-saved quotation via `/designer?id=X`, we used to
+// skip localStorage entirely and rely on the explicit "Save updates" button
+// — so any unsaved changes (including terms edits) were wiped on refresh.
+// This per-id draft gives edit mode the same "you won't lose your work"
+// behaviour as create mode without mixing the two streams: the keys are
+// disjoint from `mt_quotation_draft_v1` and each quotation gets its own
+// slot, so opening a second saved quotation never resurrects the first
+// one's in-progress edits.
+
+const EDIT_DRAFT_PREFIX = "mt_quotation_edit_draft_v1_";
+
+function editDraftKey(id: number): string {
+  return `${EDIT_DRAFT_PREFIX}${id}`;
+}
+
+export interface EditModeDraft {
+  items: QuotationItem[];
+  terms: string[];
+  extraColumns: QuotationExtraColumn[];
+  scopeIntro: string;
+  designEng: string;
+  pricingCategory: PricingCategory;
+  manualFactor: number;
+  includeTax: boolean;
+  taxInclusive: boolean;
+  projectName: string;
+  siteName: string;
+  showPictures: boolean;
+  taxPercent: number;
+}
+
+export function loadEditDraft(id: number): EditModeDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(editDraftKey(id));
+    if (!raw) return null;
+    return JSON.parse(raw) as EditModeDraft;
+  } catch {
+    return null;
+  }
+}
+
+export function saveEditDraft(id: number, draft: EditModeDraft): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(editDraftKey(id), JSON.stringify(draft));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearEditDraft(id: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(editDraftKey(id));
   } catch {
     /* ignore */
   }
