@@ -7,6 +7,7 @@ import QuotationPreview, {
   QuotationItem,
   QuotationExtraColumn,
 } from "./QuotationPreview";
+import type { AppSettings } from "@/lib/settings";
 import {
   DEFAULT_TERMS,
   loadDraft,
@@ -65,6 +66,7 @@ export default function Designer({
   user,
   existing,
   initialFolderId,
+  appSettings,
 }: {
   user: SessionUser;
   existing?: ExistingQuotation;
@@ -75,7 +77,16 @@ export default function Designer({
    * are already locked in when the Designer first renders.
    */
   initialFolderId?: number | null;
+  /**
+   * Global presets loaded on the server — seeds the default Terms list for
+   * new quotations and supplies the admin-editable printable footer.
+   */
+  appSettings: AppSettings;
 }) {
+  const adminDefaultTerms =
+    appSettings.defaultTerms && appSettings.defaultTerms.length > 0
+      ? appSettings.defaultTerms
+      : DEFAULT_TERMS;
   const router = useRouter();
   const editMode = !!existing;
   const [projectName, setProjectName] = useState("");
@@ -92,7 +103,7 @@ export default function Designer({
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
   const [showPictures, setShowPictures] = useState(false);
-  const [terms, setTerms] = useState<string[]>([...DEFAULT_TERMS]);
+  const [terms, setTerms] = useState<string[]>([...adminDefaultTerms]);
   const [extraColumns, setExtraColumns] = useState<QuotationExtraColumn[]>([]);
   const [scopeIntro, setScopeIntro] = useState("");
   const [designEng, setDesignEngState] = useState("");
@@ -227,7 +238,7 @@ export default function Designer({
         Array.isArray(existing.config_json?.terms) &&
           existing.config_json!.terms!.length > 0
           ? existing.config_json!.terms!
-          : [...DEFAULT_TERMS],
+          : [...adminDefaultTerms],
       );
       setExtraColumns(
         Array.isArray(existing.config_json?.extraColumns)
@@ -235,12 +246,16 @@ export default function Designer({
           : [],
       );
       setScopeIntro(existing.config_json?.scopeIntro || "");
-      // Presales engineer defaults to the currently logged-in username
-      // (NOT display_name) — an existing config override and the per-user
-      // localStorage preference both still win so previously-edited
-      // quotations keep whatever the user typed last.
+      // Presales Engineer defaults to the logged-in user's **display name**
+      // (the "display name" set in Admin → Users). The saved config and the
+      // per-user localStorage override still win so previously-edited
+      // quotations keep whatever the user typed last. Falls back to the
+      // username only if display_name hasn't been set.
       setDesignEngState(
-        existing.config_json?.designEng || loadDesignEngineerPref() || user.username,
+        existing.config_json?.designEng ||
+          loadDesignEngineerPref() ||
+          user.display_name ||
+          user.username,
       );
       setPricingCategoryState(existing.config_json?.pricingCategory || "si");
       setIncludeTax(existing.config_json?.includeTax !== false);
@@ -294,17 +309,24 @@ export default function Designer({
     setSiteName(d.siteName);
     setTaxPercent(d.taxPercent);
     setShowPictures(d.showPictures);
-    setTerms(d.terms.length > 0 ? d.terms : [...DEFAULT_TERMS]);
+    setTerms(d.terms.length > 0 ? d.terms : [...adminDefaultTerms]);
     setExtraColumns(d.extraColumns || []);
     setScopeIntro(d.scopeIntro || "");
-    // Presales engineer defaults to the assigned username for new
-    // quotations — never display_name.
-    setDesignEngState(d.designEng || loadDesignEngineerPref() || user.username);
+    // Presales Engineer defaults to the logged-in user's **display name**
+    // for new quotations. Falls through to the localStorage override (what
+    // the user last typed) and finally to the username if no display name
+    // is set.
+    setDesignEngState(
+      d.designEng ||
+        loadDesignEngineerPref() ||
+        user.display_name ||
+        user.username,
+    );
     setPricingCategoryState(d.pricingCategory || "si");
     setIncludeTax(d.includeTax !== false);
     setTaxInclusive(Boolean(d.taxInclusive));
     hydratedRef.current = true;
-  }, [existing, user.username]);
+  }, [existing, user.username, user.display_name]);
 
   // ── Fetch client folders ──────────────────────────────────────────────────
   useEffect(() => {
@@ -506,7 +528,7 @@ export default function Designer({
     setClientPhone("");
     setSiteName("");
     setShowPictures(false);
-    setTerms([...DEFAULT_TERMS]);
+    setTerms([...adminDefaultTerms]);
     setPricingCategoryState("si");
     if (!editMode) clearDraft();
   }
@@ -823,6 +845,7 @@ export default function Designer({
           includeTax={includeTax}
           taxInclusive={taxInclusive}
           clientLocked={clientLocked}
+          footerText={appSettings.footerText}
         />
       </div>
     </div>

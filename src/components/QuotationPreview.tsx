@@ -105,7 +105,16 @@ interface Props {
    * values come from the folder and are edited in the folder card.
    */
   clientLocked?: boolean;
+  /**
+   * Printable footer text shown at the bottom of every sheet. Admin-editable
+   * via the Settings tab. Falls back to the historical hardcoded company
+   * address when no setting has been saved yet.
+   */
+  footerText?: string;
 }
+
+const DEFAULT_FOOTER_TEXT =
+  "Address: Amman- Gardens street- Khawaja Complex No.65- Tel: +962 65560272 Fax: +962 65560275";
 
 function money(n: number): string {
   return `JOD ${n.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
@@ -149,7 +158,10 @@ export default function QuotationPreview({
   includeTax = true,
   taxInclusive = false,
   clientLocked = false,
+  footerText,
 }: Props) {
+  const resolvedFooterText =
+    footerText && footerText.trim().length > 0 ? footerText : DEFAULT_FOOTER_TEXT;
   // Resolve merged cells when summing so the Final Totals page matches
   // the per-group subtotals (and what the user visually sees in each
   // merged unit-price cell). Unit prices are stored in their final form
@@ -363,6 +375,7 @@ export default function QuotationPreview({
           editable={editable}
           logoUrl={logoUrl}
           clientLocked={clientLocked}
+          footerText={resolvedFooterText}
           isLast={!editable}
         >
           <p className="py-6 text-center text-magic-ink/50 text-xs">
@@ -405,6 +418,7 @@ export default function QuotationPreview({
           editable={editable}
           logoUrl={logoUrl}
           clientLocked={clientLocked}
+          footerText={resolvedFooterText}
           pageLabel={`Page ${pageIdx + 1} of ${systemPages.length + 1}`}
           isLast={false}
         >
@@ -467,6 +481,7 @@ export default function QuotationPreview({
           editable={editable}
           logoUrl={logoUrl}
           clientLocked={clientLocked}
+          footerText={resolvedFooterText}
           pageLabel={`Page ${systemPages.length + 1} of ${systemPages.length + 1}`}
           isLast
           hideInfoHeader
@@ -541,6 +556,7 @@ function QuotationPage({
   isLast,
   hideInfoHeader,
   clientLocked = false,
+  footerText,
   children,
 }: {
   header: QuotationHeader;
@@ -553,6 +569,8 @@ function QuotationPage({
   hideInfoHeader?: boolean;
   /** When true, the client name/email/phone inputs render read-only. */
   clientLocked?: boolean;
+  /** Admin-editable printable footer line. */
+  footerText?: string;
   children: React.ReactNode;
 }) {
   // Default to /logo.png in /public. Drop the real PNG at
@@ -688,10 +706,13 @@ function QuotationPage({
 
       {children}
 
-      {/* Footer: company address — pinned to the bottom of every sheet. */}
-      <div className="footer-address">
-        Address: Amman- Gardens street- Khawaja Complex No.65- Tel: +962 65560272
-        Fax: +962 65560275
+      {/* Footer: admin-editable company address — pinned to the bottom of
+          every sheet. Falls back to the historical Magic Tech address when
+          no override has been saved in the Settings tab. */}
+      <div className="footer-address whitespace-pre-wrap">
+        {footerText && footerText.trim().length > 0
+          ? footerText
+          : DEFAULT_FOOTER_TEXT}
       </div>
     </div>
   );
