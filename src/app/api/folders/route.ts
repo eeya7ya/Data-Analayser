@@ -63,7 +63,14 @@ export async function GET() {
             client_phone: string | null;
             client_company: string | null;
           }>);
-    return NextResponse.json({ folders: rows });
+    return NextResponse.json(
+      { folders: rows },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+        },
+      },
+    );
   } catch (err) {
     const msg = (err as Error).message;
     return NextResponse.json(

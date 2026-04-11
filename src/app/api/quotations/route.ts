@@ -74,7 +74,18 @@ export async function GET(req: NextRequest) {
             order by id desc
             limit 200
           `) as Array<Record<string, unknown>>);
-    return NextResponse.json({ quotations: rows });
+    // private: browser caches per-user, not shared at edge/CDN.
+    // max-age=30: serve fresh for 30 s with no DB hit.
+    // stale-while-revalidate=60: serve stale instantly for 60 s more while
+    // refreshing in the background — a page reload within ~90 s is instant.
+    return NextResponse.json(
+      { quotations: rows },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+        },
+      },
+    );
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message },

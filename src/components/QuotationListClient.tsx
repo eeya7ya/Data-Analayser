@@ -156,11 +156,11 @@ export default function QuotationListClient({
     setDataLoading(true);
     setLoadError(null);
     const ctl = new AbortController();
-    // 25s matches the Vercel function budget we set in vercel.json; if
-    // the API hasn't answered by then something is very wrong and the
-    // user is better off seeing a clear timeout message than watching
-    // the skeleton spin forever.
-    const timer = window.setTimeout(() => ctl.abort(), 25_000);
+    // 15 s gives Supabase enough time to respond on a cold start while
+    // still giving the user a prompt error instead of a 25 s dead wait.
+    // If the DB is genuinely hung the user sees the Retry button in 15 s
+    // instead of 25 s; a warm connection responds in < 1 s anyway.
+    const timer = window.setTimeout(() => ctl.abort(), 15_000);
     Promise.all([
       safeFetchJson<{ quotations?: Quotation[] }>(
         "/api/quotations",
