@@ -117,13 +117,20 @@ export default async function QuotationPage({
   // instead of skeleton placeholders.
   if (sp.id) {
     await ensureSchema();
-    const appSettings = await getAppSettings();
+    // Run the settings read and the quotation lookup in parallel — they're
+    // independent, and the previous sequential `await … ; await …` pattern
+    // was stacking two Supabase round-trips into the page's critical path
+    // for no reason. With the schema fast path above, the whole page now
+    // pays at most two round-trips on a warm connection.
     const q = sql();
-    const rows = (await q`
-      select * from quotations
-      where id = ${Number(sp.id)} and deleted_at is null
-      limit 1
-    `) as Array<Record<string, unknown>>;
+    const [appSettings, rows] = await Promise.all([
+      getAppSettings(),
+      q`
+        select * from quotations
+        where id = ${Number(sp.id)} and deleted_at is null
+        limit 1
+      ` as unknown as Promise<Array<Record<string, unknown>>>,
+    ]);
     const row = rows[0];
     if (
       row &&
