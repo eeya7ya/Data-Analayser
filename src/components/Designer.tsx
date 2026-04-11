@@ -681,9 +681,9 @@ export default function Designer({
               onClick={printQuotation}
               disabled={items.length === 0}
               title="Print the current quotation preview"
-              className="rounded-md border border-magic-border px-3 py-1.5 text-xs hover:bg-magic-soft disabled:opacity-40"
+              className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
             >
-              Print
+              Print / PDF
             </button>
             <button
               onClick={saveQuotation}
