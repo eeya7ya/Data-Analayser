@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import MoveToFolder from "@/components/MoveToFolder";
 
 interface Quotation {
@@ -76,6 +77,8 @@ export default function QuotationListClient({
   initialQuotations?: Array<Record<string, unknown>>;
   initialFolders?: Array<Record<string, unknown>>;
 }) {
+  const router = useRouter();
+
   // ── Data loaded client-side (or hydrated from the server page) ───
   const hasInitial =
     Array.isArray(initialQuotations) && Array.isArray(initialFolders);
@@ -806,11 +809,15 @@ export default function QuotationListClient({
                           return (
                             <tr
                               key={r.id}
-                              className="border-t border-magic-border hover:bg-magic-soft/10"
+                              onClick={() =>
+                                router.push(`/quotation?id=${r.id}`)
+                              }
+                              className="border-t border-magic-border hover:bg-magic-soft/10 cursor-pointer"
                             >
                               <td className="p-3 font-mono">
                                 <Link
                                   href={`/quotation?id=${r.id}`}
+                                  onClick={(e) => e.stopPropagation()}
                                   className="text-magic-red hover:underline"
                                 >
                                   {r.ref}
@@ -841,7 +848,10 @@ export default function QuotationListClient({
                                   </span>
                                 )}
                               </td>
-                              <td className="p-3 text-right">
+                              <td
+                                className="p-3 text-right"
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 <div className="flex items-center justify-end gap-3">
                                   <MoveToFolder
                                     quotationId={r.id}
