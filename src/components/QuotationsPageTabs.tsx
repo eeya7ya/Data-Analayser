@@ -7,10 +7,19 @@ import TrashView from "@/components/TrashView";
 /**
  * Small tab switcher on the /quotation page so the Saved Quotations list
  * and the Trash bin can share the same route instead of forcing the user
- * to navigate to a separate page. Keeping it client-side means the
- * quotation list's own client-side data fetch doesn't need to change.
+ * to navigate to a separate page. The initial data arrives from the
+ * server page so the list renders with real rows on first paint instead
+ * of flashing skeletons.
  */
-export default function QuotationsPageTabs({ isAdmin }: { isAdmin: boolean }) {
+export default function QuotationsPageTabs({
+  isAdmin,
+  initialQuotations,
+  initialFolders,
+}: {
+  isAdmin: boolean;
+  initialQuotations?: Array<Record<string, unknown>>;
+  initialFolders?: Array<Record<string, unknown>>;
+}) {
   const [tab, setTab] = useState<"list" | "trash">("list");
   return (
     <div>
@@ -37,7 +46,11 @@ export default function QuotationsPageTabs({ isAdmin }: { isAdmin: boolean }) {
         </button>
       </div>
       {tab === "list" ? (
-        <QuotationListClient isAdmin={isAdmin} />
+        <QuotationListClient
+          isAdmin={isAdmin}
+          initialQuotations={initialQuotations}
+          initialFolders={initialFolders}
+        />
       ) : (
         <TrashView isAdmin={isAdmin} />
       )}
