@@ -614,7 +614,12 @@ export default function Designer({
           way of subsequent edits. */}
       {!showDesignUI && (
         <div className="no-print rounded-2xl border-2 border-dashed border-magic-red/40 bg-gradient-to-b from-magic-red/5 to-transparent p-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-magic-red text-white">
+          <button
+            type="button"
+            onClick={() => setShowNewFolder(true)}
+            title="Create a new client and start a quotation"
+            className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-magic-red text-white shadow-sm transition-transform hover:scale-105 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-magic-red focus:ring-offset-2"
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-6 w-6"
@@ -630,15 +635,18 @@ export default function Designer({
                 d="M12 4v16m8-8H4"
               />
             </svg>
-          </div>
+            <span className="sr-only">Create new client</span>
+          </button>
           <h2 className="text-xl font-bold text-magic-ink">
             Start a new quotation
           </h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-magic-ink/70">
-            Pick a client below to begin — the quotation will be filed under
-            their folder and the header fields (name, email, phone) will be
-            filled in for you. Once a client is selected, the pricing toolbar
-            and quotation table will appear.
+            Click the <span className="font-semibold text-magic-red">+</span>{" "}
+            above to create a new client, or pick an existing one from the
+            dropdown below. The quotation will be filed under their folder
+            and the header fields (name, email, phone) will be filled in for
+            you. Once a client is selected, the pricing toolbar and
+            quotation table will appear.
           </p>
         </div>
       )}
