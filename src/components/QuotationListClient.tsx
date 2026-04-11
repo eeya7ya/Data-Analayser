@@ -688,6 +688,12 @@ export default function QuotationListClient({
                     className="flex items-center gap-2"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    <Link
+                      href={`/designer?folder=${g.folderId}`}
+                      className="text-xs font-medium text-magic-red hover:underline"
+                    >
+                      + New quotation
+                    </Link>
                     <button
                       onClick={() => {
                         setEditingId(g.folderId);

@@ -58,9 +58,17 @@ interface ClientFolder {
 export default function Designer({
   user,
   existing,
+  initialFolderId,
 }: {
   user: SessionUser;
   existing?: ExistingQuotation;
+  /**
+   * Folder id passed in via `?folder=<id>` when the user clicked
+   * "+ New quotation" from inside a client card on /quotation. We use
+   * it to pre-select the folder in create mode so the client fields
+   * are already locked in when the Designer first renders.
+   */
+  initialFolderId?: number | null;
 }) {
   const router = useRouter();
   const editMode = !!existing;
@@ -247,6 +255,22 @@ export default function Designer({
       setFolderId(existing.folder_id);
     }
   }, [existing, folders]);
+
+  // Create mode: pre-select the folder passed in via `?folder=<id>` on the
+  // URL (the "+ New quotation" button on each client card). We only do
+  // this once, and only when there's no current selection, so the user
+  // can still switch to a different client afterwards.
+  const initialFolderAppliedRef = useRef(false);
+  useEffect(() => {
+    if (editMode) return;
+    if (initialFolderAppliedRef.current) return;
+    if (!initialFolderId) return;
+    if (folders.length === 0) return;
+    if (folders.some((f) => f.id === initialFolderId)) {
+      setFolderId(initialFolderId);
+      initialFolderAppliedRef.current = true;
+    }
+  }, [editMode, initialFolderId, folders]);
 
   // When the user picks a client folder, snap the client header fields to
   // the folder's CRM data. This is the mechanism that implements
