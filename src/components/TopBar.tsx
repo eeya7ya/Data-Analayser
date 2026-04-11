@@ -10,10 +10,17 @@ export default function TopBar({ user }: { user: SessionUser }) {
   const router = useRouter();
   // Keep the Designer nav link in sync with the editing context so clicking
   // it never accidentally starts a new quotation while the user is editing.
-  const [designerHref, setDesignerHref] = useState("/designer");
-  useEffect(() => {
+  // Reading localStorage in the useState initializer means the link points
+  // at the right URL on the very first client paint — the previous version
+  // rendered "/designer" and then flipped to "/designer?id=42" a tick later,
+  // which is both visually janky and, more importantly, a race: a fast user
+  // click on that initial frame would start a new quotation by accident.
+  const [designerHref, setDesignerHref] = useState(() => {
+    if (typeof window === "undefined") return "/designer";
     const ctx = loadEditingContext();
-    setDesignerHref(ctx ? `/designer?id=${ctx.id}` : "/designer");
+    return ctx ? `/designer?id=${ctx.id}` : "/designer";
+  });
+  useEffect(() => {
     // Refresh the link whenever the tab regains focus (e.g. after catalog
     // interactions that may have changed the editing context).
     function onFocus() {
