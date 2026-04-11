@@ -5,6 +5,50 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MoveToFolder from "@/components/MoveToFolder";
 
+/**
+ * Robust fetch + JSON parse for our API routes. When a Vercel function
+ * times out or a runtime crash escapes a route's try/catch, the response
+ * body is a plain-text/HTML error page (starts with "An error occurred…").
+ * Calling `.json()` on that throws `Unexpected token 'A'`, which is what
+ * the user was seeing in the list view. This helper inspects the status
+ * and content-type first and returns a `{ __error }` sentinel with a
+ * human-readable message the UI can show cleanly.
+ */
+async function safeFetchJson<T>(
+  url: string,
+  signal?: AbortSignal,
+): Promise<T | { __error: string }> {
+  let res: Response;
+  try {
+    res = await fetch(url, { signal });
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      return { __error: "Request timed out — please retry." };
+    }
+    return { __error: (err as Error).message || "Network error" };
+  }
+  const raw = await res.text();
+  const ct = res.headers.get("content-type") || "";
+  if (!res.ok) {
+    if (ct.includes("application/json")) {
+      try {
+        const parsed = JSON.parse(raw) as { error?: string };
+        if (parsed?.error) return { __error: `${res.status}: ${parsed.error}` };
+      } catch {
+        /* fall through */
+      }
+    }
+    const snippet = raw.trim().slice(0, 160) || res.statusText;
+    return { __error: `${res.status} ${snippet}` };
+  }
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    const snippet = raw.trim().slice(0, 160);
+    return { __error: `Non-JSON response from ${url}: ${snippet}` };
+  }
+}
+
 interface Quotation {
   id: number;
   ref: string;
@@ -101,32 +145,52 @@ export default function QuotationListClient({
   const [dataLoading, setDataLoading] = useState(!hasInitial);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [reloadTick, setReloadTick] = useState(0);
+
   useEffect(() => {
     // The server page already handed us the full dataset on first paint.
-    // Skip the client fetch entirely.
-    if (hasInitial) return;
+    // Skip the client fetch entirely — unless the user explicitly hit
+    // retry after an error (reloadTick > 0).
+    if (hasInitial && reloadTick === 0) return;
     let cancelled = false;
     setDataLoading(true);
     setLoadError(null);
+    const ctl = new AbortController();
+    // 25s matches the Vercel function budget we set in vercel.json; if
+    // the API hasn't answered by then something is very wrong and the
+    // user is better off seeing a clear timeout message than watching
+    // the skeleton spin forever.
+    const timer = window.setTimeout(() => ctl.abort(), 25_000);
     Promise.all([
-      fetch("/api/quotations").then((r) => r.json()),
-      fetch("/api/folders").then((r) => r.json()),
+      safeFetchJson<{ quotations?: Quotation[] }>(
+        "/api/quotations",
+        ctl.signal,
+      ),
+      safeFetchJson<{ folders?: Folder[] }>("/api/folders", ctl.signal),
     ])
       .then(([qRes, fRes]) => {
         if (cancelled) return;
+        if ("__error" in qRes) {
+          setLoadError(qRes.__error);
+          return;
+        }
+        if ("__error" in fRes) {
+          setLoadError(fRes.__error);
+          return;
+        }
         setQuotations((qRes.quotations || []) as Quotation[]);
         setFolders((fRes.folders || []) as Folder[]);
       })
-      .catch((err) => {
-        if (!cancelled) setLoadError((err as Error).message);
-      })
       .finally(() => {
+        window.clearTimeout(timer);
         if (!cancelled) setDataLoading(false);
       });
     return () => {
       cancelled = true;
+      ctl.abort();
+      window.clearTimeout(timer);
     };
-  }, [hasInitial]);
+  }, [hasInitial, reloadTick]);
 
   // ── Search ────────────────────────────────────────────────────────────
   const [search, setSearch] = useState("");
@@ -559,8 +623,17 @@ export default function QuotationListClient({
       )}
 
       {loadError && (
-        <div className="mb-4 px-4 py-3 text-sm text-red-600 bg-red-50 rounded-xl border border-red-200">
-          Failed to load quotations: {loadError}
+        <div className="mb-4 px-4 py-3 text-sm text-red-600 bg-red-50 rounded-xl border border-red-200 flex items-start justify-between gap-3">
+          <div className="min-w-0 break-words">
+            <div className="font-semibold">Failed to load quotations.</div>
+            <div className="text-xs text-red-600/80">{loadError}</div>
+          </div>
+          <button
+            onClick={() => setReloadTick((t) => t + 1)}
+            className="shrink-0 rounded-md bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+          >
+            Retry
+          </button>
         </div>
       )}
 
