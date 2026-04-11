@@ -22,6 +22,9 @@ export async function GET(req: NextRequest) {
     const id = searchParams.get("id");
     const q = sql();
     if (id) {
+      // Single-row lookup still returns the trashed row so callers that need
+      // to peek at it (e.g. the trash UI building a preview) can do so. The
+      // list view below filters trashed rows out.
       const rows = (await q`
         select * from quotations where id = ${Number(id)} limit 1
       `) as Array<Record<string, unknown>>;
@@ -36,6 +39,7 @@ export async function GET(req: NextRequest) {
                    u.display_name as owner_display_name
             from quotations q
             left join users u on u.id = q.owner_id
+            where q.deleted_at is null
             order by q.id desc
             limit 500
           `) as Array<Record<string, unknown>>)
@@ -44,6 +48,7 @@ export async function GET(req: NextRequest) {
                    folder_id, owner_id, created_at, updated_at
             from quotations
             where owner_id = ${user.id}
+              and deleted_at is null
             order by id desc
             limit 200
           `) as Array<Record<string, unknown>>);
@@ -82,7 +87,9 @@ export async function PATCH(req: NextRequest) {
     };
     const q = sql();
     const existingRows = (await q`
-      select * from quotations where id = ${id} limit 1
+      select * from quotations
+      where id = ${id} and deleted_at is null
+      limit 1
     `) as Array<Record<string, unknown>>;
     if (existingRows.length === 0) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -100,7 +107,9 @@ export async function PATCH(req: NextRequest) {
       body.folder_id !== null
     ) {
       const folderRows = (await q`
-        select owner_id from client_folders where id = ${body.folder_id} limit 1
+        select owner_id from client_folders
+        where id = ${body.folder_id} and deleted_at is null
+        limit 1
       `) as Array<{ owner_id: number | null }>;
       if (folderRows.length === 0) {
         return NextResponse.json({ error: "folder not found" }, { status: 404 });
@@ -204,22 +213,54 @@ export async function POST(req: NextRequest) {
     const ref = body.ref && body.ref.trim() ? body.ref.trim() : genRef();
     const folderId = body.folder_id || null;
     const q = sql();
-    // Normal users can only file quotations into folders they own.
-    if (user.role !== "admin" && folderId) {
+    // Folder selection is the CRM anchor: the client_* fields are sourced
+    // from the folder unless the caller explicitly sent overrides. This is
+    // what lets Designer.tsx present a UI where the user only types the
+    // project name — the server still guarantees the persisted row matches
+    // the folder so print output stays consistent.
+    let folderClientName: string | null = null;
+    let folderClientEmail: string | null = null;
+    let folderClientPhone: string | null = null;
+    if (folderId) {
       const folderRows = (await q`
-        select owner_id from client_folders where id = ${folderId} limit 1
-      `) as Array<{ owner_id: number | null }>;
-      if (folderRows.length === 0 || folderRows[0].owner_id !== user.id) {
+        select owner_id, name, client_email, client_phone
+        from client_folders
+        where id = ${folderId} and deleted_at is null
+        limit 1
+      `) as Array<{
+        owner_id: number | null;
+        name: string;
+        client_email: string | null;
+        client_phone: string | null;
+      }>;
+      if (folderRows.length === 0) {
+        return NextResponse.json({ error: "folder not found" }, { status: 404 });
+      }
+      if (user.role !== "admin" && folderRows[0].owner_id !== user.id) {
         return NextResponse.json({ error: "forbidden folder" }, { status: 403 });
       }
+      folderClientName = folderRows[0].name || null;
+      folderClientEmail = folderRows[0].client_email;
+      folderClientPhone = folderRows[0].client_phone;
     }
+
+    // Caller-provided values win; fall back to the folder's CRM data; finally
+    // null. `body.client_name === ""` is treated as "no value given" so the
+    // folder name always surfaces when Designer omits the field.
+    const clientName =
+      (body.client_name && body.client_name.trim()) || folderClientName;
+    const clientEmail =
+      (body.client_email && body.client_email.trim()) || folderClientEmail;
+    const clientPhone =
+      (body.client_phone && body.client_phone.trim()) || folderClientPhone;
+
     const rows = (await q`
       insert into quotations (
         ref, owner_id, project_name, client_name, client_email, client_phone,
         sales_engineer, prepared_by, site_name, tax_percent, items_json, totals_json, config_json, folder_id
       ) values (
-        ${ref}, ${user.id}, ${body.project_name}, ${body.client_name || null},
-        ${body.client_email || null}, ${body.client_phone || null},
+        ${ref}, ${user.id}, ${body.project_name}, ${clientName},
+        ${clientEmail}, ${clientPhone},
         ${body.sales_engineer || null}, ${body.prepared_by || user.username},
         ${body.site_name || "SITE"}, ${body.tax_percent ?? 16},
         ${JSON.stringify(body.items || [])}::jsonb,
@@ -230,6 +271,45 @@ export async function POST(req: NextRequest) {
       returning id, ref
     `) as Array<{ id: number; ref: string }>;
     return NextResponse.json({ quotation: rows[0] });
+  } catch (err) {
+    return NextResponse.json(
+      { error: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * Soft-delete a quotation. The row stays in the database with `deleted_at`
+ * populated so the trash UI can restore it. We never offer a permanent-
+ * delete endpoint — the junction box is forever.
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireUser();
+    await ensureSchema();
+    const { searchParams } = new URL(req.url);
+    const id = Number(searchParams.get("id"));
+    if (!id) {
+      return NextResponse.json({ error: "missing id" }, { status: 400 });
+    }
+    const q = sql();
+    const owned = (await q`
+      select owner_id from quotations
+      where id = ${id} and deleted_at is null
+      limit 1
+    `) as Array<{ owner_id: number | null }>;
+    if (owned.length === 0) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    if (user.role !== "admin" && owned[0].owner_id !== user.id) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    await q`
+      update quotations set deleted_at = now(), updated_at = now()
+      where id = ${id}
+    `;
+    return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message },

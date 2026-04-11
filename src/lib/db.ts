@@ -180,6 +180,157 @@ async function _ensureSchemaOnce(): Promise<void> {
     create index if not exists quotations_folder_idx on quotations(folder_id)
   `;
 
+  // ── Client folder CRM fields ─────────────────────────────────────────────
+  // Each client_folders row now doubles as a client record: the folder name is
+  // the client/company name and these columns carry the rest of the contact
+  // card. The Designer auto-populates each new quotation from the folder the
+  // user picks, so client info is typed once per client instead of once per
+  // quotation.
+  await q`
+    alter table client_folders add column if not exists client_email text
+  `;
+  await q`
+    alter table client_folders add column if not exists client_phone text
+  `;
+  await q`
+    alter table client_folders add column if not exists client_company text
+  `;
+
+  // ── Soft-delete / trash bin ──────────────────────────────────────────────
+  // Nothing is ever hard-deleted through the normal UI. Both client folders
+  // and quotations get a `deleted_at` timestamp; rows with a non-null value
+  // are hidden from the regular list views and surfaced in /api/trash so the
+  // user can restore them. There is no auto-purge.
+  await q`
+    alter table client_folders add column if not exists deleted_at timestamptz
+  `;
+  await q`
+    alter table quotations add column if not exists deleted_at timestamptz
+  `;
+  await q`
+    create index if not exists client_folders_deleted_idx on client_folders(deleted_at)
+  `;
+  await q`
+    create index if not exists quotations_deleted_idx on quotations(deleted_at)
+  `;
+
+  // ── Migration tracking table ─────────────────────────────────────────────
+  // Used to guard one-shot data backfills so they don't run on every cold
+  // start. Keyed by a stable migration id so we can introduce more of these
+  // in the future without risk of re-running the old ones.
+  await q`
+    create table if not exists migration_flags (
+      key    text primary key,
+      ran_at timestamptz not null default now()
+    )
+  `;
+
+  // ── One-shot CRM backfill (client_folders_crm_v1) ────────────────────────
+  // 1. For every existing folder missing client_email, copy the most recent
+  //    quotation's client_email/client_phone (folder name already matches the
+  //    typed client_name on the old quotations closely enough).
+  // 2. For every quotation that's still "unfiled" but has a client_email (or
+  //    at least a client_name), create one folder per distinct
+  //    (owner_id, lowercased email or name) and file the quotation into it.
+  // Guarded by migration_flags so this runs exactly once per database.
+  const flagRows = (await q`
+    select 1 from migration_flags where key = 'client_folders_crm_v1' limit 1
+  `) as Array<{ ["?column?"]: number }>;
+  if (flagRows.length === 0) {
+    // Step 1 — backfill folder client_email/client_phone from their latest
+    // quotation. `distinct on` + order picks the newest row per folder.
+    await q`
+      update client_folders f
+      set client_email = coalesce(f.client_email, src.client_email),
+          client_phone = coalesce(f.client_phone, src.client_phone),
+          updated_at   = now()
+      from (
+        select distinct on (folder_id)
+               folder_id, client_email, client_phone
+        from quotations
+        where folder_id is not null
+          and deleted_at is null
+          and (client_email is not null or client_phone is not null)
+        order by folder_id, updated_at desc
+      ) src
+      where f.id = src.folder_id
+        and f.client_email is null
+    `;
+
+    // Step 2 — fold unfiled quotations into per-owner client folders keyed on
+    // a normalized client_email (fallback: client_name). We do this in two
+    // sub-steps so the INSERT is idempotent: first create folders for groups
+    // that don't have a match yet, then link every quotation to its folder.
+    await q`
+      with candidates as (
+        select owner_id,
+               nullif(lower(trim(client_email)), '')                        as norm_email,
+               nullif(trim(coalesce(client_name, '')), '')                  as name_trim,
+               nullif(trim(coalesce(client_email, '')), '')                 as email_trim,
+               nullif(trim(coalesce(client_phone, '')), '')                 as phone_trim
+        from quotations
+        where folder_id is null
+          and deleted_at is null
+          and owner_id is not null
+          and (
+            nullif(trim(coalesce(client_email, '')), '') is not null
+            or nullif(trim(coalesce(client_name, '')), '')  is not null
+          )
+      ),
+      groups as (
+        select owner_id,
+               coalesce(norm_email, lower(name_trim))                        as group_key,
+               max(name_trim)                                                as name_pick,
+               max(email_trim)                                               as email_pick,
+               max(phone_trim)                                               as phone_pick
+        from candidates
+        group by owner_id, coalesce(norm_email, lower(name_trim))
+      )
+      insert into client_folders (owner_id, name, client_email, client_phone)
+      select g.owner_id,
+             coalesce(g.name_pick, g.email_pick, 'Client'),
+             g.email_pick,
+             g.phone_pick
+      from groups g
+      where not exists (
+        select 1 from client_folders cf
+        where cf.owner_id = g.owner_id
+          and (
+            (g.email_pick is not null and lower(cf.client_email) = lower(g.email_pick))
+            or lower(cf.name) = lower(coalesce(g.name_pick, g.email_pick, 'Client'))
+          )
+      )
+      on conflict (owner_id, name) do nothing
+    `;
+
+    // Link the unfiled quotations to the newly-created (or matching) folders.
+    await q`
+      update quotations q
+      set folder_id = cf.id
+      from client_folders cf
+      where q.folder_id is null
+        and q.deleted_at is null
+        and q.owner_id is not null
+        and cf.deleted_at is null
+        and cf.owner_id = q.owner_id
+        and (
+          (
+            nullif(lower(trim(q.client_email)), '') is not null
+            and lower(cf.client_email) = lower(trim(q.client_email))
+          )
+          or (
+            nullif(trim(coalesce(q.client_name, '')), '') is not null
+            and lower(cf.name) = lower(trim(q.client_name))
+          )
+        )
+    `;
+
+    await q`
+      insert into migration_flags (key) values ('client_folders_crm_v1')
+      on conflict (key) do nothing
+    `;
+  }
+
   // ── Products catalogue table ──────────────────────────────────────────────
   await q`
     create table if not exists products (
