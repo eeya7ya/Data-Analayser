@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import QuotationListClient from "@/components/QuotationListClient";
 import TrashView from "@/components/TrashView";
 
@@ -14,32 +14,36 @@ import TrashView from "@/components/TrashView";
  *
  * The selected tab lives in the URL (`?tab=trash`) so the browser back
  * button restores the previous tab and users can bookmark / link to the
- * trash view. We use `router.replace` (not `push`) because rapidly
- * flipping between tabs should not stuff history with dozens of entries.
+ * trash view. IMPORTANT: the current tab is read on the SERVER (from
+ * `searchParams` in /quotation/page.tsx) and passed in as a prop. We
+ * deliberately do NOT call `useSearchParams()` here — doing so in Next
+ * 15 opts the whole subtree into CSR-bailout, which means the
+ * server-rendered `initialQuotations` / `initialFolders` props never
+ * reach the client and the user briefly sees an empty list while the
+ * client re-fetches from /api/quotations on its own. Reading the tab on
+ * the server avoids that entirely.
  */
 export default function QuotationsPageTabs({
   isAdmin,
+  tab,
   initialQuotations,
   initialFolders,
 }: {
   isAdmin: boolean;
+  tab: "list" | "trash";
   initialQuotations?: Array<Record<string, unknown>>;
   initialFolders?: Array<Record<string, unknown>>;
 }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
-
-  const tab = searchParams.get("tab") === "trash" ? "trash" : "list";
 
   function switchTo(next: "list" | "trash") {
     if (next === tab) return;
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === "trash") params.set("tab", "trash");
-    else params.delete("tab");
-    const qs = params.toString();
+    // Use `replace` (not `push`) so rapidly flipping tabs doesn't stuff
+    // dozens of history entries. The `scroll: false` option keeps the
+    // page from jumping back to the top on every switch.
     startTransition(() => {
-      router.replace(qs ? `/quotation?${qs}` : "/quotation", {
+      router.replace(next === "trash" ? "/quotation?tab=trash" : "/quotation", {
         scroll: false,
       });
     });

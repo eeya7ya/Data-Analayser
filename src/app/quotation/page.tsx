@@ -99,6 +99,7 @@ export const dynamic = "force-dynamic";
 
 interface SearchParams {
   id?: string;
+  tab?: string;
 }
 
 export default async function QuotationPage({
@@ -176,6 +177,12 @@ export default async function QuotationPage({
   // `undefined` in that case and QuotationListClient's own loader kicks in.
   const loaded = await loadListData(user);
 
+  // Read the active tab here on the server so QuotationsPageTabs doesn't
+  // have to call `useSearchParams()`. That client-side hook opts the
+  // subtree into CSR-bailout in Next 15, which swallows the
+  // `initialQuotations` prop and makes the list look empty on first paint.
+  const tab: "list" | "trash" = sp.tab === "trash" ? "trash" : "list";
+
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
@@ -188,6 +195,7 @@ export default async function QuotationPage({
         </div>
         <QuotationsPageTabs
           isAdmin={user.role === "admin"}
+          tab={tab}
           initialQuotations={loaded?.quotations}
           initialFolders={loaded?.folders}
         />
