@@ -50,6 +50,14 @@ export interface QuotationItem {
    * always recompute from the canonical base price.
    */
   price_si?: number;
+  /**
+   * When true, this row is presented as an optional add-on: the Total
+   * Price cell shows the word "Optional" instead of the computed amount
+   * and the row is excluded from per-system subtotal, tax and grand
+   * total. The unit price stays visible so the client can still see the
+   * per-unit cost for reference.
+   */
+  optional?: boolean;
 }
 
 export interface QuotationHeader {
@@ -273,6 +281,20 @@ export default function QuotationPreview({
     setItems(next);
   }
 
+  // Flips the `optional` flag on a row. Optional rows keep their stored
+  // unit price visible but render "Optional" in the Total Price cell and
+  // contribute 0 to the subtotal / tax / grand total — useful for
+  // presenting add-ons whose price the client should see but which the
+  // sales team is not committing to in the offer.
+  function toggleOptional(globalIndex: number) {
+    if (!setItems) return;
+    const next = items.slice();
+    const cur = next[globalIndex];
+    if (!cur) return;
+    next[globalIndex] = { ...cur, optional: !cur.optional };
+    setItems(next);
+  }
+
   function renameSystem(oldName: string, newName: string) {
     if (!setItems || !newName.trim() || newName === oldName) return;
     setItems(
@@ -401,6 +423,7 @@ export default function QuotationPreview({
             onRemove={removeRow}
             onToggleMerge={toggleMerge}
             onToggleMergeLeft={toggleMergeLeft}
+            onToggleOptional={toggleOptional}
             onRenameExtraColumn={renameExtraColumn}
             onRemoveExtraColumn={removeExtraColumn}
           />
@@ -850,6 +873,7 @@ function SystemTable({
   onRemove,
   onToggleMerge,
   onToggleMergeLeft,
+  onToggleOptional,
   onRenameExtraColumn,
   onRemoveExtraColumn,
 }: {
@@ -863,6 +887,7 @@ function SystemTable({
   onRemove: (globalIndex: number) => void;
   onToggleMerge: (globalIndex: number, col: MergeCol) => void;
   onToggleMergeLeft: (globalIndex: number, col: HMergeCol) => void;
+  onToggleOptional: (globalIndex: number) => void;
   onRenameExtraColumn: (id: string, label: string) => void;
   onRemoveExtraColumn: (id: string) => void;
 }) {
@@ -873,6 +898,10 @@ function SystemTable({
   // calculation can resolve merged unit-price cells via effectiveMergedValue.
   const groupItems = group.rows.map((r) => r.item);
   const subtotal = group.rows.reduce((acc, _, rowIdx) => {
+    // Optional rows are shown to the client for reference only, so they
+    // must stay out of the subtotal the same way they stay out of the
+    // grand total in computeQuotationTotals.
+    if (groupItems[rowIdx].optional) return acc;
     const qty = Number(groupItems[rowIdx].quantity) || 0;
     const price =
       Number(effectiveMergedValue(groupItems, rowIdx, "unit_price")) || 0;
@@ -1123,11 +1152,15 @@ function SystemTable({
               ),
             )}
             <td className="font-semibold">
-              {money(
-                (Number(item.quantity) || 0) *
-                  ((Number(
-                    effectiveMergedValue(groupItems, rowIdx, "unit_price"),
-                  ) || 0) / priceDivisor),
+              {item.optional ? (
+                <span className="italic text-magic-ink/60">Optional</span>
+              ) : (
+                money(
+                  (Number(item.quantity) || 0) *
+                    ((Number(
+                      effectiveMergedValue(groupItems, rowIdx, "unit_price"),
+                    ) || 0) / priceDivisor),
+                )
               )}
               {editable && (
                 <div className="no-print mt-1 flex items-center justify-center gap-1">
@@ -1157,6 +1190,22 @@ function SystemTable({
                       ))}
                     <option value="__new__">+ New page…</option>
                   </select>
+                  <button
+                    type="button"
+                    onClick={() => onToggleOptional(globalIndex)}
+                    title={
+                      item.optional
+                        ? "Include this row in the total"
+                        : "Mark as optional (show unit price but exclude from total)"
+                    }
+                    className={`w-auto px-1 h-4 text-[9px] leading-none rounded ${
+                      item.optional
+                        ? "bg-magic-red text-white"
+                        : "bg-white/80 text-magic-ink/50 border border-magic-border hover:bg-magic-soft"
+                    }`}
+                  >
+                    Opt
+                  </button>
                   <button
                     onClick={() => onRemove(globalIndex)}
                     className="text-red-500 text-[11px]"

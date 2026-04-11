@@ -443,10 +443,19 @@ export default function Designer({
     if (!editMode) clearDraft();
   }
 
+  // Prints the current in-memory quotation preview straight from the
+  // Designer without first saving. The global `@media print` rules hide
+  // everything tagged `.no-print`, so the settings toolbar, client-info
+  // card, and preview header row drop out and only the `.quotation-sheet`
+  // pages render.
+  function printQuotation() {
+    if (typeof window !== "undefined") window.print();
+  }
+
   return (
     <div className="space-y-4">
       {/* ── Settings toolbar ──────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-magic-border bg-white p-4">
+      <div className="no-print rounded-2xl border border-magic-border bg-white p-4">
         <div className="flex flex-wrap items-end gap-4">
           {/* Pricing category */}
           <div className="flex-1 min-w-[200px]">
@@ -541,7 +550,7 @@ export default function Designer({
           A client folder IS the client record. Selecting one populates the
           email / phone / name on the printable quotation and locks those
           fields so the user only needs to fill in the project name. */}
-      <div className="rounded-2xl border border-magic-border bg-white p-4">
+      <div className="no-print rounded-2xl border border-magic-border bg-white p-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex-1 min-w-[220px]">
             <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
@@ -647,7 +656,7 @@ export default function Designer({
 
       {/* ── Quotation preview & table editor ─────────────────────────────── */}
       <div className="rounded-2xl border border-magic-border bg-white p-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="no-print flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold">Quotation preview</h3>
           <div className="flex items-center gap-2">
             {editMode && saveStatus && (
@@ -667,6 +676,14 @@ export default function Designer({
               className="rounded-md border border-magic-border px-3 py-1.5 text-xs hover:bg-magic-soft disabled:opacity-40"
             >
               Clear
+            </button>
+            <button
+              onClick={printQuotation}
+              disabled={items.length === 0}
+              title="Print the current quotation preview"
+              className="rounded-md border border-magic-border px-3 py-1.5 text-xs hover:bg-magic-soft disabled:opacity-40"
+            >
+              Print
             </button>
             <button
               onClick={saveQuotation}
