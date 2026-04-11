@@ -114,6 +114,33 @@ export async function ensureSchema(): Promise<void> {
   return globalForSchema.__mtSchemaPromise;
 }
 
+/**
+ * Force the schema bootstrap to run again on the next `ensureSchema()` call.
+ *
+ * Deletes the migration fingerprint rows from `migration_flags` so the DDL
+ * block re-executes. All statements use `IF NOT EXISTS` / `IF EXISTS` guards
+ * and `ON CONFLICT DO NOTHING` — **no data is ever dropped or overwritten**.
+ * Quotations, folders, users and every other table's rows are completely safe.
+ *
+ * Call this from an admin endpoint when you want to force-apply a new
+ * migration (e.g. the composite-index migration) without waiting for the
+ * natural next cold start.
+ */
+export async function resetSchemaCache(): Promise<void> {
+  const q = sql();
+  // Remove the two flags we control so _ensureSchemaOnce re-runs them.
+  // The CRM backfill flag (client_folders_crm_v1) is intentionally left
+  // alone — that migration has already filed quotations into folders and
+  // re-running it is a no-op, but leaving the flag avoids the extra SELECTs.
+  await q`
+    delete from migration_flags
+    where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG})
+  `;
+  // Bust the in-process promise cache so the next ensureSchema() call
+  // actually hits the database instead of returning the cached void.
+  globalForSchema.__mtSchemaPromise = undefined;
+}
+
 async function _ensureSchemaOnce(): Promise<void> {
   const q = sql();
 
