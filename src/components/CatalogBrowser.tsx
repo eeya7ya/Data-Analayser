@@ -89,12 +89,27 @@ const PAGE_SUGGESTIONS = [
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
-export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
+export default function CatalogBrowser({
+  user: _user,
+  initialSystems = [],
+}: {
+  user: SessionUser;
+  /**
+   * Pre-fetched vendor/system list supplied by the server page. When
+   * provided, the dropdown is populated on first paint and we skip the
+   * initial client fetch entirely — the old behaviour of mounting with an
+   * empty select and waiting for /api/catalogue/systems (with retry
+   * back-off) caused a noticeable lag on cold starts.
+   */
+  initialSystems?: SystemInfo[];
+}) {
   const router = useRouter();
 
   // ── System list ──────────────────────────────────────────────────────────
-  const [systems, setSystems] = useState<SystemInfo[]>([]);
+  const [systems, setSystems] = useState<SystemInfo[]>(initialSystems);
   useEffect(() => {
+    // If the server already hydrated the list, skip the round-trip.
+    if (initialSystems && initialSystems.length > 0) return;
     let cancelled = false;
     async function load(attempt = 0): Promise<void> {
       try {
@@ -114,7 +129,7 @@ export default function CatalogBrowser({ user: _user }: { user: SessionUser }) {
     }
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [initialSystems]);
 
   // ── Browsing state ────────────────────────────────────────────────────────
   const [selectedVendor, setSelectedVendor] = useState("");

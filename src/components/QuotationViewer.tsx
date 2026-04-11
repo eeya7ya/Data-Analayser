@@ -6,6 +6,7 @@ import QuotationPreview, {
   QuotationExtraColumn,
 } from "./QuotationPreview";
 import { DEFAULT_TERMS } from "@/lib/quotationDraft";
+import type { AppSettings } from "@/lib/settings";
 
 interface SavedConfig {
   showPictures?: boolean;
@@ -20,9 +21,15 @@ interface SavedConfig {
 
 export default function QuotationViewer({
   row,
+  appSettings,
 }: {
   row: Record<string, unknown>;
+  appSettings: AppSettings;
 }) {
+  const fallbackTerms =
+    appSettings.defaultTerms && appSettings.defaultTerms.length > 0
+      ? appSettings.defaultTerms
+      : DEFAULT_TERMS;
   const router = useRouter();
   const id = Number(row.id);
   // `items_json` comes straight from a jsonb column. Normally that decodes to
@@ -90,10 +97,11 @@ export default function QuotationViewer({
         terms={
           Array.isArray(config.terms) && config.terms.length > 0
             ? config.terms
-            : [...DEFAULT_TERMS]
+            : [...fallbackTerms]
         }
         includeTax={config.includeTax !== false}
         taxInclusive={Boolean(config.taxInclusive)}
+        footerText={appSettings.footerText}
       />
     </div>
   );

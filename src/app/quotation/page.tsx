@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
+import { getAppSettings } from "@/lib/settings";
 import TopBar from "@/components/TopBar";
 import QuotationViewer from "@/components/QuotationViewer";
 import FolderExportImport from "@/components/FolderExportImport";
@@ -27,6 +28,7 @@ export default async function QuotationPage({
   // entirely client-side so nav to /quotation is instant.
   if (sp.id) {
     await ensureSchema();
+    const appSettings = await getAppSettings();
     const q = sql();
     const rows = (await q`
       select * from quotations
@@ -66,7 +68,7 @@ export default async function QuotationPage({
           <TopBar user={user} />
         </div>
         <main className="max-w-5xl mx-auto p-6">
-          <QuotationViewer row={row} />
+          <QuotationViewer row={row} appSettings={appSettings} />
         </main>
       </div>
     );

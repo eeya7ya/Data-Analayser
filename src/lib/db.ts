@@ -331,6 +331,19 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
   }
 
+  // ── Application settings (admin-editable presets) ────────────────────────
+  // Simple key/value store for global presets like the default Terms &
+  // Conditions list and the printable footer/company address. Written from
+  // the admin Settings tab and read by the Designer / QuotationViewer so
+  // every new or opened quotation inherits the latest values.
+  await q`
+    create table if not exists app_settings (
+      key        text primary key,
+      value      jsonb not null default '{}'::jsonb,
+      updated_at timestamptz not null default now()
+    )
+  `;
+
   // ── Products catalogue table ──────────────────────────────────────────────
   await q`
     create table if not exists products (

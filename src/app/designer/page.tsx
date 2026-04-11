@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import Designer, { type ExistingQuotation } from "@/components/Designer";
 import TopBar from "@/components/TopBar";
 import { sql, ensureSchema } from "@/lib/db";
+import { getAppSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export default async function DesignerPage({
   if (!user) redirect("/login");
 
   const sp = await searchParams;
+  const appSettings = await getAppSettings();
   let existing: ExistingQuotation | undefined;
   let initialFolderId: number | null = null;
   if (sp.folder && !sp.id) {
@@ -101,6 +103,7 @@ export default async function DesignerPage({
           user={user}
           existing={existing}
           initialFolderId={initialFolderId}
+          appSettings={appSettings}
         />
       </main>
     </div>
