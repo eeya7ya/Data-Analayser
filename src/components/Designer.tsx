@@ -44,6 +44,12 @@ export interface ExistingQuotation {
     pricingCategory?: PricingCategory;
     includeTax?: boolean;
     taxInclusive?: boolean;
+    // Legacy marker. Quotations saved before the "Excl. Tax" button was
+    // changed from a display overlay to a real unit_price transform stored
+    // raw (tax-inclusive) prices even when taxInclusive=true. The hydration
+    // path below divides those rows on first open and then sets this flag
+    // on save so the migration only runs once per quotation.
+    taxPricesNormalized?: boolean;
   };
 }
 
@@ -143,6 +149,35 @@ export default function Designer({
     );
   }
 
+  // Pressing the Excl./Incl. Tax button MUTATES every row's unit_price
+  // (and price_si baseline) so the stored value matches what the user
+  // sees and what gets saved. The taxInclusive flag is kept as metadata
+  // recording the user's last action so the button label survives a
+  // reload. Running the transform across every item (optional rows
+  // included) keeps unit prices consistent — the optional flag only
+  // hides the row total, the unit price itself is still displayed for
+  // reference and must track the toggle.
+  function toggleTaxInclusive() {
+    const rate = (Number(taxPercent) || 0) / 100;
+    if (rate <= 0) {
+      setTaxInclusive((v) => !v);
+      return;
+    }
+    const factor = 1 + rate;
+    const goingExclusive = !taxInclusive;
+    const op = goingExclusive
+      ? (n: number) => Number((n / factor).toFixed(2))
+      : (n: number) => Number((n * factor).toFixed(2));
+    setItems((cur) =>
+      cur.map((it) => ({
+        ...it,
+        unit_price: op(Number(it.unit_price) || 0),
+        price_si: it.price_si != null ? op(Number(it.price_si)) : it.price_si,
+      })),
+    );
+    setTaxInclusive((v) => !v);
+  }
+
   // ── Hydrate state on mount ────────────────────────────────────────────────
   useEffect(() => {
     if (existing) {
@@ -210,6 +245,36 @@ export default function Designer({
       setPricingCategoryState(existing.config_json?.pricingCategory || "si");
       setIncludeTax(existing.config_json?.includeTax !== false);
       setTaxInclusive(Boolean(existing.config_json?.taxInclusive));
+
+      // Legacy migration: quotations saved before the Excl./Incl. Tax
+      // button was changed from a display overlay to a real unit_price
+      // transform stored RAW (tax-inclusive) prices even when the flag
+      // was on. Detect via the absence of `taxPricesNormalized` and
+      // divide every unit_price/price_si by (1+rate) once, so totals and
+      // displayed values match after the divisor was removed from the
+      // preview. The next save persists the flag and skips this branch.
+      const legacyCfg = existing.config_json || {};
+      if (legacyCfg.taxInclusive && !legacyCfg.taxPricesNormalized) {
+        const legacyRate = (Number(existing.tax_percent ?? 16) || 0) / 100;
+        if (legacyRate > 0) {
+          const legacyFactor = 1 + legacyRate;
+          setItems((cur) =>
+            cur.map((it) => ({
+              ...it,
+              unit_price: Number(
+                ((Number(it.unit_price) || 0) / legacyFactor).toFixed(2),
+              ),
+              price_si:
+                it.price_si != null
+                  ? Number(
+                      ((Number(it.price_si) || 0) / legacyFactor).toFixed(2),
+                    )
+                  : it.price_si,
+            })),
+          );
+        }
+      }
+
       hydratedRef.current = true;
       return;
     }
@@ -398,6 +463,9 @@ export default function Designer({
           pricingCategory,
           includeTax,
           taxInclusive,
+          // Stamped on every save so the legacy migration in the
+          // hydration effect only runs once per quotation.
+          taxPricesNormalized: true,
         },
       };
       const res = editMode
@@ -522,7 +590,7 @@ export default function Designer({
                   {includeTax ? "Tax ON" : "Tax OFF"}
                 </button>
                 <button
-                  onClick={() => setTaxInclusive(!taxInclusive)}
+                  onClick={toggleTaxInclusive}
                   className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                     taxInclusive
                       ? "bg-orange-500 text-white hover:bg-orange-600"

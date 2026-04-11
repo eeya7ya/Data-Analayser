@@ -79,27 +79,25 @@ export function taxDivisor(taxPercent: number, taxInclusive: boolean): number {
  * on-screen numbers in lockstep, even when the user merges unit-price
  * cells.
  *
- * When `taxInclusive` is true the entered prices already contain tax,
- * so the raw sum is divided by the tax factor to obtain the base
- * subtotal, and the tax is the difference. This avoids double-counting.
+ * Unit prices are stored in their final form — the Designer transforms
+ * them at the moment the user toggles the Excl./Incl. Tax button — so
+ * this routine always adds tax on top of the raw subtotal. The legacy
+ * back-calculation branch (when the flag was a display overlay) has
+ * been removed; `_taxInclusive` is kept in the signature for call-site
+ * compatibility only.
  */
 export function computeQuotationTotals(
   items: QuotationItem[],
   taxPercent: number,
-  taxInclusive: boolean = false,
+  _taxInclusive: boolean = false,
 ): { subtotal: number; tax: number; total: number } {
-  let rawSum = 0;
+  let subtotal = 0;
   for (const group of groupBySystem(items)) {
     for (let i = 0; i < group.length; i++) {
-      rawSum += effectiveRowTotal(group, i);
+      subtotal += effectiveRowTotal(group, i);
     }
   }
   const rate = (Number(taxPercent) || 0) / 100;
-  if (taxInclusive && rate > 0) {
-    const subtotal = rawSum / (1 + rate);
-    const tax = subtotal * rate;
-    return { subtotal, tax, total: rawSum };
-  }
-  const tax = rawSum * rate;
-  return { subtotal: rawSum, tax, total: rawSum + tax };
+  const tax = subtotal * rate;
+  return { subtotal, tax, total: subtotal + tax };
 }
