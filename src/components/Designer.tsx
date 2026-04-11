@@ -141,6 +141,18 @@ export default function Designer({
     folderId != null ? folders.find((f) => f.id === folderId) || null : null;
   const clientLocked = !!selectedFolder;
 
+  /**
+   * Gate the design UI (pricing toolbar + quotation table) behind a client
+   * selection when creating a brand-new quotation. The workflow is now
+   *   Step 1 — land on /designer → "Start a new quotation" hero with the
+   *            client picker as the only interactive thing on the page.
+   *   Step 2 — once a folder is picked, reveal the pricing toolbar and the
+   *            quotation preview so the user can actually design.
+   * Edit mode always shows everything because legacy rows may have a null
+   * folder_id and we don't want to hide the table from them.
+   */
+  const showDesignUI = editMode || folderId != null;
+
   function setDesignEng(value: string) {
     // Session-local only: changes stay in the draft / saved config but do
     // not leak to a browser-wide localStorage pref. A previous global
@@ -594,7 +606,45 @@ export default function Designer({
 
   return (
     <div className="space-y-4">
+      {/* ── Step 1 hero ──────────────────────────────────────────────────────
+          Only rendered in create mode before a client is picked. Gives the
+          user a single clear instruction ("pick a client to start") instead
+          of dropping them into an empty preview with no obvious next action.
+          Disappears as soon as a folder is selected so it doesn't get in the
+          way of subsequent edits. */}
+      {!showDesignUI && (
+        <div className="no-print rounded-2xl border-2 border-dashed border-magic-red/40 bg-gradient-to-b from-magic-red/5 to-transparent p-6 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-magic-red text-white">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-magic-ink">
+            Start a new quotation
+          </h2>
+          <p className="mx-auto mt-1 max-w-md text-sm text-magic-ink/70">
+            Pick a client below to begin — the quotation will be filed under
+            their folder and the header fields (name, email, phone) will be
+            filled in for you. Once a client is selected, the pricing toolbar
+            and quotation table will appear.
+          </p>
+        </div>
+      )}
+
       {/* ── Settings toolbar ──────────────────────────────────────────────── */}
+      {showDesignUI && (
       <div className="no-print rounded-2xl border border-magic-border bg-white p-4">
         <div className="flex flex-wrap items-end gap-4">
           {/* Pricing category */}
@@ -685,6 +735,7 @@ export default function Designer({
           </div>
         </div>
       </div>
+      )}
 
       {/* ── Client folder (CRM) ─────────────────────────────────────────────
           A client folder IS the client record. Selecting one populates the
@@ -794,7 +845,11 @@ export default function Designer({
         </div>
       </div>
 
-      {/* ── Quotation preview & table editor ─────────────────────────────── */}
+      {/* ── Quotation preview & table editor ───────────────────────────────
+          Hidden in create mode until a client folder is picked so the user
+          has a single clear next action (Step 1: pick a client) instead of
+          facing an empty preview they can't save anyway. */}
+      {showDesignUI && (
       <div className="rounded-2xl border border-magic-border bg-white p-4">
         <div className="no-print flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold">Quotation preview</h3>
@@ -902,6 +957,7 @@ export default function Designer({
           footerText={appSettings.footerText}
         />
       </div>
+      )}
     </div>
   );
 }
