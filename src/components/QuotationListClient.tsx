@@ -34,6 +34,19 @@ interface Folder {
   owner_display_name?: string | null;
 }
 
+/**
+ * Folders created before the "name required" validation could slip into the
+ * database with an empty or whitespace-only name. When that happens the
+ * folder bar ends up rendering just an owner badge with no visible label,
+ * which is extremely confusing — the user thinks a quotation count of 0
+ * means their data is gone when really the row just has no title. This
+ * helper keeps the list readable by always showing *something*.
+ */
+function folderDisplayName(raw: string | null | undefined): string {
+  const trimmed = (raw ?? "").trim();
+  return trimmed || "(untitled client)";
+}
+
 function formatDateTime(dt: string) {
   const d = new Date(dt);
   const date = d.toLocaleDateString(undefined, {
@@ -257,6 +270,27 @@ export default function QuotationListClient({
     [folders],
   );
 
+  // Client-side folder sort that mirrors the admin server query
+  // (`order by u.username nulls first, f.name asc`). Regular users get the
+  // simpler name-only sort. Without this, optimistic updates after create /
+  // edit would fall back to plain `name.localeCompare`, jumbling a
+  // multi-user admin list where folders from different owners share a name
+  // (or have empty names, which sort identically).
+  function sortFolders(list: Folder[]): Folder[] {
+    return [...list].sort((a, b) => {
+      if (isAdmin) {
+        const au = (a.owner_username || "").toLowerCase();
+        const bu = (b.owner_username || "").toLowerCase();
+        if (au !== bu) {
+          if (!au) return -1;
+          if (!bu) return 1;
+          return au.localeCompare(bu);
+        }
+      }
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }
+
   // ── Client/folder CRUD handlers ──────────────────────────────────────
   async function createFolder() {
     if (!newName.trim()) return;
@@ -278,11 +312,7 @@ export default function QuotationListClient({
         setError(data.error || "Failed to create client");
         return;
       }
-      setFolders((prev) =>
-        [...prev, data.folder].sort((a: Folder, b: Folder) =>
-          a.name.localeCompare(b.name),
-        ),
-      );
+      setFolders((prev) => sortFolders([...prev, data.folder]));
       setExpanded((prev) => new Set(prev).add(String(data.folder.id)));
       setNewName("");
       setNewEmail("");
@@ -316,9 +346,7 @@ export default function QuotationListClient({
         return;
       }
       setFolders((prev) =>
-        prev
-          .map((f) => (f.id === id ? data.folder : f))
-          .sort((a: Folder, b: Folder) => a.name.localeCompare(b.name)),
+        sortFolders(prev.map((f) => (f.id === id ? data.folder : f))),
       );
       setEditingId(null);
       setEditName("");
@@ -538,11 +566,18 @@ export default function QuotationListClient({
       {/* Empty state */}
       {!dataLoading && !loadError && quotations.length === 0 && (
         <div className="rounded-2xl border border-magic-border bg-white p-6 text-center text-magic-ink/50">
-          No quotations yet. Go to{" "}
-          <a href="/designer" className="text-magic-red underline">
-            the Designer
-          </a>{" "}
-          to create one.
+          <div>
+            No quotations yet. Go to{" "}
+            <a href="/designer" className="text-magic-red underline">
+              the Designer
+            </a>{" "}
+            to create one.
+          </div>
+          <div className="mt-2 text-xs">
+            Missing a quotation you know you saved? Check the{" "}
+            <strong className="text-magic-red">Trash</strong> tab above —
+            deleted folders and their quotations can be restored from there.
+          </div>
         </div>
       )}
 
@@ -663,8 +698,14 @@ export default function QuotationListClient({
                   </div>
                 ) : (
                   <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5">
-                    <span className="font-semibold text-magic-ink">
-                      {isUnfiled ? "Unfiled" : g.folder!.name}
+                    <span
+                      className={`font-semibold ${
+                        !isUnfiled && !g.folder!.name?.trim()
+                          ? "text-magic-ink/40 italic"
+                          : "text-magic-ink"
+                      }`}
+                    >
+                      {isUnfiled ? "Unfiled" : folderDisplayName(g.folder!.name)}
                       {isAdmin && !isUnfiled && g.folder?.owner_username && (
                         <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-magic-red/10 text-magic-red text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide">
                           @{g.folder.owner_display_name?.trim() || g.folder.owner_username}

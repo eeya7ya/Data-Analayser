@@ -15,11 +15,21 @@ import QuotationsPageTabs from "@/components/QuotationsPageTabs";
  * users open first. Loading here means Next.js streams the HTML with the
  * groups already populated.
  */
+/**
+ * Server-side preload budget. We'd rather ship an empty skeleton and let the
+ * client fetch the data async than keep the user staring at a blank browser
+ * tab while Supabase cold-starts. When this race trips, `loadListData`
+ * returns `null` and the page hands `undefined` to the client component,
+ * which triggers its own /api/quotations + /api/folders round-trip with a
+ * visible loading state.
+ */
+const PRELOAD_BUDGET_MS = 2500;
+
 async function loadListData(user: SessionUser): Promise<{
   quotations: Array<Record<string, unknown>>;
   folders: Array<Record<string, unknown>>;
-}> {
-  try {
+} | null> {
+  const work = (async () => {
     await ensureSchema();
     const q = sql();
     const [quotations, folders] = await Promise.all([
@@ -65,7 +75,22 @@ async function loadListData(user: SessionUser): Promise<{
           ` as unknown as Promise<Array<Record<string, unknown>>>),
     ]);
     return { quotations, folders };
+  })();
+
+  // `PRELOAD_TIMEOUT` is our own sentinel so we can distinguish a slow DB
+  // (hand off to the client) from a real query error (show empty state).
+  const timeout = new Promise<"PRELOAD_TIMEOUT">((resolve) =>
+    setTimeout(() => resolve("PRELOAD_TIMEOUT"), PRELOAD_BUDGET_MS),
+  );
+
+  try {
+    const result = await Promise.race([work, timeout]);
+    if (result === "PRELOAD_TIMEOUT") return null;
+    return result;
   } catch {
+    // Query error (schema, auth, bad connection) — render an empty list so
+    // the page still paints. The client component will just show "No
+    // quotations yet." instead of hanging forever.
     return { quotations: [], folders: [] };
   }
 }
@@ -138,7 +163,11 @@ export default async function QuotationPage({
     );
   }
 
-  const { quotations, folders } = await loadListData(user);
+  // `loaded === null` means the server-side preload exceeded its budget and
+  // we handed the fetch back to the client so the page can still stream its
+  // shell immediately. `initialQuotations` / `initialFolders` stay
+  // `undefined` in that case and QuotationListClient's own loader kicks in.
+  const loaded = await loadListData(user);
 
   return (
     <div className="min-h-screen bg-magic-soft/40">
@@ -152,8 +181,8 @@ export default async function QuotationPage({
         </div>
         <QuotationsPageTabs
           isAdmin={user.role === "admin"}
-          initialQuotations={quotations}
-          initialFolders={folders}
+          initialQuotations={loaded?.quotations}
+          initialFolders={loaded?.folders}
         />
       </main>
     </div>
