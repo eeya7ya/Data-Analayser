@@ -39,7 +39,7 @@ async function fetchJson<T>(
 ): Promise<T | { __error: string }> {
   let res: Response;
   try {
-    res = await fetch(url, { signal: opts.signal });
+    res = await fetch(url, { signal: opts.signal, cache: "no-store" });
   } catch (err) {
     if ((err as Error).name === "AbortError") {
       return { __error: "Request timed out — check your connection and retry." };
@@ -184,7 +184,26 @@ export default function QuotationViewer({
     ...it,
     system: it.system || it.brand || "General",
   }));
-  const config = (row.config_json as SavedConfig) || {};
+  // `config_json` is a jsonb column — normally decoded to a JS object, but
+  // legacy/corrupted rows can surface a JSON string. Mirror DesignerShell's
+  // normalisation so saved terms and settings are never silently lost.
+  const rawConfig: unknown = row.config_json;
+  const parsedConfig: unknown =
+    typeof rawConfig === "string"
+      ? (() => {
+          try {
+            return JSON.parse(rawConfig);
+          } catch {
+            return {};
+          }
+        })()
+      : rawConfig;
+  const config: SavedConfig =
+    parsedConfig &&
+    typeof parsedConfig === "object" &&
+    !Array.isArray(parsedConfig)
+      ? (parsedConfig as SavedConfig)
+      : {};
   const id = Number(row.id);
   const header = {
     ref: String(row.ref),

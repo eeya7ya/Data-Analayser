@@ -52,6 +52,7 @@ export default function DesignerShell({
       try {
         res = await fetch(`/api/quotations?id=${quotationId}`, {
           signal: ctl.signal,
+          cache: "no-store",
         });
       } catch (err) {
         if (cancelled) return;

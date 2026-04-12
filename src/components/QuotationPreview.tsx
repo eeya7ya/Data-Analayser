@@ -230,6 +230,48 @@ export default function QuotationPreview({
     setItems(renumber(items.filter((_, idx) => idx !== i)));
   }
 
+  /** Duplicate a row, inserting the copy right after the original. */
+  function duplicateRow(globalIndex: number) {
+    if (!setItems) return;
+    const src = items[globalIndex];
+    if (!src) return;
+    const copy: QuotationItem = {
+      ...src,
+      no: 0,
+      // Clear merge flags so the duplicate starts as an independent row.
+      merge_up: undefined,
+      merge_left: undefined,
+    };
+    const next = items.slice();
+    next.splice(globalIndex + 1, 0, copy);
+    setItems(renumber(next));
+  }
+
+  /** Copy a row to the internal clipboard (stored on window for simplicity). */
+  function copyRow(globalIndex: number) {
+    const src = items[globalIndex];
+    if (!src) return;
+    (window as unknown as Record<string, unknown>).__qt_clipboard = { ...src };
+  }
+
+  /** Paste the clipboard row after the given index, inheriting the target system. */
+  function pasteRow(globalIndex: number) {
+    if (!setItems) return;
+    const clip = (window as unknown as Record<string, unknown>).__qt_clipboard as QuotationItem | undefined;
+    if (!clip) return;
+    const target = items[globalIndex];
+    const copy: QuotationItem = {
+      ...clip,
+      no: 0,
+      system: target?.system || clip.system,
+      merge_up: undefined,
+      merge_left: undefined,
+    };
+    const next = items.slice();
+    next.splice(globalIndex + 1, 0, copy);
+    setItems(renumber(next));
+  }
+
   /**
    * Moves a row up or down within its own system group. Rows from
    * different system pages are never interleaved — up at the first row
@@ -467,6 +509,9 @@ export default function QuotationPreview({
             onUpdate={update}
             onRemove={removeRow}
             onMove={moveRow}
+            onDuplicate={duplicateRow}
+            onCopy={copyRow}
+            onPaste={pasteRow}
             onToggleMerge={toggleMerge}
             onToggleMergeLeft={toggleMergeLeft}
             onToggleOptional={toggleOptional}
@@ -924,6 +969,9 @@ function SystemTable({
   onUpdate,
   onRemove,
   onMove,
+  onDuplicate,
+  onCopy,
+  onPaste,
   onToggleMerge,
   onToggleMergeLeft,
   onToggleOptional,
@@ -938,6 +986,9 @@ function SystemTable({
   onUpdate: (globalIndex: number, patch: Partial<QuotationItem>) => void;
   onRemove: (globalIndex: number) => void;
   onMove: (globalIndex: number, direction: "up" | "down") => void;
+  onDuplicate: (globalIndex: number) => void;
+  onCopy: (globalIndex: number) => void;
+  onPaste: (globalIndex: number) => void;
   onToggleMerge: (globalIndex: number, col: MergeCol) => void;
   onToggleMergeLeft: (globalIndex: number, col: HMergeCol) => void;
   onToggleOptional: (globalIndex: number) => void;
@@ -1286,6 +1337,30 @@ function SystemTable({
                     }`}
                   >
                     Opt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDuplicate(globalIndex)}
+                    className="w-auto px-1 h-4 text-[9px] leading-none rounded bg-white/80 text-magic-ink/50 border border-magic-border hover:bg-magic-soft"
+                    title="Duplicate this row"
+                  >
+                    Dup
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onCopy(globalIndex)}
+                    className="w-auto px-1 h-4 text-[9px] leading-none rounded bg-white/80 text-magic-ink/50 border border-magic-border hover:bg-magic-soft"
+                    title="Copy this row"
+                  >
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onPaste(globalIndex)}
+                    className="w-auto px-1 h-4 text-[9px] leading-none rounded bg-white/80 text-magic-ink/50 border border-magic-border hover:bg-magic-soft"
+                    title="Paste copied row after this one"
+                  >
+                    Paste
                   </button>
                   <button
                     onClick={() => onRemove(globalIndex)}
