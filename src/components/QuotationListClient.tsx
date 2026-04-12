@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MoveToFolder from "@/components/MoveToFolder";
+import DuplicateQuotation from "@/components/DuplicateQuotation";
 
 /**
  * Robust fetch + JSON parse for our API routes. When a Vercel function
@@ -942,6 +943,11 @@ export default function QuotationListClient({
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex items-center justify-end gap-3">
+                          <DuplicateQuotation
+                            quotationId={r.id}
+                            currentFolderId={r.folder_id}
+                            folders={foldersForMove}
+                          />
                           <MoveToFolder
                             quotationId={r.id}
                             currentFolderId={r.folder_id}

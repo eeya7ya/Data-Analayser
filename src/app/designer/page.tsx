@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import Designer, { type ExistingQuotation } from "@/components/Designer";
+import Designer from "@/components/Designer";
+import DesignerShell from "@/components/DesignerShell";
 import TopBar from "@/components/TopBar";
-import { sql, ensureSchema } from "@/lib/db";
 import { getAppSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -22,78 +22,67 @@ export default async function DesignerPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  // Fire the schema bootstrap and the (raced, short-budget) settings fetch
-  // immediately so their TCP handshakes to Supabase overlap with the local
-  // JWT verification and searchParams resolution. By the time we await
-  // them below they are almost always either already resolved or already
-  // in flight. This is the same "start I/O before you need it" pattern the
-  // quotation list page uses and was the biggest remaining blocker on the
-  // designer server render — the old code awaited each of them serially
-  // (getSessionUser → getAppSettings → optional ensureSchema+select) which
-  // added ~1–2 s on a cold pooler.
-  const schemaPromise = ensureSchema();
+  // Kick off the (raced, short-budget) settings fetch immediately so its
+  // TCP handshake to Supabase overlaps with the local JWT verification and
+  // searchParams resolution. By the time we await it below it's almost
+  // always already settled. `getAppSettings()` has its own timeout so it
+  // never blocks the render for more than ~400 ms regardless of DB state.
   const settingsPromise = getAppSettings();
 
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
   const sp = await searchParams;
-  let existing: ExistingQuotation | undefined;
+
+  // ── Edit mode: let the browser fetch the row ────────────────────────────
+  // The previous implementation did `ensureSchema()` + `select * from
+  // quotations ...` inside this render function. On a cold Supabase
+  // pooler that could sit for ~20 s, freezing the Next.js `loading.tsx`
+  // skeleton in place with no timeout, no retry, and no way out — exactly
+  // the "stuck on loading when I press Edit" complaint. Mirroring the
+  // /quotation viewer, we now hand the id off to a client shell that
+  // calls `/api/quotations?id=<n>` on mount with its own abort budget.
+  // The API route still enforces ownership, so access control is intact.
+  if (sp.id) {
+    const quotationId = Number(sp.id);
+    if (!Number.isFinite(quotationId) || quotationId <= 0) {
+      return (
+        <div className="min-h-screen bg-magic-soft/40">
+          <TopBar user={user} />
+          <main className="max-w-7xl mx-auto p-6">
+            <p className="text-sm text-magic-ink/70">Quotation not found.</p>
+          </main>
+        </div>
+      );
+    }
+    const appSettings = await settingsPromise;
+    return (
+      <div className="min-h-screen bg-magic-soft/40">
+        <TopBar user={user} />
+        <main className="max-w-7xl mx-auto p-6">
+          <header className="mb-6">
+            <h1 className="text-2xl font-bold text-magic-ink">
+              Editing quotation #{quotationId}
+            </h1>
+            <p className="text-sm text-magic-ink/70">
+              Edit the quotation below. Changes are saved when you click Save
+              updates.
+            </p>
+          </header>
+          <DesignerShell
+            user={user}
+            quotationId={quotationId}
+            appSettings={appSettings}
+          />
+        </main>
+      </div>
+    );
+  }
+
   let initialFolderId: number | null = null;
-  if (sp.folder && !sp.id) {
+  if (sp.folder) {
     const n = Number(sp.folder);
     if (Number.isFinite(n) && n > 0) initialFolderId = n;
-  }
-  if (sp.id) {
-    await schemaPromise;
-    const q = sql();
-    const rows = (await q`
-      select * from quotations
-      where id = ${Number(sp.id)} and deleted_at is null
-      limit 1
-    `) as Array<Record<string, unknown>>;
-    const row = rows[0];
-    if (row && (user.role === "admin" || row.owner_id === user.id)) {
-      // jsonb round-trips usually hand us a JS array, but corrupted rows or a
-      // legacy `{}` default can make it an object/string. Normalize hard so
-      // the client never has to defend against a non-array `items_json`.
-      const rawItems: unknown = row.items_json;
-      const parsedItems: unknown =
-        typeof rawItems === "string"
-          ? (() => {
-              try {
-                return JSON.parse(rawItems);
-              } catch {
-                return [];
-              }
-            })()
-          : rawItems;
-      const itemsArray = Array.isArray(parsedItems)
-        ? (parsedItems as ExistingQuotation["items_json"])
-        : [];
-
-      const rawConfig: unknown = row.config_json;
-      const configObject =
-        rawConfig && typeof rawConfig === "object" && !Array.isArray(rawConfig)
-          ? (rawConfig as ExistingQuotation["config_json"])
-          : {};
-
-      existing = {
-        id: Number(row.id),
-        ref: String(row.ref),
-        project_name: String(row.project_name),
-        client_name: (row.client_name as string) || null,
-        client_email: (row.client_email as string) || null,
-        client_phone: (row.client_phone as string) || null,
-        sales_engineer: (row.sales_engineer as string) || null,
-        prepared_by: (row.prepared_by as string) || null,
-        site_name: String(row.site_name),
-        tax_percent: Number(row.tax_percent ?? 16),
-        folder_id: row.folder_id ? Number(row.folder_id) : null,
-        items_json: itemsArray,
-        config_json: configObject,
-      };
-    }
   }
 
   return (
@@ -102,17 +91,15 @@ export default async function DesignerPage({
       <main className="max-w-7xl mx-auto p-6">
         <header className="mb-6">
           <h1 className="text-2xl font-bold text-magic-ink">
-            {existing ? `Editing ${existing.ref}` : "Quotation Designer"}
+            Quotation Designer
           </h1>
           <p className="text-sm text-magic-ink/70">
-            {existing
-              ? "Edit the quotation below. Changes are saved when you click Save updates."
-              : "Build and edit your quotation. Choose a pricing category, modify the table, and save when ready."}
+            Build and edit your quotation. Choose a pricing category, modify
+            the table, and save when ready.
           </p>
         </header>
         <Designer
           user={user}
-          existing={existing}
           initialFolderId={initialFolderId}
           appSettings={await settingsPromise}
         />

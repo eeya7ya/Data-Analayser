@@ -18,7 +18,6 @@ import {
   loadEditDraft,
   saveEditDraft,
   clearEditDraft,
-  termsMatchBuiltInDefault,
   PRICING_FACTORS,
   PRICING_LABELS,
   type PricingCategory,
@@ -97,8 +96,15 @@ export default function Designer({
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
-  const [salesEng, setSalesEng] = useState("ENG. Yahya Khaled");
-  const [salesPhone, setSalesPhone] = useState("+962 795172566");
+  // Sales engineer & phone default to the logged-in user so a fresh
+  // quotation is automatically stamped with whoever is signed in. The
+  // previous hardcoded default ("ENG. Yahya Khaled" / a specific phone
+  // number) meant every quotation was branded as that person regardless
+  // of who actually created it. Saved quotations still restore whatever
+  // the author stamped — see the hydration effect below.
+  const defaultSalesEng = user.display_name || user.username;
+  const [salesEng, setSalesEng] = useState(defaultSalesEng);
+  const [salesPhone, setSalesPhone] = useState("");
   const [preparedBy, setPreparedBy] = useState(user.username);
   const [refCode, setRefCode] = useState("");
   const [siteName, setSiteName] = useState("");
@@ -338,8 +344,13 @@ export default function Designer({
       setClientName(existing.client_name || "");
       setClientEmail(existing.client_email || "");
       setClientPhone(existing.client_phone || "");
-      setSalesEng(existing.sales_engineer || "ENG. Yahya Khaled");
-      setSalesPhone(existing.config_json?.salesPhone || "+962 795172566");
+      // Preserve whatever the author stamped on the saved quotation, but
+      // fall back to the logged-in user's name when the stored value is
+      // blank (older rows, or records where sales_engineer was never
+      // set). Avoid the old hardcoded Yahya default so a different user
+      // editing an unsigned quotation sees their own name by default.
+      setSalesEng(existing.sales_engineer || defaultSalesEng);
+      setSalesPhone(existing.config_json?.salesPhone || "");
       setPreparedBy(existing.prepared_by || user.username);
       setRefCode(existing.ref);
       setSiteName(editDraft?.siteName ?? (existing.site_name || ""));
@@ -350,25 +361,31 @@ export default function Designer({
         editDraft ? Boolean(editDraft.showPictures) : Boolean(existing.config_json?.showPictures),
       );
       {
-        // Saved quotations created before the admin Settings tab existed
-        // have `config_json.terms` stamped with the old built-in defaults.
-        // Those should yield to the current admin-edited presets so the
-        // user's edits in /admin → Settings actually propagate; a genuine
-        // customisation (anything that differs from the built-in list)
-        // still wins. The per-id edit draft (if any) takes priority over
-        // both — that's the "unsaved in-flight edits survive refresh"
-        // path the terms-not-saving complaint hinges on.
+        // Terms hydration priority (highest → lowest):
+        //   1. In-flight per-id edit draft (unsaved refresh survivor).
+        //   2. Saved DB config_json.terms, whenever it's a non-empty array
+        //      — this is the "terms I persisted" path and it must NEVER
+        //      be silently replaced by admin defaults just because the
+        //      stored list happens to equal the hardcoded built-ins.
+        //      The previous implementation used
+        //      `termsMatchBuiltInDefault()` as a "legacy rebase" hook,
+        //      which meant a user who had simply clicked Save without
+        //      edits saw their persisted terms swapped out on the next
+        //      open — and any future change to the admin defaults would
+        //      permanently overwrite what they had saved. That was the
+        //      "my terms never save" complaint.
+        //   3. Admin-edited defaults (for genuinely blank rows).
         const savedTerms = Array.isArray(existing.config_json?.terms)
           ? existing.config_json!.terms!
-          : [];
+          : null;
         const draftedTerms =
           editDraft && Array.isArray(editDraft.terms) ? editDraft.terms : null;
-        if (draftedTerms && draftedTerms.length > 0) {
+        if (draftedTerms) {
           setTerms(draftedTerms);
+        } else if (savedTerms && savedTerms.length > 0) {
+          setTerms(savedTerms);
         } else {
-          const useAdminDefaults =
-            savedTerms.length === 0 || termsMatchBuiltInDefault(savedTerms);
-          setTerms(useAdminDefaults ? [...adminDefaultTerms] : savedTerms);
+          setTerms([...adminDefaultTerms]);
         }
       }
       setExtraColumns(
@@ -451,8 +468,12 @@ export default function Designer({
     setClientName(d.clientName);
     setClientEmail(d.clientEmail);
     setClientPhone(d.clientPhone);
-    setSalesEng(d.salesEng);
-    setSalesPhone(d.salesPhone);
+    // Same principle as Presales Engineer above: a fresh quotation is
+    // always stamped with the logged-in user, not whatever the cached
+    // draft had from a previous session (which used to default to a
+    // hardcoded Yahya name that leaked across users on shared browsers).
+    setSalesEng(d.salesEng || defaultSalesEng);
+    setSalesPhone(d.salesPhone || "");
     setPreparedBy(d.preparedBy || user.username);
     setRefCode(d.refCode);
     setSiteName(d.siteName);

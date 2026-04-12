@@ -6,7 +6,7 @@ import QuotationPreview, {
   QuotationItem,
   QuotationExtraColumn,
 } from "./QuotationPreview";
-import { DEFAULT_TERMS, termsMatchBuiltInDefault } from "@/lib/quotationDraft";
+import { DEFAULT_TERMS } from "@/lib/quotationDraft";
 import type { AppSettings } from "@/lib/settings";
 
 interface SavedConfig {
@@ -227,13 +227,13 @@ export default function QuotationViewer({
         editable={false}
         showPictures={Boolean(config.showPictures)}
         terms={
-          // Saved quotations that still carry the pre-admin built-in list
-          // should yield to the admin-edited presets (fallbackTerms). Genuine
-          // per-quotation customisations (anything different from the
-          // built-in list) keep showing what the author saved.
-          Array.isArray(config.terms) &&
-          config.terms.length > 0 &&
-          !termsMatchBuiltInDefault(config.terms)
+          // Whatever the author persisted wins — even if it happens to
+          // equal the hardcoded default list verbatim. The previous
+          // "yield to admin-edited presets when terms match built-ins"
+          // heuristic was clever but silently erased user edits when the
+          // admin later tweaked defaults, which the user reported as
+          // "my terms never save".
+          Array.isArray(config.terms) && config.terms.length > 0
             ? config.terms
             : [...fallbackTerms]
         }

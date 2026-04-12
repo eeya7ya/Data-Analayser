@@ -152,8 +152,14 @@ export function emptyDraft(): QuotationDraft {
     clientName: "",
     clientEmail: "",
     clientPhone: "",
-    salesEng: "ENG. Yahya Khaled",
-    salesPhone: "+962 795172566",
+    // Sales engineer used to default to a hardcoded name ("ENG. Yahya
+    // Khaled"), which meant every new quotation came out branded as that
+    // person regardless of who was logged in. The Designer now resolves
+    // the default against the current `SessionUser` at render time (see
+    // `setSalesEng(user.display_name || user.username)` below), so we
+    // leave this blank here and rely on the loader to seed it.
+    salesEng: "",
+    salesPhone: "",
     preparedBy: "",
     refCode: "",
     siteName: "",
@@ -213,6 +219,13 @@ export function loadDraft(): QuotationDraft {
     // Never carry a previous user's Presales Engineer name out of a cached
     // draft — the Designer fills this in from the logged-in `SessionUser`.
     merged.designEng = "";
+    // Same story for the Sales Engineer field, which used to be seeded
+    // with a hardcoded name. Any stored value that still matches that
+    // legacy default is scrubbed so the Designer can re-seed it from the
+    // logged-in user's display name.
+    if (merged.salesEng === "ENG. Yahya Khaled") {
+      merged.salesEng = "";
+    }
     return merged;
   } catch {
     return emptyDraft();
