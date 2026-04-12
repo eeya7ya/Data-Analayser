@@ -193,37 +193,40 @@ export default function QuotationListClient({
   }, [hasInitial, reloadTick]);
 
   // ── Search ────────────────────────────────────────────────────────────
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Two independent searches: one on the main card grid (filters clients by
+  // name / email / phone / company) and one inside the detail view of a
+  // selected client (filters quotations by ref / project / client / site).
+  // They deliberately don't share state so flipping between views doesn't
+  // clobber whatever the user was typing in the other one.
+  const [clientSearch, setClientSearch] = useState("");
+  const [debouncedClientSearch, setDebouncedClientSearch] = useState("");
+  const [quotationSearch, setQuotationSearch] = useState("");
+  const [debouncedQuotationSearch, setDebouncedQuotationSearch] = useState("");
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 350);
+    const t = setTimeout(() => setDebouncedClientSearch(clientSearch), 350);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [clientSearch]);
 
-  // ── Expand / collapse ────────────────────────────────────────────────
-  const [expanded, setExpanded] = useState<Set<string>>(() => {
-    const s = new Set<string>();
-    s.add("unfiled");
-    return s;
-  });
   useEffect(() => {
-    // Auto-expand every folder once data arrives.
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      for (const f of folders) next.add(String(f.id));
-      return next;
-    });
-  }, [folders]);
+    const t = setTimeout(() => setDebouncedQuotationSearch(quotationSearch), 350);
+    return () => clearTimeout(t);
+  }, [quotationSearch]);
 
-  function toggle(key: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
+  // ── Selected client (detail-view) ────────────────────────────────────
+  // When non-null, we switch from the card grid to a per-client detail
+  // view. The key matches the `groups` entries (e.g. "42", "unfiled",
+  // "unfiled-7" for admin buckets).
+  const [selectedClientKey, setSelectedClientKey] = useState<string | null>(
+    null,
+  );
+
+  // Reset the per-quotation search whenever the user enters / leaves a
+  // client card. Otherwise a stale query sneaks in from a previous client.
+  useEffect(() => {
+    setQuotationSearch("");
+    setDebouncedQuotationSearch("");
+  }, [selectedClientKey]);
 
   // ── Client-folder CRUD state (folder == client record) ──────────────
   const [showCreate, setShowCreate] = useState(false);
@@ -242,57 +245,44 @@ export default function QuotationListClient({
   const [deletingQuotationId, setDeletingQuotationId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
-  // ── Filtering + grouping (recomputed on search / folder changes) ────
-  const isSearching = debouncedSearch.length > 0;
+  // ── Grouping ─────────────────────────────────────────────────────────
+  // Always compute the full grouping — no search filtering here. Both the
+  // card grid (client-level search) and the detail view (quotation-level
+  // search) derive their rows from this stable base list so switching
+  // between searches never discards rows the user expected to see.
+  interface Group {
+    key: string;
+    folderId: number | null;
+    folder: Folder | null;
+    items: Quotation[];
+    unfiledOwnerLabel?: string | null;
+  }
 
-  const filtered = useMemo(() => {
-    if (!isSearching) return quotations;
-    const q = debouncedSearch.toLowerCase();
-    return quotations.filter(
-      (r) =>
-        r.ref.toLowerCase().includes(q) ||
-        r.project_name.toLowerCase().includes(q) ||
-        (r.client_name && r.client_name.toLowerCase().includes(q)) ||
-        r.site_name.toLowerCase().includes(q),
-    );
-  }, [quotations, debouncedSearch, isSearching]);
-
-  const groups = useMemo(() => {
-    // Bucket quotations by folder id.
+  const groups = useMemo<Group[]>(() => {
     const byFolder = new Map<number | null, Quotation[]>();
-    for (const r of filtered) {
+    for (const r of quotations) {
       const key = r.folder_id;
       if (!byFolder.has(key)) byFolder.set(key, []);
       byFolder.get(key)!.push(r);
     }
 
-    const result: {
-      key: string;
-      folderId: number | null;
-      folder: Folder | null;
-      items: Quotation[];
-      unfiledOwnerLabel?: string | null;
-    }[] = [];
+    const result: Group[] = [];
 
     // Named folders — already sorted server-side.
     for (const f of folders) {
       const items = byFolder.get(f.id) || [];
-      if (isSearching && items.length === 0) continue;
       result.push({ key: String(f.id), folderId: f.id, folder: f, items });
     }
 
-    // Unfiled section.
+    // Unfiled section(s).
     const unfiled = byFolder.get(null) || [];
     if (!isAdmin) {
-      // Regular users see a single flat "Unfiled" bucket.
-      if (!isSearching || unfiled.length > 0) {
-        result.push({
-          key: "unfiled",
-          folderId: null,
-          folder: null,
-          items: unfiled,
-        });
-      }
+      result.push({
+        key: "unfiled",
+        folderId: null,
+        folder: null,
+        items: unfiled,
+      });
     } else {
       // Admin: one unfiled bucket per owning user so the UI stays readable
       // across the whole org.
@@ -314,7 +304,6 @@ export default function QuotationListClient({
         return aLabel.localeCompare(bLabel);
       });
       for (const [ownerKey, items] of sortedOwners) {
-        if (isSearching && items.length === 0) continue;
         const label =
           items[0]?.owner_display_name?.trim() ||
           items[0]?.owner_username ||
@@ -327,9 +316,7 @@ export default function QuotationListClient({
           unfiledOwnerLabel: label,
         });
       }
-      // Make sure the section shows up (even if empty) for the current admin
-      // when there are no unfiled items at all — preserves the old behaviour.
-      if (!isSearching && sortedOwners.length === 0) {
+      if (sortedOwners.length === 0) {
         result.push({
           key: "unfiled",
           folderId: null,
@@ -340,7 +327,67 @@ export default function QuotationListClient({
     }
 
     return result;
-  }, [filtered, folders, isSearching, isAdmin]);
+  }, [quotations, folders, isAdmin]);
+
+  // Client-level filtering for the card grid. Searches by folder name,
+  // email, phone, or company — and as a convenience also matches any
+  // quotation field inside the folder, so the user can locate a client
+  // via something they only remember about its quotations.
+  const filteredGroups = useMemo<Group[]>(() => {
+    const q = debouncedClientSearch.trim().toLowerCase();
+    if (!q) return groups;
+    return groups.filter((g) => {
+      if (g.folder) {
+        const f = g.folder;
+        if ((f.name || "").toLowerCase().includes(q)) return true;
+        if ((f.client_email || "").toLowerCase().includes(q)) return true;
+        if ((f.client_phone || "").toLowerCase().includes(q)) return true;
+        if ((f.client_company || "").toLowerCase().includes(q)) return true;
+      } else if ("unfiled".includes(q)) {
+        return true;
+      }
+      // Also match if any contained quotation matches — lets users
+      // land on the right client by typing a ref or project name.
+      return g.items.some(
+        (r) =>
+          r.ref.toLowerCase().includes(q) ||
+          r.project_name.toLowerCase().includes(q) ||
+          (r.client_name && r.client_name.toLowerCase().includes(q)) ||
+          r.site_name.toLowerCase().includes(q),
+      );
+    });
+  }, [groups, debouncedClientSearch]);
+
+  // Currently selected client (detail view), resolved against the group
+  // list so edits / reloads stay in sync.
+  const selectedGroup = useMemo<Group | null>(() => {
+    if (!selectedClientKey) return null;
+    return groups.find((g) => g.key === selectedClientKey) || null;
+  }, [groups, selectedClientKey]);
+
+  // If the selected client disappears (deleted, soft-trashed, or the
+  // admin owner switched users), bounce back to the grid view so we
+  // never render a broken "phantom" detail header.
+  useEffect(() => {
+    if (selectedClientKey && !selectedGroup) {
+      setSelectedClientKey(null);
+    }
+  }, [selectedClientKey, selectedGroup]);
+
+  // Quotations shown inside the detail view, filtered by the per-client
+  // search box.
+  const selectedQuotations = useMemo<Quotation[]>(() => {
+    if (!selectedGroup) return [];
+    const q = debouncedQuotationSearch.trim().toLowerCase();
+    if (!q) return selectedGroup.items;
+    return selectedGroup.items.filter(
+      (r) =>
+        r.ref.toLowerCase().includes(q) ||
+        r.project_name.toLowerCase().includes(q) ||
+        (r.client_name && r.client_name.toLowerCase().includes(q)) ||
+        r.site_name.toLowerCase().includes(q),
+    );
+  }, [selectedGroup, debouncedQuotationSearch]);
 
   const foldersForMove = useMemo(
     () => folders.map((f) => ({ id: f.id, name: f.name })),
@@ -390,7 +437,9 @@ export default function QuotationListClient({
         return;
       }
       setFolders((prev) => sortFolders([...prev, data.folder]));
-      setExpanded((prev) => new Set(prev).add(String(data.folder.id)));
+      // Auto-open the newly-created client's detail view so the user lands
+      // right on the "empty quotations" screen they can start filling in.
+      setSelectedClientKey(String(data.folder.id));
       setNewName("");
       setNewEmail("");
       setNewPhone("");
@@ -476,14 +525,27 @@ export default function QuotationListClient({
     }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────
-  return (
-    <div>
-      {/* Top bar: search + new folder */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1">
+  // ── Render helpers ───────────────────────────────────────────────────
+  function renderClientCard(g: Group) {
+    const isUnfiled = g.folderId === null;
+    const title = isUnfiled
+      ? "Unfiled"
+      : folderDisplayName(g.folder!.name);
+    const ownerLabel = isUnfiled
+      ? g.unfiledOwnerLabel
+      : g.folder?.owner_display_name?.trim() || g.folder?.owner_username || null;
+
+    return (
+      <button
+        key={g.key}
+        type="button"
+        onClick={() => setSelectedClientKey(g.key)}
+        className="group text-left rounded-2xl border border-magic-border bg-white hover:border-magic-red/60 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-magic-red/30 transition-all overflow-hidden flex flex-col"
+      >
+        {/* Card header strip */}
+        <div className="p-3 bg-magic-header flex items-center gap-2">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-magic-ink/40"
+            className="w-5 h-5 text-magic-ink/50 shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -492,43 +554,85 @@ export default function QuotationListClient({
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
             />
           </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by ref, project, client, or site…"
-            className="w-full pl-10 pr-4 py-2 text-sm border border-magic-border rounded-xl focus:outline-none focus:ring-2 focus:ring-magic-red/30 bg-white"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-magic-ink/40 hover:text-magic-ink"
+          <div className="flex-1 min-w-0">
+            <div
+              className={`font-semibold truncate ${
+                !isUnfiled && !g.folder!.name?.trim()
+                  ? "text-magic-ink/40 italic"
+                  : "text-magic-ink"
+              }`}
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
+              {title}
+            </div>
+            {isAdmin && ownerLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-magic-red/10 text-magic-red text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide mt-0.5">
+                @{ownerLabel}
+              </span>
+            )}
+          </div>
+          <svg
+            className="w-4 h-4 text-magic-ink/30 group-hover:text-magic-red transition-colors shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </div>
+
+        {/* Card body */}
+        <div className="p-3 flex-1 flex flex-col gap-1.5">
+          <div className="text-xs text-magic-ink/50">
+            {g.items.length} quotation{g.items.length !== 1 ? "s" : ""}
+          </div>
+          {!isUnfiled && g.folder && (
+            <div className="text-[11px] text-magic-ink/70 space-y-0.5">
+              {g.folder.client_company && (
+                <div className="italic truncate">{g.folder.client_company}</div>
+              )}
+              {g.folder.client_email && (
+                <div className="truncate">{g.folder.client_email}</div>
+              )}
+              {g.folder.client_phone && (
+                <div className="truncate">{g.folder.client_phone}</div>
+              )}
+              {!g.folder.client_company &&
+                !g.folder.client_email &&
+                !g.folder.client_phone && (
+                  <div className="text-magic-ink/30">No contact info yet</div>
+                )}
+            </div>
+          )}
+          {isUnfiled && (
+            <div className="text-[11px] text-magic-ink/40">
+              Quotations not yet assigned to a client
+            </div>
           )}
         </div>
+      </button>
+    );
+  }
+
+  function renderDetailView(g: Group) {
+    const isUnfiled = g.folderId === null;
+    const isEditing = editingId === g.folderId && !isUnfiled;
+    const hasInnerSearch = debouncedQuotationSearch.trim().length > 0;
+
+    return (
+      <div>
+        {/* Back + breadcrumb */}
         <button
-          onClick={() => {
-            setShowCreate(!showCreate);
-            setError("");
-          }}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-magic-red text-white hover:bg-magic-red/90 transition-colors whitespace-nowrap"
+          type="button"
+          onClick={() => setSelectedClientKey(null)}
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-magic-ink/60 hover:text-magic-red transition-colors"
         >
           <svg
             className="w-4 h-4"
@@ -540,88 +644,347 @@ export default function QuotationListClient({
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              d="M12 4v16m8-8H4"
+              d="M15 19l-7-7 7-7"
             />
           </svg>
-          New Client
+          Back to all clients
         </button>
-      </div>
 
-      {/* Create client form — a client is a folder with CRM fields */}
-      {showCreate && (
-        <div className="mb-4 p-3 rounded-xl border border-magic-border bg-white">
-          <div className="flex flex-wrap items-start gap-2">
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && createFolder()}
-              placeholder="Client name *"
-              autoFocus
-              className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
-            />
-            <input
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="Email"
-              className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
-            />
-            <input
-              type="tel"
-              value={newPhone}
-              onChange={(e) => setNewPhone(e.target.value)}
-              placeholder="Phone"
-              className="flex-1 min-w-[150px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
-            />
-            <input
-              type="text"
-              value={newCompany}
-              onChange={(e) => setNewCompany(e.target.value)}
-              placeholder="Company"
-              className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
-            />
-            <button
-              onClick={createFolder}
-              disabled={creating || !newName.trim()}
-              className="px-4 py-1.5 text-sm font-medium rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+        {/* Client header / editor */}
+        <div className="rounded-2xl border border-magic-border bg-white overflow-hidden">
+          <div className="p-4 bg-magic-header flex items-start gap-3 flex-wrap">
+            <svg
+              className="w-6 h-6 text-magic-ink/50 shrink-0 mt-0.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
             >
-              {creating ? "Creating…" : "Create"}
-            </button>
-            <button
-              onClick={() => {
-                setShowCreate(false);
-                setNewName("");
-                setNewEmail("");
-                setNewPhone("");
-                setNewCompany("");
-                setError("");
-              }}
-              className="px-3 py-1.5 text-sm text-magic-ink/60 hover:text-magic-ink transition-colors"
-            >
-              Cancel
-            </button>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+              />
+            </svg>
+
+            {isEditing ? (
+              <div className="flex-1 flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveFolderEdit(g.folderId!);
+                    if (e.key === "Escape") {
+                      setEditingId(null);
+                      setEditName("");
+                      setError("");
+                    }
+                  }}
+                  autoFocus
+                  placeholder="Client name *"
+                  className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                />
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="Email"
+                  className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                />
+                <input
+                  type="tel"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="Phone"
+                  className="flex-1 min-w-[150px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                />
+                <input
+                  type="text"
+                  value={editCompany}
+                  onChange={(e) => setEditCompany(e.target.value)}
+                  placeholder="Company"
+                  className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                />
+                <button
+                  onClick={() => saveFolderEdit(g.folderId!)}
+                  disabled={renaming || !editName.trim()}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50"
+                >
+                  {renaming ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingId(null);
+                    setEditName("");
+                    setEditEmail("");
+                    setEditPhone("");
+                    setEditCompany("");
+                    setError("");
+                  }}
+                  className="px-3 py-1.5 text-xs text-magic-ink/60 hover:text-magic-ink"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2
+                    className={`text-lg font-semibold ${
+                      !isUnfiled && !g.folder!.name?.trim()
+                        ? "text-magic-ink/40 italic"
+                        : "text-magic-ink"
+                    }`}
+                  >
+                    {isUnfiled ? "Unfiled" : folderDisplayName(g.folder!.name)}
+                  </h2>
+                  {isAdmin &&
+                    (g.folder?.owner_username || g.unfiledOwnerLabel) && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-magic-red/10 text-magic-red text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide">
+                        @
+                        {g.folder?.owner_display_name?.trim() ||
+                          g.folder?.owner_username ||
+                          g.unfiledOwnerLabel}
+                      </span>
+                    )}
+                </div>
+                {!isUnfiled && g.folder && (
+                  <div className="mt-1 text-[12px] text-magic-ink/70 flex flex-wrap gap-x-4 gap-y-0.5">
+                    {g.folder.client_company && (
+                      <span className="italic">{g.folder.client_company}</span>
+                    )}
+                    {g.folder.client_email && (
+                      <span>{g.folder.client_email}</span>
+                    )}
+                    {g.folder.client_phone && (
+                      <span>{g.folder.client_phone}</span>
+                    )}
+                    {!g.folder.client_company &&
+                      !g.folder.client_email &&
+                      !g.folder.client_phone && (
+                        <span className="text-magic-ink/30">
+                          No contact info yet — click Edit to add some
+                        </span>
+                      )}
+                  </div>
+                )}
+                <div className="mt-1 text-xs text-magic-ink/50">
+                  {g.items.length} quotation{g.items.length !== 1 ? "s" : ""}
+                </div>
+              </div>
+            )}
+
+            {!isUnfiled && !isEditing && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setEditingId(g.folderId);
+                    setEditName(g.folder!.name);
+                    setEditEmail(g.folder!.client_email || "");
+                    setEditPhone(g.folder!.client_phone || "");
+                    setEditCompany(g.folder!.client_company || "");
+                    setError("");
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg border border-magic-border bg-white text-magic-ink hover:border-magic-red/60 hover:text-magic-red transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => deleteFolder(g.folderId!)}
+                  disabled={deletingId === g.folderId}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 bg-white text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                >
+                  {deletingId === g.folderId ? "Moving…" : "Trash"}
+                </button>
+              </div>
+            )}
           </div>
-          <p className="mt-2 text-[11px] text-magic-ink/50">
-            Clients are reused across quotations — typing their info once here means it auto-fills on every future quotation you create for them.
-          </p>
-        </div>
-      )}
 
+          {/* In-client search + new quotation */}
+          <div className="p-3 border-t border-magic-border flex items-center gap-3">
+            <div className="relative flex-1">
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-magic-ink/40"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              <input
+                type="text"
+                value={quotationSearch}
+                onChange={(e) => setQuotationSearch(e.target.value)}
+                placeholder="Search this client's quotations by ref, project, or site…"
+                className="w-full pl-10 pr-4 py-2 text-sm border border-magic-border rounded-xl focus:outline-none focus:ring-2 focus:ring-magic-red/30 bg-white"
+              />
+              {quotationSearch && (
+                <button
+                  onClick={() => setQuotationSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-magic-ink/40 hover:text-magic-ink"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
+            {!isUnfiled && (
+              <Link
+                href={`/designer?folder=${g.folderId}`}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-magic-red text-white hover:bg-magic-red/90 transition-colors whitespace-nowrap"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+                New quotation
+              </Link>
+            )}
+          </div>
+
+          {/* Quotation table */}
+          {selectedQuotations.length === 0 ? (
+            <div className="p-6 text-sm text-magic-ink/40 text-center border-t border-magic-border">
+              {hasInnerSearch
+                ? "No quotations match your search."
+                : "No quotations in this folder."}
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="text-magic-red text-xs uppercase bg-magic-soft/20 border-t border-magic-border">
+                <tr>
+                  <th className="p-3 text-left">Ref</th>
+                  <th className="p-3 text-left">Project</th>
+                  <th className="p-3 text-left">Client</th>
+                  <th className="p-3 text-left">Site</th>
+                  <th className="p-3 text-left">Created</th>
+                  <th className="p-3 text-left">Last Edited</th>
+                  <th className="p-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedQuotations.map((r) => {
+                  const created = formatDateTime(r.created_at);
+                  const updated = formatDateTime(r.updated_at);
+                  const wasEdited = r.updated_at !== r.created_at;
+                  return (
+                    <tr
+                      key={r.id}
+                      onClick={() => {
+                        setOpeningId(r.id);
+                        startNavigation(() =>
+                          router.push(`/quotation?id=${r.id}`),
+                        );
+                      }}
+                      aria-busy={openingId === r.id}
+                      className={`border-t border-magic-border cursor-pointer transition-colors ${
+                        openingId === r.id
+                          ? "bg-magic-soft/40 opacity-70"
+                          : "hover:bg-magic-soft/10"
+                      }`}
+                    >
+                      <td className="p-3 font-mono">
+                        <Link
+                          href={`/quotation?id=${r.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-magic-red hover:underline"
+                        >
+                          {r.ref}
+                        </Link>
+                      </td>
+                      <td className="p-3">{r.project_name}</td>
+                      <td className="p-3">{r.client_name || "—"}</td>
+                      <td className="p-3">{r.site_name}</td>
+                      <td className="p-3 text-xs text-magic-ink/60">
+                        <div>{created.date}</div>
+                        <div className="text-magic-ink/40">{created.time}</div>
+                      </td>
+                      <td className="p-3 text-xs text-magic-ink/60">
+                        {wasEdited ? (
+                          <>
+                            <div>{updated.date}</div>
+                            <div className="text-magic-ink/40">
+                              {updated.time}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-magic-ink/30">—</span>
+                        )}
+                      </td>
+                      <td
+                        className="p-3 text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-end gap-3">
+                          <MoveToFolder
+                            quotationId={r.id}
+                            currentFolderId={r.folder_id}
+                            folders={foldersForMove}
+                          />
+                          <button
+                            onClick={() => deleteQuotation(r.id)}
+                            disabled={deletingQuotationId === r.id}
+                            title="Move to trash"
+                            className="text-xs text-red-500 hover:underline disabled:opacity-50"
+                          >
+                            {deletingQuotationId === r.id ? "Moving…" : "Trash"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────
+  const showEmptyState =
+    !dataLoading &&
+    !loadError &&
+    quotations.length === 0 &&
+    folders.length === 0;
+
+  return (
+    <div>
+      {/* Error banner (CRUD errors) */}
       {error && (
         <div className="mb-4 px-4 py-2 text-sm text-red-600 bg-red-50 rounded-xl border border-red-200">
           {error}
         </div>
       )}
 
-      {/* Search results summary */}
-      {isSearching && !dataLoading && (
-        <div className="mb-3 text-sm text-magic-ink/50">
-          {filtered.length} result{filtered.length !== 1 ? "s" : ""} for &ldquo;
-          {debouncedSearch}&rdquo;
-        </div>
-      )}
-
+      {/* Load error */}
       {loadError && (
         <div className="mb-4 px-4 py-3 text-sm text-red-600 bg-red-50 rounded-xl border border-red-200 flex items-start justify-between gap-3">
           <div className="min-w-0 break-words">
@@ -639,347 +1002,195 @@ export default function QuotationListClient({
 
       {/* Loading skeleton */}
       {dataLoading && (
-        <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
-              className="h-14 rounded-2xl border border-magic-border bg-white animate-pulse"
+              className="h-28 rounded-2xl border border-magic-border bg-white animate-pulse"
             />
           ))}
         </div>
       )}
 
-      {/* Empty state */}
-      {!dataLoading && !loadError && quotations.length === 0 && (
+      {/* Empty state — no clients AND no quotations */}
+      {showEmptyState && (
         <div className="rounded-2xl border border-magic-border bg-white p-6 text-center text-magic-ink/50">
           <div>
-            No quotations yet. Go to{" "}
+            No clients yet. Click{" "}
+            <strong className="text-magic-red">+ New Client</strong> below to
+            add one, or go to{" "}
             <a href="/designer" className="text-magic-red underline">
               the Designer
             </a>{" "}
-            to create one.
+            to create a quotation.
           </div>
           <div className="mt-2 text-xs">
-            Missing a quotation you know you saved? Check the{" "}
+            Missing a client or quotation you know you saved? Check the{" "}
             <strong className="text-magic-red">Trash</strong> tab above —
-            deleted folders and their quotations can be restored from there.
+            deleted items can be restored from there.
           </div>
         </div>
       )}
 
-      {/* Folder sections */}
-      {!dataLoading && quotations.length > 0 && (
-      <div className="space-y-3">
-        {groups.map((g) => {
-          const isExpanded =
-            isSearching && g.items.length > 0
-              ? true
-              : expanded.has(g.key);
-          const isUnfiled = g.folderId === null;
-          const isEditing = editingId === g.folderId;
+      {/* ─── Detail view (a client is selected) ─── */}
+      {!dataLoading && selectedGroup && renderDetailView(selectedGroup)}
 
-          return (
-            <div
-              key={g.key}
-              className="rounded-2xl border border-magic-border bg-white overflow-hidden"
-            >
-              {/* Folder header */}
-              <div
-                onClick={() => toggle(g.key)}
-                className="p-3 bg-magic-header flex items-center gap-2 cursor-pointer select-none hover:bg-magic-header/80 transition-colors"
+      {/* ─── Grid view (default) ─── */}
+      {!dataLoading && !selectedGroup && (
+        <>
+          {/* Top bar: client search + new client */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative flex-1">
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-magic-ink/40"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
               >
-                {/* Chevron */}
-                <svg
-                  className={`w-4 h-4 text-magic-ink/40 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              <input
+                type="text"
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                placeholder="Search clients by name, email, phone, or company…"
+                className="w-full pl-10 pr-4 py-2 text-sm border border-magic-border rounded-xl focus:outline-none focus:ring-2 focus:ring-magic-red/30 bg-white"
+              />
+              {clientSearch && (
+                <button
+                  onClick={() => setClientSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-magic-ink/40 hover:text-magic-ink"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-
-                {/* Folder icon */}
-                <svg
-                  className="w-5 h-5 text-magic-ink/50"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                  />
-                </svg>
-
-                {/* Name + CRM info (or edit form) */}
-                {isEditing && !isUnfiled ? (
-                  <div
-                    className="flex flex-wrap items-center gap-2"
-                    onClick={(e) => e.stopPropagation()}
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
                   >
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveFolderEdit(g.folderId!);
-                        if (e.key === "Escape") {
-                          setEditingId(null);
-                          setEditName("");
-                          setError("");
-                        }
-                      }}
-                      autoFocus
-                      placeholder="Client name *"
-                      className="px-2 py-1 text-sm border border-magic-border rounded focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
                     />
-                    <input
-                      type="email"
-                      value={editEmail}
-                      onChange={(e) => setEditEmail(e.target.value)}
-                      placeholder="Email"
-                      className="px-2 py-1 text-sm border border-magic-border rounded focus:outline-none focus:ring-2 focus:ring-magic-red/30"
-                    />
-                    <input
-                      type="tel"
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      placeholder="Phone"
-                      className="px-2 py-1 text-sm border border-magic-border rounded focus:outline-none focus:ring-2 focus:ring-magic-red/30"
-                    />
-                    <input
-                      type="text"
-                      value={editCompany}
-                      onChange={(e) => setEditCompany(e.target.value)}
-                      placeholder="Company"
-                      className="px-2 py-1 text-sm border border-magic-border rounded focus:outline-none focus:ring-2 focus:ring-magic-red/30"
-                    />
-                    <button
-                      onClick={() => saveFolderEdit(g.folderId!)}
-                      disabled={renaming || !editName.trim()}
-                      className="text-xs font-medium text-green-600 hover:underline disabled:opacity-50"
-                    >
-                      {renaming ? "Saving…" : "Save"}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingId(null);
-                        setEditName("");
-                        setEditEmail("");
-                        setEditPhone("");
-                        setEditCompany("");
-                        setError("");
-                      }}
-                      className="text-xs text-magic-ink/50 hover:underline"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5">
-                    <span
-                      className={`font-semibold ${
-                        !isUnfiled && !g.folder!.name?.trim()
-                          ? "text-magic-ink/40 italic"
-                          : "text-magic-ink"
-                      }`}
-                    >
-                      {isUnfiled ? "Unfiled" : folderDisplayName(g.folder!.name)}
-                      {isAdmin && !isUnfiled && g.folder?.owner_username && (
-                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-magic-red/10 text-magic-red text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide">
-                          @{g.folder.owner_display_name?.trim() || g.folder.owner_username}
-                        </span>
-                      )}
-                      {isAdmin && isUnfiled && g.unfiledOwnerLabel && (
-                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-magic-red/10 text-magic-red text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide">
-                          @{g.unfiledOwnerLabel}
-                        </span>
-                      )}
-                    </span>
-                    {/* Count */}
-                    <span className="text-xs text-magic-ink/50">
-                      ({g.items.length} quotation
-                      {g.items.length !== 1 ? "s" : ""})
-                    </span>
-                    {/* CRM summary (named folders only) */}
-                    {!isUnfiled && g.folder && (
-                      <span className="hidden md:inline text-[11px] text-magic-ink/60">
-                        {g.folder.client_email && (
-                          <span className="mr-3">{g.folder.client_email}</span>
-                        )}
-                        {g.folder.client_phone && (
-                          <span className="mr-3">{g.folder.client_phone}</span>
-                        )}
-                        {g.folder.client_company && (
-                          <span className="mr-3 italic">{g.folder.client_company}</span>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Spacer */}
-                <div className="flex-1" />
-
-                {/* Actions (named folders only) */}
-                {!isUnfiled && !isEditing && (
-                  <div
-                    className="flex items-center gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Link
-                      href={`/designer?folder=${g.folderId}`}
-                      className="text-xs font-medium text-magic-red hover:underline"
-                    >
-                      + New quotation
-                    </Link>
-                    <button
-                      onClick={() => {
-                        setEditingId(g.folderId);
-                        setEditName(g.folder!.name);
-                        setEditEmail(g.folder!.client_email || "");
-                        setEditPhone(g.folder!.client_phone || "");
-                        setEditCompany(g.folder!.client_company || "");
-                        setError("");
-                      }}
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => deleteFolder(g.folderId!)}
-                      disabled={deletingId === g.folderId}
-                      className="text-xs text-red-500 hover:underline disabled:opacity-50"
-                    >
-                      {deletingId === g.folderId ? "Moving…" : "Trash"}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Quotation table (when expanded) */}
-              {isExpanded && (
-                <>
-                  {g.items.length === 0 ? (
-                    <div className="p-4 text-sm text-magic-ink/40 text-center">
-                      No quotations in this folder.
-                    </div>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead className="text-magic-red text-xs uppercase bg-magic-soft/20">
-                        <tr>
-                          <th className="p-3 text-left">Ref</th>
-                          <th className="p-3 text-left">Project</th>
-                          <th className="p-3 text-left">Client</th>
-                          <th className="p-3 text-left">Site</th>
-                          <th className="p-3 text-left">Created</th>
-                          <th className="p-3 text-left">Last Edited</th>
-                          <th className="p-3"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {g.items.map((r) => {
-                          const created = formatDateTime(r.created_at);
-                          const updated = formatDateTime(r.updated_at);
-                          const wasEdited = r.updated_at !== r.created_at;
-                          return (
-                            <tr
-                              key={r.id}
-                              onClick={() => {
-                                setOpeningId(r.id);
-                                startNavigation(() =>
-                                  router.push(`/quotation?id=${r.id}`),
-                                );
-                              }}
-                              aria-busy={openingId === r.id}
-                              className={`border-t border-magic-border cursor-pointer transition-colors ${
-                                openingId === r.id
-                                  ? "bg-magic-soft/40 opacity-70"
-                                  : "hover:bg-magic-soft/10"
-                              }`}
-                            >
-                              <td className="p-3 font-mono">
-                                <Link
-                                  href={`/quotation?id=${r.id}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="text-magic-red hover:underline"
-                                >
-                                  {r.ref}
-                                </Link>
-                              </td>
-                              <td className="p-3">{r.project_name}</td>
-                              <td className="p-3">
-                                {r.client_name || "—"}
-                              </td>
-                              <td className="p-3">{r.site_name}</td>
-                              <td className="p-3 text-xs text-magic-ink/60">
-                                <div>{created.date}</div>
-                                <div className="text-magic-ink/40">
-                                  {created.time}
-                                </div>
-                              </td>
-                              <td className="p-3 text-xs text-magic-ink/60">
-                                {wasEdited ? (
-                                  <>
-                                    <div>{updated.date}</div>
-                                    <div className="text-magic-ink/40">
-                                      {updated.time}
-                                    </div>
-                                  </>
-                                ) : (
-                                  <span className="text-magic-ink/30">
-                                    —
-                                  </span>
-                                )}
-                              </td>
-                              <td
-                                className="p-3 text-right"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <div className="flex items-center justify-end gap-3">
-                                  <MoveToFolder
-                                    quotationId={r.id}
-                                    currentFolderId={r.folder_id}
-                                    folders={foldersForMove}
-                                  />
-                                  <button
-                                    onClick={() => deleteQuotation(r.id)}
-                                    disabled={deletingQuotationId === r.id}
-                                    title="Move to trash"
-                                    className="text-xs text-red-500 hover:underline disabled:opacity-50"
-                                  >
-                                    {deletingQuotationId === r.id
-                                      ? "Moving…"
-                                      : "Trash"}
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </>
+                  </svg>
+                </button>
               )}
             </div>
-          );
-        })}
-      </div>
-      )}
+            <button
+              onClick={() => {
+                setShowCreate(!showCreate);
+                setError("");
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-magic-red text-white hover:bg-magic-red/90 transition-colors whitespace-nowrap"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              New Client
+            </button>
+          </div>
 
-      {/* No results for search */}
-      {!dataLoading && isSearching && filtered.length === 0 && (
-        <div className="rounded-2xl border border-magic-border bg-white p-6 text-center text-magic-ink/50 mt-3">
-          No quotations match your search.
-        </div>
+          {/* Create client form */}
+          {showCreate && (
+            <div className="mb-4 p-3 rounded-xl border border-magic-border bg-white">
+              <div className="flex flex-wrap items-start gap-2">
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && createFolder()}
+                  placeholder="Client name *"
+                  autoFocus
+                  className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                />
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="Email"
+                  className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                />
+                <input
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="Phone"
+                  className="flex-1 min-w-[150px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                />
+                <input
+                  type="text"
+                  value={newCompany}
+                  onChange={(e) => setNewCompany(e.target.value)}
+                  placeholder="Company"
+                  className="flex-1 min-w-[180px] px-3 py-1.5 text-sm border border-magic-border rounded-lg focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+                />
+                <button
+                  onClick={createFolder}
+                  disabled={creating || !newName.trim()}
+                  className="px-4 py-1.5 text-sm font-medium rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+                >
+                  {creating ? "Creating…" : "Create"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCreate(false);
+                    setNewName("");
+                    setNewEmail("");
+                    setNewPhone("");
+                    setNewCompany("");
+                    setError("");
+                  }}
+                  className="px-3 py-1.5 text-sm text-magic-ink/60 hover:text-magic-ink transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-magic-ink/50">
+                Clients are reused across quotations — typing their info once
+                here means it auto-fills on every future quotation you create
+                for them.
+              </p>
+            </div>
+          )}
+
+          {/* Search summary */}
+          {debouncedClientSearch.trim() && (
+            <div className="mb-3 text-sm text-magic-ink/50">
+              {filteredGroups.length} client
+              {filteredGroups.length !== 1 ? "s" : ""} match &ldquo;
+              {debouncedClientSearch}&rdquo;
+            </div>
+          )}
+
+          {/* Card grid */}
+          {filteredGroups.length === 0 ? (
+            !showEmptyState && (
+              <div className="rounded-2xl border border-magic-border bg-white p-6 text-center text-magic-ink/50">
+                No clients match your search.
+              </div>
+            )
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredGroups.map((g) => renderClientCard(g))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
