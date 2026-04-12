@@ -134,7 +134,13 @@ export default function Designer({
   // "Add row / Add column" toolbars). The toggle flips back off as soon as
   // the print dialog closes via `onafterprint`.
   const [printMode, setPrintMode] = useState(false);
-  const hydratedRef = useRef(false);
+  // Hydration status is tracked as a state (not a ref) so the persist
+  // effects can depend on it. A ref would flip mid-effect and let the
+  // save effects run on the same tick as hydration — with React's
+  // stale-closure behaviour that meant the first save call wrote the
+  // initial empty-state values to localStorage, transiently wiping the
+  // user's per-id edit draft before the next render fixed it up.
+  const [hydrated, setHydrated] = useState(false);
 
   // Presales Engineer for this session — always anchored to the logged-in
   // user so an admin signed in after a sales engineer on the same browser
@@ -283,22 +289,45 @@ export default function Designer({
             }))
           : [];
       // Per-quotation edit draft: unsaved edits made in a previous
-      // session (e.g. modified terms) are kept in localStorage under a
-      // per-id key so refreshing /designer?id=X doesn't blow them away.
-      // Only used when no catalog stagedItems are pending — staging
-      // takes priority because the user just pushed products in from
-      // the catalog and expects to see them.
-      const editDraft =
-        stagedItems.length === 0 ? loadEditDraft(existing.id) : null;
-      const combinedBase =
+      // session (e.g. modified terms, added manual rows, quantity
+      // tweaks) are kept in localStorage under a per-id key so
+      // refreshing /designer?id=X doesn't blow them away. We ALWAYS
+      // consult the edit draft — even when the user just returned
+      // from the catalog with stagedItems — so those in-flight edits
+      // survive the round-trip. Catalog items are then merged on top.
+      const editDraft = loadEditDraft(existing.id);
+      const editDraftItems =
         editDraft && Array.isArray(editDraft.items) && editDraft.items.length > 0
           ? editDraft.items.map((it) => ({
               ...it,
               system: it.system || it.brand || "General",
               price_si: it.price_si ?? it.unit_price,
             }))
-          : [...baseItems, ...stagedItems];
-      const combined = combinedBase.map((it, i) => ({
+          : null;
+      // Choose the "prior" items: the edit draft if the user had
+      // unsaved edits, otherwise the DB snapshot. Then append /
+      // dedupe the catalog stagedItems on top so the user sees both
+      // their in-flight edits AND the newly added catalog items.
+      const priorItems = editDraftItems ?? baseItems;
+      const mergedItems = priorItems.slice();
+      for (const staged of stagedItems) {
+        const stagedKey = `${staged.system || staged.brand || "General"}__${staged.model}`;
+        const existingIdx = mergedItems.findIndex(
+          (it) =>
+            `${it.system || it.brand || "General"}__${it.model}` === stagedKey,
+        );
+        if (existingIdx >= 0) {
+          mergedItems[existingIdx] = {
+            ...mergedItems[existingIdx],
+            quantity:
+              (Number(mergedItems[existingIdx].quantity) || 0) +
+              (Number(staged.quantity) || 0),
+          };
+        } else {
+          mergedItems.push(staged);
+        }
+      }
+      const combined = mergedItems.map((it, i) => ({
         ...it,
         no: i + 1,
       }));
@@ -410,7 +439,7 @@ export default function Designer({
         }
       }
 
-      hydratedRef.current = true;
+      setHydrated(true);
       return;
     }
 
@@ -454,7 +483,7 @@ export default function Designer({
     if (typeof d.folderId === "number" && Number.isFinite(d.folderId)) {
       setFolderId(d.folderId);
     }
-    hydratedRef.current = true;
+    setHydrated(true);
   }, [existing, user.username, user.display_name]);
 
   // ── Fetch client folders ──────────────────────────────────────────────────
@@ -534,7 +563,7 @@ export default function Designer({
 
   // ── Persist draft whenever it changes (new-mode only) ─────────────────────
   useEffect(() => {
-    if (!hydratedRef.current || editMode) return;
+    if (!hydrated || editMode) return;
     saveDraft({
       items,
       projectName,
@@ -559,6 +588,7 @@ export default function Designer({
       folderId,
     });
   }, [
+    hydrated,
     editMode,
     items,
     projectName,
@@ -590,7 +620,7 @@ export default function Designer({
   // /designer?id=X reinstates the user's unsaved work. The slot is
   // cleared from saveQuotation() once the server confirms the PATCH.
   useEffect(() => {
-    if (!hydratedRef.current || !editMode || !existing) return;
+    if (!hydrated || !editMode || !existing) return;
     saveEditDraft(existing.id, {
       items,
       terms,
@@ -607,6 +637,7 @@ export default function Designer({
       taxPercent,
     });
   }, [
+    hydrated,
     editMode,
     existing,
     items,
@@ -631,6 +662,12 @@ export default function Designer({
   // keeps them in their current project instead of dropping them into an
   // empty new-quotation hero. The "+ New quotation" button next to the
   // client picker is the explicit opt-out.
+  //
+  // Restricted to actual document reloads (F5 / Ctrl+R) so clicking
+  // "Designer" in the top nav from another page still lands on a clean
+  // /designer — otherwise every in-app hop would double-bounce through
+  // the loading skeleton (once for /designer, once for /designer?id=X),
+  // which is what made edit mode feel like it "never opens".
   const autoRedirectCheckedRef = useRef(false);
   useEffect(() => {
     if (autoRedirectCheckedRef.current) return;
@@ -641,6 +678,20 @@ export default function Designer({
     // land on a clean /designer without getting bounced back.
     const sp = new URLSearchParams(window.location.search);
     if (sp.has("new")) return;
+    // Only redirect on actual browser refreshes. Client-side nav
+    // doesn't create a new PerformanceNavigationTiming entry, so the
+    // initial entry's `type` reliably distinguishes the two cases.
+    try {
+      const navEntries = performance.getEntriesByType(
+        "navigation",
+      ) as PerformanceNavigationTiming[];
+      const navType = navEntries[0]?.type;
+      if (navType !== "reload") return;
+    } catch {
+      // If the Performance API is unavailable, fall through to the
+      // redirect — matches the old behaviour so we don't regress users
+      // on browsers without navigation timing.
+    }
     const ctx = loadEditingContext();
     if (ctx && Number.isFinite(ctx.id)) {
       router.replace(`/designer?id=${ctx.id}`);
