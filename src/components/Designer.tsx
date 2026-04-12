@@ -207,6 +207,13 @@ export default function Designer({
         // Use stored SI price if available, otherwise treat current
         // unit_price as the SI baseline (backwards-compat with old items).
         const base = it.price_si ?? it.unit_price;
+        // When the SI base price is zero or undefined, keep whatever the
+        // user has manually typed into the cell — multiplying zero would
+        // wipe their input. The factor is only meaningful when there is a
+        // real catalogue base price to scale from.
+        if (!base) {
+          return it;
+        }
         return {
           ...it,
           price_si: base,
@@ -229,6 +236,11 @@ export default function Designer({
     setItems((cur) =>
       cur.map((it) => {
         const base = it.price_si ?? it.unit_price;
+        // Same guard as setPricingCategory: skip rows with no real
+        // SI base price so manually entered values are preserved.
+        if (!base) {
+          return it;
+        }
         return {
           ...it,
           price_si: base,
@@ -1188,6 +1200,13 @@ export default function Designer({
                 {saveStatus}
               </span>
             )}
+            <button
+              onClick={() => router.push("/catalog")}
+              title="Browse the product catalogue and add items"
+              className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors"
+            >
+              + Add from Catalogue
+            </button>
             <button
               onClick={clearAll}
               disabled={items.length === 0 || saving}

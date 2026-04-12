@@ -1280,20 +1280,20 @@ function SystemTable({
                   }
                 />
               ) : (
-                money(item.unit_price)
+                Number(item.unit_price) ? money(item.unit_price) : ""
               ),
             )}
             <td className="font-semibold">
               {item.optional ? (
                 <span className="italic text-magic-ink/60">Optional</span>
-              ) : (
-                money(
+              ) : (() => {
+                const rowTotal =
                   (Number(item.quantity) || 0) *
-                    (Number(
-                      effectiveMergedValue(groupItems, rowIdx, "unit_price"),
-                    ) || 0),
-                )
-              )}
+                  (Number(
+                    effectiveMergedValue(groupItems, rowIdx, "unit_price"),
+                  ) || 0);
+                return rowTotal ? money(rowTotal) : "";
+              })()}
               {editable && (
                 <div className="no-print mt-1 flex items-center justify-center gap-1">
                   <select
