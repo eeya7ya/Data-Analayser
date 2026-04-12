@@ -73,7 +73,7 @@ const SEARCH_ALIASES: Record<string, string[]> = {
   power: ["ups", "schneider", "legrand"],
 };
 
-function tokenize(s: string): string[] {
+export function tokenize(s: string): string[] {
   return s
     .toLowerCase()
     .replace(/[^a-z0-9 .+/-]/g, " ")
@@ -81,7 +81,7 @@ function tokenize(s: string): string[] {
     .filter(Boolean);
 }
 
-function expandWithAliases(tokens: string[]): string[] {
+export function expandWithAliases(tokens: string[]): string[] {
   const out = new Set<string>(tokens);
   for (const t of tokens) {
     if (t.length > 3 && t.endsWith("s")) out.add(t.slice(0, -1));
