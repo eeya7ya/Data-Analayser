@@ -34,6 +34,17 @@ interface SystemInfo {
   product_count: number;
 }
 
+// ─── Form-control chrome ────────────────────────────────────────────────────
+// Custom red chevron for <select> controls (replaces the ugly native triangle).
+// Uses the brand red `#E2231A` so the indicator matches the rest of the palette.
+const SELECT_CHEVRON_STYLE = {
+  backgroundImage:
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23E2231A'><path fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/></svg>\")",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 0.75rem center",
+  backgroundSize: "1rem",
+} as const;
+
 // ─── Fixed columns ──────────────────────────────────────────────────────────
 // `width` is used as a table-layout:fixed column width so each column gets a
 // predictable share of the table regardless of content length. Description
@@ -283,7 +294,7 @@ export default function CatalogBrowser({
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-48">
-          <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-magic-ink/60 mb-1">
             Select vendor / system
           </label>
           <select
@@ -302,7 +313,8 @@ export default function CatalogBrowser({
               setSelectedSubCategory("");
               setProducts([]);
             }}
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
+            style={SELECT_CHEVRON_STYLE}
+            className="w-full appearance-none rounded-lg border border-magic-border bg-white pl-3 pr-9 py-2.5 text-sm font-medium text-magic-ink shadow-sm cursor-pointer hover:border-magic-red/50 hover:bg-magic-soft/40 focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20 transition-all"
           >
             <option value="">— Pick a system —</option>
             {systemsByVendor.map(([vendor, list]) => (
@@ -319,13 +331,14 @@ export default function CatalogBrowser({
 
         {categories.length > 0 && (
           <div className="flex-1 min-w-40 max-w-56">
-            <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-magic-ink/60 mb-1">
               Sub Category
             </label>
             <select
               value={selectedSubCategory}
               onChange={(e) => setSelectedSubCategory(e.target.value)}
-              className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
+              style={SELECT_CHEVRON_STYLE}
+              className="w-full appearance-none rounded-lg border border-magic-border bg-white pl-3 pr-9 py-2.5 text-sm font-medium text-magic-ink shadow-sm cursor-pointer hover:border-magic-red/50 hover:bg-magic-soft/40 focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20 transition-all"
             >
               <option value="">— All sub categories —</option>
               {categories.map((cat) => (
@@ -338,7 +351,7 @@ export default function CatalogBrowser({
         )}
 
         <div className="flex-1 min-w-48">
-          <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-magic-ink/60 mb-1">
             {selectedVendor ? "Filter / search" : "Global search (all vendors)"}
           </label>
           <input
@@ -349,7 +362,7 @@ export default function CatalogBrowser({
                 ? "e.g. 4MP bullet ColorVu PoE"
                 : "Search by keyword, model, vendor, category…"
             }
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2.5 text-sm font-medium text-magic-ink shadow-sm placeholder:text-magic-ink/30 hover:border-magic-red/50 hover:bg-magic-soft/40 focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20 transition-all"
           />
         </div>
 
@@ -501,10 +514,23 @@ export default function CatalogBrowser({
                       <td className="px-2 py-1.5">
                         <button
                           onClick={() => setPendingItem(p)}
-                          title="Select which page to add this product to"
-                          className="w-6 h-6 rounded-full bg-magic-red text-white flex items-center justify-center text-base leading-none hover:bg-red-700 font-bold"
+                          title="Add to quotation"
+                          aria-label="Add product to quotation"
+                          className="w-7 h-7 rounded-full bg-magic-red text-white flex items-center justify-center shadow-sm shadow-magic-red/30 hover:bg-red-700 hover:scale-110 hover:shadow-md hover:shadow-magic-red/40 active:scale-95 focus:outline-none focus:ring-2 focus:ring-magic-red/40 focus:ring-offset-1 transition-all duration-150"
                         >
-                          +
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            className="w-4 h-4"
+                            aria-hidden="true"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
                         </button>
                       </td>
                       {DISPLAY_COLUMNS.map((col) => {
