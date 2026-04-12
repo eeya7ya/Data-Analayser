@@ -19,7 +19,7 @@ export default function FolderExportImport() {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      if (data.version !== 1) {
+      if (data.version !== 1 && data.version !== 2) {
         throw new Error("Unsupported export version");
       }
       const res = await fetch("/api/folders/import", {

@@ -122,7 +122,8 @@ export async function POST(req: NextRequest) {
         insert into quotations (
           ref, owner_id, project_name, client_name, client_email, client_phone,
           sales_engineer, prepared_by, site_name, tax_percent,
-          items_json, totals_json, config_json, folder_id
+          items_json, totals_json, config_json, folder_id,
+          created_at, updated_at
         ) values (
           ${qn.ref},
           ${user.id},
@@ -137,7 +138,9 @@ export async function POST(req: NextRequest) {
           ${JSON.stringify(qn.items_json || [])}::jsonb,
           ${JSON.stringify(qn.totals_json || {})}::jsonb,
           ${JSON.stringify(qn.config_json || {})}::jsonb,
-          ${folderId}
+          ${folderId},
+          ${qn.created_at ? new Date(qn.created_at).toISOString() : new Date().toISOString()},
+          ${qn.updated_at ? new Date(qn.updated_at).toISOString() : new Date().toISOString()}
         )
       `;
       quotationsCreated++;
