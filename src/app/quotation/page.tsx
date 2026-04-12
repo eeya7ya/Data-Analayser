@@ -158,11 +158,11 @@ export default async function QuotationPage({
     }
     const appSettings = await getAppSettings();
     return (
-      <div className="min-h-screen bg-magic-soft/40">
+      <div className="min-h-screen bg-magic-soft/40 print-root">
         <div className="no-print">
           <TopBar user={user} />
         </div>
-        <main className="max-w-5xl mx-auto p-6">
+        <main className="max-w-5xl mx-auto p-6 print-main">
           <QuotationViewer
             quotationId={quotationId}
             appSettings={appSettings}
