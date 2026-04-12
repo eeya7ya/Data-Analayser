@@ -555,7 +555,7 @@ export default function CatalogBrowser({
                           display =
                             raw > 0
                               ? `${p.currency} ${raw.toFixed(2)}`
-                              : "—";
+                              : "";
                         } else if (col.key === "specifications") {
                           const s = String(val || "");
                           const isExpanded = expandedSpec === p.id;

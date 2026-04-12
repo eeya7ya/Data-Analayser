@@ -38,7 +38,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
   return (
     <header className="border-b border-magic-border bg-white">
       <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
-        <Link href={designerHref} className="flex items-center gap-2">
+        <Link href="/quotation" className="flex items-center gap-2">
           <span className="text-xl font-black text-magic-red">Magic</span>
           <span className="text-xl font-black text-magic-ink">Tech</span>
           <span className="ml-2 text-xs text-magic-ink/50">
@@ -46,20 +46,20 @@ export default function TopBar({ user }: { user: SessionUser }) {
           </span>
         </Link>
         <nav className="flex items-center gap-4 text-sm">
-          <Link href={designerHref} className="text-magic-ink hover:text-magic-red">
-            Designer
-          </Link>
-          <Link href="/ai-designer" className="text-magic-ink hover:text-magic-red">
-            AI Designer
-          </Link>
-          <Link href="/catalog" className="text-magic-ink hover:text-magic-red">
-            Catalogue
-          </Link>
           <Link
             href="/quotation"
             className="text-magic-ink hover:text-magic-red"
           >
             Quotations
+          </Link>
+          <Link href={designerHref} className="text-magic-ink hover:text-magic-red">
+            Designer
+          </Link>
+          <Link href="/catalog" className="text-magic-ink hover:text-magic-red">
+            Catalogue
+          </Link>
+          <Link href="/ai-designer" className="text-magic-ink hover:text-magic-red">
+            AI Designer
           </Link>
           {user.role === "admin" && (
             <Link
