@@ -57,10 +57,12 @@ export default async function DesignerPage({
     }
     const appSettings = await settingsPromise;
     return (
-      <div className="min-h-screen bg-magic-soft/40">
-        <TopBar user={user} />
-        <main className="max-w-7xl mx-auto p-6">
-          <header className="mb-6">
+      <div className="min-h-screen bg-magic-soft/40 print-root">
+        <div className="no-print">
+          <TopBar user={user} />
+        </div>
+        <main className="max-w-7xl mx-auto p-6 print-main">
+          <header className="mb-6 no-print">
             <h1 className="text-2xl font-bold text-magic-ink">
               Editing quotation #{quotationId}
             </h1>

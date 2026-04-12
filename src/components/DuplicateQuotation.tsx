@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 interface Folder {
@@ -46,17 +47,66 @@ export default function DuplicateQuotation({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  // The surrounding quotations card has `overflow-hidden` to clip the
+  // coloured header/table edges to the rounded-2xl corners. That same
+  // clipping used to eat our absolutely-positioned dropdown, leaving the
+  // user unable to see or click the folder list. Render the menu into a
+  // portal on `document.body` with a fixed position computed from the
+  // button's bounding rect so it escapes every ancestor's overflow.
+  const [mounted, setMounted] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setError(null);
-      }
+      const target = e.target as Node;
+      if (ref.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
+      setError(null);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  // Recompute the dropdown position whenever it opens (and on resize /
+  // scroll while open) so it tracks the button if the user scrolls the
+  // quotations table underneath it.
+  useEffect(() => {
+    if (!open) {
+      setMenuPos(null);
+      return;
+    }
+    function updatePos() {
+      const btn = buttonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      const menuWidth = 256; // matches w-64
+      const viewportW =
+        typeof window !== "undefined" ? window.innerWidth : 1024;
+      // Anchor the right edge of the menu to the right edge of the button,
+      // but clamp to stay on-screen.
+      const left = Math.max(
+        8,
+        Math.min(rect.right - menuWidth, viewportW - menuWidth - 8),
+      );
+      setMenuPos({ top: rect.bottom + 4, left });
+    }
+    updatePos();
+    window.addEventListener("resize", updatePos);
+    window.addEventListener("scroll", updatePos, true);
+    return () => {
+      window.removeEventListener("resize", updatePos);
+      window.removeEventListener("scroll", updatePos, true);
+    };
+  }, [open]);
 
   async function duplicateTo(targetFolderId: number | null) {
     setLoading(true);
@@ -170,9 +220,50 @@ export default function DuplicateQuotation({
     }
   }
 
+  const menu =
+    open && menuPos ? (
+      <div
+        ref={menuRef}
+        style={{ top: menuPos.top, left: menuPos.left, width: 256 }}
+        className="fixed z-[1000] rounded-md border border-magic-border bg-white shadow-lg py-1 text-sm max-h-72 overflow-y-auto"
+      >
+        <div className="px-3 pt-1.5 pb-1 text-[10px] uppercase tracking-wide text-magic-ink/50">
+          Paste a copy into…
+        </div>
+        {folders.length === 0 && (
+          <div className="px-3 py-2 text-xs text-magic-ink/50 italic">
+            No client folders yet — create one first.
+          </div>
+        )}
+        {folders.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => duplicateTo(f.id)}
+            disabled={loading}
+            className={`w-full text-left px-3 py-1.5 hover:bg-magic-header disabled:opacity-50 ${
+              currentFolderId === f.id ? "font-semibold text-magic-red" : ""
+            }`}
+          >
+            {f.name}
+            {currentFolderId === f.id && (
+              <span className="ml-1 text-[10px] italic text-magic-ink/50">
+                (same client)
+              </span>
+            )}
+          </button>
+        ))}
+        {error && (
+          <div className="mt-1 border-t border-magic-border px-3 py-2 text-[11px] text-red-600">
+            {error}
+          </div>
+        )}
+      </div>
+    ) : null;
+
   return (
     <div ref={ref} className="relative inline-block">
       <button
+        ref={buttonRef}
         onClick={() => setOpen(!open)}
         disabled={loading}
         className="text-xs text-magic-red hover:underline disabled:opacity-50"
@@ -180,42 +271,7 @@ export default function DuplicateQuotation({
       >
         {loading ? "Copying…" : "Copy"}
       </button>
-      {open && (
-        <div className="absolute right-0 z-50 mt-1 w-64 rounded-md border border-magic-border bg-white shadow-lg py-1 text-sm max-h-72 overflow-y-auto">
-          <div className="px-3 pt-1.5 pb-1 text-[10px] uppercase tracking-wide text-magic-ink/50">
-            Paste a copy into…
-          </div>
-          {folders.length === 0 && (
-            <div className="px-3 py-2 text-xs text-magic-ink/50 italic">
-              No client folders yet — create one first.
-            </div>
-          )}
-          {folders.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => duplicateTo(f.id)}
-              disabled={loading}
-              className={`w-full text-left px-3 py-1.5 hover:bg-magic-header disabled:opacity-50 ${
-                currentFolderId === f.id
-                  ? "font-semibold text-magic-red"
-                  : ""
-              }`}
-            >
-              {f.name}
-              {currentFolderId === f.id && (
-                <span className="ml-1 text-[10px] italic text-magic-ink/50">
-                  (same client)
-                </span>
-              )}
-            </button>
-          ))}
-          {error && (
-            <div className="mt-1 border-t border-magic-border px-3 py-2 text-[11px] text-red-600">
-              {error}
-            </div>
-          )}
-        </div>
-      )}
+      {mounted && menu ? createPortal(menu, document.body) : null}
     </div>
   );
 }

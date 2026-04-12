@@ -132,9 +132,29 @@ body {
   .no-print {
     display: none !important;
   }
+  /* Strip the app chrome (page background, header spacing, main padding)
+   * in print mode so the quotation sheet sits directly against the @page
+   * edge. Without this override, the Next.js page wrapper introduces a
+   * blank first page (from the navigation header + "Editing quotation"
+   * banner) and shifts the sheet off-center because `<main>` carries a
+   * `max-w-*` + `p-6` from the on-screen layout. */
+  .print-root {
+    background: #ffffff !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .print-main {
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
   .quotation-doc {
     gap: 0;
     display: block;
+    margin: 0 auto;
+    width: 210mm;
   }
   /* Keep the sheet geometry identical to the on-screen preview so the
    * printed output matches what the user sees. The @page rule below uses
