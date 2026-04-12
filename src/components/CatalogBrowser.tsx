@@ -7,6 +7,7 @@ import {
   appendItem,
   loadDraft,
   loadEditingContext,
+  loadEditDraft,
   type EditingContext,
 } from "@/lib/quotationDraft";
 import type { QuotationItem } from "@/components/QuotationPreview";
@@ -171,8 +172,21 @@ export default function CatalogBrowser({
     for (const it of d.items) {
       if (it.system) set.add(it.system);
     }
+    // When editing a saved quotation, also include pages from the
+    // per-quotation edit draft so the picker shows pages like
+    // "CCTV/GF/RIGHT" that exist in the saved quotation but not
+    // in the temporary catalog draft.
+    const ctx = loadEditingContext();
+    if (ctx && Number.isFinite(ctx.id)) {
+      const editDraft = loadEditDraft(ctx.id);
+      if (editDraft && Array.isArray(editDraft.items)) {
+        for (const it of editDraft.items) {
+          if (it.system) set.add(it.system);
+        }
+      }
+    }
     setExistingPages([...set]);
-    setEditing(loadEditingContext());
+    setEditing(ctx);
   }, []);
 
   useEffect(() => {
