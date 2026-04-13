@@ -857,6 +857,104 @@ export default function Designer({
     setPrintMode(true);
   }
 
+  async function exportToExcel() {
+    if (typeof window === "undefined" || items.length === 0) return;
+    const XLSX = await import("xlsx");
+
+    const header = {
+      project_name: projectName,
+      client_name: clientName,
+      client_email: clientEmail,
+      client_phone: clientPhone,
+      sales_engineer: salesEng,
+      sales_phone: salesPhone,
+      prepared_by: preparedBy,
+      design_engineer: designEng,
+      ref: refCode,
+      site_name: siteName,
+      tax_percent: taxPercent,
+      extra_columns: extraColumns,
+    };
+
+    const totals = computeQuotationTotals(items, taxPercent, taxInclusive);
+
+    // --- Build rows ---
+    const rows: Record<string, unknown>[] = [];
+
+    // Header info rows
+    rows.push({ "#": "Reference", System: header.ref });
+    rows.push({ "#": "Project", System: header.project_name });
+    if (header.client_name)
+      rows.push({ "#": "Client", System: header.client_name });
+    if (header.site_name)
+      rows.push({ "#": "Site", System: header.site_name });
+    if (header.sales_engineer)
+      rows.push({ "#": "Sales Engineer", System: header.sales_engineer });
+    if (header.prepared_by)
+      rows.push({ "#": "Prepared By", System: header.prepared_by });
+    rows.push({}); // blank separator
+
+    // Column headers for items
+    const extraCols = header.extra_columns ?? [];
+    const itemHeader: Record<string, string> = {
+      "#": "#",
+      System: "System",
+      Brand: "Brand",
+      Model: "Model",
+      Description: "Description",
+      Qty: "Qty",
+      "Unit Price": "Unit Price",
+      "Total Price": "Total Price",
+      Delivery: "Delivery",
+    };
+    for (const col of extraCols) {
+      itemHeader[col.label] = col.label;
+    }
+    rows.push(itemHeader);
+
+    // Item data rows
+    for (const item of items) {
+      const row: Record<string, unknown> = {
+        "#": item.no,
+        System: item.system,
+        Brand: item.brand,
+        Model: item.model,
+        Description: item.description,
+        Qty: item.quantity,
+        "Unit Price": item.unit_price,
+        "Total Price": item.optional
+          ? "Optional"
+          : item.quantity * item.unit_price,
+        Delivery: item.delivery,
+      };
+      for (const col of extraCols) {
+        row[col.label] = item.extra?.[col.id] ?? "";
+      }
+      rows.push(row);
+    }
+
+    // Totals
+    rows.push({});
+    rows.push({ Description: "Subtotal", "Total Price": totals.subtotal });
+    if (includeTax) {
+      rows.push({
+        Description: `Tax (${taxPercent}%)`,
+        "Total Price": totals.tax,
+      });
+    }
+    rows.push({
+      Description: "Grand Total",
+      "Total Price": includeTax ? totals.total : totals.subtotal,
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows, { skipHeader: true });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Quotation");
+
+    const filename = `${header.ref || header.project_name || "quotation"}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  }
+
   // Once `printMode` is committed the DOM now mirrors the read-only
   // viewer, so opening the browser print dialog produces an identical
   // printed document. We wait one frame for React to flush, call
@@ -1213,6 +1311,14 @@ export default function Designer({
               className="rounded-md border border-magic-border px-3 py-1.5 text-xs hover:bg-magic-soft disabled:opacity-40"
             >
               Clear
+            </button>
+            <button
+              onClick={exportToExcel}
+              disabled={items.length === 0}
+              title="Export the quotation as an Excel file"
+              className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
+            >
+              Export Excel
             </button>
             <button
               onClick={printQuotation}
