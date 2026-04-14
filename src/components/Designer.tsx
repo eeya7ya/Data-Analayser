@@ -731,11 +731,34 @@ export default function Designer({
     }
   }, [editMode, router]);
 
-  async function saveQuotation() {
+  /**
+   * Persist the current Designer state to the server.
+   *
+   *   mode = "save"   → default flow. Create mode POSTs a new active
+   *                     quotation; edit mode PATCHes the existing record
+   *                     in place.
+   *   mode = "draft"  → only valid in edit mode. POSTs a NEW row with
+   *                     status='draft' and parent_id=existing.id so the
+   *                     server mints <parentRef>D<m> and the current
+   *                     saved quotation is left untouched.
+   *   mode = "review" → same as draft but for reviews (R<m>).
+   */
+  async function saveQuotation(
+    mode: "save" | "draft" | "review" = "save",
+  ) {
+    // Draft / review are snapshots of an existing saved quotation, so they
+    // only make sense in edit mode where we have a parent id to anchor the
+    // suffix counter against. Guard early with a human-readable message.
+    if ((mode === "draft" || mode === "review") && (!editMode || !existing)) {
+      alert(
+        `Save the quotation first, then use "Save as ${mode === "draft" ? "Draft" : "Review"}" to create a ${mode} snapshot.`,
+      );
+      return;
+    }
     // In create mode, a client folder is required — it's how the quotation
     // inherits client_name/email/phone. In edit mode we preserve whatever
     // folder state the existing row had (may be null for legacy rows).
-    if (!editMode && !folderId) {
+    if (mode === "save" && !editMode && !folderId) {
       alert("Please select or create a client before saving the quotation.");
       return;
     }
@@ -743,8 +766,10 @@ export default function Designer({
     setSaveStatus("");
     try {
       const totals = computeQuotationTotals(items, includeTax ? taxPercent : 0, includeTax && taxInclusive);
-      const payload = {
-        ref: refCode || undefined,
+      // Snapshot payloads deliberately omit `ref` so the server mints a
+      // fresh QX…D<m> / QX…R<m> from the parent. The regular save path
+      // keeps the current refCode so edits don't churn the number.
+      const payload: Record<string, unknown> = {
         project_name: projectName || "Untitled Quotation",
         client_name: clientName,
         client_email: clientEmail,
@@ -772,19 +797,42 @@ export default function Designer({
           taxPricesNormalized: true,
         },
       };
-      const res = editMode
-        ? await fetch(`/api/quotations?id=${existing!.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          })
-        : await fetch("/api/quotations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
+      if (mode === "save") {
+        payload.ref = refCode || undefined;
+      }
+      if (mode === "draft" || mode === "review") {
+        payload.mode = mode;
+        payload.parent_id = existing!.id;
+      }
+
+      const isSnapshot = mode === "draft" || mode === "review";
+      const res =
+        editMode && !isSnapshot
+          ? await fetch(`/api/quotations?id=${existing!.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            })
+          : await fetch("/api/quotations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "save failed");
+
+      if (isSnapshot) {
+        // Snapshot succeeded — leave the original quotation open in the
+        // Designer and navigate to the new draft/review so the user lands
+        // on the record they just minted.
+        const label = mode === "draft" ? "Draft" : "Review";
+        setSaveStatus(
+          `${label} saved as ${data.quotation.ref} — opening…`,
+        );
+        router.push(`/designer?id=${data.quotation.id}`);
+        return;
+      }
+
       if (editMode) {
         // The in-flight edit draft has now been flushed to the DB, so
         // the per-id localStorage slot can go. If the user keeps editing
@@ -1329,7 +1377,7 @@ export default function Designer({
               Print / PDF
             </button>
             <button
-              onClick={saveQuotation}
+              onClick={() => saveQuotation("save")}
               disabled={
                 items.length === 0 || saving || (!editMode && !folderId)
               }
@@ -1346,6 +1394,33 @@ export default function Designer({
                   ? "Save updates"
                   : "Save & open printable"}
             </button>
+            {/*
+             * Draft / Review snapshots clone the currently-loaded quotation
+             * into a NEW row whose ref carries a D<m> / R<m> suffix — see
+             * src/app/api/quotations/route.ts genSuffixedRef(). Only exposed
+             * in edit mode because the suffix counter needs an existing
+             * parent to anchor against.
+             */}
+            {editMode && existing && (
+              <>
+                <button
+                  onClick={() => saveQuotation("draft")}
+                  disabled={items.length === 0 || saving}
+                  title="Save a draft snapshot of this quotation (ref ends with D<n>)"
+                  className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors disabled:opacity-50"
+                >
+                  Save as Draft
+                </button>
+                <button
+                  onClick={() => saveQuotation("review")}
+                  disabled={items.length === 0 || saving}
+                  title="Save a review snapshot of this quotation (ref ends with R<n>)"
+                  className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors disabled:opacity-50"
+                >
+                  Save as Review
+                </button>
+              </>
+            )}
           </div>
         </div>
         <QuotationPreview
