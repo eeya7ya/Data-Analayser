@@ -348,6 +348,28 @@ export default function QuotationPreview({
     setItems(next);
   }
 
+  // Undoes a vertical merge by clearing the `merge_up` flag on every row
+  // currently folded into `anchorGlobalIndex` for this column. Necessary
+  // because merged child cells are skipped from the DOM entirely, so the
+  // only place a user can click to unmerge is the anchor cell itself.
+  function unmergeCell(anchorGlobalIndex: number, col: MergeCol) {
+    if (!setItems) return;
+    const anchor = items[anchorGlobalIndex];
+    if (!anchor) return;
+    const anchorKey = anchor.system || anchor.brand || "General";
+    const next = items.slice();
+    for (let i = anchorGlobalIndex + 1; i < next.length; i++) {
+      const it = next[i];
+      const key = it.system || it.brand || "General";
+      if (key !== anchorKey) break;
+      if (!it.merge_up?.[col]) break;
+      const merge_up = { ...it.merge_up };
+      delete merge_up[col];
+      next[i] = { ...it, merge_up };
+    }
+    setItems(next);
+  }
+
   // Toggles the `merge_left` flag for a specific column on a specific row.
   // Pairs with SystemTable's `computeHRowPlan` to render colSpan correctly.
   // Horizontal merging is scoped to the contiguous text columns (brand,
@@ -513,6 +535,7 @@ export default function QuotationPreview({
             onCopy={copyRow}
             onPaste={pasteRow}
             onToggleMerge={toggleMerge}
+            onUnmergeCell={unmergeCell}
             onToggleMergeLeft={toggleMergeLeft}
             onToggleOptional={toggleOptional}
             onRenameExtraColumn={renameExtraColumn}
@@ -973,6 +996,7 @@ function SystemTable({
   onCopy,
   onPaste,
   onToggleMerge,
+  onUnmergeCell,
   onToggleMergeLeft,
   onToggleOptional,
   onRenameExtraColumn,
@@ -990,6 +1014,7 @@ function SystemTable({
   onCopy: (globalIndex: number) => void;
   onPaste: (globalIndex: number) => void;
   onToggleMerge: (globalIndex: number, col: MergeCol) => void;
+  onUnmergeCell: (anchorGlobalIndex: number, col: MergeCol) => void;
   onToggleMergeLeft: (globalIndex: number, col: HMergeCol) => void;
   onToggleOptional: (globalIndex: number) => void;
   onRenameExtraColumn: (id: string, label: string) => void;
@@ -1048,7 +1073,17 @@ function SystemTable({
         colSpan={colSpan > 1 ? colSpan : undefined}
       >
         {children}
-        {editable && rowIdx > 0 && (
+        {editable && rowSpan > 1 && (
+          <button
+            type="button"
+            onClick={() => onUnmergeCell(globalIndex, col)}
+            title="Unmerge this cell from the rows below"
+            className="no-print absolute top-0 right-0 w-4 h-4 text-[9px] leading-none rounded-bl bg-magic-red text-white"
+          >
+            ⇩
+          </button>
+        )}
+        {editable && rowIdx > 0 && rowSpan === 1 && (
           <button
             type="button"
             onClick={() => onToggleMerge(globalIndex, col)}
