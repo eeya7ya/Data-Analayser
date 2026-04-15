@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 /**
  * Static, no-DB, no-auth version of <TopBar /> used by every loading.tsx
  * boundary. Keeping the header in place during navigation stops the whole
@@ -7,16 +9,22 @@
  */
 export default function TopBarSkeleton() {
   return (
-    <header className="border-b border-magic-border bg-white">
-      <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xl font-black text-magic-red">Magic</span>
-          <span className="text-xl font-black text-magic-ink">Tech</span>
-          <span className="ml-2 text-xs text-magic-ink/50">
+    <header className="sticky top-0 z-40 border-b border-white/40 bg-white/70 backdrop-blur-xl shadow-[0_1px_0_rgba(17,24,39,0.04),0_10px_30px_-20px_rgba(17,24,39,0.25)]">
+      <div className="max-w-screen-2xl mx-auto flex items-center justify-between px-6 py-3">
+        <div className="flex items-center gap-3">
+          <Image
+            src="/logo.png"
+            alt="Magic Tech"
+            width={680}
+            height={200}
+            priority
+            className="h-9 w-auto object-contain"
+          />
+          <span className="hidden sm:inline-block rounded-full bg-gradient-to-r from-magic-red/10 to-magic-accent/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-magic-red/80">
             Quotation Designer
           </span>
         </div>
-        <nav className="flex items-center gap-4 text-sm">
+        <nav className="flex items-center gap-2 text-sm">
           <span className="h-4 w-16 rounded bg-magic-soft animate-pulse" />
           <span className="h-4 w-20 rounded bg-magic-soft animate-pulse" />
           <span className="h-4 w-20 rounded bg-magic-soft animate-pulse" />

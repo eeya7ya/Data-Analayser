@@ -19,7 +19,7 @@ export default async function AdminPage() {
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
-      <main className="max-w-4xl mx-auto p-6">
+      <main className="max-w-5xl mx-auto px-6 py-6 lg:px-10">
         <h1 className="text-2xl font-bold text-magic-ink mb-4">Admin</h1>
         <AdminTabs initialSettings={settings} />
       </main>

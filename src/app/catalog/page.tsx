@@ -97,7 +97,7 @@ export default async function CatalogPage() {
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
-      <main className="max-w-7xl mx-auto p-6">
+      <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
         <header className="mb-6">
           <h1 className="text-2xl font-bold text-magic-ink">
             Product Catalogue

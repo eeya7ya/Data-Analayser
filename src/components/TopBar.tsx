@@ -34,7 +34,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
   }
   return (
     <header className="sticky top-0 z-40 border-b border-white/40 bg-white/70 backdrop-blur-xl shadow-[0_1px_0_rgba(17,24,39,0.04),0_10px_30px_-20px_rgba(17,24,39,0.25)]">
-      <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
+      <div className="max-w-screen-2xl mx-auto flex items-center justify-between px-6 py-3">
         <Link
           href="/quotation"
           className="flex items-center gap-3 group"
