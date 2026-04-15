@@ -1,4 +1,5 @@
 import TopBarSkeleton from "@/components/TopBarSkeleton";
+import Spinner from "@/components/Spinner";
 
 /**
  * Instant skeleton for /designer. Without this, clicking "Designer" in the
@@ -11,7 +12,10 @@ export default function DesignerLoading() {
       <TopBarSkeleton />
       <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
         <header className="mb-6">
-          <div className="h-7 w-72 rounded bg-magic-soft animate-pulse" />
+          <div className="flex items-center gap-3">
+            <div className="h-7 w-72 rounded bg-magic-soft animate-pulse" />
+            <Spinner size={16} label="Loading designer…" />
+          </div>
           <div className="mt-2 h-4 w-96 rounded bg-magic-soft animate-pulse" />
         </header>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
