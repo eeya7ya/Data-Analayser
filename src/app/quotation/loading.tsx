@@ -1,4 +1,5 @@
 import TopBarSkeleton from "@/components/TopBarSkeleton";
+import Spinner from "@/components/Spinner";
 
 /**
  * Rendered instantly by Next.js the moment the user clicks any link that
@@ -12,7 +13,10 @@ export default function QuotationLoading() {
       <TopBarSkeleton />
       <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
         <div className="flex items-center justify-between mb-4">
-          <div className="h-7 w-64 rounded bg-magic-soft animate-pulse" />
+          <div className="flex items-center gap-3">
+            <div className="h-7 w-64 rounded bg-magic-soft animate-pulse" />
+            <Spinner size={16} label="Loading quotations…" />
+          </div>
           <div className="h-8 w-40 rounded-md bg-magic-soft animate-pulse" />
         </div>
         <div className="mb-4 flex items-center gap-2 border-b border-magic-border">

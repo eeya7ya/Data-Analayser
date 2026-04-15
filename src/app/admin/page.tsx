@@ -14,6 +14,11 @@ export default async function AdminPage() {
   // in-process cache, and without a fresh read the "Saved." toast would
   // flash correctly but a reload landing on a different instance would
   // render the pre-save values until the 60s TTL expired.
+  //
+  // `getAppSettings({ fresh: true })` internally races the DB fetch
+  // against a 3s timeout and falls back to the last known values (stale
+  // cache or hardcoded defaults) if Supabase is cold/unreachable, so the
+  // page can never hang on its loading skeleton indefinitely.
   const settingsPromise = getAppSettings({ fresh: true });
   const user = await getSessionUser();
   if (!user) redirect("/login");

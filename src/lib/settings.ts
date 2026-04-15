@@ -57,6 +57,16 @@ const SETTINGS_CACHE_TTL_MS = 60_000;
  * blocking on ~800–1500 ms of pooler handshake + schema check + select.
  */
 const SETTINGS_PRELOAD_BUDGET_MS = 400;
+/**
+ * Longer budget for admin-triggered `fresh: true` reads. The admin page
+ * genuinely wants the newest persisted values (so the Settings form seeds
+ * from the latest row rather than a 60s-stale cache), but if Supabase is
+ * cold-starting or unreachable we still can't block the render forever —
+ * otherwise /admin gets stuck on its loading.tsx skeleton with no timeout.
+ * 3s is long enough to clear a typical pooler handshake + query, short
+ * enough that the admin always sees *something* rendered.
+ */
+const SETTINGS_FRESH_BUDGET_MS = 3000;
 const globalForSettings = globalThis as unknown as {
   __mtAppSettingsCache?: { at: number; data: AppSettings };
   __mtAppSettingsInFlight?: Promise<AppSettings>;
@@ -89,9 +99,30 @@ export async function getAppSettings(
     // Drop any stale per-instance cache / in-flight promise so the read
     // below actually hits the database instead of returning whatever the
     // previous request populated.
+    const staleCache = cached;
     globalForSettings.__mtAppSettingsCache = undefined;
     globalForSettings.__mtAppSettingsInFlight = undefined;
-    return fetchAppSettingsFromDb();
+    // Race the DB fetch against a hard budget. Without this the admin page
+    // would hang on its loading.tsx skeleton indefinitely whenever Supabase
+    // was cold-starting or unreachable — the previous code awaited the
+    // fetch with no timeout. The fetch still runs in the background on
+    // timeout so the next request picks up the fresh value from cache.
+    const inflight = fetchAppSettingsFromDb();
+    // Swallow the background rejection so an unreachable DB doesn't
+    // surface as an unhandled promise rejection on the serverless runtime.
+    inflight.catch(() => {});
+    const timeout = new Promise<"TIMEOUT">((resolve) =>
+      setTimeout(() => resolve("TIMEOUT"), SETTINGS_FRESH_BUDGET_MS),
+    );
+    try {
+      const result = await Promise.race([inflight, timeout]);
+      if (result === "TIMEOUT") {
+        return staleCache?.data ?? { ...DEFAULT_APP_SETTINGS };
+      }
+      return result;
+    } catch {
+      return staleCache?.data ?? { ...DEFAULT_APP_SETTINGS };
+    }
   }
   if (cached && Date.now() - cached.at < SETTINGS_CACHE_TTL_MS) {
     return cached.data;
