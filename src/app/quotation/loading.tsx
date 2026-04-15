@@ -10,7 +10,7 @@ export default function QuotationLoading() {
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBarSkeleton />
-      <main className="max-w-6xl mx-auto p-6">
+      <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
         <div className="flex items-center justify-between mb-4">
           <div className="h-7 w-64 rounded bg-magic-soft animate-pulse" />
           <div className="h-8 w-40 rounded-md bg-magic-soft animate-pulse" />

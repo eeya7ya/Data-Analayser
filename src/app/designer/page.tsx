@@ -49,7 +49,7 @@ export default async function DesignerPage({
       return (
         <div className="min-h-screen bg-magic-soft/40">
           <TopBar user={user} />
-          <main className="max-w-7xl mx-auto p-6">
+          <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
             <p className="text-sm text-magic-ink/70">Quotation not found.</p>
           </main>
         </div>
@@ -61,7 +61,7 @@ export default async function DesignerPage({
         <div className="no-print">
           <TopBar user={user} />
         </div>
-        <main className="max-w-7xl mx-auto p-6 print-main">
+        <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10 print-main">
           <header className="mb-6 no-print">
             <h1 className="text-2xl font-bold text-magic-ink">
               Editing quotation #{quotationId}
@@ -98,7 +98,7 @@ export default async function DesignerPage({
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
-      <main className="max-w-7xl mx-auto p-6">
+      <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
         <header className="mb-6">
           <h1 className="text-2xl font-bold text-magic-ink">
             Quotation Designer
