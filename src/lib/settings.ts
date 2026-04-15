@@ -67,6 +67,17 @@ const SETTINGS_PRELOAD_BUDGET_MS = 400;
  * enough that the admin always sees *something* rendered.
  */
 const SETTINGS_FRESH_BUDGET_MS = 3000;
+/**
+ * Secondary budget used only when the fresh read times out AND we have no
+ * stale cache to fall back to. Without this window, a cold lambda landing
+ * on /admin after a save on a sibling instance would return
+ * `DEFAULT_APP_SETTINGS` (the hardcoded values), making the admin's save
+ * look wiped even though it's correctly persisted in the DB. Giving the
+ * already-running DB fetch a few more seconds to finish lets us render the
+ * real values in the common "Supabase is cold, not dead" case, while still
+ * keeping an absolute ceiling so the page can never hang indefinitely.
+ */
+const SETTINGS_FRESH_EXTENDED_BUDGET_MS = 5000;
 const globalForSettings = globalThis as unknown as {
   __mtAppSettingsCache?: { at: number; data: AppSettings };
   __mtAppSettingsInFlight?: Promise<AppSettings>;
@@ -96,32 +107,62 @@ export async function getAppSettings(
   // saving the default terms on instance A would still render stale values
   // on the next request if it landed on instance B (cache TTL: 60s).
   if (opts.fresh) {
-    // Drop any stale per-instance cache / in-flight promise so the read
-    // below actually hits the database instead of returning whatever the
-    // previous request populated.
+    // Drop any stale per-instance cache so the read below actually hits the
+    // database instead of returning whatever a previous non-fresh request
+    // populated. Keep the previous cache value around as a fallback for the
+    // timeout path so we serve *something real* instead of defaults.
     const staleCache = cached;
     globalForSettings.__mtAppSettingsCache = undefined;
-    globalForSettings.__mtAppSettingsInFlight = undefined;
+    // Share the in-flight fetch with any concurrent callers on this
+    // instance (e.g. a second tab or a Designer render firing at the same
+    // time) so we don't stampede the Supavisor pool with duplicate reads.
+    let inflight = globalForSettings.__mtAppSettingsInFlight;
+    if (!inflight) {
+      inflight = fetchAppSettingsFromDb().finally(() => {
+        globalForSettings.__mtAppSettingsInFlight = undefined;
+      });
+      globalForSettings.__mtAppSettingsInFlight = inflight;
+    }
+    // Swallow the background rejection so an unreachable DB doesn't
+    // surface as an unhandled promise rejection on the serverless runtime.
+    inflight.catch(() => {});
     // Race the DB fetch against a hard budget. Without this the admin page
     // would hang on its loading.tsx skeleton indefinitely whenever Supabase
     // was cold-starting or unreachable — the previous code awaited the
     // fetch with no timeout. The fetch still runs in the background on
     // timeout so the next request picks up the fresh value from cache.
-    const inflight = fetchAppSettingsFromDb();
-    // Swallow the background rejection so an unreachable DB doesn't
-    // surface as an unhandled promise rejection on the serverless runtime.
-    inflight.catch(() => {});
     const timeout = new Promise<"TIMEOUT">((resolve) =>
       setTimeout(() => resolve("TIMEOUT"), SETTINGS_FRESH_BUDGET_MS),
     );
     try {
       const result = await Promise.race([inflight, timeout]);
-      if (result === "TIMEOUT") {
-        return staleCache?.data ?? { ...DEFAULT_APP_SETTINGS };
-      }
-      return result;
+      if (result !== "TIMEOUT") return result;
     } catch {
       return staleCache?.data ?? { ...DEFAULT_APP_SETTINGS };
+    }
+    // Primary budget exhausted. A stale cache from an earlier request on
+    // this same instance is almost always correct (it's a copy of the DB
+    // row we just tried to re-read), so prefer it over the hardcoded
+    // defaults — serving defaults here is exactly the bug that makes the
+    // admin's save look wiped after a reload lands on a cold lambda.
+    if (staleCache?.data) return staleCache.data;
+    // No stale cache — give the already-running fetch one more window
+    // before falling back to `DEFAULT_APP_SETTINGS`. This covers the
+    // "Supabase is cold, not dead" case where the query is going to
+    // succeed in ~3–6s; without it the admin sees hardcoded defaults and
+    // thinks their last save was lost.
+    const extendedTimeout = new Promise<"TIMEOUT">((resolve) =>
+      setTimeout(
+        () => resolve("TIMEOUT"),
+        SETTINGS_FRESH_EXTENDED_BUDGET_MS,
+      ),
+    );
+    try {
+      const extended = await Promise.race([inflight, extendedTimeout]);
+      if (extended === "TIMEOUT") return { ...DEFAULT_APP_SETTINGS };
+      return extended;
+    } catch {
+      return { ...DEFAULT_APP_SETTINGS };
     }
   }
   if (cached && Date.now() - cached.at < SETTINGS_CACHE_TTL_MS) {
@@ -165,7 +206,12 @@ export async function getAppSettings(
 
 export async function saveAppSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
   await ensureSchema();
-  const current = await getAppSettings();
+  // Merge against the latest persisted row, not this lambda instance's
+  // in-process cache. On Vercel a cold lambda's cache might still be
+  // undefined (or worse, populated with hardcoded defaults if the previous
+  // fresh read timed out), and merging the admin's partial patch over that
+  // would silently stomp whatever fields are absent from `patch`.
+  const current = await getAppSettings({ fresh: true });
   const next = normalize({ ...current, ...patch });
   const q = sql();
   const json = JSON.stringify(next);
