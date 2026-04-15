@@ -107,6 +107,21 @@ const SCHEMA_FINGERPRINT = "schema_bootstrap_v2_2026_04";
  */
 const PERF_INDEX_FLAG = "perf_composite_indexes_v1_2026_04";
 
+/**
+ * Incremental migration: adds `status` ('active' | 'draft' | 'review') and
+ * `parent_ref` columns to `quotations` so the Designer can mint "Save as
+ * Draft" / "Save as Review" snapshots of an existing quotation. The REF
+ * generator in `src/app/api/quotations/route.ts` uses these to build the
+ * smart ref format
+ *
+ *   Q<L><DDMMYY>MT<n>[R<m> | D<m>]
+ *
+ * where L is the owner's first-letter initial, n is the per-user counter
+ * of "active" quotations they've created, and m is the per-parent counter
+ * of reviews/drafts anchored to that original record.
+ */
+const QUOTATION_STATUS_FLAG = "quotation_status_v1_2026_04";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -134,7 +149,7 @@ export async function resetSchemaCache(): Promise<void> {
   // re-running it is a no-op, but leaving the flag avoids the extra SELECTs.
   await q`
     delete from migration_flags
-    where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG})
+    where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG})
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
   // actually hits the database instead of returning the cached void.
@@ -152,20 +167,22 @@ async function _ensureSchemaOnce(): Promise<void> {
   // through to the full bootstrap.
   let schemaBootstrapped = false;
   let perfIndexesApplied = false;
+  let quotationStatusApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
-      where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG})
+      where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG})
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
     schemaBootstrapped = keys.has(SCHEMA_FINGERPRINT);
     perfIndexesApplied = keys.has(PERF_INDEX_FLAG);
+    quotationStatusApplied = keys.has(QUOTATION_STATUS_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
 
-  // Both migrations already applied — nothing to do.
-  if (schemaBootstrapped && perfIndexesApplied) return;
+  // All migrations already applied — nothing to do.
+  if (schemaBootstrapped && perfIndexesApplied && quotationStatusApplied) return;
 
   if (!schemaBootstrapped) {
   await q`
@@ -487,6 +504,36 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${PERF_INDEX_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── Quotation status + parent_ref (Draft / Review snapshots) ─────────────
+  // `status` drives the Designer's smart-REF suffix:
+  //   - 'active' → no suffix, bumps the per-user `n` counter
+  //   - 'draft'  → appends D<m> where m counts drafts under parent_ref
+  //   - 'review' → appends R<m> where m counts reviews under parent_ref
+  // `parent_ref` points at the ORIGINAL active quotation the snapshot was
+  // taken from, so every draft/review of QA140426MT5 shares the anchor
+  // "QA140426MT5" regardless of whether the user re-drafted from a previous
+  // draft. NULL for active quotations.
+  if (!quotationStatusApplied) {
+    await q`
+      alter table quotations add column if not exists status text not null default 'active'
+    `;
+    await q`
+      alter table quotations add column if not exists parent_ref text
+    `;
+    await q`
+      create index if not exists quotations_owner_status_idx
+      on quotations(owner_id, status)
+    `;
+    await q`
+      create index if not exists quotations_parent_ref_idx
+      on quotations(parent_ref)
+    `;
+    await q`
+      insert into migration_flags (key) values (${QUOTATION_STATUS_FLAG})
       on conflict (key) do nothing
     `;
   }
