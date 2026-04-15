@@ -1539,6 +1539,64 @@ function SystemTable({
 
 // ─── Picture cell with manual upload ─────────────────────────────────────────
 
+/**
+ * Read a picked image file, downscale it to a reasonable max dimension, and
+ * re-encode it as a JPEG data URL. Pictures are persisted straight into the
+ * quotation JSON (`item.picture_url`), so a single 3–4 MB phone photo is
+ * enough to push a full quotation past the serverless 4.5 MB body limit —
+ * at which point the save request dies with a plain-text "Request Entity
+ * Too Large" that surfaces to the user as an unhelpful JSON parse error.
+ * Shrinking on upload keeps saved payloads well below that ceiling while
+ * still giving plenty of resolution for print output.
+ */
+async function compressImageFile(
+  file: File,
+  maxDim = 900,
+  quality = 0.82,
+): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+    reader.readAsDataURL(file);
+  });
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error("decode failed"));
+    el.src = dataUrl;
+  });
+
+  // Already small enough — skip the re-encode so we don't degrade an
+  // asset that was fine to begin with (e.g. a logo screenshot).
+  if (
+    img.naturalWidth <= maxDim &&
+    img.naturalHeight <= maxDim &&
+    dataUrl.length < 200_000
+  ) {
+    return dataUrl;
+  }
+
+  const scale = Math.min(
+    1,
+    maxDim / Math.max(img.naturalWidth, img.naturalHeight),
+  );
+  const w = Math.max(1, Math.round(img.naturalWidth * scale));
+  const h = Math.max(1, Math.round(img.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+  // White backdrop so transparent PNGs don't turn black when re-encoded
+  // as JPEG — JPEG is dramatically smaller than PNG for photos.
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
 function PictureCell({
   item,
   editable,
@@ -1551,13 +1609,22 @@ function PictureCell({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const src = item.picture_url || "";
 
-  function onPick(file: File | null) {
+  async function onPick(file: File | null) {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      onUpdate({ picture_url: String(reader.result || "") });
-    };
-    reader.readAsDataURL(file);
+    try {
+      const dataUrl = await compressImageFile(file);
+      onUpdate({ picture_url: dataUrl });
+    } catch {
+      // Compression can fail on exotic formats (e.g. HEIC without a
+      // decoder). Fall back to the raw data URL so the user still gets
+      // their picture — the save path's size error will catch it if
+      // the result ends up too big.
+      const reader = new FileReader();
+      reader.onload = () => {
+        onUpdate({ picture_url: String(reader.result || "") });
+      };
+      reader.readAsDataURL(file);
+    }
   }
 
   return (

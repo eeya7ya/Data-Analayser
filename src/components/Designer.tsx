@@ -867,8 +867,30 @@ export default function Designer({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload),
             });
-      const data = await res.json();
+      // When the serverless body limit rejects us (typically because of
+      // oversized pictures in the items JSON), the platform returns a
+      // plain-text "Request Entity Too Large" body — not JSON. Reading
+      // the response as text first lets us surface a helpful message
+      // instead of a cryptic "Unexpected token 'R'" JSON parse error.
+      const rawText = await res.text();
+      let data: {
+        quotation?: { id: number; ref: string };
+        error?: string;
+      } = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        if (res.status === 413) {
+          throw new Error(
+            "Quotation is too large to save. Please use smaller pictures (or remove a few) and try again.",
+          );
+        }
+        throw new Error(
+          `Save failed (${res.status}${res.statusText ? ` ${res.statusText}` : ""}).`,
+        );
+      }
       if (!res.ok) throw new Error(data.error || "save failed");
+      if (!data.quotation) throw new Error("save failed");
 
       if (isSnapshot) {
         // Snapshot succeeded — leave the original quotation open in the
