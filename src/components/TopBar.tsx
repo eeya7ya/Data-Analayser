@@ -3,29 +3,26 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import type { SessionUser } from "@/lib/auth";
 import { loadEditingContext } from "@/lib/quotationDraft";
 
 export default function TopBar({ user }: { user: SessionUser }) {
   const router = useRouter();
-  // Keep the Designer nav link in sync with the editing context so clicking
-  // it never accidentally starts a new quotation while the user is editing.
-  // Reading localStorage in the useState initializer means the link points
-  // at the right URL on the very first client paint — the previous version
-  // rendered "/designer" and then flipped to "/designer?id=42" a tick later,
-  // which is both visually janky and, more importantly, a race: a fast user
-  // click on that initial frame would start a new quotation by accident.
+  // The Designer can only be entered with an editing context (either an
+  // existing quotation id or a pre-selected client folder) — the route
+  // itself gates direct access and redirects to /quotation. So here we
+  // resume the current edit if there is one, otherwise we send the user
+  // back to the Clients & Quotations page where they can pick a client.
   const [designerHref, setDesignerHref] = useState(() => {
-    if (typeof window === "undefined") return "/designer";
+    if (typeof window === "undefined") return "/quotation";
     const ctx = loadEditingContext();
-    return ctx ? `/designer?id=${ctx.id}` : "/designer";
+    return ctx ? `/designer?id=${ctx.id}` : "/quotation";
   });
   useEffect(() => {
-    // Refresh the link whenever the tab regains focus (e.g. after catalog
-    // interactions that may have changed the editing context).
     function onFocus() {
       const c = loadEditingContext();
-      setDesignerHref(c ? `/designer?id=${c.id}` : "/designer");
+      setDesignerHref(c ? `/designer?id=${c.id}` : "/quotation");
     }
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
@@ -36,50 +33,55 @@ export default function TopBar({ user }: { user: SessionUser }) {
     router.refresh();
   }
   return (
-    <header className="border-b border-magic-border bg-white">
+    <header className="sticky top-0 z-40 border-b border-white/40 bg-white/70 backdrop-blur-xl shadow-[0_1px_0_rgba(17,24,39,0.04),0_10px_30px_-20px_rgba(17,24,39,0.25)]">
       <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
-        <Link href="/quotation" className="flex items-center gap-2">
-          <span className="text-xl font-black text-magic-red">Magic</span>
-          <span className="text-xl font-black text-magic-ink">Tech</span>
-          <span className="ml-2 text-xs text-magic-ink/50">
+        <Link
+          href="/quotation"
+          className="flex items-center gap-3 group"
+          aria-label="Magic Tech · Quotation Designer"
+        >
+          <Image
+            src="/logo.png"
+            alt="Magic Tech"
+            width={680}
+            height={200}
+            priority
+            className="h-9 w-auto object-contain transition-transform group-hover:scale-[1.02]"
+          />
+          <span className="hidden sm:inline-block rounded-full bg-gradient-to-r from-magic-red/10 to-magic-accent/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-magic-red/80">
             Quotation Designer
           </span>
         </Link>
-        <nav className="flex items-center gap-4 text-sm">
-          <Link
-            href="/quotation"
-            className="text-magic-ink hover:text-magic-red"
-          >
-            Quotations
-          </Link>
-          <Link href={designerHref} className="text-magic-ink hover:text-magic-red">
-            Designer
-          </Link>
-          <Link href="/catalog" className="text-magic-ink hover:text-magic-red">
-            Catalogue
-          </Link>
-          <Link href="/ai-designer" className="text-magic-ink hover:text-magic-red">
-            AI Designer
-          </Link>
-          {user.role === "admin" && (
-            <Link
-              href="/admin"
-              className="text-magic-ink hover:text-magic-red"
-            >
-              Admin
-            </Link>
-          )}
-          <span className="text-xs text-magic-ink/50">
-            {user.display_name || user.username} · {user.role}
+        <nav className="flex items-center gap-1 text-sm">
+          <NavLink href="/quotation">Quotations</NavLink>
+          <NavLink href={designerHref}>Designer</NavLink>
+          <NavLink href="/catalog">Catalogue</NavLink>
+          <NavLink href="/ai-designer">AI Designer</NavLink>
+          {user.role === "admin" && <NavLink href="/admin">Admin</NavLink>}
+          <span className="ml-3 hidden md:inline-flex items-center gap-1.5 rounded-full border border-magic-border/60 bg-white/60 px-3 py-1 text-[11px] font-medium text-magic-ink/70">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            {user.display_name || user.username}
+            <span className="text-magic-ink/40">· {user.role}</span>
           </span>
           <button
             onClick={logout}
-            className="rounded-md border border-magic-border px-3 py-1 text-xs hover:bg-magic-soft"
+            className="ml-2 rounded-xl bg-gradient-to-r from-magic-ink to-magic-ink/80 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:shadow-md hover:from-magic-red hover:to-magic-red/80 transition-all"
           >
             Sign out
           </button>
         </nav>
       </div>
     </header>
+  );
+}
+
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="relative rounded-lg px-3 py-1.5 text-sm font-medium text-magic-ink/80 transition-all hover:bg-magic-red/10 hover:text-magic-red"
+    >
+      {children}
+    </Link>
   );
 }

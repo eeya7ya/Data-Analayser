@@ -3,20 +3,71 @@
 @tailwind utilities;
 
 :root {
+  /* Brand primary — unchanged, so printed quotation PDFs render identically. */
   --mt-red: #e2231a;
-  --mt-ink: #1f1f1f;
-  --mt-soft: #f7f3f2;
-  --mt-border: #e6d7d5;
-  --mt-header: #f5e4e2;
+  /* App UI palette — modernized. A warmer ink, cooler surfaces, and
+     a pair of accent hues that drive the new gradient backgrounds. */
+  --mt-ink: #111827;
+  --mt-soft: #f5f6fb;
+  --mt-border: #e4e7f1;
+  --mt-header: #eef1fa;
   --mt-highlight: #fff200;
+  --mt-accent: #6366f1;
+  --mt-accent-2: #06b6d4;
 }
 
 html,
 body {
   color: var(--mt-ink);
-  background: #ffffff;
+  /* Ambient gradient canvas for the whole app. Layered radial glows
+     give a subtle, modern "aurora" effect without distracting from
+     content. Kept static (no animation) to stay performant and CLS-safe. */
+  background:
+    radial-gradient(
+      1200px 600px at 10% -10%,
+      rgba(226, 35, 26, 0.10),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at 100% 10%,
+      rgba(99, 102, 241, 0.10),
+      transparent 60%
+    ),
+    radial-gradient(
+      800px 500px at 50% 110%,
+      rgba(6, 182, 212, 0.08),
+      transparent 60%
+    ),
+    linear-gradient(180deg, #f8faff 0%, #f3f5fb 100%);
+  background-attachment: fixed;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Subtle decorative grid, same as the login page, applied app-wide.
+ * Sits behind content; pointer-events none so it never blocks clicks. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(17, 24, 39, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 24, 39, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 75%);
+  -webkit-mask-image: radial-gradient(
+    ellipse at center,
+    black 40%,
+    transparent 75%
+  );
+}
+
+/* Any direct child of <body> (page wrappers) sits above the decorative grid. */
+body > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Printable quotation styling — matches the Magic Tech sales quotation look. */
@@ -125,9 +176,13 @@ body {
 @media print {
   html,
   body {
-    background: #ffffff;
+    background: #ffffff !important;
     margin: 0;
     padding: 0;
+  }
+  /* Kill the decorative grid overlay so the printed quotation is pristine. */
+  body::before {
+    display: none !important;
   }
   .no-print {
     display: none !important;

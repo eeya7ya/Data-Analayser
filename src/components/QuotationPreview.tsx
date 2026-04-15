@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   computeQuotationTotals,
   effectiveMergedValue,
@@ -225,9 +225,124 @@ export default function QuotationPreview({
     addRowToSystem(page.trim());
   }
 
+  // ── Deleted-row undo stack ──────────────────────────────────────────
+  // Every row the user trashes is pushed here (together with the index it
+  // lived at) so Ctrl+Z can restore it in place. The stack lives in a
+  // ref so toggling it never triggers a React re-render — the UI only
+  // re-renders when we actually restore a row via `setItems`.
+  const deletedRowsRef = useRef<
+    Array<{ item: QuotationItem; index: number; stamp: number }>
+  >([]);
+  const [undoHintCount, setUndoHintCount] = useState(0);
+  const [undoFlash, setUndoFlash] = useState<string | null>(null);
+
+  function pushUndo(item: QuotationItem, index: number) {
+    deletedRowsRef.current.push({ item, index, stamp: Date.now() });
+    // Cap so a runaway paste-delete loop can't eat memory.
+    if (deletedRowsRef.current.length > 50) deletedRowsRef.current.shift();
+    setUndoHintCount(deletedRowsRef.current.length);
+  }
+
+  function restoreLastDeletedRow() {
+    if (!setItems) return;
+    const entry = deletedRowsRef.current.pop();
+    setUndoHintCount(deletedRowsRef.current.length);
+    if (!entry) {
+      setUndoFlash("Nothing left to undo");
+      window.setTimeout(() => setUndoFlash(null), 1500);
+      return;
+    }
+    // Clamp the restore index to the current array length so we never
+    // throw on splice() after the user has been busy with other edits.
+    const insertAt = Math.max(0, Math.min(entry.index, items.length));
+    const next = items.slice();
+    next.splice(insertAt, 0, entry.item);
+    setItems(renumber(next));
+    setUndoFlash(
+      `Restored row: ${[entry.item.brand, entry.item.model]
+        .filter(Boolean)
+        .join(" ") || entry.item.description || "row"}`,
+    );
+    window.setTimeout(() => setUndoFlash(null), 1800);
+  }
+
+  // Ctrl/Cmd+Z anywhere on the Designer restores the most recently
+  // deleted row. We ignore the shortcut when the user is editing a form
+  // input (inputs/textareas have their own native undo, and stealing it
+  // would ruin typing). Only active while the preview is editable.
+  useEffect(() => {
+    if (!editable) return;
+    function onKeyDown(e: KeyboardEvent) {
+      const isUndo =
+        (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z";
+      if (!isUndo) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (
+        tag === "input" ||
+        tag === "textarea" ||
+        tag === "select" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      e.preventDefault();
+      restoreLastDeletedRow();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editable, items]);
+
   function removeRow(i: number) {
     if (!setItems) return;
+    const victim = items[i];
+    if (victim) pushUndo(victim, i);
     setItems(renumber(items.filter((_, idx) => idx !== i)));
+  }
+
+  // Moves a row to an explicit target "No" (the 1-based running number
+  // printed on the PDF). The move is clamped to the row's own system
+  // group so we never interleave system pages — typing a number that
+  // belongs to a different group snaps to the nearest in-group slot.
+  function moveRowToNo(globalIndex: number, targetNo: number) {
+    if (!setItems) return;
+    const cur = items[globalIndex];
+    if (!cur) return;
+    const curKey = cur.system || cur.brand || "General";
+    const groupIndices: number[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const key = it.system || it.brand || "General";
+      if (key === curKey) groupIndices.push(i);
+    }
+    if (groupIndices.length === 0) return;
+    const localCur = groupIndices.indexOf(globalIndex);
+    if (localCur < 0) return;
+    // `no` is 1-based and equal to (globalIndex + 1) after renumber(), so
+    // convert the typed target into a local (within-group) position, then
+    // clamp to the group bounds.
+    const requestedIdx = Math.trunc(targetNo) - 1;
+    const firstGI = groupIndices[0];
+    const lastGI = groupIndices[groupIndices.length - 1];
+    const clampedGI = Math.max(firstGI, Math.min(requestedIdx, lastGI));
+    const localTarget = groupIndices.indexOf(clampedGI);
+    if (localTarget < 0 || localTarget === localCur) return;
+    // Perform the move by repeatedly swapping adjacent siblings in the
+    // direction of travel — this preserves the "never interleave system
+    // groups" invariant that moveRow() already guaranteed.
+    const step = localTarget > localCur ? 1 : -1;
+    const next = items.slice();
+    let from = localCur;
+    while (from !== localTarget) {
+      const a = groupIndices[from];
+      const b = groupIndices[from + step];
+      const tmp = next[a];
+      next[a] = next[b];
+      next[b] = tmp;
+      from += step;
+    }
+    setItems(renumber(next));
   }
 
   /** Duplicate a row, inserting the copy right after the original. */
@@ -272,36 +387,9 @@ export default function QuotationPreview({
     setItems(renumber(next));
   }
 
-  /**
-   * Moves a row up or down within its own system group. Rows from
-   * different system pages are never interleaved — up at the first row
-   * of a group (or down at the last) is a no-op. The global items array
-   * is reordered in place and renumbered so the "No" column stays in
-   * sync with the new positions.
-   */
-  function moveRow(globalIndex: number, direction: "up" | "down") {
-    if (!setItems) return;
-    const cur = items[globalIndex];
-    if (!cur) return;
-    const curKey = cur.system || cur.brand || "General";
-    // Find the nearest sibling row within the same system group in the
-    // requested direction. Anything else (another group, end of list)
-    // means there's nothing to swap with.
-    const step = direction === "up" ? -1 : 1;
-    let swapIdx = -1;
-    for (let i = globalIndex + step; i >= 0 && i < items.length; i += step) {
-      const other = items[i];
-      const otherKey = other.system || other.brand || "General";
-      if (otherKey !== curKey) break;
-      swapIdx = i;
-      break;
-    }
-    if (swapIdx < 0) return;
-    const next = items.slice();
-    next[globalIndex] = items[swapIdx];
-    next[swapIdx] = items[globalIndex];
-    setItems(renumber(next));
-  }
+  // The up/down arrow UI that used `moveRow` has been replaced with a
+  // "jump to No" input driven by `moveRowToNo` below. See that function
+  // for the reorder logic.
 
   // Toggles the `merge_up` flag for a specific column on a specific row.
   // Pairs with SystemTable's `computeMergePlan` to render rowSpan correctly.
@@ -458,6 +546,27 @@ export default function QuotationPreview({
 
   return (
     <div className="quotation-doc">
+      {/* Undo feedback toast — shown briefly after Ctrl/Cmd+Z restores a
+          row (or fails to, when the stack is empty). Hidden in print. */}
+      {editable && undoFlash && (
+        <div className="no-print fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-magic-ink/90 px-4 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur">
+          ↶ {undoFlash}
+        </div>
+      )}
+      {/* Small "undo available" hint badge, fixed bottom-left. Stays out
+          of the user's way but lets them know Ctrl+Z has something to
+          restore without reading the docs. */}
+      {editable && undoHintCount > 0 && (
+        <div
+          className="no-print fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full border border-magic-border/60 bg-white/85 px-3 py-1.5 text-[11px] font-medium text-magic-ink/70 shadow-mt-soft backdrop-blur"
+          title="Press Ctrl/Cmd+Z to restore the most recently deleted row"
+        >
+          <span className="rounded-md bg-magic-red/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-magic-red">
+            ⌘Z
+          </span>
+          Undo delete ({undoHintCount})
+        </div>
+      )}
       {/* Fixed front matter — printed in order: cover, then about us. Both
        * are only visible in the print output (hidden on screen via CSS). */}
       <StaticSheet src="/quote-page-1.jpg" alt="Magic Tech cover page" />
@@ -530,7 +639,7 @@ export default function QuotationPreview({
             extraColumns={extraColumns}
             onUpdate={update}
             onRemove={removeRow}
-            onMove={moveRow}
+            onJumpTo={moveRowToNo}
             onDuplicate={duplicateRow}
             onCopy={copyRow}
             onPaste={pasteRow}
@@ -991,7 +1100,7 @@ function SystemTable({
   extraColumns,
   onUpdate,
   onRemove,
-  onMove,
+  onJumpTo,
   onDuplicate,
   onCopy,
   onPaste,
@@ -1009,7 +1118,7 @@ function SystemTable({
   extraColumns: QuotationExtraColumn[];
   onUpdate: (globalIndex: number, patch: Partial<QuotationItem>) => void;
   onRemove: (globalIndex: number) => void;
-  onMove: (globalIndex: number, direction: "up" | "down") => void;
+  onJumpTo: (globalIndex: number, targetNo: number) => void;
   onDuplicate: (globalIndex: number) => void;
   onCopy: (globalIndex: number) => void;
   onPaste: (globalIndex: number) => void;
@@ -1172,36 +1281,25 @@ function SystemTable({
         )}
         {group.rows.map(({ item, globalIndex }, rowIdx) => {
           const hPlan = computeHRowPlan(item, plan.skip, rowIdx);
-          const isFirstInGroup = rowIdx === 0;
-          const isLastInGroup = rowIdx === group.rows.length - 1;
+          // Bounds for the "jump to No" input are the first and last
+          // printed No values within this system group — typing a number
+          // outside this range simply snaps to the nearest in-group slot
+          // (see moveRowToNo).
+          const groupMinNo = group.rows[0].item.no;
+          const groupMaxNo = group.rows[group.rows.length - 1].item.no;
           return (
           <tr key={globalIndex}>
             <td>
-              <div className="flex items-center justify-center gap-1">
+              {editable ? (
+                <RowNoJump
+                  value={item.no}
+                  min={groupMinNo}
+                  max={groupMaxNo}
+                  onJump={(n) => onJumpTo(globalIndex, n)}
+                />
+              ) : (
                 <span>{item.no}</span>
-                {editable && (
-                  <div className="no-print flex flex-col leading-none">
-                    <button
-                      type="button"
-                      onClick={() => onMove(globalIndex, "up")}
-                      disabled={isFirstInGroup}
-                      title="Move row up"
-                      className="text-[9px] text-magic-ink/50 hover:text-magic-red disabled:opacity-20 disabled:hover:text-magic-ink/50"
-                    >
-                      ▲
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onMove(globalIndex, "down")}
-                      disabled={isLastInGroup}
-                      title="Move row down"
-                      className="text-[9px] text-magic-ink/50 hover:text-magic-red disabled:opacity-20 disabled:hover:text-magic-ink/50"
-                    >
-                      ▼
-                    </button>
-                  </div>
-                )}
-              </div>
+              )}
             </td>
             {mergeableCell(
               "brand",
@@ -1637,6 +1735,77 @@ function TermsBlock({
       <p className="mt-3 font-bold italic">
         Presales Engineer: {presalesEngineer || "—"}
       </p>
+    </div>
+  );
+}
+
+/**
+ * Compact "No" cell that doubles as a jump-to-row input.
+ *
+ * Click the number (or tab into it) and type a new row number to move
+ * the row to that position within its own system group. Pressing Enter
+ * or blurring commits; Esc reverts. Replaces the old ▲/▼ arrow pair,
+ * which was painfully slow on tables with dozens of rows.
+ */
+function RowNoJump({
+  value,
+  min,
+  max,
+  onJump,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onJump: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState<string>(String(value));
+  // Keep the displayed value in sync when rows are renumbered externally
+  // (e.g. after a merge, delete, or duplicate elsewhere in the table).
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  function commit() {
+    const n = parseInt(draft, 10);
+    if (!Number.isFinite(n) || n < 1) {
+      setDraft(String(value));
+      return;
+    }
+    if (n === value) {
+      setDraft(String(value));
+      return;
+    }
+    onJump(n);
+  }
+
+  return (
+    <div
+      className="inline-flex items-center justify-center gap-1 rounded-md bg-magic-soft/50 px-1.5 py-0.5"
+      title={`Type a number ${min}–${max} and press Enter to move this row to that position within its system.`}
+    >
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.currentTarget as HTMLInputElement).blur();
+          } else if (e.key === "Escape") {
+            setDraft(String(value));
+            (e.currentTarget as HTMLInputElement).blur();
+          }
+        }}
+        onBlur={commit}
+        className="no-print w-10 rounded-sm border border-magic-border/60 bg-white px-1 text-center text-[10.5px] font-semibold text-magic-ink focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red/40"
+        aria-label={`Row number (${min}–${max}) — type a new value to jump`}
+      />
+      {/* Printed/PDF view should still show the plain number, so keep a
+          hidden span that print styles expose. */}
+      <span className="hidden print:inline">{value}</span>
     </div>
   );
 }

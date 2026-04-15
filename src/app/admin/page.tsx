@@ -14,7 +14,7 @@ export default async function AdminPage() {
   const settingsPromise = getAppSettings();
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (user.role !== "admin") redirect("/designer");
+  if (user.role !== "admin") redirect("/quotation");
   const settings = await settingsPromise;
   return (
     <div className="min-h-screen bg-magic-soft/40">

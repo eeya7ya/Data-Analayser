@@ -222,6 +222,14 @@ export default function QuotationListClient({
     null,
   );
 
+  // ── Admin-only: per-user subtab ──────────────────────────────────────
+  // Admins see quotations from every user in the org, which can explode
+  // to hundreds of cards. We break them into one subtab per owning user
+  // (plus an "All users" meta-tab) so the grid stays scannable. The tab
+  // state is intentionally client-only — refreshing the page resets to
+  // "All users", which matches the old (single-list) behavior.
+  const [adminUserTab, setAdminUserTab] = useState<string>("__all");
+
   // Reset the per-quotation search whenever the user enters / leaves a
   // client card. Otherwise a stale query sneaks in from a previous client.
   useEffect(() => {
@@ -330,14 +338,94 @@ export default function QuotationListClient({
     return result;
   }, [quotations, folders, isAdmin]);
 
+  // Admin: derive the ordered list of user-subtabs from the currently
+  // visible groups (so it reflects real data — not every user on the
+  // team). Each bucket key is the owning user's id (stringified); label
+  // falls back to display_name → username → "user#<id>" → "Unknown".
+  const adminUserTabs = useMemo<
+    Array<{ key: string; label: string; count: number }>
+  >(() => {
+    if (!isAdmin) return [];
+    const byOwner = new Map<string, { label: string; count: number }>();
+    function ownerKey(
+      ownerId: number | null | undefined,
+      username: string | null | undefined,
+    ): string {
+      if (ownerId != null) return String(ownerId);
+      if (username) return `u:${username}`;
+      return "__none";
+    }
+    function ownerLabel(
+      display: string | null | undefined,
+      username: string | null | undefined,
+      ownerId: number | null | undefined,
+    ): string {
+      return (
+        (display && display.trim()) ||
+        (username && username.trim()) ||
+        (ownerId != null ? `user#${ownerId}` : "Unassigned")
+      );
+    }
+    for (const f of folders) {
+      const k = ownerKey(f.owner_id, f.owner_username);
+      const l = ownerLabel(f.owner_display_name, f.owner_username, f.owner_id);
+      const prev = byOwner.get(k) ?? { label: l, count: 0 };
+      byOwner.set(k, { label: l, count: prev.count + 1 });
+    }
+    for (const r of quotations) {
+      if (r.folder_id != null) continue;
+      const k = ownerKey(r.owner_id, r.owner_username);
+      const l = ownerLabel(r.owner_display_name, r.owner_username, r.owner_id);
+      const prev = byOwner.get(k) ?? { label: l, count: 0 };
+      byOwner.set(k, { label: l, count: prev.count + 1 });
+    }
+    return [...byOwner.entries()]
+      .map(([key, v]) => ({ key, label: v.label, count: v.count }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [isAdmin, folders, quotations]);
+
+  // Clamp the active user-tab to something still present — if the admin
+  // deletes a user (or all their folders/quotations), snap back to "All".
+  useEffect(() => {
+    if (!isAdmin) return;
+    if (adminUserTab === "__all") return;
+    if (!adminUserTabs.some((t) => t.key === adminUserTab)) {
+      setAdminUserTab("__all");
+    }
+  }, [isAdmin, adminUserTab, adminUserTabs]);
+
   // Client-level filtering for the card grid. Searches by folder name,
   // email, phone, or company — and as a convenience also matches any
   // quotation field inside the folder, so the user can locate a client
   // via something they only remember about its quotations.
-  const filteredGroups = useMemo<Group[]>(() => {
-    const q = debouncedClientSearch.trim().toLowerCase();
-    if (!q) return groups;
+  // Admin subtab pre-filter: narrow the group list to the currently
+  // selected user before the text search runs on top.
+  const userScopedGroups = useMemo<Group[]>(() => {
+    if (!isAdmin || adminUserTab === "__all") return groups;
     return groups.filter((g) => {
+      const ownerId =
+        g.folder?.owner_id ??
+        (g.items[0]?.owner_id as number | null | undefined) ??
+        null;
+      const ownerUsername =
+        g.folder?.owner_username ??
+        (g.items[0]?.owner_username as string | null | undefined) ??
+        null;
+      const key =
+        ownerId != null
+          ? String(ownerId)
+          : ownerUsername
+            ? `u:${ownerUsername}`
+            : "__none";
+      return key === adminUserTab;
+    });
+  }, [isAdmin, adminUserTab, groups]);
+
+  const filteredGroups = useMemo<Group[]>(() => {
+    const base = userScopedGroups;
+    const q = debouncedClientSearch.trim().toLowerCase();
+    if (!q) return base;
+    return base.filter((g) => {
       if (g.folder) {
         const f = g.folder;
         if ((f.name || "").toLowerCase().includes(q)) return true;
@@ -357,7 +445,7 @@ export default function QuotationListClient({
           r.site_name.toLowerCase().includes(q),
       );
     });
-  }, [groups, debouncedClientSearch]);
+  }, [userScopedGroups, debouncedClientSearch]);
 
   // Currently selected client (detail view), resolved against the group
   // list so edits / reloads stay in sync.
@@ -1044,6 +1132,51 @@ export default function QuotationListClient({
       {/* ─── Grid view (default) ─── */}
       {!dataLoading && !selectedGroup && (
         <>
+          {/* Admin-only: one subtab per owning user so the card grid
+              doesn't scroll for days on larger teams. "All users" keeps
+              the pre-subtab behavior one click away. */}
+          {isAdmin && adminUserTabs.length > 0 && (
+            <div className="mb-4 -mx-1 flex flex-wrap items-center gap-1.5 overflow-x-auto rounded-2xl border border-magic-border bg-white/70 p-1.5 shadow-mt-soft backdrop-blur">
+              <button
+                type="button"
+                onClick={() => setAdminUserTab("__all")}
+                className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  adminUserTab === "__all"
+                    ? "bg-gradient-to-r from-magic-red to-magic-accent text-white shadow-sm"
+                    : "text-magic-ink/70 hover:bg-magic-soft"
+                }`}
+              >
+                All users
+                <span className="ml-1.5 rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-bold">
+                  {adminUserTabs.reduce((a, t) => a + t.count, 0)}
+                </span>
+              </button>
+              {adminUserTabs.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setAdminUserTab(t.key)}
+                  className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    adminUserTab === t.key
+                      ? "bg-gradient-to-r from-magic-red to-magic-accent text-white shadow-sm"
+                      : "text-magic-ink/70 hover:bg-magic-soft"
+                  }`}
+                  title={`${t.label} · ${t.count} client${t.count !== 1 ? "s" : ""}`}
+                >
+                  @{t.label}
+                  <span
+                    className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      adminUserTab === t.key
+                        ? "bg-black/20"
+                        : "bg-magic-red/10 text-magic-red"
+                    }`}
+                  >
+                    {t.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
           {/* Top bar: client search + new client */}
           <div className="flex items-center gap-3 mb-4">
             <div className="relative flex-1">
