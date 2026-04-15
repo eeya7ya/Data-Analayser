@@ -59,7 +59,7 @@ export default function LoginForm() {
             className="block w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-white placeholder:text-white/30 transition focus:border-[#ff6a60]/50 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-[#E2231A]/30"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="your.username"
+            placeholder=""
             autoComplete="username"
             required
           />
@@ -92,7 +92,7 @@ export default function LoginForm() {
             className="block w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 pl-10 pr-11 text-sm text-white placeholder:text-white/30 transition focus:border-[#ff6a60]/50 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-[#E2231A]/30"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
+            placeholder=""
             autoComplete="current-password"
             required
           />

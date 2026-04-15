@@ -9,9 +9,12 @@ export const dynamic = "force-dynamic";
 export default async function AdminPage() {
   // Kick the settings fetch off in parallel with the auth check so its
   // DB round-trip overlaps with the JWT verification instead of running
-  // after it. `getAppSettings` has its own short-budget timeout + stale
-  // cache fallback so this promise never blocks the page render for long.
-  const settingsPromise = getAppSettings();
+  // after it. Pass `fresh: true` so the admin always sees the latest
+  // persisted values — on Vercel, each lambda instance keeps its own
+  // in-process cache, and without a fresh read the "Saved." toast would
+  // flash correctly but a reload landing on a different instance would
+  // render the pre-save values until the 60s TTL expired.
+  const settingsPromise = getAppSettings({ fresh: true });
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/quotation");

@@ -18,6 +18,7 @@ import {
   loadEditDraft,
   saveEditDraft,
   clearEditDraft,
+  syncDraftTaxContext,
   PRICING_FACTORS,
   PRICING_LABELS,
   type PricingCategory,
@@ -96,14 +97,14 @@ export default function Designer({
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
-  // Sales engineer & phone default to the logged-in user so a fresh
-  // quotation is automatically stamped with whoever is signed in. The
-  // previous hardcoded default ("ENG. Yahya Khaled" / a specific phone
-  // number) meant every quotation was branded as that person regardless
-  // of who actually created it. Saved quotations still restore whatever
+  // Sales engineer is intentionally NOT auto-filled. Presales Engineer
+  // defaults to the logged-in user (they open the quotation), but the
+  // Sales Engineer is a separate role and must be typed in manually —
+  // auto-seeding it caused every new quotation to ship with the presales
+  // and sales engineers identical, which hid the fact that the sales
+  // field had been left blank. Saved quotations still restore whatever
   // the author stamped — see the hydration effect below.
-  const defaultSalesEng = user.display_name || user.username;
-  const [salesEng, setSalesEng] = useState(defaultSalesEng);
+  const [salesEng, setSalesEng] = useState("");
   const [salesPhone, setSalesPhone] = useState("");
   const [preparedBy, setPreparedBy] = useState(user.username);
   const [refCode, setRefCode] = useState("");
@@ -298,13 +299,44 @@ export default function Designer({
       }));
 
       const draft = loadDraft();
+      // Resolve the tax-toggle state that this quotation is going to
+      // hydrate into BEFORE processing the catalog stagedItems, so we can
+      // pre-divide any incoming rows that landed in the shared draft in
+      // their raw (tax-inclusive) form while this quotation is in Excl.
+      // Tax mode. Without this, rows added via /catalog during an edit
+      // session would show up at full SI price next to already-divided
+      // existing rows, and flipping the toggle back would multiply them
+      // by 1.16 a second time.
+      const editDraft = loadEditDraft(existing.id);
+      const willBeTaxInclusive = editDraft
+        ? Boolean(editDraft.taxInclusive)
+        : Boolean(existing.config_json?.taxInclusive);
+      const rateForStaged =
+        (Number(
+          editDraft?.taxPercent ?? existing.tax_percent ?? 16,
+        ) || 0) / 100;
+      function normalizeStaged(it: QuotationItem): QuotationItem {
+        const base: QuotationItem = {
+          ...it,
+          system: it.system || it.brand || "General",
+          price_si: it.price_si ?? it.unit_price,
+        };
+        if (!willBeTaxInclusive || rateForStaged <= 0) return base;
+        const factor = 1 + rateForStaged;
+        return {
+          ...base,
+          unit_price: Number(
+            ((Number(base.unit_price) || 0) / factor).toFixed(2),
+          ),
+          price_si:
+            base.price_si != null
+              ? Number(((Number(base.price_si) || 0) / factor).toFixed(2))
+              : base.price_si,
+        };
+      }
       const stagedItems =
         Array.isArray(draft.items) && draft.items.length > 0
-          ? draft.items.map((it) => ({
-              ...it,
-              system: it.system || it.brand || "General",
-              price_si: it.price_si ?? it.unit_price,
-            }))
+          ? draft.items.map(normalizeStaged)
           : [];
       // Per-quotation edit draft: unsaved edits made in a previous
       // session (e.g. modified terms, added manual rows, quantity
@@ -313,7 +345,7 @@ export default function Designer({
       // consult the edit draft — even when the user just returned
       // from the catalog with stagedItems — so those in-flight edits
       // survive the round-trip. Catalog items are then merged on top.
-      const editDraft = loadEditDraft(existing.id);
+      // `editDraft` was already loaded above to resolve the tax context.
       const editDraftItems =
         editDraft && Array.isArray(editDraft.items) && editDraft.items.length > 0
           ? editDraft.items.map((it) => ({
@@ -356,12 +388,12 @@ export default function Designer({
       setClientName(existing.client_name || "");
       setClientEmail(existing.client_email || "");
       setClientPhone(existing.client_phone || "");
-      // Preserve whatever the author stamped on the saved quotation, but
-      // fall back to the logged-in user's name when the stored value is
-      // blank (older rows, or records where sales_engineer was never
-      // set). Avoid the old hardcoded Yahya default so a different user
-      // editing an unsigned quotation sees their own name by default.
-      setSalesEng(existing.sales_engineer || defaultSalesEng);
+      // Preserve whatever the author stamped on the saved quotation.
+      // When the stored value is blank, leave the field empty — the
+      // Sales Engineer is typed in manually per quotation, so falling
+      // back to the logged-in user would re-introduce the "sales and
+      // presales are always the same" bug on unsigned records.
+      setSalesEng(existing.sales_engineer || "");
       setSalesPhone(existing.config_json?.salesPhone || "");
       setPreparedBy(existing.prepared_by || user.username);
       setRefCode(existing.ref);
@@ -480,11 +512,11 @@ export default function Designer({
     setClientName(d.clientName);
     setClientEmail(d.clientEmail);
     setClientPhone(d.clientPhone);
-    // Same principle as Presales Engineer above: a fresh quotation is
-    // always stamped with the logged-in user, not whatever the cached
-    // draft had from a previous session (which used to default to a
-    // hardcoded Yahya name that leaked across users on shared browsers).
-    setSalesEng(d.salesEng || defaultSalesEng);
+    // Sales Engineer is intentionally NOT auto-filled on create, so the
+    // preparer is forced to type in the actual salesperson. We still
+    // restore whatever the current new-quotation draft had typed into
+    // the field so a browser refresh doesn't wipe the user's input.
+    setSalesEng(d.salesEng || "");
     setSalesPhone(d.salesPhone || "");
     setPreparedBy(d.preparedBy || user.username);
     setRefCode(d.refCode);
@@ -687,6 +719,19 @@ export default function Designer({
     showPictures,
     taxPercent,
   ]);
+
+  // ── Mirror tax-toggle state into the shared catalog draft ────────────────
+  // The /catalog page's `appendItem` only sees the shared draft, so in edit
+  // mode it would otherwise inherit whatever taxInclusive/taxPercent a
+  // previous new-quotation session left behind. That mismatch is what
+  // caused newly-added catalog rows to show up at full SI price next to
+  // the edit quotation's already-divided rows (and then double-multiply on
+  // toggle-back). We sync both fields on every change so appendItem always
+  // pre-divides with the *current* quotation's factor.
+  useEffect(() => {
+    if (!hydrated) return;
+    syncDraftTaxContext(taxInclusive, taxPercent);
+  }, [hydrated, taxInclusive, taxPercent]);
 
   // ── Restore last-used saved quotation on fresh /designer load ─────────────
   // If the user landed on /designer with no ?id= query string but there's
