@@ -87,6 +87,14 @@ export default async function DesignerPage({
     if (Number.isFinite(n) && n > 0) initialFolderId = n;
   }
 
+  // Gate: the Designer can only be opened from a client (`?folder=<n>`) or
+  // an existing quotation (`?id=<n>`). Attempting to reach /designer directly
+  // redirects to the Clients & Quotations page so the user must pick a
+  // client/quotation first.
+  if (!initialFolderId) {
+    redirect("/quotation");
+  }
+
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />

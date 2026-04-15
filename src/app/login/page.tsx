@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
   const user = await getSessionUser();
-  if (user) redirect("/designer");
+  if (user) redirect("/quotation");
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0b0f1a] text-white">
       {/* ── Animated ambient background ── */}
@@ -35,16 +35,17 @@ export default async function LoginPage() {
           {/* Left: hero */}
           <aside className="flex flex-col justify-center text-center lg:text-left">
             <div className="mx-auto mb-8 w-[260px] sm:w-[300px] lg:mx-0 lg:w-[340px]">
-              <div className="rounded-2xl bg-white/95 p-5 shadow-2xl shadow-black/40 ring-1 ring-white/20 backdrop-blur">
-                <Image
-                  src="/logo.png"
-                  alt="MagicTech"
-                  width={680}
-                  height={200}
-                  priority
-                  className="h-auto w-full object-contain"
-                />
-              </div>
+              {/* Logo displays directly on the dark canvas — no white plate,
+                  no ring, no backdrop. A subtle drop-shadow gives the
+                  transparent-PNG lift so it still reads against the blobs. */}
+              <Image
+                src="/logo.png"
+                alt="MagicTech"
+                width={680}
+                height={200}
+                priority
+                className="h-auto w-full object-contain drop-shadow-[0_10px_30px_rgba(226,35,26,0.35)]"
+              />
             </div>
 
             <h1 className="text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl xl:text-6xl">
