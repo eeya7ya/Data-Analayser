@@ -315,11 +315,16 @@ export default function Designer({
         (Number(
           editDraft?.taxPercent ?? existing.tax_percent ?? 16,
         ) || 0) / 100;
-      function normalizeStaged(it: QuotationItem): QuotationItem {
-        const base: QuotationItem = {
+      function normalizeStaged(it: QuotationItem) {
+        // Inline the shape so TS infers a narrower `price_si: number`
+        // type (matching `baseItems`) instead of the broader
+        // `QuotationItem` where `price_si` is optional — otherwise
+        // mergedItems.push(staged) below fails typecheck.
+        const resolvedPriceSi: number = it.price_si ?? it.unit_price;
+        const base = {
           ...it,
           system: it.system || it.brand || "General",
-          price_si: it.price_si ?? it.unit_price,
+          price_si: resolvedPriceSi,
         };
         if (!willBeTaxInclusive || rateForStaged <= 0) return base;
         const factor = 1 + rateForStaged;
@@ -328,10 +333,9 @@ export default function Designer({
           unit_price: Number(
             ((Number(base.unit_price) || 0) / factor).toFixed(2),
           ),
-          price_si:
-            base.price_si != null
-              ? Number(((Number(base.price_si) || 0) / factor).toFixed(2))
-              : base.price_si,
+          price_si: Number(
+            ((Number(base.price_si) || 0) / factor).toFixed(2),
+          ),
         };
       }
       const stagedItems =
