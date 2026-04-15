@@ -312,20 +312,70 @@ export function clearEditDraft(id: number): void {
   }
 }
 
+/**
+ * Mirror the Designer's current tax-toggle state into the shared draft so
+ * `appendItem` — which runs from /catalog and only has access to this one
+ * localStorage key — knows whether to pre-divide the new row.
+ *
+ * Called from both create-mode (where `saveDraft` already carries these
+ * fields) and edit-mode (where the per-id `saveEditDraft` is the source of
+ * truth and the shared draft would otherwise be stale from a previous
+ * new-quotation session). Only these two fields are touched so the rest of
+ * the shared draft (items, header, terms, …) is left exactly as-is.
+ */
+export function syncDraftTaxContext(
+  taxInclusive: boolean,
+  taxPercent: number,
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    const draft = loadDraft();
+    draft.taxInclusive = taxInclusive;
+    draft.taxPercent =
+      Number.isFinite(taxPercent) && taxPercent >= 0 ? taxPercent : draft.taxPercent;
+    saveDraft(draft);
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Append a catalog item to the draft (dedupes on system + model, bumps qty). */
 export function appendItem(newItem: QuotationItem): QuotationDraft {
   const draft = loadDraft();
-  const key = `${newItem.system}__${newItem.model}`;
+  // Catalog prices come in tax-inclusive (the SI base already carries
+  // the tax). If the draft is currently in "Excl. Tax" mode, the rest of
+  // the rows have already been divided by (1 + taxPercent/100) by
+  // Designer.toggleTaxInclusive — so we must divide this new row once on
+  // insert, otherwise the user ends up with a mix of inclusive and
+  // exclusive unit prices in the same table, and flipping the toggle
+  // back multiplies the raw row by 1.16 a second time.
+  const rate = (Number(draft.taxPercent) || 0) / 100;
+  const normalized: QuotationItem =
+    draft.taxInclusive && rate > 0
+      ? {
+          ...newItem,
+          unit_price: Number(
+            ((Number(newItem.unit_price) || 0) / (1 + rate)).toFixed(2),
+          ),
+          price_si:
+            newItem.price_si != null
+              ? Number(
+                  ((Number(newItem.price_si) || 0) / (1 + rate)).toFixed(2),
+                )
+              : newItem.price_si,
+        }
+      : newItem;
+  const key = `${normalized.system}__${normalized.model}`;
   const idx = draft.items.findIndex(
     (it) => `${it.system}__${it.model}` === key,
   );
   if (idx >= 0) {
     draft.items[idx] = {
       ...draft.items[idx],
-      quantity: draft.items[idx].quantity + newItem.quantity,
+      quantity: draft.items[idx].quantity + normalized.quantity,
     };
   } else {
-    draft.items.push({ ...newItem, no: draft.items.length + 1 });
+    draft.items.push({ ...normalized, no: draft.items.length + 1 });
   }
   // Renumber to keep "no" contiguous.
   draft.items = draft.items.map((it, i) => ({ ...it, no: i + 1 }));

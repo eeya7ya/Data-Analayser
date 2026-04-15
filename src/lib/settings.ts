@@ -76,8 +76,23 @@ async function fetchAppSettingsFromDb(): Promise<AppSettings> {
   return data;
 }
 
-export async function getAppSettings(): Promise<AppSettings> {
+export async function getAppSettings(
+  opts: { fresh?: boolean } = {},
+): Promise<AppSettings> {
   const cached = globalForSettings.__mtAppSettingsCache;
+  // Admin surfaces (the /admin Settings tab) pass `fresh: true` so they
+  // always reflect the latest persisted values — critical on Vercel where
+  // each lambda instance has its own in-process cache. Without this,
+  // saving the default terms on instance A would still render stale values
+  // on the next request if it landed on instance B (cache TTL: 60s).
+  if (opts.fresh) {
+    // Drop any stale per-instance cache / in-flight promise so the read
+    // below actually hits the database instead of returning whatever the
+    // previous request populated.
+    globalForSettings.__mtAppSettingsCache = undefined;
+    globalForSettings.__mtAppSettingsInFlight = undefined;
+    return fetchAppSettingsFromDb();
+  }
   if (cached && Date.now() - cached.at < SETTINGS_CACHE_TTL_MS) {
     return cached.data;
   }
