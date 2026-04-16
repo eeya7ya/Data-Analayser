@@ -178,19 +178,21 @@ export async function GET(req: NextRequest) {
             order by id desc
             limit 200
           `) as Array<Record<string, unknown>>);
-    // Previously "private, max-age=30, stale-while-revalidate=60". That made
-    // reloads snappy but hid freshly-saved quotations from the list for up to
-    // 30 s — the user's "I can only find my quotation when I click new
-    // quotation and edit" complaint, which is exactly the amount of time
-    // their workaround took. `no-store` forces every list request to hit
-    // the route handler (cheap — the query is indexed and bounded to the
-    // last 500 rows) so a save → navigate back round-trip always reflects
-    // the new row.
+    // `private, max-age=5` gives us near-instant reloads without hiding
+    // freshly-saved rows for more than a few seconds. The "new quotation
+    // missing from the list" bug that this file briefly fought with
+    // `no-store` is already handled by `router.refresh()` in Designer's
+    // save handler — that invalidates the Next.js RSC cache so the server
+    // component requeries the DB directly on the next navigation, which
+    // means the HTTP cache header only matters for the rare client-side
+    // fallback path. Keeping a small window of caching here is the
+    // difference between a warm page feeling instant and every single
+    // navigation sitting on a fresh Supabase round-trip.
     return NextResponse.json(
       { quotations: rows },
       {
         headers: {
-          "Cache-Control": "private, no-store",
+          "Cache-Control": "private, max-age=5, stale-while-revalidate=30",
         },
       },
     );
