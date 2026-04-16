@@ -18,6 +18,7 @@ interface SavedConfig {
   designEng?: string;
   includeTax?: boolean;
   taxInclusive?: boolean;
+  brandVariantId?: string;
 }
 
 /**
@@ -259,6 +260,7 @@ export default function QuotationViewer({
         includeTax={config.includeTax !== false}
         taxInclusive={Boolean(config.taxInclusive)}
         footerText={appSettings.footerText}
+        brandVariantId={config.brandVariantId}
       />
     </div>
   );

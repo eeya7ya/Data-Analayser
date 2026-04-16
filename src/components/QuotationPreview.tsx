@@ -5,6 +5,10 @@ import {
   computeQuotationTotals,
   effectiveMergedValue,
 } from "@/lib/quotationTotals";
+import {
+  getBrandVariant,
+  type BrandVariant,
+} from "@/lib/brandVariants";
 
 export interface QuotationExtraColumn {
   /** Stable identifier used to key `QuotationItem.extra`. */
@@ -90,7 +94,19 @@ interface Props {
   setItems?: (items: QuotationItem[]) => void;
   setHeader?: (patch: Partial<QuotationHeader>) => void;
   editable?: boolean;
+  /**
+   * Explicit logo URL override. When omitted the logo is resolved via the
+   * selected `brandVariantId` (or the default Magic Tech variant when no
+   * variant is selected yet).
+   */
   logoUrl?: string;
+  /**
+   * Id of the brand variant whose logo/cover/about artwork drives this
+   * quotation. When unknown or invalid, falls back to the default Magic
+   * Tech bundle so legacy quotations without a stored variant still
+   * render the exact same sheets they always did.
+   */
+  brandVariantId?: string;
   showPictures?: boolean;
   terms?: string[];
   setTerms?: (terms: string[]) => void;
@@ -120,8 +136,21 @@ function money(n: number): string {
   return `JOD ${n.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 }
 
+/**
+ * Assign a 1-based row number to every item, counting independently
+ * within each system group. Continuous global numbering (CCTV rows 1..9,
+ * Sound rows 10..) made long quotations confusing — clients read each
+ * system table as its own list, so the numbering needs to reset every
+ * time a new system page starts.
+ */
 function renumber(items: QuotationItem[]): QuotationItem[] {
-  return items.map((it, i) => ({ ...it, no: i + 1 }));
+  const perSystem = new Map<string, number>();
+  return items.map((it) => {
+    const key = it.system || it.brand || "General";
+    const next = (perSystem.get(key) ?? 0) + 1;
+    perSystem.set(key, next);
+    return { ...it, no: next };
+  });
 }
 
 /** Group items by their `system` field preserving first-seen order. */
@@ -152,6 +181,7 @@ export default function QuotationPreview({
   setHeader,
   editable = false,
   logoUrl,
+  brandVariantId,
   showPictures = false,
   terms = [],
   setTerms,
@@ -162,6 +192,8 @@ export default function QuotationPreview({
 }: Props) {
   const resolvedFooterText =
     footerText && footerText.trim().length > 0 ? footerText : DEFAULT_FOOTER_TEXT;
+  const brand: BrandVariant = getBrandVariant(brandVariantId);
+  const resolvedLogoUrl = logoUrl || brand.logoUrl;
   // Resolve merged cells when summing so the Final Totals page matches
   // the per-group subtotals (and what the user visually sees in each
   // merged unit-price cell). Unit prices are stored in their final form
@@ -302,9 +334,10 @@ export default function QuotationPreview({
   }
 
   // Moves a row to an explicit target "No" (the 1-based running number
-  // printed on the PDF). The move is clamped to the row's own system
-  // group so we never interleave system pages — typing a number that
-  // belongs to a different group snaps to the nearest in-group slot.
+  // printed on the PDF). `no` is now local to each system group, so the
+  // typed value maps directly to a local index within that group and we
+  // simply clamp it to the group bounds — typing out-of-range snaps to
+  // the nearest valid in-group slot.
   function moveRowToNo(globalIndex: number, targetNo: number) {
     if (!setItems) return;
     const cur = items[globalIndex];
@@ -319,15 +352,11 @@ export default function QuotationPreview({
     if (groupIndices.length === 0) return;
     const localCur = groupIndices.indexOf(globalIndex);
     if (localCur < 0) return;
-    // `no` is 1-based and equal to (globalIndex + 1) after renumber(), so
-    // convert the typed target into a local (within-group) position, then
-    // clamp to the group bounds.
-    const requestedIdx = Math.trunc(targetNo) - 1;
-    const firstGI = groupIndices[0];
-    const lastGI = groupIndices[groupIndices.length - 1];
-    const clampedGI = Math.max(firstGI, Math.min(requestedIdx, lastGI));
-    const localTarget = groupIndices.indexOf(clampedGI);
-    if (localTarget < 0 || localTarget === localCur) return;
+    const localTarget = Math.max(
+      0,
+      Math.min(Math.trunc(targetNo) - 1, groupIndices.length - 1),
+    );
+    if (localTarget === localCur) return;
     // Perform the move by repeatedly swapping adjacent siblings in the
     // direction of travel — this preserves the "never interleave system
     // groups" invariant that moveRow() already guaranteed.
@@ -568,16 +597,18 @@ export default function QuotationPreview({
         </div>
       )}
       {/* Fixed front matter — printed in order: cover, then about us. Both
-       * are only visible in the print output (hidden on screen via CSS). */}
-      <StaticSheet src="/quote-page-1.jpg" alt="Magic Tech cover page" />
-      <StaticSheet src="/quote-page-2.jpg" alt="Magic Tech about us page" />
+       * are only visible in the print output (hidden on screen via CSS).
+       * The artwork tracks the selected brand variant, so swapping the
+       * printed logo also swaps in its paired cover / about-us sheets. */}
+      <StaticSheet src={brand.coverUrl} alt={`${brand.label} cover page`} />
+      <StaticSheet src={brand.aboutUrl} alt={`${brand.label} about us page`} />
 
       {systemPages.length === 0 && (
         <QuotationPage
           header={header}
           setHeader={setHeader}
           editable={editable}
-          logoUrl={logoUrl}
+          logoUrl={resolvedLogoUrl}
           clientLocked={clientLocked}
           footerText={resolvedFooterText}
           isLast={!editable}
@@ -620,7 +651,7 @@ export default function QuotationPreview({
           header={header}
           setHeader={setHeader}
           editable={editable}
-          logoUrl={logoUrl}
+          logoUrl={resolvedLogoUrl}
           clientLocked={clientLocked}
           footerText={resolvedFooterText}
           pageLabel={`Page ${pageIdx + 1} of ${systemPages.length + 1}`}
@@ -688,7 +719,7 @@ export default function QuotationPreview({
           header={header}
           setHeader={setHeader}
           editable={editable}
-          logoUrl={logoUrl}
+          logoUrl={resolvedLogoUrl}
           clientLocked={clientLocked}
           footerText={resolvedFooterText}
           pageLabel={`Page ${systemPages.length + 1} of ${systemPages.length + 1}`}
@@ -787,10 +818,13 @@ function QuotationPage({
   // is missing we fall back to the Magic Tech text block.
   const resolvedLogo = logoUrl || "/logo.png";
   const [logoBroken, setLogoBroken] = React.useState(false);
-  return (
-    <div
-      className={`quotation-sheet text-[11px] ${isLast ? "" : "page-break-after"}`}
-    >
+  // Rendering the sheet as a <table> with <thead>/<tfoot> lets print
+  // engines repeat the brand strip and footer at the top/bottom of every
+  // physical page that the system table overflows onto. Without this,
+  // long CCTV tables continued to subsequent A4 pages without any logo
+  // at the top — which is what the user was seeing on printouts.
+  const headerCell = (
+    <>
       {/* Top brand strip */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -912,17 +946,39 @@ function QuotationPage({
           </div>
         </div>
       )}
+    </>
+  );
 
-      {children}
-
-      {/* Footer: admin-editable company address — pinned to the bottom of
-          every sheet. Falls back to the historical Magic Tech address when
-          no override has been saved in the Settings tab. */}
-      <div className="footer-address whitespace-pre-wrap">
-        {footerText && footerText.trim().length > 0
-          ? footerText
-          : DEFAULT_FOOTER_TEXT}
-      </div>
+  return (
+    <div
+      className={`quotation-sheet text-[11px] ${isLast ? "" : "page-break-after"}`}
+    >
+      <table className="sheet-layout">
+        <thead>
+          <tr>
+            <td>{headerCell}</td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="sheet-body-cell">{children}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>
+              {/* Footer: admin-editable company address. Placed inside
+                  <tfoot> so print engines repeat it at the bottom of every
+                  physical page the sheet overflows onto. */}
+              <div className="footer-address whitespace-pre-wrap">
+                {footerText && footerText.trim().length > 0
+                  ? footerText
+                  : DEFAULT_FOOTER_TEXT}
+              </div>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }
