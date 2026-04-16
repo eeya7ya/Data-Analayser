@@ -382,17 +382,40 @@ export default function CatalogBrowser({
 
         <div className="pt-5">
           <button
-            onClick={() =>
-              router.push(editing ? `/designer?id=${editing.id}` : "/designer")
-            }
+            onClick={() => {
+              // Three shapes to handle, matching EditingContext in
+              // lib/quotationDraft.ts:
+              //   • id > 0             → an already-saved quotation is open
+              //                          in the Designer; go back to
+              //                          /designer?id=<n>.
+              //   • id === 0 + folder  → a brand-new quotation is being
+              //                          composed against a client folder;
+              //                          bounce to /designer?folder=<n>&new=1
+              //                          so the page gate doesn't redirect
+              //                          us to /quotation.
+              //   • no context         → raw /catalog visit; fall back to
+              //                          the existing "Open designer"
+              //                          behaviour (requires at least one
+              //                          queued draft item — enforced by
+              //                          the disabled attribute below).
+              if (editing?.id && editing.id > 0) {
+                router.push(`/designer?id=${editing.id}`);
+              } else if (editing?.folderId) {
+                router.push(`/designer?folder=${editing.folderId}&new=1`);
+              } else {
+                router.push("/designer");
+              }
+            }}
             disabled={!editing && draftCount === 0}
             className="relative rounded-lg bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
             title={
-              editing
+              editing?.id && editing.id > 0
                 ? `Return to editing ${editing.ref}`
-                : draftCount === 0
-                  ? "Select at least one product first"
-                  : "Finish and open the designer"
+                : editing?.folderId
+                  ? "Return to the new quotation you were composing"
+                  : draftCount === 0
+                    ? "Select at least one product first"
+                    : "Finish and open the designer"
             }
           >
             {editing ? "Back to editor" : "Open designer"}
@@ -408,11 +431,20 @@ export default function CatalogBrowser({
       {editing && (
         <div className="-mt-2 flex items-center justify-between gap-3 rounded-lg border border-magic-red/40 bg-magic-red/5 px-3 py-2 text-[11px] text-magic-ink">
           <div>
-            <b>Editing {editing.ref}</b>
-            {editing.projectName && (
-              <span className="text-magic-ink/60"> — {editing.projectName}</span>
-            )}
-            .{" "}
+            {editing.id && editing.id > 0 ? (
+              <>
+                <b>Editing {editing.ref}</b>
+                {editing.projectName && (
+                  <span className="text-magic-ink/60">
+                    {" "}
+                    — {editing.projectName}
+                  </span>
+                )}
+                .
+              </>
+            ) : (
+              <b>Composing a new quotation</b>
+            )}{" "}
             <span className="text-magic-ink/70">
               Products you pick here will be appended to that quotation
               {draftCount > 0 && (
@@ -425,7 +457,15 @@ export default function CatalogBrowser({
             </span>
           </div>
           <button
-            onClick={() => router.push(`/designer?id=${editing.id}`)}
+            onClick={() => {
+              if (editing.id && editing.id > 0) {
+                router.push(`/designer?id=${editing.id}`);
+              } else if (editing.folderId) {
+                router.push(`/designer?folder=${editing.folderId}&new=1`);
+              } else {
+                router.push("/designer");
+              }
+            }}
             className="shrink-0 rounded-md border border-magic-red bg-white px-3 py-1 text-[11px] font-semibold text-magic-red hover:bg-magic-red hover:text-white"
           >
             Back to editor →

@@ -99,15 +99,28 @@ function clearLegacyDesignEngineerPref(): void {
 }
 
 // ── Editing context ─────────────────────────────────────────────────────────
-// Remembers which saved quotation (if any) the user is currently editing so
-// that /catalog can route its "Open designer" button back to the correct
-// /designer?id=<X> page instead of accidentally starting a new quotation.
+// Remembers which quotation the user is currently working on so /catalog can
+// route its "Back" button to the right /designer instance. Two shapes:
+//   • id > 0            → editing a saved quotation, return to /designer?id=X
+//   • id === 0 & folder → composing a new quotation anchored on a client
+//                         folder, return to /designer?folder=Y&new=1
+// Without the create-mode shape, opening the catalogue from a brand-new
+// quotation and clicking "Back" routed to /designer (no query string), which
+// the designer page gate bounces straight to /quotation — dropping every
+// in-flight client / item the user had set up.
 const EDITING_QUOTATION_KEY = "mt_editing_quotation_v1";
 
 export interface EditingContext {
   id: number;
   ref: string;
   projectName: string;
+  /**
+   * Client folder the in-flight quotation belongs to. Populated for both
+   * edit mode (mirrors `existing.folder_id`) and create mode (mirrors the
+   * Designer's `folderId` state) so the catalogue can always return the
+   * user to the right parent in the client → quotation → design chain.
+   */
+  folderId?: number | null;
 }
 
 export function loadEditingContext(): EditingContext | null {
@@ -119,11 +132,21 @@ export function loadEditingContext(): EditingContext | null {
     if (typeof parsed.id !== "number" || !Number.isFinite(parsed.id)) {
       return null;
     }
+    const folderId =
+      typeof parsed.folderId === "number" && Number.isFinite(parsed.folderId)
+        ? parsed.folderId
+        : null;
+    // A context with id === 0 is only useful if we also know the parent
+    // folder to route back to — otherwise the catalogue back button has
+    // nothing to open. Drop such records so callers fall through to the
+    // generic /designer route instead of a broken create-mode anchor.
+    if (parsed.id === 0 && folderId == null) return null;
     return {
       id: parsed.id,
       ref: typeof parsed.ref === "string" ? parsed.ref : "",
       projectName:
         typeof parsed.projectName === "string" ? parsed.projectName : "",
+      folderId,
     };
   } catch {
     return null;

@@ -14,15 +14,27 @@ export default function TopBar({ user }: { user: SessionUser }) {
   // itself gates direct access and redirects to /quotation. So here we
   // resume the current edit if there is one, otherwise we send the user
   // back to the Clients & Quotations page where they can pick a client.
+  //
+  // Two context shapes are valid (see lib/quotationDraft.EditingContext):
+  //   • id > 0            → editing a saved quotation, route to ?id=<n>.
+  //   • id === 0 + folder → composing a brand-new quotation against a
+  //                         client folder, route to ?folder=<n>&new=1 so
+  //                         the page gate doesn't bounce the user away.
+  function designerHrefFromCtx(
+    ctx: ReturnType<typeof loadEditingContext>,
+  ): string {
+    if (!ctx) return "/quotation";
+    if (ctx.id && ctx.id > 0) return `/designer?id=${ctx.id}`;
+    if (ctx.folderId) return `/designer?folder=${ctx.folderId}&new=1`;
+    return "/quotation";
+  }
   const [designerHref, setDesignerHref] = useState(() => {
     if (typeof window === "undefined") return "/quotation";
-    const ctx = loadEditingContext();
-    return ctx ? `/designer?id=${ctx.id}` : "/quotation";
+    return designerHrefFromCtx(loadEditingContext());
   });
   useEffect(() => {
     function onFocus() {
-      const c = loadEditingContext();
-      setDesignerHref(c ? `/designer?id=${c.id}` : "/quotation");
+      setDesignerHref(designerHrefFromCtx(loadEditingContext()));
     }
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);

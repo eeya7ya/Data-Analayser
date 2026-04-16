@@ -21,7 +21,11 @@ async function safeFetchJson<T>(
 ): Promise<T | { __error: string }> {
   let res: Response;
   try {
-    res = await fetch(url, { signal });
+    // `no-store` on the client guarantees the browser HTTP cache can't
+    // serve a stale pre-save response when the list refetches — the
+    // /api/quotations route also sets `Cache-Control: private, no-store`
+    // now, but this is the belt to that server-side suspenders.
+    res = await fetch(url, { signal, cache: "no-store" });
   } catch (err) {
     if ((err as Error).name === "AbortError") {
       return { __error: "Request timed out — please retry." };

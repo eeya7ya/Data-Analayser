@@ -178,15 +178,19 @@ export async function GET(req: NextRequest) {
             order by id desc
             limit 200
           `) as Array<Record<string, unknown>>);
-    // private: browser caches per-user, not shared at edge/CDN.
-    // max-age=30: serve fresh for 30 s with no DB hit.
-    // stale-while-revalidate=60: serve stale instantly for 60 s more while
-    // refreshing in the background — a page reload within ~90 s is instant.
+    // Previously "private, max-age=30, stale-while-revalidate=60". That made
+    // reloads snappy but hid freshly-saved quotations from the list for up to
+    // 30 s — the user's "I can only find my quotation when I click new
+    // quotation and edit" complaint, which is exactly the amount of time
+    // their workaround took. `no-store` forces every list request to hit
+    // the route handler (cheap — the query is indexed and bounded to the
+    // last 500 rows) so a save → navigate back round-trip always reflects
+    // the new row.
     return NextResponse.json(
       { quotations: rows },
       {
         headers: {
-          "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+          "Cache-Control": "private, no-store",
         },
       },
     );
