@@ -38,14 +38,14 @@ export const BRAND_VARIANTS: BrandVariant[] = [
     aboutUrl: "/quote-page-2.jpg",
   },
   {
-    // BEAT logo — drop the image at `public/logo_BEAT.png`. Cover and
-    // about-us sheets fall back to the default Magic Tech artwork until
-    // paired BEAT-branded pages are supplied; swap `coverUrl` /
-    // `aboutUrl` once those JPGs land in `/public`.
+    // BEAT logo lives at `public/logo_BEAT.jpeg` (uploaded via the GitHub
+    // web UI). Cover and about-us sheets fall back to the default Magic
+    // Tech artwork until paired BEAT-branded pages are supplied; swap
+    // `coverUrl` / `aboutUrl` once those JPGs land in `/public`.
     id: "beat",
     label: "BEAT",
     description: "BEAT-branded logo (reuses default cover / about-us for now)",
-    logoUrl: "/logo_BEAT.png",
+    logoUrl: "/logo_BEAT.jpeg",
     coverUrl: "/quote-page-1.jpg",
     aboutUrl: "/quote-page-2.jpg",
   },
