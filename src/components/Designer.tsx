@@ -620,6 +620,11 @@ export default function Designer({
   // — still brings the user back to /designer?folder=<n>&new=1 instead
   // of bouncing to /quotation (the page gate's redirect when the URL
   // carries no id and no folder).
+  //
+  // Intentionally scoped to `folderId` only (not `projectName`) — the
+  // catalogue back button never reads the project name out of the
+  // context, so re-serialising on every keystroke would just be a
+  // localStorage write per character for nothing.
   useEffect(() => {
     if (editMode) return;
     if (!hydrated) return;
@@ -627,7 +632,7 @@ export default function Designer({
       saveEditingContext({
         id: 0,
         ref: "",
-        projectName: projectName || "",
+        projectName: "",
         folderId,
       });
     } else {
@@ -635,7 +640,7 @@ export default function Designer({
       // context from a previous session dangling in localStorage.
       saveEditingContext(null);
     }
-  }, [editMode, hydrated, folderId, projectName]);
+  }, [editMode, hydrated, folderId]);
 
   async function createFolder() {
     const name = newFolderName.trim();

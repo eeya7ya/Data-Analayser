@@ -21,11 +21,14 @@ async function safeFetchJson<T>(
 ): Promise<T | { __error: string }> {
   let res: Response;
   try {
-    // `no-store` on the client guarantees the browser HTTP cache can't
-    // serve a stale pre-save response when the list refetches — the
-    // /api/quotations route also sets `Cache-Control: private, no-store`
-    // now, but this is the belt to that server-side suspenders.
-    res = await fetch(url, { signal, cache: "no-store" });
+    // Use the browser's default cache policy. The /api/quotations route
+    // returns max-age=5 so warm reloads don't pay a fresh round-trip,
+    // and Designer's post-save `router.refresh()` already invalidates
+    // the Next.js RSC cache so freshly saved rows are visible via the
+    // server preload path. Forcing `no-store` here was making every
+    // fallback client fetch wait on a cold Supabase query — the "each
+    // page takes a year to open" regression.
+    res = await fetch(url, { signal });
   } catch (err) {
     if ((err as Error).name === "AbortError") {
       return { __error: "Request timed out — please retry." };
