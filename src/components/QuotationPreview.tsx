@@ -817,7 +817,24 @@ function QuotationPage({
   // public/logo.png and it will appear automatically. If the file
   // is missing we fall back to the Magic Tech text block.
   const resolvedLogo = logoUrl || "/logo.png";
+  // Some variants (e.g. BEAT) ship their asset as a `.jpeg` while the
+  // registry used to reference `.png` — and vice versa. Rather than
+  // hard-failing to the text block on the first miss, we swap the
+  // common image extension once and retry, so either file wins.
+  const swapLogoExt = (url: string): string | null => {
+    if (/\.png($|\?)/i.test(url)) return url.replace(/\.png(?=$|\?)/i, ".jpeg");
+    if (/\.jpeg($|\?)/i.test(url)) return url.replace(/\.jpeg(?=$|\?)/i, ".png");
+    if (/\.jpg($|\?)/i.test(url)) return url.replace(/\.jpg(?=$|\?)/i, ".png");
+    return null;
+  };
+  const [logoSrc, setLogoSrc] = React.useState(resolvedLogo);
   const [logoBroken, setLogoBroken] = React.useState(false);
+  // Reset the retry chain whenever the caller hands us a new URL so
+  // switching brand variants doesn't reuse a previously-exhausted src.
+  React.useEffect(() => {
+    setLogoSrc(resolvedLogo);
+    setLogoBroken(false);
+  }, [resolvedLogo]);
   // Rendering the sheet as a <table> with <thead>/<tfoot> lets print
   // engines repeat the brand strip and footer at the top/bottom of every
   // physical page that the system table overflows onto. Without this,
@@ -831,10 +848,17 @@ function QuotationPage({
           {!logoBroken ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={resolvedLogo}
+              src={logoSrc}
               alt="Magic Tech"
               className="h-14 w-auto object-contain"
-              onError={() => setLogoBroken(true)}
+              onError={() => {
+                const alt = swapLogoExt(logoSrc);
+                if (alt && alt !== logoSrc) {
+                  setLogoSrc(alt);
+                } else {
+                  setLogoBroken(true);
+                }
+              }}
             />
           ) : (
             <div>
