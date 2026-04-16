@@ -225,6 +225,22 @@ export default function QuotationViewer({
     scope_intro: config.scopeIntro || "",
   };
 
+  // Trigger a browser print, optionally tagging <body> with `print-draft`
+  // so the @media print CSS hides the full-bleed cover / about-us sheets.
+  // The class is cleared on `afterprint` (works on every browser) and as
+  // a safety net on the next animation frame for Chrome, which returns
+  // synchronously from window.print().
+  function runPrint(draft: boolean) {
+    if (draft) document.body.classList.add("print-draft");
+    const cleanup = () => {
+      document.body.classList.remove("print-draft");
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.print();
+    requestAnimationFrame(cleanup);
+  }
+
   return (
     <div>
       <div className="no-print flex justify-end mb-3 gap-2">
@@ -235,10 +251,17 @@ export default function QuotationViewer({
           Edit
         </button>
         <button
-          onClick={() => window.print()}
+          onClick={() => runPrint(false)}
           className="rounded-md bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700"
         >
           Print / PDF
+        </button>
+        <button
+          onClick={() => runPrint(true)}
+          title="Print without the cover and about-us pages (internal draft)"
+          className="rounded-md border border-magic-red text-magic-red px-4 py-2 text-sm font-semibold hover:bg-magic-red hover:text-white transition-colors"
+        >
+          Print Draft
         </button>
       </div>
       <QuotationPreview

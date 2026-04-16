@@ -258,6 +258,14 @@ body > * {
     display: block;
     padding: 0;
   }
+  /* "Print Draft" — the Designer/Viewer toggles `body.print-draft` just
+   * before opening the browser print dialog so internal review prints
+   * skip the marketing cover and about-us sheets while keeping the
+   * actual quotation pages identical to a normal print. The class is
+   * cleared on `afterprint` so the next normal Print/PDF is unaffected. */
+  body.print-draft .quotation-sheet.full-bleed {
+    display: none !important;
+  }
   .quotation-sheet.page-break-after {
     page-break-after: always;
     break-after: page;
