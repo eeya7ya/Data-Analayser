@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
 import type { AppSettings } from "@/lib/settings";
@@ -37,10 +37,15 @@ export default function DesignerShell({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
+  // Tracks whether the initial fetch has finished. Re-renders caused by
+  // the `onSaved` callback (or the Retry button after a transient error)
+  // swap `existing` in place without flipping `loading` back on, so the
+  // Designer doesn't unmount mid-edit and flash the spinner every save.
+  const hasLoadedOnceRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    if (!hasLoadedOnceRef.current) setLoading(true);
     setLoadError(null);
     const ctl = new AbortController();
     // 25 s matches the /quotation viewer — long enough to cover a cold
@@ -156,6 +161,7 @@ export default function DesignerShell({
         items_json: itemsArray,
         config_json: configObject,
       });
+      hasLoadedOnceRef.current = true;
       setLoading(false);
     })();
     return () => {
@@ -204,6 +210,7 @@ export default function DesignerShell({
       user={user}
       existing={existing}
       appSettings={appSettings}
+      onSaved={() => setReloadTick((t) => t + 1)}
     />
   );
 }

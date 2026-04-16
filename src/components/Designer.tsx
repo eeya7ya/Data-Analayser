@@ -71,6 +71,7 @@ export default function Designer({
   existing,
   initialFolderId,
   appSettings,
+  onSaved,
 }: {
   user: SessionUser;
   existing?: ExistingQuotation;
@@ -86,6 +87,15 @@ export default function Designer({
    * new quotations and supplies the admin-editable printable footer.
    */
   appSettings: AppSettings;
+  /**
+   * Invoked by `saveQuotation()` after a successful edit-mode PATCH so the
+   * parent `DesignerShell` can re-fetch `/api/quotations?id=<n>` and hand
+   * the Designer an `existing` prop that matches what the DB now holds.
+   * Without this the form re-renders its own in-memory values fine, but
+   * any later navigation that re-mounts the Designer (e.g. bouncing
+   * through /catalog) reads a pre-save snapshot off the cached fetch.
+   */
+  onSaved?: () => void;
 }) {
   const adminDefaultTerms =
     appSettings.defaultTerms && appSettings.defaultTerms.length > 0
@@ -287,6 +297,7 @@ export default function Designer({
         id: existing.id,
         ref: existing.ref,
         projectName: existing.project_name || "",
+        folderId: existing.folder_id ?? null,
       });
 
       const baseItems = (Array.isArray(existing.items_json)
@@ -508,7 +519,10 @@ export default function Designer({
       return;
     }
 
-    saveEditingContext(null);
+    // Create mode: the per-folder editing context is kept in sync by the
+    // dedicated effect below (`folderId` is not hydrated yet at this
+    // point in the hydration effect, so writing here would lose the
+    // dropdown selection). Nothing else to clear up-front.
 
     const d = loadDraft();
     setItems(d.items.map((it) => ({ ...it, price_si: it.price_si ?? it.unit_price })));
@@ -596,6 +610,32 @@ export default function Designer({
     setClientEmail(selectedFolder.client_email || "");
     setClientPhone(selectedFolder.client_phone || "");
   }, [selectedFolder]);
+
+  // ── Keep the editing context in sync with the current parent folder ─────
+  // The catalogue's "Back" button routes off whatever `loadEditingContext()`
+  // returns. In edit mode the hydration effect above already stamps the
+  // saved quotation's id/ref/folder_id into the context, so we only need
+  // to handle create mode here: mirror the live `folderId` state so
+  // opening the catalogue from a brand-new quotation — before any save
+  // — still brings the user back to /designer?folder=<n>&new=1 instead
+  // of bouncing to /quotation (the page gate's redirect when the URL
+  // carries no id and no folder).
+  useEffect(() => {
+    if (editMode) return;
+    if (!hydrated) return;
+    if (folderId && Number.isFinite(folderId)) {
+      saveEditingContext({
+        id: 0,
+        ref: "",
+        projectName: projectName || "",
+        folderId,
+      });
+    } else {
+      // No client picked yet — don't leave a stale saved-quotation
+      // context from a previous session dangling in localStorage.
+      saveEditingContext(null);
+    }
+  }, [editMode, hydrated, folderId, projectName]);
 
   async function createFolder() {
     const name = newFolderName.trim();
@@ -878,6 +918,9 @@ export default function Designer({
         setSaveStatus(
           `${label} saved as ${data.quotation.ref} — opening…`,
         );
+        // Invalidate any cached RSC data (notably the /quotation list)
+        // so the new ref shows up the moment the user navigates back.
+        router.refresh();
         router.push(`/designer?id=${data.quotation.id}`);
         return;
       }
@@ -890,10 +933,31 @@ export default function Designer({
         if (existing) clearEditDraft(existing.id);
         const now = new Date().toLocaleTimeString("en-GB");
         setSaveStatus(`Saved at ${now}`);
+        // Two follow-ups for the "save → click away → come back" loop:
+        //   1. `router.refresh()` invalidates the Next.js RSC cache so
+        //      the /quotation list reflects the updated row when the
+        //      user navigates back — this is the "saved but list
+        //      still shows old values" fix.
+        //   2. `onSaved?.()` nudges DesignerShell to re-fetch in the
+        //      background so `existing` matches the DB. The hydration
+        //      effect inside Designer uses the per-id EditModeDraft
+        //      before falling through to `existing.*`, so any keystroke
+        //      the user types between this save and the refetch is
+        //      preserved by the save-effect's draft writer — the
+        //      refetch is therefore safe for in-flight typing.
+        //      DesignerShell skips its blocking spinner after the
+        //      first load (hasLoadedOnceRef) so this is a silent swap.
+        router.refresh();
+        onSaved?.();
         return;
       }
       clearDraft();
       saveEditingContext(null);
+      // Same cache-busting rationale as the edit-mode branch above: the
+      // /quotation list is the very next screen most users land on after
+      // creating a quotation, and its server-preloaded data needs to
+      // reflect this brand-new row instead of a 30-second-old cache.
+      router.refresh();
       router.push(`/quotation?id=${data.quotation.id}`);
     } catch (err) {
       setSaveStatus(`Error: ${(err as Error).message}`);
