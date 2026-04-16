@@ -38,20 +38,16 @@ export const BRAND_VARIANTS: BrandVariant[] = [
     aboutUrl: "/quote-page-2.jpg",
   },
   {
-    id: "magic-tech-alt",
-    label: "Magic Tech — Alternate",
-    description: "Alternate Magic Tech look",
-    logoUrl: "/logo-alt.png",
-    coverUrl: "/quote-page-1-alt.jpg",
-    aboutUrl: "/quote-page-2-alt.jpg",
-  },
-  {
-    id: "partner-brand",
-    label: "Partner Brand",
-    description: "Co-branded partner variant",
-    logoUrl: "/logo-partner.png",
-    coverUrl: "/quote-page-1-partner.jpg",
-    aboutUrl: "/quote-page-2-partner.jpg",
+    // BEAT logo lives at `public/logo_BEAT.jpeg` (uploaded via the GitHub
+    // web UI). Cover and about-us sheets fall back to the default Magic
+    // Tech artwork until paired BEAT-branded pages are supplied; swap
+    // `coverUrl` / `aboutUrl` once those JPGs land in `/public`.
+    id: "beat",
+    label: "BEAT",
+    description: "BEAT-branded logo (reuses default cover / about-us for now)",
+    logoUrl: "/logo_BEAT.jpeg",
+    coverUrl: "/quote-page-1.jpg",
+    aboutUrl: "/quote-page-2.jpg",
   },
 ];
 

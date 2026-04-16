@@ -1047,8 +1047,15 @@ export default function Designer({
   // chrome (manual-column toolbars, add-row buttons, inline form inputs)
   // and the empty-state "Add manual item" sheet, giving the user the
   // extra "unrequired slide" and mis-styled layout they reported.
-  function printQuotation() {
+  //
+  // `draft=true` produces a "Print Draft" — identical to the normal
+  // printout except the full-bleed cover and about-us sheets are
+  // suppressed via a body class (`print-draft`) that the CSS
+  // `@media print` block keys off. Useful for internal reviews where
+  // the marketing-style front matter is just noise.
+  function printQuotation(draft = false) {
     if (typeof window === "undefined") return;
+    if (draft) document.body.classList.add("print-draft");
     setPrintMode(true);
   }
 
@@ -1162,6 +1169,9 @@ export default function Designer({
     let cancelled = false;
     const restore = () => {
       if (cancelled) return;
+      // Drop the draft-print marker so the next non-draft print doesn't
+      // inherit it if the user chain-clicks Print Draft → Print / PDF.
+      document.body.classList.remove("print-draft");
       setPrintMode(false);
     };
     window.addEventListener("afterprint", restore);
@@ -1178,6 +1188,7 @@ export default function Designer({
       cancelled = true;
       window.cancelAnimationFrame(frame);
       window.removeEventListener("afterprint", restore);
+      document.body.classList.remove("print-draft");
     };
   }, [printMode]);
 
@@ -1536,12 +1547,20 @@ export default function Designer({
               Export Excel
             </button>
             <button
-              onClick={printQuotation}
+              onClick={() => printQuotation(false)}
               disabled={items.length === 0}
               title="Print the current quotation preview"
               className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
             >
               Print / PDF
+            </button>
+            <button
+              onClick={() => printQuotation(true)}
+              disabled={items.length === 0}
+              title="Print without the cover and about-us pages (internal draft)"
+              className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors disabled:opacity-50"
+            >
+              Print Draft
             </button>
             <button
               onClick={() => saveQuotation("save")}

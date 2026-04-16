@@ -258,6 +258,14 @@ body > * {
     display: block;
     padding: 0;
   }
+  /* "Print Draft" — the Designer/Viewer toggles `body.print-draft` just
+   * before opening the browser print dialog so internal review prints
+   * skip the marketing cover and about-us sheets while keeping the
+   * actual quotation pages identical to a normal print. The class is
+   * cleared on `afterprint` so the next normal Print/PDF is unaffected. */
+  body.print-draft .quotation-sheet.full-bleed {
+    display: none !important;
+  }
   .quotation-sheet.page-break-after {
     page-break-after: always;
     break-after: page;
@@ -306,6 +314,43 @@ body > * {
   }
   @page {
     size: A4;
+    /* Move the safe area from the sheet's own padding to the @page margin
+     * so EVERY physical page — including continuation pages when a long
+     * system table breaks across multiple A4 sheets — has breathing room
+     * at the top and bottom. Without this, the repeated brand strip in
+     * the sheet-layout's <thead> lands flush against the paper edge on
+     * continuation pages and the logo prints clipped. */
+    margin: 14mm 12mm 18mm 12mm;
+  }
+  /* Cover and about-us sheets opt into a zero-margin page so the artwork
+   * still fills the full A4 bleed while the rest of the quotation picks
+   * up the global safe-area margins above. Named-page selection is
+   * supported by Chrome, Firefox and Safari. */
+  .quotation-sheet.full-bleed {
+    page: bleed;
+  }
+  @page bleed {
+    size: A4;
     margin: 0;
+  }
+  /* @page margins now own the page safe area, so strip the sheet's own
+   * padding and let the content fit the printable region naturally.
+   * Sheet-level min-height / fixed width also have to go: with @page
+   * margins in play a 210mm-wide sheet would overflow the narrowed
+   * printable area. */
+  .quotation-sheet:not(.full-bleed) {
+    padding: 0 !important;
+    width: auto !important;
+    min-height: 0 !important;
+  }
+  /* Full-bleed sheets keep the explicit 210×297mm geometry so the
+   * cover/about images really do fill the whole A4. */
+  .quotation-sheet.full-bleed {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    padding: 0 !important;
+  }
+  .quotation-doc {
+    width: auto !important;
   }
 }
