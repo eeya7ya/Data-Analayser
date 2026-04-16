@@ -23,6 +23,11 @@ import {
   PRICING_LABELS,
   type PricingCategory,
 } from "@/lib/quotationDraft";
+import {
+  BRAND_VARIANTS,
+  DEFAULT_BRAND_VARIANT_ID,
+  getBrandVariant,
+} from "@/lib/brandVariants";
 import { computeQuotationTotals } from "@/lib/quotationTotals";
 
 export interface ExistingQuotation {
@@ -49,6 +54,12 @@ export interface ExistingQuotation {
     manualFactor?: number;
     includeTax?: boolean;
     taxInclusive?: boolean;
+    /**
+     * Brand variant id whose logo / cover / about-us artwork this
+     * quotation should render. Legacy rows (no value stored) fall back
+     * to the default Magic Tech bundle in `getBrandVariant()`.
+     */
+    brandVariantId?: string;
     // Legacy marker. Quotations saved before the "Excl. Tax" button was
     // changed from a display overlay to a real unit_price transform stored
     // raw (tax-inclusive) prices even when taxInclusive=true. The hydration
@@ -137,6 +148,9 @@ export default function Designer({
   const [manualFactorText, setManualFactorText] = useState<string>("1");
   const [includeTax, setIncludeTax] = useState(true);
   const [taxInclusive, setTaxInclusive] = useState(false);
+  const [brandVariantId, setBrandVariantId] = useState<string>(
+    DEFAULT_BRAND_VARIANT_ID,
+  );
   const [folders, setFolders] = useState<ClientFolder[]>([]);
   const [folderId, setFolderId] = useState<number | null>(null);
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -485,6 +499,13 @@ export default function Designer({
       setTaxInclusive(
         editDraft ? Boolean(editDraft.taxInclusive) : Boolean(existing.config_json?.taxInclusive),
       );
+      setBrandVariantId(
+        getBrandVariant(
+          editDraft?.brandVariantId ??
+            existing.config_json?.brandVariantId ??
+            DEFAULT_BRAND_VARIANT_ID,
+        ).id,
+      );
 
       // Legacy migration: quotations saved before the Excl./Incl. Tax
       // button was changed from a display overlay to a real unit_price
@@ -553,6 +574,9 @@ export default function Designer({
     setPricingCategoryState(d.pricingCategory || "si");
     setIncludeTax(d.includeTax !== false);
     setTaxInclusive(Boolean(d.taxInclusive));
+    setBrandVariantId(
+      getBrandVariant(d.brandVariantId || DEFAULT_BRAND_VARIANT_ID).id,
+    );
     const restoredManual =
       typeof d.manualFactor === "number" && Number.isFinite(d.manualFactor) && d.manualFactor > 0
         ? d.manualFactor
@@ -700,6 +724,7 @@ export default function Designer({
       includeTax,
       taxInclusive,
       folderId,
+      brandVariantId,
     });
   }, [
     hydrated,
@@ -725,6 +750,7 @@ export default function Designer({
     includeTax,
     taxInclusive,
     folderId,
+    brandVariantId,
   ]);
 
   // ── Persist edit-mode draft per quotation id ──────────────────────────────
@@ -749,6 +775,7 @@ export default function Designer({
       siteName,
       showPictures,
       taxPercent,
+      brandVariantId,
     });
   }, [
     hydrated,
@@ -767,6 +794,7 @@ export default function Designer({
     siteName,
     showPictures,
     taxPercent,
+    brandVariantId,
   ]);
 
   // ── Mirror tax-toggle state into the shared catalog draft ────────────────
@@ -886,6 +914,7 @@ export default function Designer({
           manualFactor,
           includeTax,
           taxInclusive,
+          brandVariantId,
           // Stamped on every save so the legacy migration in the
           // hydration effect only runs once per quotation.
           taxPricesNormalized: true,
@@ -1319,6 +1348,26 @@ export default function Designer({
               />
               Pictures
             </label>
+            {/* Brand / logo variant picker. Each variant bundles a logo with
+                its matching cover and about-us sheets so switching one
+                automatically swaps in the paired artwork at print time. */}
+            <div>
+              <label className="block text-[10px] font-semibold uppercase text-magic-ink/60">
+                Brand
+              </label>
+              <select
+                value={brandVariantId}
+                onChange={(e) => setBrandVariantId(e.target.value)}
+                title="Select the logo, cover page and about-us page artwork for this quotation"
+                className="mt-1 rounded-md border border-magic-border px-2 py-1 text-sm min-w-[180px]"
+              >
+                {BRAND_VARIANTS.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -1596,6 +1645,7 @@ export default function Designer({
           taxInclusive={taxInclusive}
           clientLocked={clientLocked}
           footerText={appSettings.footerText}
+          brandVariantId={brandVariantId}
         />
       </div>
       )}

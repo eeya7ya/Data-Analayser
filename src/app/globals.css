@@ -91,6 +91,35 @@ body > * {
   flex-direction: column;
 }
 
+/* Outer sheet layout table. Wraps every regular (non full-bleed) sheet in a
+ * <thead>/<tbody>/<tfoot> so print engines automatically repeat the Magic
+ * Tech logo strip and address footer at the top/bottom of every physical
+ * page a long system table overflows onto. Borderless and transparent so
+ * it stays visually indistinguishable from the previous flex-column layout
+ * on screen — only the printed output benefits from the header/footer
+ * repetition. */
+.quotation-sheet > table.sheet-layout {
+  width: 100%;
+  flex: 1;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.quotation-sheet > table.sheet-layout > thead > tr > td,
+.quotation-sheet > table.sheet-layout > tbody > tr > td,
+.quotation-sheet > table.sheet-layout > tfoot > tr > td {
+  border: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  text-align: left;
+  vertical-align: top;
+}
+
+.quotation-sheet > table.sheet-layout > tbody > tr > td.sheet-body-cell {
+  height: 100%;
+  vertical-align: top;
+}
+
 /* Full-bleed static A4 page — used for the fixed cover and about-us
  * pages that bracket every printed quotation. No padding so the supplied
  * artwork fills the sheet edge to edge. These sheets are hidden in the
@@ -167,7 +196,9 @@ body > * {
   padding: 8px;
   font-weight: 600;
   border: 1px solid #cfbebc;
-  /* Push the footer to the very bottom of the sheet, regardless of content. */
+  /* Inside the sheet-layout <tfoot>, the table flow already parks the footer
+   * at the bottom. The `margin-top: auto` kept as a safety net for any
+   * future caller that renders the footer outside a table layout. */
   margin-top: auto;
   font-size: 10.5px;
   line-height: 1.4;
@@ -230,6 +261,32 @@ body > * {
   .quotation-sheet.page-break-after {
     page-break-after: always;
     break-after: page;
+  }
+  /* Print-only: make sure browsers repeat the sheet-layout <thead> (logo +
+   * info grid) and <tfoot> (footer address) at the top/bottom of every
+   * physical page that the system table overflows onto. Chrome already
+   * uses table-header-group for <thead> by default, but being explicit
+   * avoids surprises on Firefox / Safari where the default on <tfoot>
+   * has historically varied. */
+  .quotation-sheet > table.sheet-layout > thead {
+    display: table-header-group;
+  }
+  .quotation-sheet > table.sheet-layout > tfoot {
+    display: table-footer-group;
+  }
+  /* Strip the Designer's on-screen preview wrapper (card border / padding
+   * around the printable sheet) so printed output starts at the @page
+   * edge instead of leaving a 16 px gap that can push the first sheet
+   * onto page 2 — which manifested as an empty first page in the user's
+   * "+ Print / PDF" output. */
+  .print-main > div,
+  .print-main > div > div {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
   }
   /* Hide editable form chrome in print so inputs print as plain text. */
   .quotation-sheet input,

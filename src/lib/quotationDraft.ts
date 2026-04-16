@@ -6,6 +6,7 @@ import type {
   QuotationItem,
   QuotationExtraColumn,
 } from "@/components/QuotationPreview";
+import { DEFAULT_BRAND_VARIANT_ID } from "@/lib/brandVariants";
 
 /** Pricing category determines the factor applied to SI (base) prices. */
 export type PricingCategory = "si" | "dpp" | "end_user" | "manual";
@@ -77,6 +78,13 @@ export interface QuotationDraft {
    * browser tab reloads, wiping any in-progress draft from view.
    */
   folderId: number | null;
+  /**
+   * Id of the brand variant whose logo / cover / about-us artwork drives
+   * this quotation's printed output. Defaults to the original Magic Tech
+   * bundle so drafts saved before variants existed keep rendering their
+   * exact pre-variant look.
+   */
+  brandVariantId: string;
 }
 
 // Legacy per-browser "last Design Engineer name" key. We used to remember
@@ -204,6 +212,7 @@ export function emptyDraft(): QuotationDraft {
     includeTax: true,
     taxInclusive: false,
     folderId: null,
+    brandVariantId: DEFAULT_BRAND_VARIANT_ID,
   };
 }
 
@@ -304,6 +313,8 @@ export interface EditModeDraft {
   siteName: string;
   showPictures: boolean;
   taxPercent: number;
+  /** Selected brand variant id (logo + cover + about-us bundle). */
+  brandVariantId?: string;
 }
 
 export function loadEditDraft(id: number): EditModeDraft | null {
@@ -398,10 +409,17 @@ export function appendItem(newItem: QuotationItem): QuotationDraft {
       quantity: draft.items[idx].quantity + normalized.quantity,
     };
   } else {
-    draft.items.push({ ...normalized, no: draft.items.length + 1 });
+    draft.items.push({ ...normalized, no: 0 });
   }
-  // Renumber to keep "no" contiguous.
-  draft.items = draft.items.map((it, i) => ({ ...it, no: i + 1 }));
+  // Renumber per-system group — each system's table counts independently
+  // from 1, so appending a CCTV row doesn't bump the Sound rows' numbers.
+  const perSystem = new Map<string, number>();
+  draft.items = draft.items.map((it) => {
+    const key = it.system || it.brand || "General";
+    const next = (perSystem.get(key) ?? 0) + 1;
+    perSystem.set(key, next);
+    return { ...it, no: next };
+  });
   saveDraft(draft);
   return draft;
 }

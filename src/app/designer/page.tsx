@@ -96,10 +96,12 @@ export default async function DesignerPage({
   }
 
   return (
-    <div className="min-h-screen bg-magic-soft/40">
-      <TopBar user={user} />
-      <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
-        <header className="mb-6">
+    <div className="min-h-screen bg-magic-soft/40 print-root">
+      <div className="no-print">
+        <TopBar user={user} />
+      </div>
+      <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10 print-main">
+        <header className="mb-6 no-print">
           <h1 className="text-2xl font-bold text-magic-ink">
             Quotation Designer
           </h1>
