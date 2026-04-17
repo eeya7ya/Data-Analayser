@@ -127,6 +127,15 @@ interface Props {
    * address when no setting has been saved yet.
    */
   footerText?: string;
+  /**
+   * Bill of Quantities mode. When true, the preview hides every pricing
+   * column (Unit Price, Total Price) along with per-system subtotals and
+   * the Final Totals page, so the user can print/export a pure scope
+   * document the client can review without seeing commercial figures.
+   * Terms and the scope intro still render because the BoQ is typically
+   * attached as-is to the commercial offer.
+   */
+  boqMode?: boolean;
 }
 
 const DEFAULT_FOOTER_TEXT =
@@ -189,6 +198,7 @@ export default function QuotationPreview({
   taxInclusive = false,
   clientLocked = false,
   footerText,
+  boqMode = false,
 }: Props) {
   const resolvedFooterText =
     footerText && footerText.trim().length > 0 ? footerText : DEFAULT_FOOTER_TEXT;
@@ -668,6 +678,7 @@ export default function QuotationPreview({
             showPictures={showPictures}
             editable={editable}
             extraColumns={extraColumns}
+            boqMode={boqMode}
             onUpdate={update}
             onRemove={removeRow}
             onJumpTo={moveRowToNo}
@@ -732,25 +743,34 @@ export default function QuotationPreview({
             editable={editable}
             onChange={(v) => setHeader?.({ scope_intro: v })}
           />
-          <div className="site-banner">Final Totals</div>
-          <table>
-            <tbody>
-              <tr className="totals-row grand">
-                <td style={{ width: "75%" }}>Grand Total Cost (Subtotal)</td>
-                <td>{money(subtotal)}</td>
-              </tr>
-              {includeTax && (
-                <tr className="totals-row">
-                  <td>TAX ({header.tax_percent}%)</td>
-                  <td>{money(tax)}</td>
-                </tr>
-              )}
-              <tr className="totals-row">
-                <td>Total Cost</td>
-                <td>{money(total)}</td>
-              </tr>
-            </tbody>
-          </table>
+          {/* Hide the Final Totals table entirely in BoQ mode — a Bill of
+           * Quantities is a pricing-free scope document by definition. The
+           * terms block below still renders because clients review the
+           * same terms whether they're looking at the commercial offer or
+           * the BoQ attachment. */}
+          {!boqMode && (
+            <>
+              <div className="site-banner">Final Totals</div>
+              <table>
+                <tbody>
+                  <tr className="totals-row grand">
+                    <td style={{ width: "75%" }}>Grand Total Cost (Subtotal)</td>
+                    <td>{money(subtotal)}</td>
+                  </tr>
+                  {includeTax && (
+                    <tr className="totals-row">
+                      <td>TAX ({header.tax_percent}%)</td>
+                      <td>{money(tax)}</td>
+                    </tr>
+                  )}
+                  <tr className="totals-row">
+                    <td>Total Cost</td>
+                    <td>{money(total)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </>
+          )}
 
           <TermsBlock
             terms={terms}
@@ -1178,6 +1198,7 @@ function SystemTable({
   showPictures,
   editable,
   extraColumns,
+  boqMode = false,
   onUpdate,
   onRemove,
   onJumpTo,
@@ -1196,6 +1217,7 @@ function SystemTable({
   showPictures: boolean;
   editable: boolean;
   extraColumns: QuotationExtraColumn[];
+  boqMode?: boolean;
   onUpdate: (globalIndex: number, patch: Partial<QuotationItem>) => void;
   onRemove: (globalIndex: number) => void;
   onJumpTo: (globalIndex: number, targetNo: number) => void;
@@ -1210,8 +1232,11 @@ function SystemTable({
   onRemoveExtraColumn: (id: string) => void;
 }) {
   // Base = No, Brand, Model, Description, [Picture], Quantity, Delivery,
-  // Unit Price, Total Price — plus one cell per manual column.
-  const colCount = (showPictures ? 9 : 8) + extraColumns.length;
+  // Unit Price, Total Price — plus one cell per manual column. In BoQ
+  // mode the two pricing columns (Unit Price, Total Price) drop out, so
+  // the total column count shrinks by 2.
+  const pricingCols = boqMode ? 0 : 2;
+  const colCount = (showPictures ? 7 : 6) + pricingCols + extraColumns.length;
   // Pull out the items in their group order once so every downstream
   // calculation can resolve merged unit-price cells via effectiveMergedValue.
   const groupItems = group.rows.map((r) => r.item);
@@ -1226,9 +1251,13 @@ function SystemTable({
     return acc + qty * price;
   }, 0);
   // When manual columns are present, shrink the description column a bit so
-  // everything still fits on A4 without horizontal overflow.
+  // everything still fits on A4 without horizontal overflow. In BoQ mode
+  // we also have 22% extra space freed up by the removed Unit Price +
+  // Total Price columns — redirect it into the description so the scope
+  // reads comfortably instead of leaving a narrow, lopsided table.
   const extraShare = Math.min(extraColumns.length * 7, 21); // max 21%
-  const descWidth = showPictures ? 28 - extraShare : 36 - extraShare;
+  const baseDescWidth = showPictures ? 28 : 36;
+  const descWidth = baseDescWidth - extraShare + (boqMode ? 22 : 0);
 
   const plan = computeMergePlan(group.rows);
 
@@ -1323,8 +1352,8 @@ function SystemTable({
           {showPictures && <th style={{ width: "10%" }}>Picture</th>}
           <th style={{ width: "6%" }}>Quantity</th>
           <th style={{ width: "8%" }}>Delivery</th>
-          <th style={{ width: "10%" }}>Unit Price</th>
-          <th style={{ width: "12%" }}>Total Price</th>
+          {!boqMode && <th style={{ width: "10%" }}>Unit Price</th>}
+          {!boqMode && <th style={{ width: "12%" }}>Total Price</th>}
           {extraColumns.map((col) => (
             <th key={col.id} style={{ width: `${extraShare / Math.max(extraColumns.length, 1)}%` }}>
               {editable ? (
@@ -1477,25 +1506,27 @@ function SystemTable({
                 item.delivery
               ),
             )}
-            {mergeableCell(
-              "unit_price",
-              rowIdx,
-              globalIndex,
-              hPlan,
-              "",
-              editable ? (
-                <input
-                  type="number"
-                  className="w-full bg-transparent text-center"
-                  value={item.unit_price}
-                  onChange={(e) =>
-                    onUpdate(globalIndex, { unit_price: Number(e.target.value) })
-                  }
-                />
-              ) : (
-                Number(item.unit_price) ? money(item.unit_price) : ""
-              ),
-            )}
+            {!boqMode &&
+              mergeableCell(
+                "unit_price",
+                rowIdx,
+                globalIndex,
+                hPlan,
+                "",
+                editable ? (
+                  <input
+                    type="number"
+                    className="w-full bg-transparent text-center"
+                    value={item.unit_price}
+                    onChange={(e) =>
+                      onUpdate(globalIndex, { unit_price: Number(e.target.value) })
+                    }
+                  />
+                ) : (
+                  Number(item.unit_price) ? money(item.unit_price) : ""
+                ),
+              )}
+            {!boqMode && (
             <td className="font-semibold">
               {item.optional ? (
                 <span className="italic text-magic-ink/60">Optional</span>
@@ -1585,6 +1616,7 @@ function SystemTable({
                 </div>
               )}
             </td>
+            )}
             {extraColumns.map((col) => {
               const cellValue = item.extra?.[col.id] || "";
               return (
@@ -1608,10 +1640,12 @@ function SystemTable({
           </tr>
           );
         })}
-        <tr className="totals-row">
-          <td colSpan={colCount - 1}>{group.system} Subtotal</td>
-          <td>{money(subtotal)}</td>
-        </tr>
+        {!boqMode && (
+          <tr className="totals-row">
+            <td colSpan={colCount - 1}>{group.system} Subtotal</td>
+            <td>{money(subtotal)}</td>
+          </tr>
+        )}
       </tbody>
     </table>
   );

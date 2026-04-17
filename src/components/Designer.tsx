@@ -182,6 +182,12 @@ export default function Designer({
   // "Add row / Add column" toolbars). The toggle flips back off as soon as
   // the print dialog closes via `onafterprint`.
   const [printMode, setPrintMode] = useState(false);
+  // Bill of Quantities print toggle. Flipped on by the "Print BOQ" button
+  // so QuotationPreview renders without the Unit Price / Total Price
+  // columns, per-system subtotals and the Final Totals page. Cleared on
+  // `afterprint` alongside `printMode` so the editable UI comes back
+  // untouched when the print dialog closes.
+  const [boqMode, setBoqMode] = useState(false);
   // Hydration status is tracked as a state (not a ref) so the persist
   // effects can depend on it. A ref would flip mid-effect and let the
   // save effects run on the same tick as hydration — with React's
@@ -1085,101 +1091,258 @@ export default function Designer({
     setPrintMode(true);
   }
 
+  /**
+   * Print the current quotation as a Bill of Quantities — identical to
+   * the normal printout except the Unit Price and Total Price columns,
+   * per-system subtotals, and the Final Totals page are suppressed. The
+   * BoQ always drops the marketing cover / about-us sheets too (same as
+   * Print Draft) because a scope document is an internal/attachment
+   * deliverable, not a commercial offer.
+   */
+  function printBoq() {
+    if (typeof window === "undefined") return;
+    document.body.classList.add("print-draft");
+    setBoqMode(true);
+    setPrintMode(true);
+  }
+
+  /**
+   * Exports the current quotation as a .xlsx workbook whose layout mirrors
+   * the printed PDF: a merged title banner, an info block with project +
+   * client + engineer fields, per-system banner rows and subtotals, and a
+   * Final Totals block at the bottom.
+   *
+   * xlsx (SheetJS Community) can't write cell styles reliably, so the
+   * "professional" polish is delivered via structure: merged banner rows,
+   * right-sized column widths, JOD currency number formats, and blank
+   * separator rows between sections. Opening the file in Excel /
+   * Google Sheets produces a clean, document-style read that matches the
+   * printed quotation without needing a paid style layer.
+   */
   async function exportToExcel() {
     if (typeof window === "undefined" || items.length === 0) return;
     const XLSX = await import("xlsx");
 
-    const header = {
-      project_name: projectName,
-      client_name: clientName,
-      client_email: clientEmail,
-      client_phone: clientPhone,
-      sales_engineer: salesEng,
-      sales_phone: salesPhone,
-      prepared_by: preparedBy,
-      design_engineer: designEng,
-      ref: refCode,
-      site_name: siteName,
-      tax_percent: taxPercent,
-      extra_columns: extraColumns,
-    };
+    const extraCols = extraColumns;
+    // Column layout, left-to-right, matches the printed table:
+    // 0: No   1: Brand   2: Model   3: Description
+    // 4: Qty  5: Delivery 6: Unit Price 7: Total Price
+    // 8..: manual columns
+    const itemColumnTitles = [
+      "No",
+      "Brand",
+      "Model",
+      "Description",
+      "Qty",
+      "Delivery",
+      "Unit Price",
+      "Total Price",
+      ...extraCols.map((c) => c.label),
+    ];
+    const totalCols = itemColumnTitles.length;
+    const lastColIdx = totalCols - 1;
 
     const totals = computeQuotationTotals(items, taxPercent, taxInclusive);
+    const currencyFmt = '"JOD" #,##0.00';
 
-    // --- Build rows ---
-    const rows: Record<string, unknown>[] = [];
+    // We build the worksheet via aoa_to_sheet so we have full control
+    // over row-by-row contents and can record cell-level number formats
+    // and merge ranges afterwards. Each entry here is one row of the
+    // resulting sheet; shorter rows are padded with empty strings so
+    // column widths stay aligned.
+    const aoa: (string | number)[][] = [];
+    // Cells whose `.z` number-format should be overridden after the
+    // sheet is materialised. Keyed by A1 address (e.g. "G12").
+    const currencyCells: string[] = [];
+    // Ranges to merge (title banner, info block, system banners, totals).
+    const merges: Array<{ s: { r: number; c: number }; e: { r: number; c: number } }> = [];
 
-    // Header info rows
-    rows.push({ "#": "Reference", System: header.ref });
-    rows.push({ "#": "Project", System: header.project_name });
-    if (header.client_name)
-      rows.push({ "#": "Client", System: header.client_name });
-    if (header.site_name)
-      rows.push({ "#": "Site", System: header.site_name });
-    if (header.sales_engineer)
-      rows.push({ "#": "Sales Engineer", System: header.sales_engineer });
-    if (header.prepared_by)
-      rows.push({ "#": "Prepared By", System: header.prepared_by });
-    rows.push({}); // blank separator
-
-    // Column headers for items
-    const extraCols = header.extra_columns ?? [];
-    const itemHeader: Record<string, string> = {
-      "#": "#",
-      System: "System",
-      Brand: "Brand",
-      Model: "Model",
-      Description: "Description",
-      Qty: "Qty",
-      "Unit Price": "Unit Price",
-      "Total Price": "Total Price",
-      Delivery: "Delivery",
+    const padRow = (cells: (string | number)[]): (string | number)[] => {
+      const out = cells.slice();
+      while (out.length < totalCols) out.push("");
+      return out;
     };
-    for (const col of extraCols) {
-      itemHeader[col.label] = col.label;
-    }
-    rows.push(itemHeader);
 
-    // Item data rows
-    for (const item of items) {
-      const row: Record<string, unknown> = {
-        "#": item.no,
-        System: item.system,
-        Brand: item.brand,
-        Model: item.model,
-        Description: item.description,
-        Qty: item.quantity,
-        "Unit Price": item.unit_price,
-        "Total Price": item.optional
-          ? "Optional"
-          : item.quantity * item.unit_price,
-        Delivery: item.delivery,
-      };
-      for (const col of extraCols) {
-        row[col.label] = item.extra?.[col.id] ?? "";
-      }
-      rows.push(row);
-    }
+    // ── 1) Title banner ────────────────────────────────────────────────
+    aoa.push(padRow(["Magic Tech — Sales Quotation"]));
+    merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: lastColIdx } });
 
-    // Totals
-    rows.push({});
-    rows.push({ Description: "Subtotal", "Total Price": totals.subtotal });
-    if (includeTax) {
-      rows.push({
-        Description: `Tax (${taxPercent}%)`,
-        "Total Price": totals.tax,
+    // ── 2) Info block (label / value pairs, 2 per row) ────────────────
+    const info: Array<[string, string]> = [];
+    info.push(["Reference", refCode || ""]);
+    info.push(["Date", new Date().toLocaleDateString("en-GB")]);
+    info.push(["Project", projectName || ""]);
+    info.push(["Site", siteName || ""]);
+    if (clientName) info.push(["Client", clientName]);
+    if (clientEmail) info.push(["Email", clientEmail]);
+    if (clientPhone) info.push(["Phone", clientPhone]);
+    if (designEng) info.push(["Presales Engineer", designEng]);
+    if (salesEng) info.push(["Sales Engineer", salesEng]);
+    if (salesPhone) info.push(["Sales Phone", salesPhone]);
+    if (preparedBy) info.push(["Prepared By", preparedBy]);
+
+    // Split the label/value pairs into two columns of 4 fields each,
+    // matching the printed header's left/right info grid.
+    const mid = totalCols >= 8 ? Math.floor(totalCols / 2) : 2;
+    for (let i = 0; i < info.length; i += 2) {
+      const left = info[i];
+      const right = info[i + 1];
+      const row: (string | number)[] = new Array(totalCols).fill("");
+      row[0] = left[0] + ":";
+      row[1] = left[1];
+      // Merge the left value across the first half so long project names
+      // don't overflow into the right-hand block.
+      merges.push({
+        s: { r: aoa.length, c: 1 },
+        e: { r: aoa.length, c: mid - 1 },
       });
+      if (right) {
+        row[mid] = right[0] + ":";
+        row[mid + 1] = right[1];
+        merges.push({
+          s: { r: aoa.length, c: mid + 1 },
+          e: { r: aoa.length, c: lastColIdx },
+        });
+      }
+      aoa.push(row);
     }
-    rows.push({
-      Description: "Grand Total",
-      "Total Price": includeTax ? totals.total : totals.subtotal,
+    aoa.push(padRow([])); // blank separator
+
+    // ── 3) Per-system tables ──────────────────────────────────────────
+    // We reuse the same "group by system" helper the preview uses so the
+    // Excel groups land in the same order as the printed pages.
+    const groups = (() => {
+      const order: string[] = [];
+      const map = new Map<string, QuotationItem[]>();
+      for (const it of items) {
+        const key = it.system || it.brand || "General";
+        if (!map.has(key)) {
+          map.set(key, []);
+          order.push(key);
+        }
+        map.get(key)!.push(it);
+      }
+      return order.map((k) => ({ system: k, rows: map.get(k)! }));
+    })();
+
+    for (const group of groups) {
+      // System banner row (merged across the whole table)
+      aoa.push(padRow([group.system]));
+      merges.push({
+        s: { r: aoa.length - 1, c: 0 },
+        e: { r: aoa.length - 1, c: lastColIdx },
+      });
+
+      // Column headers row
+      aoa.push(itemColumnTitles.slice());
+
+      // Item rows — per-system local numbering (matches the printed PDF,
+      // where each system restarts at 1).
+      let groupSubtotal = 0;
+      group.rows.forEach((item, localIdx) => {
+        const qty = Number(item.quantity) || 0;
+        const unit = Number(item.unit_price) || 0;
+        const rowTotal = item.optional ? 0 : qty * unit;
+        groupSubtotal += rowTotal;
+        const row: (string | number)[] = [
+          localIdx + 1,
+          item.brand || "",
+          item.model || "",
+          item.description || "",
+          qty,
+          item.delivery || "",
+          unit,
+          item.optional ? "Optional" : rowTotal,
+          ...extraCols.map((c) => item.extra?.[c.id] ?? ""),
+        ];
+        const rowIdx = aoa.length;
+        aoa.push(row);
+        // Column G (index 6) = Unit Price. Always currency.
+        currencyCells.push(XLSX.utils.encode_cell({ r: rowIdx, c: 6 }));
+        // Column H (index 7) = Total Price — only numeric when the row
+        // isn't marked Optional.
+        if (!item.optional) {
+          currencyCells.push(XLSX.utils.encode_cell({ r: rowIdx, c: 7 }));
+        }
+      });
+
+      // Per-system subtotal row, label merged across everything left of
+      // the Total Price column so the amount lines up under the table.
+      const subtotalRow: (string | number)[] = new Array(totalCols).fill("");
+      subtotalRow[0] = `${group.system} Subtotal`;
+      subtotalRow[7] = groupSubtotal;
+      const subRowIdx = aoa.length;
+      aoa.push(subtotalRow);
+      merges.push({
+        s: { r: subRowIdx, c: 0 },
+        e: { r: subRowIdx, c: 6 },
+      });
+      currencyCells.push(XLSX.utils.encode_cell({ r: subRowIdx, c: 7 }));
+
+      aoa.push(padRow([])); // blank separator between system blocks
+    }
+
+    // ── 4) Final Totals block ─────────────────────────────────────────
+    const finalsBannerIdx = aoa.length;
+    aoa.push(padRow(["Final Totals"]));
+    merges.push({
+      s: { r: finalsBannerIdx, c: 0 },
+      e: { r: finalsBannerIdx, c: lastColIdx },
     });
 
-    const ws = XLSX.utils.json_to_sheet(rows, { skipHeader: true });
+    const pushTotalRow = (label: string, value: number) => {
+      const row: (string | number)[] = new Array(totalCols).fill("");
+      row[0] = label;
+      row[7] = value;
+      const r = aoa.length;
+      aoa.push(row);
+      merges.push({ s: { r, c: 0 }, e: { r, c: 6 } });
+      currencyCells.push(XLSX.utils.encode_cell({ r, c: 7 }));
+    };
+    pushTotalRow("Grand Total Cost (Subtotal)", totals.subtotal);
+    if (includeTax) {
+      pushTotalRow(`TAX (${taxPercent}%)`, totals.tax);
+    }
+    pushTotalRow("Total Cost", includeTax ? totals.total : totals.subtotal);
+
+    // ── 5) Materialise the worksheet ──────────────────────────────────
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // Column widths (in characters). Picked to match the printed PDF's
+    // visual proportions (No is narrow, Description is wide, etc.).
+    const cols: Array<{ wch: number }> = [
+      { wch: 5 }, // No
+      { wch: 14 }, // Brand
+      { wch: 16 }, // Model
+      { wch: 44 }, // Description
+      { wch: 7 }, // Qty
+      { wch: 12 }, // Delivery
+      { wch: 14 }, // Unit Price
+      { wch: 16 }, // Total Price
+    ];
+    for (let i = 0; i < extraCols.length; i++) cols.push({ wch: 14 });
+    ws["!cols"] = cols;
+    ws["!merges"] = merges;
+
+    // Apply currency format to every money cell we flagged. Using `.z`
+    // (number format string) is the part of the SheetJS CE write path
+    // that Excel / Google Sheets both honour without a styles license.
+    for (const addr of currencyCells) {
+      const cell = ws[addr];
+      if (cell && typeof cell.v === "number") {
+        cell.z = currencyFmt;
+        cell.t = "n";
+      }
+    }
+
+    // Freeze the rows above the first system table so the scope + client
+    // info stays visible while scrolling long item lists.
+    ws["!freeze"] = { xSplit: 0, ySplit: info.length + 3 };
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Quotation");
 
-    const filename = `${header.ref || header.project_name || "quotation"}.xlsx`;
+    const filename = `${refCode || projectName || "quotation"}.xlsx`;
     XLSX.writeFile(wb, filename);
   }
 
@@ -1199,6 +1362,9 @@ export default function Designer({
       // inherit it if the user chain-clicks Print Draft → Print / PDF.
       document.body.classList.remove("print-draft");
       setPrintMode(false);
+      // Clear the BoQ override the same way so Print/PDF immediately
+      // after a BoQ print goes back to the commercial layout.
+      setBoqMode(false);
     };
     window.addEventListener("afterprint", restore);
     const frame = window.requestAnimationFrame(() => {
@@ -1589,6 +1755,14 @@ export default function Designer({
               Print Draft
             </button>
             <button
+              onClick={printBoq}
+              disabled={items.length === 0}
+              title="Print the Bill of Quantities — items only, no pricing columns or totals"
+              className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors disabled:opacity-50"
+            >
+              Print BOQ
+            </button>
+            <button
               onClick={() => saveQuotation("save")}
               disabled={
                 items.length === 0 || saving || (!editMode && !folderId)
@@ -1691,6 +1865,7 @@ export default function Designer({
           clientLocked={clientLocked}
           footerText={appSettings.footerText}
           brandVariantId={brandVariantId}
+          boqMode={boqMode}
         />
       </div>
       )}

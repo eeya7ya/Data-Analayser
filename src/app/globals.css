@@ -151,6 +151,14 @@ body > * {
   width: 100%;
   border-collapse: collapse;
   font-size: 10.5px;
+  /* `table-layout: fixed` makes the printed column widths match the
+   * <th style={width}> values exactly instead of the browser re-flowing
+   * them to accommodate wide content. Without this, long descriptions in
+   * the first few rows could stretch the table past the 100% container
+   * width, which the printer then clipped on the right edge (the user
+   * reported "table side is cut off" in the printed PDF). */
+  table-layout: fixed;
+  box-sizing: border-box;
 }
 
 .quotation-sheet th,
@@ -159,6 +167,11 @@ body > * {
   padding: 6px 5px;
   vertical-align: middle;
   text-align: center;
+  /* Keep long tokens (model codes, URLs, brand names) from forcing a
+   * cell wider than its declared width and overflowing the sheet. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  box-sizing: border-box;
 }
 
 .quotation-sheet thead th {
@@ -319,8 +332,15 @@ body > * {
      * system table breaks across multiple A4 sheets — has breathing room
      * at the top and bottom. Without this, the repeated brand strip in
      * the sheet-layout's <thead> lands flush against the paper edge on
-     * continuation pages and the logo prints clipped. */
-    margin: 14mm 12mm 18mm 12mm;
+     * continuation pages and the logo prints clipped.
+     *
+     * A nudge to 14mm on the horizontal margins (was 12mm) ensures the
+     * right-most table border is never clipped by the printer's
+     * non-printable area — the issue the user reported as "table side
+     * is cut off" in the final PDF. 2mm extra on each side is
+     * imperceptible in the overall layout but restores the missing
+     * border. */
+    margin: 14mm 14mm 18mm 14mm;
   }
   /* Cover and about-us sheets opt into a zero-margin page so the artwork
    * still fills the full A4 bleed while the rest of the quotation picks
@@ -342,6 +362,11 @@ body > * {
     padding: 0 !important;
     width: auto !important;
     min-height: 0 !important;
+    /* Belt-and-braces: guarantee nothing inside the sheet (an over-wide
+     * table, a long model code, a stray input) pushes past the right
+     * margin. Combined with `table-layout: fixed` above this keeps every
+     * printed page within the safe area. */
+    overflow: hidden;
   }
   /* Full-bleed sheets keep the explicit 210×297mm geometry so the
    * cover/about images really do fill the whole A4. */
