@@ -29,9 +29,26 @@ const KEY = "global";
  * for fields that are MISSING or the wrong type — an empty string or empty
  * array is a legitimate admin choice and must be preserved, otherwise the
  * admin has no way to clear a value.
+ *
+ * Handles the case where the jsonb column comes back as a raw JSON STRING
+ * rather than a parsed object. Under `prepare: false` (mandatory for the
+ * Supabase transaction pooler), postgres.js can't introspect the column
+ * type and occasionally surfaces jsonb as text — this is the same
+ * normalisation QuotationViewer applies to `items_json` / `config_json`.
+ * Without this unwrap, every settings read returned all-defaults on the
+ * serverless deploy, which is why the Save toast flashed "Saved." and the
+ * form immediately re-seeded to CRM=off / built-in terms.
  */
 function normalize(value: unknown): AppSettings {
-  const v = (value ?? {}) as Partial<AppSettings>;
+  let raw: unknown = value;
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      raw = {};
+    }
+  }
+  const v = (raw ?? {}) as Partial<AppSettings>;
   return {
     defaultTerms: Array.isArray(v.defaultTerms)
       ? v.defaultTerms.map((t) => String(t ?? ""))
