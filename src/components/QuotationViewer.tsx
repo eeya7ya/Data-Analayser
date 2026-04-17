@@ -225,15 +225,20 @@ export default function QuotationViewer({
     scope_intro: config.scopeIntro || "",
   };
 
-  // Trigger a browser print, optionally tagging <body> with `print-draft`
-  // so the @media print CSS hides the full-bleed cover / about-us sheets.
+  // Trigger a browser print, optionally tagging <body> with a mode marker
+  // that the @media print CSS keys off:
+  //   - "draft" hides the full-bleed cover / about-us sheets
+  //   - "boq"   additionally strips all pricing columns and totals so the
+  //             client gets a Bill of Quantities (scope only, no prices)
   // The class is cleared on `afterprint` (works on every browser) and as
   // a safety net on the next animation frame for Chrome, which returns
   // synchronously from window.print().
-  function runPrint(draft: boolean) {
-    if (draft) document.body.classList.add("print-draft");
+  function runPrint(mode: "normal" | "draft" | "boq") {
+    if (mode === "draft") document.body.classList.add("print-draft");
+    if (mode === "boq") document.body.classList.add("print-boq");
     const cleanup = () => {
       document.body.classList.remove("print-draft");
+      document.body.classList.remove("print-boq");
       window.removeEventListener("afterprint", cleanup);
     };
     window.addEventListener("afterprint", cleanup);
@@ -251,17 +256,24 @@ export default function QuotationViewer({
           Edit
         </button>
         <button
-          onClick={() => runPrint(false)}
+          onClick={() => runPrint("normal")}
           className="rounded-md bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700"
         >
           Print / PDF
         </button>
         <button
-          onClick={() => runPrint(true)}
+          onClick={() => runPrint("draft")}
           title="Print without the cover and about-us pages (internal draft)"
           className="rounded-md border border-magic-red text-magic-red px-4 py-2 text-sm font-semibold hover:bg-magic-red hover:text-white transition-colors"
         >
           Print Draft
+        </button>
+        <button
+          onClick={() => runPrint("boq")}
+          title="Print a Bill of Quantities — same tables without any pricing, subtotals, or totals"
+          className="rounded-md border border-magic-red text-magic-red px-4 py-2 text-sm font-semibold hover:bg-magic-red hover:text-white transition-colors"
+        >
+          Print BOQ
         </button>
       </div>
       <QuotationPreview
