@@ -17,6 +17,7 @@ export default function AdminSettings({
     initialSettings.defaultTerms.join("\n"),
   );
   const [footerText, setFooterText] = useState(initialSettings.footerText);
+  const [crmEnabled, setCrmEnabled] = useState(initialSettings.crmModuleEnabled);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -34,7 +35,11 @@ export default function AdminSettings({
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ defaultTerms, footerText }),
+        body: JSON.stringify({
+          defaultTerms,
+          footerText,
+          crmModuleEnabled: crmEnabled,
+        }),
       });
       const data = (await res.json()) as {
         settings?: AppSettings;
@@ -48,6 +53,7 @@ export default function AdminSettings({
       if (data.settings) {
         setTermsText(data.settings.defaultTerms.join("\n"));
         setFooterText(data.settings.footerText);
+        setCrmEnabled(data.settings.crmModuleEnabled);
       }
       setStatus("Saved.");
     } catch (e) {
@@ -95,6 +101,28 @@ export default function AdminSettings({
           className="w-full rounded-md border border-magic-border px-3 py-2 text-sm"
           placeholder="Address: …  Tel: …  Fax: …"
         />
+      </div>
+
+      <div className="rounded-xl border border-magic-border/70 bg-magic-soft/30 p-4">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={crmEnabled}
+            onChange={(e) => setCrmEnabled(e.target.checked)}
+            className="mt-1 h-4 w-4 accent-magic-red"
+          />
+          <span>
+            <span className="block text-sm font-semibold text-magic-ink">
+              Enable CRM module
+            </span>
+            <span className="block text-[11px] text-magic-ink/60">
+              Reveals the Contacts, Companies, Deals, Tasks, Workflows and
+              Dashboard surfaces under <code>/crm</code>. Off by default —
+              flipping it back to off is an instant rollback (no data is
+              touched).
+            </span>
+          </span>
+        </label>
       </div>
 
       <div className="flex items-center gap-3">

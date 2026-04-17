@@ -131,6 +131,42 @@ const QUOTATION_STATUS_FLAG = "quotation_status_v1_2026_04";
  */
 const CRM_FOUNDATION_FLAG = "crm_foundation_v1_2026_04";
 
+/**
+ * CRM Phase 1: contacts + companies. People and accounts attach via nullable
+ * FKs to client_folders so the existing folder UX is untouched. Phase 2 adds
+ * pipelines + deals + stages keyed off these.
+ */
+const CRM_CONTACTS_FLAG = "crm_contacts_v1_2026_04";
+
+/**
+ * CRM Phase 2: pipelines + stages + deals. Each pipeline ships with a default
+ * stage set on first creation; deals link optionally to a quotation so the
+ * quotation flow is unaffected.
+ */
+const CRM_DEALS_FLAG = "crm_deals_v1_2026_04";
+
+/**
+ * CRM Phase 3: tasks, notes, in-app notifications. Polled by the client every
+ * ~30s; no email provider involved.
+ */
+const CRM_TASKS_FLAG = "crm_tasks_v1_2026_04";
+
+/**
+ * CRM Phase 5: workflow rules + run history (cron-driven).
+ */
+const CRM_WORKFLOWS_FLAG = "crm_workflows_v1_2026_04";
+
+/**
+ * CRM Phase 6: teams, team_members, entity ACLs. Owner-isolation is the floor;
+ * ACLs only grant additional access.
+ */
+const CRM_TEAMS_FLAG = "crm_teams_v1_2026_04";
+
+/**
+ * CRM Phase 7: Postgres full-text search across CRM entities + quotations.
+ */
+const CRM_SEARCH_FLAG = "crm_search_v1_2026_04";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -158,7 +194,12 @@ export async function resetSchemaCache(): Promise<void> {
   // re-running it is a no-op, but leaving the flag avoids the extra SELECTs.
   await q`
     delete from migration_flags
-    where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG}, ${CRM_FOUNDATION_FLAG})
+    where key in (
+      ${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG},
+      ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
+      ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
+      ${CRM_SEARCH_FLAG}
+    )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
   // actually hits the database instead of returning the cached void.
@@ -178,22 +219,51 @@ async function _ensureSchemaOnce(): Promise<void> {
   let perfIndexesApplied = false;
   let quotationStatusApplied = false;
   let crmFoundationApplied = false;
+  let crmContactsApplied = false;
+  let crmDealsApplied = false;
+  let crmTasksApplied = false;
+  let crmWorkflowsApplied = false;
+  let crmTeamsApplied = false;
+  let crmSearchApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
-      where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG}, ${CRM_FOUNDATION_FLAG})
+      where key in (
+        ${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG},
+        ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
+        ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
+        ${CRM_SEARCH_FLAG}
+      )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
     schemaBootstrapped = keys.has(SCHEMA_FINGERPRINT);
     perfIndexesApplied = keys.has(PERF_INDEX_FLAG);
     quotationStatusApplied = keys.has(QUOTATION_STATUS_FLAG);
     crmFoundationApplied = keys.has(CRM_FOUNDATION_FLAG);
+    crmContactsApplied = keys.has(CRM_CONTACTS_FLAG);
+    crmDealsApplied = keys.has(CRM_DEALS_FLAG);
+    crmTasksApplied = keys.has(CRM_TASKS_FLAG);
+    crmWorkflowsApplied = keys.has(CRM_WORKFLOWS_FLAG);
+    crmTeamsApplied = keys.has(CRM_TEAMS_FLAG);
+    crmSearchApplied = keys.has(CRM_SEARCH_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
 
   // All migrations already applied — nothing to do.
-  if (schemaBootstrapped && perfIndexesApplied && quotationStatusApplied && crmFoundationApplied) return;
+  if (
+    schemaBootstrapped &&
+    perfIndexesApplied &&
+    quotationStatusApplied &&
+    crmFoundationApplied &&
+    crmContactsApplied &&
+    crmDealsApplied &&
+    crmTasksApplied &&
+    crmWorkflowsApplied &&
+    crmTeamsApplied &&
+    crmSearchApplied
+  )
+    return;
 
   if (!schemaBootstrapped) {
   await q`
@@ -591,6 +661,335 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${CRM_FOUNDATION_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── CRM Phase 1: contacts + companies ────────────────────────────────────
+  // companies are the "account" record; contacts are the people. Both attach
+  // optionally to a client_folders row so the existing folder UX (used by
+  // /quotation, /designer) continues to work — the folder remains the
+  // authoritative client-record for quotation purposes.
+  if (!crmContactsApplied) {
+    await q`
+      create table if not exists companies (
+        id            serial primary key,
+        owner_id      integer references users(id) on delete set null,
+        folder_id     integer references client_folders(id) on delete set null,
+        name          text not null,
+        website       text,
+        industry      text,
+        size_bucket   text,
+        notes         text,
+        custom_fields jsonb not null default '{}'::jsonb,
+        deleted_at    timestamptz,
+        created_at    timestamptz not null default now(),
+        updated_at    timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists companies_owner_idx  on companies(owner_id, deleted_at)`;
+    await q`create index if not exists companies_folder_idx on companies(folder_id)`;
+
+    await q`
+      create table if not exists contacts (
+        id            serial primary key,
+        owner_id      integer references users(id) on delete set null,
+        folder_id     integer references client_folders(id) on delete set null,
+        company_id    integer references companies(id) on delete set null,
+        first_name    text,
+        last_name     text,
+        email         text,
+        phone         text,
+        title         text,
+        notes         text,
+        custom_fields jsonb not null default '{}'::jsonb,
+        deleted_at    timestamptz,
+        created_at    timestamptz not null default now(),
+        updated_at    timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists contacts_owner_idx   on contacts(owner_id, deleted_at)`;
+    await q`create index if not exists contacts_folder_idx  on contacts(folder_id)`;
+    await q`create index if not exists contacts_company_idx on contacts(company_id)`;
+    await q`create index if not exists contacts_email_idx   on contacts(lower(email))`;
+
+    await q`
+      insert into migration_flags (key) values (${CRM_CONTACTS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── CRM Phase 2: pipelines + stages + deals ──────────────────────────────
+  // A deal is a sales opportunity. It optionally references a quotation, so
+  // existing quotations remain first-class and can be retroactively attached
+  // to a deal without any data rewrite. Stages are owner-scoped so each user
+  // can have their own pipeline configuration.
+  if (!crmDealsApplied) {
+    await q`
+      create table if not exists pipelines (
+        id          serial primary key,
+        owner_id    integer references users(id) on delete set null,
+        name        text not null,
+        is_default  boolean not null default false,
+        deleted_at  timestamptz,
+        created_at  timestamptz not null default now(),
+        updated_at  timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists pipelines_owner_idx on pipelines(owner_id, deleted_at)`;
+
+    await q`
+      create table if not exists pipeline_stages (
+        id           serial primary key,
+        pipeline_id  integer not null references pipelines(id) on delete cascade,
+        name         text not null,
+        position     integer not null default 0,
+        win_prob     numeric not null default 0,
+        is_won       boolean not null default false,
+        is_lost      boolean not null default false,
+        created_at   timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists pipeline_stages_pipeline_idx on pipeline_stages(pipeline_id, position)`;
+
+    await q`
+      create table if not exists deals (
+        id                serial primary key,
+        owner_id          integer references users(id) on delete set null,
+        pipeline_id       integer references pipelines(id) on delete set null,
+        stage_id          integer references pipeline_stages(id) on delete set null,
+        company_id        integer references companies(id) on delete set null,
+        contact_id        integer references contacts(id) on delete set null,
+        folder_id         integer references client_folders(id) on delete set null,
+        quotation_id      integer references quotations(id) on delete set null,
+        title             text not null,
+        amount            numeric not null default 0,
+        currency          text not null default 'USD',
+        probability       numeric not null default 0,
+        expected_close_at date,
+        status            text not null default 'open', -- 'open' | 'won' | 'lost'
+        custom_fields     jsonb not null default '{}'::jsonb,
+        deleted_at        timestamptz,
+        created_at        timestamptz not null default now(),
+        updated_at        timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists deals_owner_idx     on deals(owner_id, deleted_at)`;
+    await q`create index if not exists deals_stage_idx     on deals(stage_id)`;
+    await q`create index if not exists deals_pipeline_idx  on deals(pipeline_id)`;
+    await q`create index if not exists deals_quotation_idx on deals(quotation_id)`;
+
+    await q`
+      insert into migration_flags (key) values (${CRM_DEALS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── CRM Phase 3: tasks + notes + in-app notifications ────────────────────
+  // Generic entity_type/entity_id pair so a task or note can attach to any
+  // CRM record (contact, company, deal, quotation). Notifications are read by
+  // the client polling /api/crm/notifications — no email or push provider.
+  if (!crmTasksApplied) {
+    await q`
+      create table if not exists tasks (
+        id            serial primary key,
+        owner_id      integer references users(id) on delete set null,
+        assignee_id   integer references users(id) on delete set null,
+        entity_type   text,
+        entity_id     bigint,
+        title         text not null,
+        description   text,
+        due_at        timestamptz,
+        priority      text not null default 'normal',
+        status        text not null default 'open', -- 'open' | 'done' | 'cancelled'
+        custom_fields jsonb not null default '{}'::jsonb,
+        deleted_at    timestamptz,
+        created_at    timestamptz not null default now(),
+        updated_at    timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists tasks_owner_idx    on tasks(owner_id, status, deleted_at)`;
+    await q`create index if not exists tasks_assignee_idx on tasks(assignee_id, status, deleted_at)`;
+    await q`create index if not exists tasks_entity_idx   on tasks(entity_type, entity_id)`;
+    await q`create index if not exists tasks_due_idx      on tasks(due_at) where deleted_at is null and status = 'open'`;
+
+    await q`
+      create table if not exists notes (
+        id          serial primary key,
+        owner_id    integer references users(id) on delete set null,
+        author_id   integer references users(id) on delete set null,
+        entity_type text not null,
+        entity_id   bigint not null,
+        body        text not null,
+        deleted_at  timestamptz,
+        created_at  timestamptz not null default now(),
+        updated_at  timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists notes_entity_idx on notes(entity_type, entity_id, created_at desc)`;
+    await q`create index if not exists notes_owner_idx  on notes(owner_id, deleted_at)`;
+
+    await q`
+      create table if not exists notifications (
+        id          bigserial primary key,
+        user_id     integer not null references users(id) on delete cascade,
+        kind        text not null,
+        title       text not null,
+        body        text,
+        link        text,
+        payload     jsonb not null default '{}'::jsonb,
+        read_at     timestamptz,
+        created_at  timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists notifications_user_idx on notifications(user_id, read_at, created_at desc)`;
+
+    await q`
+      insert into migration_flags (key) values (${CRM_TASKS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── CRM Phase 5: workflows + workflow_runs ───────────────────────────────
+  // Lightweight rule engine driven by a Vercel Cron tick. Triggers are
+  // matched against activity_log entries (event-driven) or evaluated against
+  // due dates / quotation status (scheduled).
+  if (!crmWorkflowsApplied) {
+    await q`
+      create table if not exists workflows (
+        id            serial primary key,
+        owner_id      integer references users(id) on delete set null,
+        name          text not null,
+        trigger_kind  text not null, -- 'event' | 'schedule'
+        trigger_json  jsonb not null default '{}'::jsonb,
+        actions_json  jsonb not null default '[]'::jsonb,
+        enabled       boolean not null default true,
+        last_run_at   timestamptz,
+        deleted_at    timestamptz,
+        created_at    timestamptz not null default now(),
+        updated_at    timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists workflows_owner_idx on workflows(owner_id, deleted_at)`;
+    await q`create index if not exists workflows_enabled_idx on workflows(enabled) where deleted_at is null`;
+
+    await q`
+      create table if not exists workflow_runs (
+        id           bigserial primary key,
+        workflow_id  integer not null references workflows(id) on delete cascade,
+        status       text not null default 'ok', -- 'ok' | 'error'
+        message      text,
+        meta_json    jsonb not null default '{}'::jsonb,
+        ran_at       timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists workflow_runs_workflow_idx on workflow_runs(workflow_id, ran_at desc)`;
+
+    await q`
+      insert into migration_flags (key) values (${CRM_WORKFLOWS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── CRM Phase 6: teams + entity ACLs ─────────────────────────────────────
+  // Owner-isolation stays as the floor; ACLs only GRANT additional access to
+  // a team or another user. Legacy reads that filter on owner_id are unaffected.
+  if (!crmTeamsApplied) {
+    await q`
+      create table if not exists teams (
+        id          serial primary key,
+        name        text not null unique,
+        created_at  timestamptz not null default now(),
+        updated_at  timestamptz not null default now()
+      )
+    `;
+    await q`
+      create table if not exists team_members (
+        team_id   integer not null references teams(id) on delete cascade,
+        user_id   integer not null references users(id) on delete cascade,
+        role      text not null default 'member', -- 'owner' | 'member'
+        joined_at timestamptz not null default now(),
+        primary key (team_id, user_id)
+      )
+    `;
+    await q`create index if not exists team_members_user_idx on team_members(user_id)`;
+
+    await q`
+      create table if not exists entity_acls (
+        id              bigserial primary key,
+        entity_type     text not null,
+        entity_id       bigint not null,
+        principal_kind  text not null, -- 'user' | 'team'
+        principal_id    integer not null,
+        perm            text not null default 'view', -- 'view' | 'edit'
+        created_at      timestamptz not null default now()
+      )
+    `;
+    await q`create unique index if not exists entity_acls_unique_idx on entity_acls(entity_type, entity_id, principal_kind, principal_id, perm)`;
+    await q`create index if not exists entity_acls_principal_idx    on entity_acls(principal_kind, principal_id)`;
+
+    await q`
+      insert into migration_flags (key) values (${CRM_TEAMS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── CRM Phase 7: full-text search columns + GIN indexes ──────────────────
+  // Postgres-native FTS — no external service. Each indexed table gets a
+  // generated `search_tsv` column over the rendered text fields.
+  if (!crmSearchApplied) {
+    await q`
+      alter table contacts add column if not exists search_tsv tsvector
+      generated always as (
+        to_tsvector('simple',
+          coalesce(first_name,'') || ' ' ||
+          coalesce(last_name,'')  || ' ' ||
+          coalesce(email,'')      || ' ' ||
+          coalesce(phone,'')      || ' ' ||
+          coalesce(title,'')      || ' ' ||
+          coalesce(notes,'')
+        )
+      ) stored
+    `;
+    await q`create index if not exists contacts_search_idx on contacts using gin(search_tsv)`;
+
+    await q`
+      alter table companies add column if not exists search_tsv tsvector
+      generated always as (
+        to_tsvector('simple',
+          coalesce(name,'') || ' ' ||
+          coalesce(website,'') || ' ' ||
+          coalesce(industry,'') || ' ' ||
+          coalesce(notes,'')
+        )
+      ) stored
+    `;
+    await q`create index if not exists companies_search_idx on companies using gin(search_tsv)`;
+
+    await q`
+      alter table deals add column if not exists search_tsv tsvector
+      generated always as (
+        to_tsvector('simple', coalesce(title,''))
+      ) stored
+    `;
+    await q`create index if not exists deals_search_idx on deals using gin(search_tsv)`;
+
+    await q`
+      alter table quotations add column if not exists search_tsv tsvector
+      generated always as (
+        to_tsvector('simple',
+          coalesce(ref,'')          || ' ' ||
+          coalesce(project_name,'') || ' ' ||
+          coalesce(client_name,'')  || ' ' ||
+          coalesce(client_email,'') || ' ' ||
+          coalesce(site_name,'')
+        )
+      ) stored
+    `;
+    await q`create index if not exists quotations_search_idx on quotations using gin(search_tsv)`;
+
+    await q`
+      insert into migration_flags (key) values (${CRM_SEARCH_FLAG})
       on conflict (key) do nothing
     `;
   }
