@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import QuotationPreview, {
   QuotationItem,
@@ -93,6 +93,12 @@ export default function QuotationViewer({
   const [row, setRow] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // BoQ toggle — flipped on just before opening the print dialog so the
+  // preview re-renders without the Unit Price / Total Price columns and
+  // the Final Totals page. Cleared on `afterprint` so the on-screen
+  // viewer goes back to the priced layout immediately.
+  const [boqMode, setBoqMode] = useState(false);
+  const pendingPrintRef = useRef<null | "boq">(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -241,6 +247,48 @@ export default function QuotationViewer({
     requestAnimationFrame(cleanup);
   }
 
+  /**
+   * Print the saved quotation as a Bill of Quantities. Flips `boqMode`
+   * on so the preview re-renders without pricing, then waits one frame
+   * for React to commit the DOM before opening the browser print dialog.
+   * Without the frame wait, `window.print()` captures the priced layout
+   * that was on screen a tick earlier.
+   */
+  function runPrintBoq() {
+    pendingPrintRef.current = "boq";
+    document.body.classList.add("print-draft");
+    setBoqMode(true);
+  }
+
+  // Once BoQ mode is committed to the DOM (next animation frame), fire
+  // the browser print dialog. On `afterprint` (and as a safety net on
+  // Chrome, which returns synchronously from `window.print()`) we flip
+  // BoQ off so the on-screen viewer goes back to the priced layout.
+  useEffect(() => {
+    if (!boqMode || pendingPrintRef.current !== "boq") return;
+    let cancelled = false;
+    const cleanup = () => {
+      if (cancelled) return;
+      document.body.classList.remove("print-draft");
+      setBoqMode(false);
+      pendingPrintRef.current = null;
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        window.print();
+      } finally {
+        cleanup();
+      }
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("afterprint", cleanup);
+    };
+  }, [boqMode]);
+
   return (
     <div>
       <div className="no-print flex justify-end mb-3 gap-2">
@@ -263,6 +311,13 @@ export default function QuotationViewer({
         >
           Print Draft
         </button>
+        <button
+          onClick={runPrintBoq}
+          title="Print the Bill of Quantities — items only, no pricing columns or totals"
+          className="rounded-md border border-magic-red text-magic-red px-4 py-2 text-sm font-semibold hover:bg-magic-red hover:text-white transition-colors"
+        >
+          Print BOQ
+        </button>
       </div>
       <QuotationPreview
         header={header}
@@ -284,6 +339,7 @@ export default function QuotationViewer({
         taxInclusive={Boolean(config.taxInclusive)}
         footerText={appSettings.footerText}
         brandVariantId={config.brandVariantId}
+        boqMode={boqMode}
       />
     </div>
   );
