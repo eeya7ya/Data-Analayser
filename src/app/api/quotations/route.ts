@@ -122,6 +122,7 @@ export async function GET(req: NextRequest) {
     await ensureSchema();
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
+    const contactIdParam = searchParams.get("contact_id");
     const q = sql();
     if (id) {
       // Single-row lookup. Historically this returned even trashed rows so
@@ -133,8 +134,8 @@ export async function GET(req: NextRequest) {
       const rows = (await q`
         select id, ref, owner_id, project_name, client_name, client_email,
                client_phone, sales_engineer, prepared_by, tax_percent,
-               site_name, items_json, config_json, folder_id, status,
-               parent_ref, created_at, updated_at, deleted_at
+               site_name, items_json, config_json, folder_id, contact_id,
+               status, parent_ref, created_at, updated_at, deleted_at
         from quotations
         where id = ${Number(id)}
         limit 1
@@ -154,11 +155,44 @@ export async function GET(req: NextRequest) {
       }
       return NextResponse.json({ quotation: row });
     }
+    // Per-contact list. Used by CompanyDetail to render each person's
+    // quotations underneath their card. Owner-isolated for non-admins so a
+    // shared contact_id never leaks rows across users.
+    if (contactIdParam) {
+      const contactId = Number(contactIdParam);
+      if (!Number.isFinite(contactId) || contactId <= 0) {
+        return NextResponse.json({ quotations: [] });
+      }
+      const contactRows =
+        user.role === "admin"
+          ? ((await q`
+              select id, ref, project_name, client_name, site_name,
+                     folder_id, contact_id, owner_id, status, parent_ref,
+                     created_at, updated_at
+              from quotations
+              where contact_id = ${contactId} and deleted_at is null
+              order by id desc
+              limit 200
+            `) as Array<Record<string, unknown>>)
+          : ((await q`
+              select id, ref, project_name, client_name, site_name,
+                     folder_id, contact_id, owner_id, status, parent_ref,
+                     created_at, updated_at
+              from quotations
+              where contact_id = ${contactId}
+                and owner_id = ${user.id}
+                and deleted_at is null
+              order by id desc
+              limit 200
+            `) as Array<Record<string, unknown>>);
+      return NextResponse.json({ quotations: contactRows });
+    }
+
     const rows =
       user.role === "admin"
         ? ((await q`
             select q.id, q.ref, q.project_name, q.client_name, q.site_name,
-                   q.folder_id, q.owner_id, q.status, q.parent_ref,
+                   q.folder_id, q.contact_id, q.owner_id, q.status, q.parent_ref,
                    q.created_at, q.updated_at,
                    u.username as owner_username,
                    u.display_name as owner_display_name
@@ -170,7 +204,7 @@ export async function GET(req: NextRequest) {
           `) as Array<Record<string, unknown>>)
         : ((await q`
             select id, ref, project_name, client_name, site_name,
-                   folder_id, owner_id, status, parent_ref,
+                   folder_id, contact_id, owner_id, status, parent_ref,
                    created_at, updated_at
             from quotations
             where owner_id = ${user.id}
@@ -227,6 +261,7 @@ export async function PATCH(req: NextRequest) {
       totals?: Record<string, unknown>;
       config?: Record<string, unknown>;
       folder_id?: number | null;
+      contact_id?: number | null;
     };
     const q = sql();
     const existingRows = (await q`
@@ -262,6 +297,26 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    // Same owner check for the contact link, so a user can't attribute their
+    // quotation to a person they don't own. Admins skip the check.
+    if (
+      user.role !== "admin" &&
+      body.contact_id !== undefined &&
+      body.contact_id !== null
+    ) {
+      const contactRows = (await q`
+        select owner_id from contacts
+        where id = ${body.contact_id} and deleted_at is null
+        limit 1
+      `) as Array<{ owner_id: number | null }>;
+      if (contactRows.length === 0) {
+        return NextResponse.json({ error: "contact not found" }, { status: 404 });
+      }
+      if (contactRows[0].owner_id !== user.id) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+    }
+
     // Only touch columns that the caller explicitly sent. The previous
     // implementation read `existing.*` and re-wrote every column, which
     // was catastrophic for jsonb fields: the round-trip
@@ -292,6 +347,8 @@ export async function PATCH(req: NextRequest) {
     );
     const fid =
       body.folder_id !== undefined ? body.folder_id : existing.folder_id;
+    const cid =
+      body.contact_id !== undefined ? body.contact_id : existing.contact_id;
 
     const hasItems = body.items !== undefined;
     const hasTotals = body.totals !== undefined;
@@ -321,6 +378,7 @@ export async function PATCH(req: NextRequest) {
         totals_json    = case when ${hasTotals} then ${totalsText}::jsonb else totals_json end,
         config_json    = case when ${hasConfig} then ${configText}::jsonb else config_json end,
         folder_id      = ${fid as number | null},
+        contact_id     = ${cid as number | null},
         updated_at     = now()
       where id = ${id}
       returning id, ref
@@ -361,6 +419,7 @@ export async function POST(req: NextRequest) {
       totals?: Record<string, unknown>;
       config?: Record<string, unknown>;
       folder_id?: number | null;
+      contact_id?: number | null;
     };
 
     const mode: QuotationMode =
@@ -427,6 +486,22 @@ export async function POST(req: NextRequest) {
     }
 
     const folderId = body.folder_id || null;
+    const contactId = body.contact_id ?? null;
+    // Owner check on the linked contact for non-admins. Same shape as the
+    // PATCH path: refuses an unknown id or one belonging to another user.
+    if (user.role !== "admin" && contactId !== null) {
+      const contactRows = (await q`
+        select owner_id from contacts
+        where id = ${contactId} and deleted_at is null
+        limit 1
+      `) as Array<{ owner_id: number | null }>;
+      if (contactRows.length === 0) {
+        return NextResponse.json({ error: "contact not found" }, { status: 404 });
+      }
+      if (contactRows[0].owner_id !== user.id) {
+        return NextResponse.json({ error: "forbidden contact" }, { status: 403 });
+      }
+    }
     // Folder selection is the CRM anchor: the client_* fields are sourced
     // from the folder unless the caller explicitly sent overrides. This is
     // what lets Designer.tsx present a UI where the user only types the
@@ -477,7 +552,7 @@ export async function POST(req: NextRequest) {
       insert into quotations (
         ref, owner_id, project_name, client_name, client_email, client_phone,
         sales_engineer, prepared_by, site_name, tax_percent, items_json,
-        totals_json, config_json, folder_id, status, parent_ref
+        totals_json, config_json, folder_id, contact_id, status, parent_ref
       ) values (
         ${ref}, ${user.id}, ${body.project_name}, ${clientName},
         ${clientEmail}, ${clientPhone},
@@ -486,7 +561,7 @@ export async function POST(req: NextRequest) {
         ${JSON.stringify(body.items || [])}::jsonb,
         ${JSON.stringify(body.totals || {})}::jsonb,
         ${JSON.stringify(body.config || {})}::jsonb,
-        ${folderId}, ${mode}, ${storedParentRef}
+        ${folderId}, ${contactId}, ${mode}, ${storedParentRef}
       )
       returning id, ref, status, parent_ref
     `) as Array<{

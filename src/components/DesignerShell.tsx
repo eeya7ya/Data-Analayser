@@ -158,6 +158,7 @@ export default function DesignerShell({
         site_name: String(row.site_name),
         tax_percent: Number(row.tax_percent ?? 16),
         folder_id: row.folder_id ? Number(row.folder_id) : null,
+        contact_id: row.contact_id ? Number(row.contact_id) : null,
         items_json: itemsArray,
         config_json: configObject,
       });

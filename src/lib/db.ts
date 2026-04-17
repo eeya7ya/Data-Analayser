@@ -181,6 +181,14 @@ const CRM_SEARCH_FLAG = "crm_search_v1_2026_04";
  */
 const PERF_INDEX_V2_FLAG = "perf_composite_indexes_v2_2026_04";
 
+/**
+ * Quotation→contact link. Adds a nullable `contact_id` FK on `quotations` so
+ * a quotation can be attributed to a specific person at the client company,
+ * not just to the client folder. The CompanyDetail page uses this to group
+ * each contact's own quotations underneath their card.
+ */
+const QUOTATION_CONTACT_FLAG = "crm_quotation_contact_v1_2026_04";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -212,7 +220,7 @@ export async function resetSchemaCache(): Promise<void> {
       ${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG},
       ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
       ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
-      ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}
+      ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG}
     )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
@@ -240,6 +248,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let crmTeamsApplied = false;
   let crmSearchApplied = false;
   let perfIndexesV2Applied = false;
+  let quotationContactApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -247,7 +256,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG},
         ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
         ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
-        ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}
+        ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -262,6 +271,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     crmTeamsApplied = keys.has(CRM_TEAMS_FLAG);
     crmSearchApplied = keys.has(CRM_SEARCH_FLAG);
     perfIndexesV2Applied = keys.has(PERF_INDEX_V2_FLAG);
+    quotationContactApplied = keys.has(QUOTATION_CONTACT_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -278,7 +288,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     crmWorkflowsApplied &&
     crmTeamsApplied &&
     crmSearchApplied &&
-    perfIndexesV2Applied
+    perfIndexesV2Applied &&
+    quotationContactApplied
   )
     return;
 
@@ -1050,6 +1061,27 @@ async function _ensureSchemaOnce(): Promise<void> {
             on team_members(team_id)`;
     await q`
       insert into migration_flags (key) values (${PERF_INDEX_V2_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── Quotation→contact link ───────────────────────────────────────────────
+  // Adds a nullable contact_id column on quotations referencing contacts(id).
+  // Lets the CompanyDetail page show each contact's own quotations instead
+  // of just lumping every folder quotation under the company. ON DELETE SET
+  // NULL so soft-removing a contact never orphans a quotation row.
+  if (!quotationContactApplied) {
+    await q`
+      alter table quotations
+      add column if not exists contact_id integer
+      references contacts(id) on delete set null
+    `;
+    await q`
+      create index if not exists quotations_contact_idx
+      on quotations(contact_id)
+    `;
+    await q`
+      insert into migration_flags (key) values (${QUOTATION_CONTACT_FLAG})
       on conflict (key) do nothing
     `;
   }

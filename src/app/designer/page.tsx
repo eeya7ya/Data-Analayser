@@ -15,6 +15,12 @@ interface SearchParams {
    * /quotation so the Designer opens with the client already locked in.
    */
   folder?: string;
+  /**
+   * Pre-attribute the new quotation to a specific person at the company.
+   * Sent by the "+ New quotation" button next to each contact on
+   * /crm/companies/[id] so each person's card lists their own deals.
+   */
+  contact?: string;
 }
 
 export default async function DesignerPage({
@@ -86,6 +92,12 @@ export default async function DesignerPage({
     if (Number.isFinite(n) && n > 0) initialFolderId = n;
   }
 
+  let initialContactId: number | null = null;
+  if (sp.contact) {
+    const n = Number(sp.contact);
+    if (Number.isFinite(n) && n > 0) initialContactId = n;
+  }
+
   // Gate: the Designer can only be opened from a client (`?folder=<n>`) or
   // an existing quotation (`?id=<n>`). Attempting to reach /designer directly
   // redirects to the Clients & Quotations page so the user must pick a
@@ -112,6 +124,7 @@ export default async function DesignerPage({
         <Designer
           user={user}
           initialFolderId={initialFolderId}
+          initialContactId={initialContactId}
           appSettings={await settingsPromise}
         />
       </main>
