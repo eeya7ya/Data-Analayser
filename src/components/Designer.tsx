@@ -1074,19 +1074,14 @@ export default function Designer({
   // and the empty-state "Add manual item" sheet, giving the user the
   // extra "unrequired slide" and mis-styled layout they reported.
   //
-  // `mode` selects which body class (if any) to tag the document with
-  // before opening the print dialog:
-  //   - "normal" → the full quotation including cover and about-us sheets
-  //   - "draft"  → hides the marketing cover/about sheets (internal review)
-  //   - "boq"    → Bill of Quantities: hides cover/about and every pricing
-  //                column, system subtotal, and the Final Totals summary.
-  //                Useful for tenders / technical reviews where clients
-  //                need the scope without commercials.
-  // The matching class is cleared in the `afterprint` effect below.
-  function printQuotation(mode: "normal" | "draft" | "boq" = "normal") {
+  // `draft=true` produces a "Print Draft" — identical to the normal
+  // printout except the full-bleed cover and about-us sheets are
+  // suppressed via a body class (`print-draft`) that the CSS
+  // `@media print` block keys off. Useful for internal reviews where
+  // the marketing-style front matter is just noise.
+  function printQuotation(draft = false) {
     if (typeof window === "undefined") return;
-    if (mode === "draft") document.body.classList.add("print-draft");
-    if (mode === "boq") document.body.classList.add("print-boq");
+    if (draft) document.body.classList.add("print-draft");
     setPrintMode(true);
   }
 
@@ -1200,10 +1195,9 @@ export default function Designer({
     let cancelled = false;
     const restore = () => {
       if (cancelled) return;
-      // Drop the draft/BOQ print markers so the next print doesn't
-      // inherit them if the user chain-clicks Print Draft → Print / PDF.
+      // Drop the draft-print marker so the next non-draft print doesn't
+      // inherit it if the user chain-clicks Print Draft → Print / PDF.
       document.body.classList.remove("print-draft");
-      document.body.classList.remove("print-boq");
       setPrintMode(false);
     };
     window.addEventListener("afterprint", restore);
@@ -1221,7 +1215,6 @@ export default function Designer({
       window.cancelAnimationFrame(frame);
       window.removeEventListener("afterprint", restore);
       document.body.classList.remove("print-draft");
-      document.body.classList.remove("print-boq");
     };
   }, [printMode]);
 
@@ -1580,7 +1573,7 @@ export default function Designer({
               Export Excel
             </button>
             <button
-              onClick={() => printQuotation("normal")}
+              onClick={() => printQuotation(false)}
               disabled={items.length === 0}
               title="Print the current quotation preview"
               className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
@@ -1588,20 +1581,12 @@ export default function Designer({
               Print / PDF
             </button>
             <button
-              onClick={() => printQuotation("draft")}
+              onClick={() => printQuotation(true)}
               disabled={items.length === 0}
               title="Print without the cover and about-us pages (internal draft)"
               className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors disabled:opacity-50"
             >
               Print Draft
-            </button>
-            <button
-              onClick={() => printQuotation("boq")}
-              disabled={items.length === 0}
-              title="Print a Bill of Quantities — same tables without any pricing, subtotals, or totals"
-              className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors disabled:opacity-50"
-            >
-              Print BOQ
             </button>
             <button
               onClick={() => saveQuotation("save")}
