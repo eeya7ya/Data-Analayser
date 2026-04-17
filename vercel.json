@@ -6,5 +6,11 @@
     "src/app/api/**/route.ts": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/crm/cron/tick",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }
