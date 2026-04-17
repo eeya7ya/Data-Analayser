@@ -732,8 +732,8 @@ export default function QuotationPreview({
             editable={editable}
             onChange={(v) => setHeader?.({ scope_intro: v })}
           />
-          <div className="site-banner">Final Totals</div>
-          <table>
+          <div className="site-banner boq-hide">Final Totals</div>
+          <table className="boq-hide">
             <tbody>
               <tr className="totals-row grand">
                 <td style={{ width: "75%" }}>Grand Total Cost (Subtotal)</td>
@@ -1323,8 +1323,8 @@ function SystemTable({
           {showPictures && <th style={{ width: "10%" }}>Picture</th>}
           <th style={{ width: "6%" }}>Quantity</th>
           <th style={{ width: "8%" }}>Delivery</th>
-          <th style={{ width: "10%" }}>Unit Price</th>
-          <th style={{ width: "12%" }}>Total Price</th>
+          <th className="boq-hide" style={{ width: "10%" }}>Unit Price</th>
+          <th className="boq-hide" style={{ width: "12%" }}>Total Price</th>
           {extraColumns.map((col) => (
             <th key={col.id} style={{ width: `${extraShare / Math.max(extraColumns.length, 1)}%` }}>
               {editable ? (
@@ -1482,7 +1482,7 @@ function SystemTable({
               rowIdx,
               globalIndex,
               hPlan,
-              "",
+              "boq-hide",
               editable ? (
                 <input
                   type="number"
@@ -1496,7 +1496,7 @@ function SystemTable({
                 Number(item.unit_price) ? money(item.unit_price) : ""
               ),
             )}
-            <td className="font-semibold">
+            <td className="font-semibold boq-hide">
               {item.optional ? (
                 <span className="italic text-magic-ink/60">Optional</span>
               ) : (() => {
@@ -1608,7 +1608,7 @@ function SystemTable({
           </tr>
           );
         })}
-        <tr className="totals-row">
+        <tr className="totals-row boq-hide">
           <td colSpan={colCount - 1}>{group.system} Subtotal</td>
           <td>{money(subtotal)}</td>
         </tr>
