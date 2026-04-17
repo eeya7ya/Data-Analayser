@@ -159,21 +159,15 @@ export async function getAppSettings(
     // defaults — serving defaults here is exactly the bug that makes the
     // admin's save look wiped after a reload lands on a cold lambda.
     if (staleCache?.data) return staleCache.data;
-    // No stale cache — give the already-running fetch one more window
-    // before falling back to `DEFAULT_APP_SETTINGS`. This covers the
-    // "Supabase is cold, not dead" case where the query is going to
-    // succeed in ~3–6s; without it the admin sees hardcoded defaults and
-    // thinks their last save was lost.
-    const extendedTimeout = new Promise<"TIMEOUT">((resolve) =>
-      setTimeout(
-        () => resolve("TIMEOUT"),
-        SETTINGS_FRESH_EXTENDED_BUDGET_MS,
-      ),
-    );
+    // No stale cache — we MUST wait for the real DB read rather than
+    // falling back to DEFAULT_APP_SETTINGS. Serving defaults here is what
+    // made the admin think their saves were lost: the /admin page would
+    // seed the form from hardcoded defaults, a subsequent save would merge
+    // the admin's patch over defaults, and after reload the cycle would
+    // repeat. The admin page is rare and already tolerates a slow load —
+    // block on the real query instead of serving a lie.
     try {
-      const extended = await Promise.race([inflight, extendedTimeout]);
-      if (extended === "TIMEOUT") return { ...DEFAULT_APP_SETTINGS };
-      return extended;
+      return await inflight;
     } catch {
       return { ...DEFAULT_APP_SETTINGS };
     }
@@ -219,14 +213,19 @@ export async function getAppSettings(
 
 export async function saveAppSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
   await ensureSchema();
-  // Merge against the latest persisted row, not this lambda instance's
-  // in-process cache. On Vercel a cold lambda's cache might still be
-  // undefined (or worse, populated with hardcoded defaults if the previous
-  // fresh read timed out), and merging the admin's partial patch over that
-  // would silently stomp whatever fields are absent from `patch`.
-  const current = await getAppSettings({ fresh: true });
-  const next = normalize({ ...current, ...patch });
   const q = sql();
+  // Read the current row with a DIRECT query — no cache, no timeout race.
+  // `getAppSettings({fresh:true})` races against a 3s budget and falls back
+  // to DEFAULT_APP_SETTINGS when the DB is slow, which meant a cold-lambda
+  // save would merge the admin's patch over defaults and silently clobber
+  // whatever was actually persisted. Writes must always see the real row.
+  const currentRows = (await q`
+    select value from app_settings where key = ${KEY} limit 1
+  `) as Array<{ value: unknown }>;
+  const current = currentRows[0]
+    ? normalize(currentRows[0].value)
+    : { ...DEFAULT_APP_SETTINGS };
+  const next = normalize({ ...current, ...patch });
   const json = JSON.stringify(next);
   // Use RETURNING so we read back the row PostgreSQL actually wrote. If the
   // insert silently no-ops (e.g. the jsonb cast rejects the payload), the
