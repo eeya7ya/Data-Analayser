@@ -136,6 +136,43 @@ export default function QuotationViewer({
     return cancel;
   }, [load]);
 
+  // Once BoQ mode is committed to the DOM (next animation frame), fire
+  // the browser print dialog. On `afterprint` (and as a safety net on
+  // Chrome, which returns synchronously from `window.print()`) we flip
+  // BoQ off so the on-screen viewer goes back to the priced layout.
+  //
+  // Placed up here — above the loading / error / empty early returns —
+  // so the hook count is stable across every render. Moving it below
+  // the early returns broke the Rules of Hooks: the first render
+  // (loading=true) called fewer hooks than later renders, and React
+  // threw "Rendered more hooks than during the previous render" the
+  // moment the fetch resolved, crashing the viewer with a client-side
+  // exception on every quotation.
+  useEffect(() => {
+    if (!boqMode || pendingPrintRef.current !== "boq") return;
+    let cancelled = false;
+    const cleanup = () => {
+      if (cancelled) return;
+      document.body.classList.remove("print-draft");
+      setBoqMode(false);
+      pendingPrintRef.current = null;
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        window.print();
+      } finally {
+        cleanup();
+      }
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("afterprint", cleanup);
+    };
+  }, [boqMode]);
+
   if (loading) {
     return (
       <div className="rounded-2xl border border-magic-border bg-white p-10 text-center text-sm text-magic-ink/60">
@@ -259,35 +296,6 @@ export default function QuotationViewer({
     document.body.classList.add("print-draft");
     setBoqMode(true);
   }
-
-  // Once BoQ mode is committed to the DOM (next animation frame), fire
-  // the browser print dialog. On `afterprint` (and as a safety net on
-  // Chrome, which returns synchronously from `window.print()`) we flip
-  // BoQ off so the on-screen viewer goes back to the priced layout.
-  useEffect(() => {
-    if (!boqMode || pendingPrintRef.current !== "boq") return;
-    let cancelled = false;
-    const cleanup = () => {
-      if (cancelled) return;
-      document.body.classList.remove("print-draft");
-      setBoqMode(false);
-      pendingPrintRef.current = null;
-      window.removeEventListener("afterprint", cleanup);
-    };
-    window.addEventListener("afterprint", cleanup);
-    const frame = window.requestAnimationFrame(() => {
-      try {
-        window.print();
-      } finally {
-        cleanup();
-      }
-    });
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("afterprint", cleanup);
-    };
-  }, [boqMode]);
 
   return (
     <div>
