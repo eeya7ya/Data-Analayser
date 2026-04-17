@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
             from contacts
             where folder_id = ${Number(folderId)} and deleted_at is null
             order by id desc
+            limit 500
           `
         : await q`
             select id, owner_id, folder_id, company_id, first_name, last_name,
@@ -47,6 +48,7 @@ export async function GET(req: NextRequest) {
             from contacts
             where folder_id = ${Number(folderId)} and owner_id = ${user.id} and deleted_at is null
             order by id desc
+            limit 500
           `) as ContactRow[];
     } else if (companyId) {
       rows = (user.role === "admin"
@@ -56,6 +58,7 @@ export async function GET(req: NextRequest) {
             from contacts
             where company_id = ${Number(companyId)} and deleted_at is null
             order by id desc
+            limit 500
           `
         : await q`
             select id, owner_id, folder_id, company_id, first_name, last_name,
@@ -63,6 +66,7 @@ export async function GET(req: NextRequest) {
             from contacts
             where company_id = ${Number(companyId)} and owner_id = ${user.id} and deleted_at is null
             order by id desc
+            limit 500
           `) as ContactRow[];
     } else {
       rows = (user.role === "admin"

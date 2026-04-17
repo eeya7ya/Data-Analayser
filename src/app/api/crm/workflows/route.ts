@@ -29,12 +29,14 @@ export async function GET() {
           select id, owner_id, name, trigger_kind, trigger_json, actions_json,
                  enabled, last_run_at, created_at, updated_at
           from workflows where deleted_at is null order by id desc
+          limit 500
         `
       : await q`
           select id, owner_id, name, trigger_kind, trigger_json, actions_json,
                  enabled, last_run_at, created_at, updated_at
           from workflows where owner_id = ${user.id} and deleted_at is null
           order by id desc
+          limit 500
         `) as WorkflowRow[];
     return NextResponse.json({ workflows: rows });
   } catch (err) {

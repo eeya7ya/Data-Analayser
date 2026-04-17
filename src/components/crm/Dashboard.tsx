@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchJson } from "@/lib/crm/fetchJson";
+import { fetchJson, FetchTimeoutError } from "@/lib/crm/fetchJson";
 import {
   BarChart,
   Bar,
@@ -37,16 +37,42 @@ interface Summary {
 
 const COLORS = ["#dc2626", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
 
+// SWR-lite: hold the last successful payload in module scope so navigating
+// back to /crm/dashboard paints instantly from the in-memory snapshot while
+// a fresh fetch runs in the background. The server already caches for 30 s
+// and serves with `stale-while-revalidate=45`, so this is purely a UX layer
+// that makes second-paint feel instant.
+let summaryCache: Summary | null = null;
+
+// One automatic retry on a cold-start timeout. Supabase pooler + serverless
+// lambda cold start can hit 15-20 s the very first time; a second attempt
+// lands on the warm instance and returns in <1 s.
+async function loadSummary(): Promise<Summary> {
+  try {
+    return await fetchJson<Summary>("/api/crm/analytics/summary", {
+      timeoutMs: 20_000,
+    });
+  } catch (err) {
+    if (err instanceof FetchTimeoutError) {
+      return await fetchJson<Summary>("/api/crm/analytics/summary", {
+        timeoutMs: 30_000,
+      });
+    }
+    throw err;
+  }
+}
+
 export default function Dashboard() {
-  const [s, setS] = useState<Summary | null>(null);
+  const [s, setS] = useState<Summary | null>(summaryCache);
   const [error, setError] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    fetchJson<Summary>("/api/crm/analytics/summary")
+    loadSummary()
       .then((d) => {
+        summaryCache = d;
         if (!cancelled) setS(d);
       })
       .catch((e) => {

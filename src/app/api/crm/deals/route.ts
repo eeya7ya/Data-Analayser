@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
             from deals
             where pipeline_id = ${Number(pipelineId)} and deleted_at is null
             order by id desc
+            limit 1000
           `
         : await q`
             select id, owner_id, pipeline_id, stage_id, company_id, contact_id,
@@ -51,6 +52,7 @@ export async function GET(req: NextRequest) {
             from deals
             where pipeline_id = ${Number(pipelineId)} and owner_id = ${user.id} and deleted_at is null
             order by id desc
+            limit 1000
           `) as DealRow[];
     } else {
       rows = (user.role === "admin"

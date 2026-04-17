@@ -50,13 +50,29 @@ async function ensureDefaultPipeline(userId: number): Promise<Pipeline> {
     returning id, owner_id, name, is_default, created_at, updated_at
   `) as Pipeline[];
   const pipeline = created[0];
-  for (const s of DEFAULT_STAGES) {
-    await q`
-      insert into pipeline_stages (pipeline_id, name, position, win_prob, is_won, is_lost)
-      values (${pipeline.id}, ${s.name}, ${s.position}, ${s.win_prob}, ${s.is_won}, ${s.is_lost})
-    `;
-  }
+  await insertDefaultStages(pipeline.id);
   return pipeline;
+}
+
+/**
+ * Batch-insert the six default stages in a single round-trip. The prior
+ * implementation ran six sequential INSERTs, which on a Supabase pooler
+ * cost ~6 × the connection round-trip latency; a single `insert .. values
+ * (...), (...), ...` cuts that to one RTT.
+ */
+async function insertDefaultStages(pipelineId: number): Promise<void> {
+  const q = sql();
+  const values = DEFAULT_STAGES.map((s) => ({
+    pipeline_id: pipelineId,
+    name: s.name,
+    position: s.position,
+    win_prob: s.win_prob,
+    is_won: s.is_won,
+    is_lost: s.is_lost,
+  }));
+  await q`
+    insert into pipeline_stages ${q(values, "pipeline_id", "name", "position", "win_prob", "is_won", "is_lost")}
+  `;
 }
 
 export async function GET() {
@@ -109,12 +125,7 @@ export async function POST(req: NextRequest) {
       values (${user.id}, ${name})
       returning id, owner_id, name, is_default, created_at, updated_at
     `) as Pipeline[];
-    for (const s of DEFAULT_STAGES) {
-      await q`
-        insert into pipeline_stages (pipeline_id, name, position, win_prob, is_won, is_lost)
-        values (${created[0].id}, ${s.name}, ${s.position}, ${s.win_prob}, ${s.is_won}, ${s.is_lost})
-      `;
-    }
+    await insertDefaultStages(created[0].id);
     return NextResponse.json({ pipeline: created[0] }, { status: 201 });
   } catch (err) {
     const msg = (err as Error).message;

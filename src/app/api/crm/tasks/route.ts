@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
             where entity_type = ${entityType} and entity_id = ${Number(entityIdRaw)}
               and deleted_at is null
             order by status asc, due_at nulls last, id desc
+            limit 500
           `
         : await q`
             select id, owner_id, assignee_id, entity_type, entity_id, title,
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
               and (owner_id = ${user.id} or assignee_id = ${user.id})
               and deleted_at is null
             order by status asc, due_at nulls last, id desc
+            limit 500
           `) as TaskRow[];
     } else {
       rows = (user.role === "admin"
