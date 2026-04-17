@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import NotesPanel from "@/components/crm/NotesPanel";
 
 interface Contact {
   id: number;
@@ -173,7 +174,8 @@ export default function ContactDetail({ id }: { id: number }) {
         </form>
       </div>
 
-      <div>
+      <div className="space-y-6">
+        <NotesPanel entityType="contact" entityId={id} />
         <h2 className="text-sm font-semibold uppercase text-magic-ink/60 mb-3">Activity</h2>
         <div className="rounded-2xl border border-magic-border bg-white p-3">
           {activity.length === 0 ? (
