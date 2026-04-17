@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import NotesPanel from "@/components/crm/NotesPanel";
+import CreateDealButton from "@/components/CreateDealButton";
 
 interface Company {
   id: number;
@@ -22,16 +23,46 @@ interface Contact {
   email: string | null;
 }
 
+interface CompanyQuotation {
+  id: number;
+  ref: string;
+  project_name: string;
+  client_name: string | null;
+  site_name: string | null;
+  status: string;
+  folder_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CompanyDeal {
+  id: number;
+  title: string;
+  amount: number;
+  currency: string;
+  status: string;
+  quotation_id: number | null;
+  expected_close_at: string | null;
+  created_at: string;
+}
+
 export default function CompanyDetail({ id }: { id: number }) {
   const router = useRouter();
   const [c, setC] = useState<Company | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [quotations, setQuotations] = useState<CompanyQuotation[]>([]);
+  const [deals, setDeals] = useState<CompanyDeal[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
   async function load() {
     setError(null);
+    // The company detail endpoint now returns the cross-module bundle so
+    // the page renders in a single round-trip (companies + contacts +
+    // quotations + deals). The contacts endpoint is still called as a
+    // fallback for backward compat in case quotations/deals aren't present
+    // (e.g. older server that hasn't rebooted yet).
     const [comp, cts] = await Promise.all([
       fetch(`/api/crm/companies/${id}`).then((r) => r.json()),
       fetch(`/api/crm/contacts?company_id=${id}`).then((r) => r.json()),
@@ -41,7 +72,13 @@ export default function CompanyDetail({ id }: { id: number }) {
       return;
     }
     setC(comp.company);
-    setContacts(cts.contacts ?? []);
+    setContacts(
+      Array.isArray(comp.contacts) && comp.contacts.length > 0
+        ? comp.contacts
+        : (cts.contacts ?? []),
+    );
+    setQuotations(Array.isArray(comp.quotations) ? comp.quotations : []);
+    setDeals(Array.isArray(comp.deals) ? comp.deals : []);
   }
 
   useEffect(() => {
@@ -137,24 +174,116 @@ export default function CompanyDetail({ id }: { id: number }) {
 
       <div className="space-y-6">
         <NotesPanel entityType="company" entityId={id} />
-        <h2 className="text-sm font-semibold uppercase text-magic-ink/60 mb-3">People</h2>
-        <div className="rounded-2xl border border-magic-border bg-white p-3">
-          {contacts.length === 0 ? (
-            <p className="text-xs text-magic-ink/60">No contacts at this company yet.</p>
-          ) : (
-            <ul className="space-y-1">
-              {contacts.map((p) => (
-                <li key={p.id}>
-                  <Link
-                    href={`/crm/contacts/${p.id}`}
-                    className="block rounded-md px-2 py-1 text-sm text-magic-ink/80 hover:bg-magic-soft hover:text-magic-red"
+        <div>
+          <h2 className="text-sm font-semibold uppercase text-magic-ink/60 mb-3">People</h2>
+          <div className="rounded-2xl border border-magic-border bg-white p-3">
+            {contacts.length === 0 ? (
+              <p className="text-xs text-magic-ink/60">No contacts at this company yet.</p>
+            ) : (
+              <ul className="space-y-1">
+                {contacts.map((p) => (
+                  <li key={p.id}>
+                    <Link
+                      href={`/crm/contacts/${p.id}`}
+                      className="block rounded-md px-2 py-1 text-sm text-magic-ink/80 hover:bg-magic-soft hover:text-magic-red"
+                    >
+                      {`${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || p.email || "(unnamed)"}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase text-magic-ink/60">
+              Quotations ({quotations.length})
+            </h2>
+            {c?.folder_id ? (
+              <Link
+                href={`/designer?folder=${c.folder_id}&new=1`}
+                className="text-xs font-semibold text-magic-red hover:underline"
+              >
+                + New quotation
+              </Link>
+            ) : null}
+          </div>
+          <div className="rounded-2xl border border-magic-border bg-white p-3">
+            {quotations.length === 0 ? (
+              <p className="text-xs text-magic-ink/60">
+                No quotations linked to this company yet.
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {quotations.map((q) => (
+                  <li
+                    key={q.id}
+                    className="flex items-center justify-between gap-2"
                   >
-                    {`${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || p.email || "(unnamed)"}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+                    <Link
+                      href={`/quotation?id=${q.id}`}
+                      className="block flex-1 rounded-md px-2 py-1 text-sm text-magic-ink/80 hover:bg-magic-soft hover:text-magic-red"
+                    >
+                      <span className="font-mono text-xs text-magic-red">
+                        {q.ref}
+                      </span>
+                      <span className="ml-2">{q.project_name}</span>
+                      <span className="ml-2 text-xs text-magic-ink/50">
+                        · {q.status}
+                      </span>
+                    </Link>
+                    <CreateDealButton
+                      quotationId={q.id}
+                      quotationRef={q.ref}
+                      projectName={q.project_name}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-sm font-semibold uppercase text-magic-ink/60 mb-3">
+            Deals ({deals.length})
+          </h2>
+          <div className="rounded-2xl border border-magic-border bg-white p-3">
+            {deals.length === 0 ? (
+              <p className="text-xs text-magic-ink/60">
+                No deals for this company yet.
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {deals.map((d) => (
+                  <li key={d.id} className="flex items-center justify-between">
+                    <Link
+                      href={`/crm/deals`}
+                      className="block flex-1 rounded-md px-2 py-1 text-sm text-magic-ink/80 hover:bg-magic-soft hover:text-magic-red"
+                    >
+                      <span>{d.title}</span>
+                      <span className="ml-2 text-xs text-magic-ink/50">
+                        · {Number(d.amount).toLocaleString()} {d.currency}
+                      </span>
+                      <span className="ml-2 text-xs text-magic-ink/50">
+                        · {d.status}
+                      </span>
+                    </Link>
+                    {d.quotation_id ? (
+                      <Link
+                        href={`/quotation?id=${d.quotation_id}`}
+                        className="text-xs font-semibold text-magic-ink/60 hover:text-magic-red hover:underline"
+                      >
+                        Q →
+                      </Link>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
     </div>

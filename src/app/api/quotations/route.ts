@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { logActivity } from "@/lib/crm/activity";
+import { resolveCompanyForQuotation } from "@/lib/crm/sync";
 import type { Sql } from "postgres";
 
 export const runtime = "nodejs";
@@ -133,8 +135,8 @@ export async function GET(req: NextRequest) {
       const rows = (await q`
         select id, ref, owner_id, project_name, client_name, client_email,
                client_phone, sales_engineer, prepared_by, tax_percent,
-               site_name, items_json, config_json, folder_id, status,
-               parent_ref, created_at, updated_at, deleted_at
+               site_name, items_json, config_json, folder_id, company_id,
+               status, parent_ref, created_at, updated_at, deleted_at
         from quotations
         where id = ${Number(id)}
         limit 1
@@ -158,24 +160,28 @@ export async function GET(req: NextRequest) {
       user.role === "admin"
         ? ((await q`
             select q.id, q.ref, q.project_name, q.client_name, q.site_name,
-                   q.folder_id, q.owner_id, q.status, q.parent_ref,
-                   q.created_at, q.updated_at,
+                   q.folder_id, q.company_id, q.owner_id, q.status,
+                   q.parent_ref, q.created_at, q.updated_at,
                    u.username as owner_username,
-                   u.display_name as owner_display_name
+                   u.display_name as owner_display_name,
+                   c.name as company_name
             from quotations q
             left join users u on u.id = q.owner_id
+            left join companies c on c.id = q.company_id and c.deleted_at is null
             where q.deleted_at is null
             order by q.id desc
             limit 500
           `) as Array<Record<string, unknown>>)
         : ((await q`
-            select id, ref, project_name, client_name, site_name,
-                   folder_id, owner_id, status, parent_ref,
-                   created_at, updated_at
-            from quotations
-            where owner_id = ${user.id}
-              and deleted_at is null
-            order by id desc
+            select q.id, q.ref, q.project_name, q.client_name, q.site_name,
+                   q.folder_id, q.company_id, q.owner_id, q.status,
+                   q.parent_ref, q.created_at, q.updated_at,
+                   c.name as company_name
+            from quotations q
+            left join companies c on c.id = q.company_id and c.deleted_at is null
+            where q.owner_id = ${user.id}
+              and q.deleted_at is null
+            order by q.id desc
             limit 200
           `) as Array<Record<string, unknown>>);
     // `private, max-age=5` gives us near-instant reloads without hiding
@@ -306,6 +312,27 @@ export async function PATCH(req: NextRequest) {
     const totalsText = hasTotals ? JSON.stringify(body.totals) : "null";
     const configText = hasConfig ? JSON.stringify(body.config) : "null";
 
+    // Re-resolve the CRM company when the folder changed OR the client_name
+    // changed. We never blank an existing company_id (that would silently
+    // orphan the quotation from CRM) — we only *update* it when we can find
+    // a better match, otherwise leave the existing link alone.
+    const existingCompanyId = (existing.company_id ?? null) as number | null;
+    const folderChanged = body.folder_id !== undefined && fid !== existing.folder_id;
+    const clientChanged = body.client_name !== undefined && cn !== existing.client_name;
+    let newCompanyId = existingCompanyId;
+    if (folderChanged || clientChanged || existingCompanyId == null) {
+      const ownerForResolve =
+        (existing.owner_id as number | null) ?? user.id;
+      const resolved = await resolveCompanyForQuotation(q, {
+        ownerId: ownerForResolve,
+        folderId: (fid as number | null) ?? null,
+        clientName: (cn as string | null) ?? null,
+        clientEmail: (ce as string | null) ?? null,
+        clientPhone: (cp as string | null) ?? null,
+      });
+      if (resolved != null) newCompanyId = resolved;
+    }
+
     const rows = (await q`
       update quotations set
         ref            = ${ref as string},
@@ -321,10 +348,24 @@ export async function PATCH(req: NextRequest) {
         totals_json    = case when ${hasTotals} then ${totalsText}::jsonb else totals_json end,
         config_json    = case when ${hasConfig} then ${configText}::jsonb else config_json end,
         folder_id      = ${fid as number | null},
+        company_id     = ${newCompanyId},
         updated_at     = now()
       where id = ${id}
-      returning id, ref
-    `) as unknown as Array<{ id: number; ref: string }>;
+      returning id, ref, company_id
+    `) as unknown as Array<{ id: number; ref: string; company_id: number | null }>;
+
+    await logActivity({
+      ownerId: (existing.owner_id as number | null) ?? user.id,
+      actorId: user.id,
+      entityType: "quotation",
+      entityId: id,
+      verb: "updated",
+      meta: {
+        ref: rows[0].ref,
+        folder_changed: folderChanged,
+        client_changed: clientChanged,
+      },
+    });
     return NextResponse.json({ quotation: rows[0] });
   } catch (err) {
     return NextResponse.json(
@@ -473,11 +514,22 @@ export async function POST(req: NextRequest) {
     const storedParentRef =
       mode === "active" ? null : rootOfRef(parentRef as string);
 
+    // Resolve or lazily create the CRM company so every quotation saved
+    // through the Designer is reachable from /crm/companies/<id> without
+    // any extra user action. See resolveCompanyForQuotation for precedence.
+    const companyId = await resolveCompanyForQuotation(q, {
+      ownerId: user.id,
+      folderId: folderId,
+      clientName: clientName,
+      clientEmail: clientEmail,
+      clientPhone: clientPhone,
+    });
+
     const rows = (await q`
       insert into quotations (
         ref, owner_id, project_name, client_name, client_email, client_phone,
         sales_engineer, prepared_by, site_name, tax_percent, items_json,
-        totals_json, config_json, folder_id, status, parent_ref
+        totals_json, config_json, folder_id, company_id, status, parent_ref
       ) values (
         ${ref}, ${user.id}, ${body.project_name}, ${clientName},
         ${clientEmail}, ${clientPhone},
@@ -486,16 +538,32 @@ export async function POST(req: NextRequest) {
         ${JSON.stringify(body.items || [])}::jsonb,
         ${JSON.stringify(body.totals || {})}::jsonb,
         ${JSON.stringify(body.config || {})}::jsonb,
-        ${folderId}, ${mode}, ${storedParentRef}
+        ${folderId}, ${companyId}, ${mode}, ${storedParentRef}
       )
-      returning id, ref, status, parent_ref
+      returning id, ref, status, parent_ref, company_id
     `) as Array<{
       id: number;
       ref: string;
       status: string;
       parent_ref: string | null;
+      company_id: number | null;
     }>;
-    return NextResponse.json({ quotation: rows[0] });
+
+    const created = rows[0];
+    await logActivity({
+      ownerId: user.id,
+      actorId: user.id,
+      entityType: "quotation",
+      entityId: created.id,
+      verb: "created",
+      meta: {
+        ref: created.ref,
+        mode,
+        company_id: created.company_id,
+        folder_id: folderId,
+      },
+    });
+    return NextResponse.json({ quotation: created });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message },
@@ -534,6 +602,13 @@ export async function DELETE(req: NextRequest) {
       update quotations set deleted_at = now(), updated_at = now()
       where id = ${id}
     `;
+    await logActivity({
+      ownerId: owned[0].owner_id ?? user.id,
+      actorId: user.id,
+      entityType: "quotation",
+      entityId: id,
+      verb: "deleted",
+    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(

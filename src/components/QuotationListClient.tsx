@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MoveToFolder from "@/components/MoveToFolder";
 import DuplicateQuotation from "@/components/DuplicateQuotation";
+import CreateDealButton from "@/components/CreateDealButton";
 
 /**
  * Robust fetch + JSON parse for our API routes. When a Vercel function
@@ -70,6 +71,12 @@ interface Quotation {
   // Admin-only fields populated by a join on users.
   owner_username?: string | null;
   owner_display_name?: string | null;
+  // CRM unification — populated by /api/quotations (join on companies).
+  // Lets each row link directly to /crm/companies/<id> so the user can jump
+  // from "a quotation I made" to "the CRM account / deals for this client"
+  // without navigating through the CRM sidebar.
+  company_id?: number | null;
+  company_name?: string | null;
 }
 
 interface Folder {
@@ -1038,6 +1045,24 @@ export default function QuotationListClient({
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex items-center justify-end gap-3">
+                          {r.company_id ? (
+                            <Link
+                              href={`/crm/companies/${r.company_id}`}
+                              title={
+                                r.company_name
+                                  ? `Open in CRM — ${r.company_name}`
+                                  : "Open in CRM"
+                              }
+                              className="text-xs font-semibold text-magic-ink/70 hover:text-magic-red hover:underline"
+                            >
+                              CRM →
+                            </Link>
+                          ) : null}
+                          <CreateDealButton
+                            quotationId={r.id}
+                            quotationRef={r.ref}
+                            projectName={r.project_name}
+                          />
                           <DuplicateQuotation
                             quotationId={r.id}
                             currentFolderId={r.folder_id}
