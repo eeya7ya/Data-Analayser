@@ -42,6 +42,7 @@ export interface ExistingQuotation {
   site_name: string;
   tax_percent: number;
   folder_id: number | null;
+  contact_id: number | null;
   items_json: QuotationItem[];
   config_json: {
     showPictures?: boolean;
@@ -81,6 +82,7 @@ export default function Designer({
   user,
   existing,
   initialFolderId,
+  initialContactId,
   appSettings,
   onSaved,
 }: {
@@ -93,6 +95,15 @@ export default function Designer({
    * are already locked in when the Designer first renders.
    */
   initialFolderId?: number | null;
+  /**
+   * Contact id passed in via `?contact=<id>` when the user clicked
+   * "+ New quotation" next to a person on the Company Detail page.
+   * The Designer carries it through the save payload so the new
+   * quotation is attributed to that person, not just to the company
+   * folder. Ignored in edit mode (we keep whatever the existing row
+   * already has).
+   */
+  initialContactId?: number | null;
   /**
    * Global presets loaded on the server — seeds the default Terms list for
    * new quotations and supplies the admin-editable printable footer.
@@ -153,6 +164,12 @@ export default function Designer({
   );
   const [folders, setFolders] = useState<ClientFolder[]>([]);
   const [folderId, setFolderId] = useState<number | null>(null);
+  // contactId is set on mount from `?contact=<id>` and kept stable for the
+  // lifetime of this Designer instance. Edit mode rehydrates it from
+  // existing.contact_id below; create mode just carries the URL value.
+  const [contactId, setContactId] = useState<number | null>(
+    initialContactId ?? null,
+  );
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderEmail, setNewFolderEmail] = useState("");
@@ -608,6 +625,14 @@ export default function Designer({
     }
   }, [existing, folders]);
 
+  // Edit mode: rehydrate the contact attribution from the existing row so
+  // a save round-trip doesn't drop the link the company page set up.
+  useEffect(() => {
+    if (existing && existing.contact_id != null) {
+      setContactId(existing.contact_id);
+    }
+  }, [existing]);
+
   // Create mode: pre-select the folder passed in via `?folder=<id>` on the
   // URL (the "+ New quotation" button on each client card). We only do
   // this once, and only when there's no current selection, so the user
@@ -901,6 +926,7 @@ export default function Designer({
         site_name: siteName,
         tax_percent: taxPercent,
         folder_id: folderId,
+        contact_id: contactId,
         items,
         totals,
         config: {
