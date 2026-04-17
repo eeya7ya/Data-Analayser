@@ -29,6 +29,8 @@ export async function GET(req: NextRequest) {
       select id, entity_type, entity_id, principal_kind, principal_id, perm, created_at
       from entity_acls
       where entity_type = ${entityType} and entity_id = ${Number(entityId)}
+      order by id asc
+      limit 500
     `) as AclRow[];
     return NextResponse.json({ acls: rows });
   } catch (err) {

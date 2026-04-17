@@ -167,6 +167,15 @@ const CRM_TEAMS_FLAG = "crm_teams_v1_2026_04";
  */
 const CRM_SEARCH_FLAG = "crm_search_v1_2026_04";
 
+/**
+ * Performance migration v2 — hot-path composite indexes that only became a
+ * bottleneck once the CRM surface started issuing dashboard aggregations
+ * and filtered list queries at high fan-out. Each index below targets a
+ * specific query plan that was doing a bitmap intersect or a seq-scan+filter
+ * under load. Guarded by its own flag so it runs exactly once per database.
+ */
+const PERF_INDEX_V2_FLAG = "perf_composite_indexes_v2_2026_04";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -198,7 +207,7 @@ export async function resetSchemaCache(): Promise<void> {
       ${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG},
       ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
       ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
-      ${CRM_SEARCH_FLAG}
+      ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}
     )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
@@ -225,6 +234,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let crmWorkflowsApplied = false;
   let crmTeamsApplied = false;
   let crmSearchApplied = false;
+  let perfIndexesV2Applied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -232,7 +242,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG},
         ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
         ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
-        ${CRM_SEARCH_FLAG}
+        ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -246,6 +256,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     crmWorkflowsApplied = keys.has(CRM_WORKFLOWS_FLAG);
     crmTeamsApplied = keys.has(CRM_TEAMS_FLAG);
     crmSearchApplied = keys.has(CRM_SEARCH_FLAG);
+    perfIndexesV2Applied = keys.has(PERF_INDEX_V2_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -261,7 +272,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     crmTasksApplied &&
     crmWorkflowsApplied &&
     crmTeamsApplied &&
-    crmSearchApplied
+    crmSearchApplied &&
+    perfIndexesV2Applied
   )
     return;
 
@@ -990,6 +1002,49 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${CRM_SEARCH_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── Incremental performance migration v2 ─────────────────────────────────
+  // Composite indexes that target the dashboard + filtered list queries
+  // under CRM load. Each one below maps to a specific hot query plan that
+  // was previously doing a bitmap intersect or a seq-scan+filter:
+  //
+  //   activity_log(owner_id, created_at desc)  — summary verb GROUP BY per
+  //                                              user, also the activity feed
+  //   activity_log(owner_id, verb, created_at) — the 30-day verb histogram
+  //   deals(owner_id, status, deleted_at)      — dashboard pipeline/won sums
+  //   deals(pipeline_id, deleted_at)           — deals-by-pipeline list
+  //   contacts(folder_id, deleted_at)          — folder-filtered contact list
+  //   contacts(company_id, deleted_at)         — company-filtered contact list
+  //   tasks(entity_type, entity_id, status)    — entity-scoped task lookup
+  //   notifications(user_id, created_at desc)  — unread poll
+  //   team_members(team_id)                    — member count aggregation
+  //
+  // All use CREATE INDEX IF NOT EXISTS so re-runs are no-ops. The flag only
+  // stops the migration_flags insert from happening more than once.
+  if (!perfIndexesV2Applied) {
+    await q`create index if not exists activity_log_owner_created_idx
+            on activity_log(owner_id, created_at desc)`;
+    await q`create index if not exists activity_log_owner_verb_idx
+            on activity_log(owner_id, verb, created_at desc)`;
+    await q`create index if not exists deals_owner_status_idx
+            on deals(owner_id, status, deleted_at)`;
+    await q`create index if not exists deals_pipeline_deleted_idx
+            on deals(pipeline_id, deleted_at)`;
+    await q`create index if not exists contacts_folder_deleted_idx
+            on contacts(folder_id, deleted_at)`;
+    await q`create index if not exists contacts_company_deleted_idx
+            on contacts(company_id, deleted_at)`;
+    await q`create index if not exists tasks_entity_status_idx
+            on tasks(entity_type, entity_id, status)`;
+    await q`create index if not exists notifications_user_created_idx
+            on notifications(user_id, created_at desc)`;
+    await q`create index if not exists team_members_team_idx
+            on team_members(team_id)`;
+    await q`
+      insert into migration_flags (key) values (${PERF_INDEX_V2_FLAG})
       on conflict (key) do nothing
     `;
   }
