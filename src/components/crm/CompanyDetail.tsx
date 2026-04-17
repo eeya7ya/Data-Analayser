@@ -31,6 +31,8 @@ interface Quotation {
   status: string;
   parent_ref: string | null;
   updated_at: string;
+  folder_id: number | null;
+  contact_id: number | null;
 }
 
 // Pre-baked size buckets matching common HR/CRM ranges. The DB column is a
@@ -38,13 +40,19 @@ interface Quotation {
 // just nudges everyone toward the same vocabulary.
 const SIZE_BUCKETS = ["1–10", "11–50", "51–200", "201–1000", "1000+"];
 
+function personLabel(p: Contact): string {
+  return (
+    `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() ||
+    p.email ||
+    "(unnamed)"
+  );
+}
+
 export default function CompanyDetail({ id }: { id: number }) {
   const router = useRouter();
   const [c, setC] = useState<Company | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [quotationsByContact, setQuotationsByContact] = useState<
-    Record<number, Quotation[]>
-  >({});
+  const [folderQuotations, setFolderQuotations] = useState<Quotation[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -61,17 +69,28 @@ export default function CompanyDetail({ id }: { id: number }) {
   const [addingPerson, setAddingPerson] = useState(false);
   const [addPersonError, setAddPersonError] = useState<string | null>(null);
 
-  async function loadQuotationsFor(contactId: number) {
+  // ── Assignment UI state ────────────────────────────────────────────────
+  // Pending dropdown selections, keyed by quotation id — lets each row carry
+  // its own "Assign to: [person]" choice before the user clicks Assign.
+  const [assignChoice, setAssignChoice] = useState<Record<number, number | "">>(
+    {},
+  );
+  // Tracks the quotation currently being PATCHed so the Assign/Unassign
+  // button can show a disabled "Saving…" state without blocking the rest.
+  const [assigningId, setAssigningId] = useState<number | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
+  async function loadFolderQuotations(folderId: number | null) {
+    if (!folderId) {
+      setFolderQuotations([]);
+      return;
+    }
     try {
-      const res = await fetch(`/api/quotations?contact_id=${contactId}`);
+      const res = await fetch(`/api/quotations?folder_id=${folderId}`);
       const data = await res.json();
-      setQuotationsByContact((prev) => ({
-        ...prev,
-        [contactId]: data.quotations ?? [],
-      }));
+      setFolderQuotations(data.quotations ?? []);
     } catch {
-      // Silent — the per-contact section will just show "No quotations yet"
-      // until the next load.
+      // Transient; leave the prior list in place.
     }
   }
 
@@ -86,11 +105,8 @@ export default function CompanyDetail({ id }: { id: number }) {
       return;
     }
     setC(comp.company);
-    const list: Contact[] = cts.contacts ?? [];
-    setContacts(list);
-    // Fan out to load quotations for every person in parallel — small N (a
-    // company rarely has more than a handful of contacts) so this is fine.
-    await Promise.all(list.map((p) => loadQuotationsFor(p.id)));
+    setContacts(cts.contacts ?? []);
+    await loadFolderQuotations(comp.company?.folder_id ?? null);
   }
 
   useEffect(() => {
@@ -169,13 +185,59 @@ export default function CompanyDetail({ id }: { id: number }) {
     }
   }
 
+  // PATCH /api/quotations?id=<n> with the new contact_id. `null` unassigns.
+  // Always refreshes the folder list from the server afterwards so every
+  // card (assigned + unassigned) reflects the authoritative state.
+  async function assignQuotation(
+    quotationId: number,
+    nextContactId: number | null,
+  ) {
+    setAssigningId(quotationId);
+    setAssignError(null);
+    try {
+      const res = await fetch(`/api/quotations?id=${quotationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: nextContactId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      await loadFolderQuotations(c?.folder_id ?? null);
+      // Clear the pending dropdown choice for this row once persisted.
+      setAssignChoice((prev) => {
+        const next = { ...prev };
+        delete next[quotationId];
+        return next;
+      });
+    } catch (err) {
+      setAssignError((err as Error).message);
+    } finally {
+      setAssigningId(null);
+    }
+  }
+
   const designerHref = useMemo(() => {
-    // Build the base "+ New quotation" URL once. Each per-contact button
-    // appends &contact=<id> on top so the Designer pre-attributes the new
-    // quotation to that person.
     if (!c?.folder_id) return null;
     return `/designer?folder=${c.folder_id}&new=1`;
   }, [c?.folder_id]);
+
+  // Group quotations by contact for the People cards + separate list of the
+  // rows that still need a person. Memoised so re-renders (e.g. typing into
+  // the notes textarea) don't rebuild the maps.
+  const { quotationsByContact, unassignedQuotations } = useMemo(() => {
+    const byContact: Record<number, Quotation[]> = {};
+    const unassigned: Quotation[] = [];
+    for (const q of folderQuotations) {
+      if (q.contact_id == null) {
+        unassigned.push(q);
+      } else {
+        (byContact[q.contact_id] = byContact[q.contact_id] || []).push(q);
+      }
+    }
+    return { quotationsByContact: byContact, unassignedQuotations: unassigned };
+  }, [folderQuotations]);
 
   if (error && !c) return <p className="text-sm text-red-600">{error}</p>;
   if (!c) return <p className="text-sm text-magic-ink/60">Loading…</p>;
@@ -326,10 +388,6 @@ export default function CompanyDetail({ id }: { id: number }) {
           ) : (
             <ul className="space-y-3">
               {contacts.map((p) => {
-                const personName =
-                  `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() ||
-                  p.email ||
-                  "(unnamed)";
                 const personQuotes = quotationsByContact[p.id] ?? [];
                 return (
                   <li
@@ -342,7 +400,7 @@ export default function CompanyDetail({ id }: { id: number }) {
                           href={`/crm/contacts/${p.id}`}
                           className="text-sm font-semibold text-magic-ink hover:text-magic-red"
                         >
-                          {personName}
+                          {personLabel(p)}
                         </Link>
                         <div className="text-xs text-magic-ink/60 mt-0.5 space-x-2">
                           {p.title && <span>{p.title}</span>}
@@ -395,9 +453,20 @@ export default function CompanyDetail({ id }: { id: number }) {
                                   — {q.project_name}
                                 </span>
                               </Link>
-                              <span className="text-magic-ink/40">
-                                {q.status}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-magic-ink/40">
+                                  {q.status}
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={assigningId === q.id}
+                                  onClick={() => assignQuotation(q.id, null)}
+                                  className="text-magic-ink/50 hover:text-magic-red disabled:opacity-60"
+                                  title="Unassign from this person"
+                                >
+                                  Unassign
+                                </button>
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -416,6 +485,90 @@ export default function CompanyDetail({ id }: { id: number }) {
             </p>
           )}
         </section>
+
+        {/* ── Unassigned quotations for this company ──────────────── */}
+        {/* Shown only when the company has a folder (so we can query its
+            quotations) AND the user has at least one contact to assign to.
+            Legacy rows created before the contact_id column land here so
+            they can be retroactively attributed. */}
+        {c.folder_id && unassignedQuotations.length > 0 && (
+          <section className="rounded-2xl border border-amber-300 bg-amber-50/60 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold uppercase text-amber-800">
+                Unassigned quotations
+              </h2>
+              <span className="text-xs text-amber-800/70">
+                {unassignedQuotations.length} total
+              </span>
+            </div>
+            <p className="text-xs text-amber-900/80 mb-3">
+              These quotations belong to this company but aren&rsquo;t linked
+              to a person yet. Pick someone and click Assign.
+            </p>
+            {contacts.length === 0 ? (
+              <p className="text-xs text-amber-900/80">
+                Add a person first (above), then come back to assign.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {unassignedQuotations.map((q) => {
+                  const choice = assignChoice[q.id] ?? "";
+                  return (
+                    <li
+                      key={q.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white p-2 text-xs"
+                    >
+                      <Link
+                        href={`/quotation?id=${q.id}`}
+                        className="text-magic-ink/80 hover:text-magic-red"
+                      >
+                        <span className="font-mono font-semibold">{q.ref}</span>{" "}
+                        <span className="text-magic-ink/60">
+                          — {q.project_name}
+                        </span>
+                      </Link>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={choice}
+                          onChange={(e) =>
+                            setAssignChoice((prev) => ({
+                              ...prev,
+                              [q.id]: e.target.value
+                                ? Number(e.target.value)
+                                : "",
+                            }))
+                          }
+                          className="rounded-md border border-magic-border px-2 py-1 text-xs"
+                        >
+                          <option value="">— Pick a person —</option>
+                          {contacts.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {personLabel(p)}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!choice || assigningId === q.id}
+                          onClick={() =>
+                            typeof choice === "number" &&
+                            assignQuotation(q.id, choice)
+                          }
+                          className="rounded-md bg-magic-red text-white px-3 py-1 text-xs font-semibold disabled:opacity-50"
+                        >
+                          {assigningId === q.id ? "Saving…" : "Assign"}
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {assignError && (
+              <p className="mt-2 text-xs text-red-600">{assignError}</p>
+            )}
+          </section>
+        )}
       </div>
 
       <div className="space-y-6">

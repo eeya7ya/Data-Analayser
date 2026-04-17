@@ -123,6 +123,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     const contactIdParam = searchParams.get("contact_id");
+    const folderIdParam = searchParams.get("folder_id");
     const q = sql();
     if (id) {
       // Single-row lookup. Historically this returned even trashed rows so
@@ -155,6 +156,40 @@ export async function GET(req: NextRequest) {
       }
       return NextResponse.json({ quotation: row });
     }
+    // Per-folder list. Powers the Company page's "quotations for this
+    // company" panel, which splits rows into assigned (shown under each
+    // person) vs unassigned (offered in a reassignment dropdown). Uses the
+    // same owner-isolation rule as the general list.
+    if (folderIdParam) {
+      const folderId = Number(folderIdParam);
+      if (!Number.isFinite(folderId) || folderId <= 0) {
+        return NextResponse.json({ quotations: [] });
+      }
+      const folderRows =
+        user.role === "admin"
+          ? ((await q`
+              select id, ref, project_name, client_name, site_name,
+                     folder_id, contact_id, owner_id, status, parent_ref,
+                     created_at, updated_at
+              from quotations
+              where folder_id = ${folderId} and deleted_at is null
+              order by id desc
+              limit 500
+            `) as Array<Record<string, unknown>>)
+          : ((await q`
+              select id, ref, project_name, client_name, site_name,
+                     folder_id, contact_id, owner_id, status, parent_ref,
+                     created_at, updated_at
+              from quotations
+              where folder_id = ${folderId}
+                and owner_id = ${user.id}
+                and deleted_at is null
+              order by id desc
+              limit 500
+            `) as Array<Record<string, unknown>>);
+      return NextResponse.json({ quotations: folderRows });
+    }
+
     // Per-contact list. Used by CompanyDetail to render each person's
     // quotations underneath their card. Owner-isolated for non-admins so a
     // shared contact_id never leaks rows across users.
