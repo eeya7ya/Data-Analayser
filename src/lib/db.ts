@@ -122,6 +122,15 @@ const PERF_INDEX_FLAG = "perf_composite_indexes_v1_2026_04";
  */
 const QUOTATION_STATUS_FLAG = "quotation_status_v1_2026_04";
 
+/**
+ * Incremental migration: CRM foundation — adds the `activity_log` table that
+ * powers the audit trail / timeline used by later CRM surfaces, plus
+ * `custom_fields` JSONB columns on `quotations` and `client_folders` so ad-hoc
+ * CRM metadata can be attached without further schema churn. Purely additive —
+ * legacy readers never select these columns and are unaffected.
+ */
+const CRM_FOUNDATION_FLAG = "crm_foundation_v1_2026_04";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -149,7 +158,7 @@ export async function resetSchemaCache(): Promise<void> {
   // re-running it is a no-op, but leaving the flag avoids the extra SELECTs.
   await q`
     delete from migration_flags
-    where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG})
+    where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG}, ${CRM_FOUNDATION_FLAG})
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
   // actually hits the database instead of returning the cached void.
@@ -168,21 +177,23 @@ async function _ensureSchemaOnce(): Promise<void> {
   let schemaBootstrapped = false;
   let perfIndexesApplied = false;
   let quotationStatusApplied = false;
+  let crmFoundationApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
-      where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG})
+      where key in (${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG}, ${CRM_FOUNDATION_FLAG})
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
     schemaBootstrapped = keys.has(SCHEMA_FINGERPRINT);
     perfIndexesApplied = keys.has(PERF_INDEX_FLAG);
     quotationStatusApplied = keys.has(QUOTATION_STATUS_FLAG);
+    crmFoundationApplied = keys.has(CRM_FOUNDATION_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
 
   // All migrations already applied — nothing to do.
-  if (schemaBootstrapped && perfIndexesApplied && quotationStatusApplied) return;
+  if (schemaBootstrapped && perfIndexesApplied && quotationStatusApplied && crmFoundationApplied) return;
 
   if (!schemaBootstrapped) {
   await q`
@@ -534,6 +545,52 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${QUOTATION_STATUS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── CRM foundation: activity_log + custom_fields JSONB columns ───────────
+  // Purely additive spine used by future CRM surfaces (Contacts, Companies,
+  // Deals, Tasks, Dashboards). No existing reader touches these objects, so
+  // adding them is invisible to the Quotation / Designer / Admin flows.
+  //
+  // `activity_log` is the audit trail / timeline: every CRM write path
+  // records a row here via logActivity(...) so Contact 360° views, deal
+  // history and analytics can be built from a single source of truth.
+  //
+  // `custom_fields` JSONB columns let CRM UI attach arbitrary metadata to
+  // quotations and client folders without further ALTER TABLE churn. They
+  // default to '{}'::jsonb and are NOT NULL so new inserts stay safe even
+  // if the legacy code paths don't set them.
+  if (!crmFoundationApplied) {
+    await q`
+      create table if not exists activity_log (
+        id          bigserial primary key,
+        owner_id    integer references users(id) on delete set null,
+        actor_id    integer references users(id) on delete set null,
+        entity_type text   not null,
+        entity_id   bigint not null,
+        verb        text   not null,
+        meta_json   jsonb  not null default '{}'::jsonb,
+        created_at  timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists activity_log_owner_idx
+      on activity_log(owner_id, created_at desc)
+    `;
+    await q`
+      create index if not exists activity_log_entity_idx
+      on activity_log(entity_type, entity_id, created_at desc)
+    `;
+    await q`
+      alter table quotations add column if not exists custom_fields jsonb not null default '{}'::jsonb
+    `;
+    await q`
+      alter table client_folders add column if not exists custom_fields jsonb not null default '{}'::jsonb
+    `;
+    await q`
+      insert into migration_flags (key) values (${CRM_FOUNDATION_FLAG})
       on conflict (key) do nothing
     `;
   }
