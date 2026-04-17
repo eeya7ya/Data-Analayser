@@ -225,14 +225,20 @@ body > * {
  * page that a long system table overflows onto. */
 @media screen {
   .quotation-sheet {
-    position: relative;
+    position: relative !important;
   }
   .quotation-sheet .footer-address {
-    position: absolute;
-    left: 12mm;
-    right: 12mm;
-    bottom: 6mm;
-    margin-top: 0;
+    position: absolute !important;
+    left: 12mm !important;
+    right: 12mm !important;
+    bottom: 6mm !important;
+    top: auto !important;
+    margin-top: 0 !important;
+  }
+  /* Reserve vertical space for the absolutely-positioned footer so long
+   * body content can't slide underneath it on short sheets. */
+  .quotation-sheet > table.sheet-layout > tbody > tr > td.sheet-body-cell {
+    padding-bottom: 18mm;
   }
 }
 
