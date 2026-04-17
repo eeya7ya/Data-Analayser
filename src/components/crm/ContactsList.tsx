@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { fetchJson } from "@/lib/crm/fetchJson";
 
 interface Contact {
   id: number;
@@ -37,13 +38,17 @@ export default function ContactsList() {
 
   async function load() {
     setError(null);
-    const [c, f] = await Promise.all([
-      fetch("/api/crm/contacts").then((r) => r.json()),
-      fetch("/api/folders").then((r) => r.json()),
-    ]);
-    if (c.error) setError(c.error);
-    setItems(c.contacts ?? []);
-    setFolders(f.folders ?? []);
+    try {
+      const [c, f] = await Promise.all([
+        fetchJson<{ contacts?: Contact[] }>("/api/crm/contacts"),
+        fetchJson<{ folders?: Folder[] }>("/api/folders"),
+      ]);
+      setItems(c.contacts ?? []);
+      setFolders(f.folders ?? []);
+    } catch (err) {
+      setError((err as Error).message);
+      setItems((prev) => prev ?? []);
+    }
   }
 
   useEffect(() => {

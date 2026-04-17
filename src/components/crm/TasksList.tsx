@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { fetchJson } from "@/lib/crm/fetchJson";
 
 interface Task {
   id: number;
@@ -23,9 +24,15 @@ export default function TasksList() {
 
   async function load() {
     setError(null);
-    const data = await fetch(`/api/crm/tasks?status=${filter}`).then((r) => r.json());
-    if (data.error) setError(data.error);
-    setItems(data.tasks ?? []);
+    try {
+      const data = await fetchJson<{ tasks?: Task[] }>(
+        `/api/crm/tasks?status=${filter}`,
+      );
+      setItems(data.tasks ?? []);
+    } catch (err) {
+      setError((err as Error).message);
+      setItems((prev) => prev ?? []);
+    }
   }
 
   useEffect(() => {

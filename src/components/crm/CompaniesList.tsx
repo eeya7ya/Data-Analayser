@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { fetchJson } from "@/lib/crm/fetchJson";
 
 interface Company {
   id: number;
@@ -34,13 +35,17 @@ export default function CompaniesList() {
 
   async function load() {
     setError(null);
-    const [c, f] = await Promise.all([
-      fetch("/api/crm/companies").then((r) => r.json()),
-      fetch("/api/folders").then((r) => r.json()),
-    ]);
-    if (c.error) setError(c.error);
-    setItems(c.companies ?? []);
-    setFolders(f.folders ?? []);
+    try {
+      const [c, f] = await Promise.all([
+        fetchJson<{ companies?: Company[] }>("/api/crm/companies"),
+        fetchJson<{ folders?: Folder[] }>("/api/folders"),
+      ]);
+      setItems(c.companies ?? []);
+      setFolders(f.folders ?? []);
+    } catch (err) {
+      setError((err as Error).message);
+      setItems((prev) => prev ?? []);
+    }
   }
 
   useEffect(() => {

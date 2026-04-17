@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { fetchJson } from "@/lib/crm/fetchJson";
 
 interface Team {
   id: number;
@@ -33,18 +34,28 @@ export default function TeamsList() {
 
   async function load() {
     setError(null);
-    const [tRes, uRes] = await Promise.all([
-      fetch("/api/crm/teams").then((r) => r.json()),
-      fetch("/api/crm/users").then((r) => r.json()),
-    ]);
-    if (tRes.error) setError(tRes.error);
-    setTeams(tRes.teams ?? []);
-    setUsers(uRes.users ?? []);
+    try {
+      const [tRes, uRes] = await Promise.all([
+        fetchJson<{ teams?: Team[] }>("/api/crm/teams"),
+        fetchJson<{ users?: User[] }>("/api/crm/users"),
+      ]);
+      setTeams(tRes.teams ?? []);
+      setUsers(uRes.users ?? []);
+    } catch (err) {
+      setError((err as Error).message);
+      setTeams((prev) => prev ?? []);
+    }
   }
 
   async function loadMembers(id: number) {
-    const data = await fetch(`/api/crm/teams/${id}`).then((r) => r.json());
-    setMembers(data.members ?? []);
+    try {
+      const data = await fetchJson<{ members?: Member[] }>(
+        `/api/crm/teams/${id}`,
+      );
+      setMembers(data.members ?? []);
+    } catch (err) {
+      setError((err as Error).message);
+    }
   }
 
   useEffect(() => {
