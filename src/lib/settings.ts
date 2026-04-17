@@ -159,15 +159,23 @@ export async function getAppSettings(
     // defaults — serving defaults here is exactly the bug that makes the
     // admin's save look wiped after a reload lands on a cold lambda.
     if (staleCache?.data) return staleCache.data;
-    // No stale cache — we MUST wait for the real DB read rather than
-    // falling back to DEFAULT_APP_SETTINGS. Serving defaults here is what
-    // made the admin think their saves were lost: the /admin page would
-    // seed the form from hardcoded defaults, a subsequent save would merge
-    // the admin's patch over defaults, and after reload the cycle would
-    // repeat. The admin page is rare and already tolerates a slow load —
-    // block on the real query instead of serving a lie.
+    // No stale cache — give the already-running fetch one more window
+    // before falling back to `DEFAULT_APP_SETTINGS`. This covers the
+    // "Supabase is cold, not dead" case where the query is going to
+    // succeed in ~3–6s; without it the admin sees hardcoded defaults and
+    // thinks their last save was lost. The absolute ceiling keeps the page
+    // from hanging on its loading.tsx skeleton indefinitely — the prior
+    // revision dropped this ceiling and re-introduced the hang bug.
+    const extendedTimeout = new Promise<"TIMEOUT">((resolve) =>
+      setTimeout(
+        () => resolve("TIMEOUT"),
+        SETTINGS_FRESH_EXTENDED_BUDGET_MS,
+      ),
+    );
     try {
-      return await inflight;
+      const extended = await Promise.race([inflight, extendedTimeout]);
+      if (extended === "TIMEOUT") return { ...DEFAULT_APP_SETTINGS };
+      return extended;
     } catch {
       return { ...DEFAULT_APP_SETTINGS };
     }
