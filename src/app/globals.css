@@ -266,18 +266,6 @@ body > * {
   body.print-draft .quotation-sheet.full-bleed {
     display: none !important;
   }
-  /* "Print BOQ" — Bill of Quantities mode. Produces a pricing-free
-   * printout for clients who need the technical scope without the
-   * commercial numbers (e.g. tenders, technical reviews). Strips the
-   * cover / about-us sheets, every Unit Price / Total Price cell, the
-   * per-system subtotal rows, and the Final Totals summary. The terms
-   * and scope intro stay on the last page. */
-  body.print-boq .quotation-sheet.full-bleed {
-    display: none !important;
-  }
-  body.print-boq .boq-hide {
-    display: none !important;
-  }
   .quotation-sheet.page-break-after {
     page-break-after: always;
     break-after: page;
