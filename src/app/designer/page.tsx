@@ -22,11 +22,10 @@ export default async function DesignerPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  // Kick off the (raced, short-budget) settings fetch immediately so its
-  // TCP handshake to Supabase overlaps with the local JWT verification and
-  // searchParams resolution. By the time we await it below it's almost
-  // always already settled. `getAppSettings()` has its own timeout so it
-  // never blocks the render for more than ~400 ms regardless of DB state.
+  // Kick off the settings fetch immediately so its TCP handshake to
+  // Supabase overlaps with the local JWT verification and searchParams
+  // resolution. By the time we await it below it's almost always already
+  // settled.
   const settingsPromise = getAppSettings();
 
   const user = await getSessionUser();

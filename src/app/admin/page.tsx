@@ -8,17 +8,11 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   // Kick the settings fetch off in parallel with the auth check so its
-  // DB round-trip overlaps with the JWT verification instead of running
-  // after it. Pass `fresh: true` so the admin always sees the latest
-  // persisted values — on Vercel, each lambda instance keeps its own
-  // in-process cache, and without a fresh read the "Saved." toast would
-  // flash correctly but a reload landing on a different instance would
-  // render the pre-save values until the 60s TTL expired.
-  //
-  // `getAppSettings({ fresh: true })` internally races the DB fetch
-  // against a 3s timeout and falls back to the last known values (stale
-  // cache or hardcoded defaults) if Supabase is cold/unreachable, so the
-  // page can never hang on its loading skeleton indefinitely.
+  // DB round-trip overlaps with the JWT verification. `fresh: true`
+  // bypasses the per-instance cache so the admin always seeds the form
+  // from the latest persisted row — on Vercel each lambda keeps its own
+  // cache, so without a fresh read a reload landing on a different
+  // instance would render pre-save values.
   const settingsPromise = getAppSettings({ fresh: true });
   const user = await getSessionUser();
   if (!user) redirect("/login");
