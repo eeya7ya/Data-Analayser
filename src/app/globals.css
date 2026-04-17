@@ -217,6 +217,25 @@ body > * {
   line-height: 1.4;
 }
 
+/* On-screen only: pin the address footer to the very bottom of each A4
+ * sheet so it behaves like a reserved footer area and doesn't drift
+ * upward when the sheet's body content is short. The print stylesheet
+ * is intentionally left untouched — printing still relies on the
+ * <tfoot> flow so the footer repeats at the bottom of every physical
+ * page that a long system table overflows onto. */
+@media screen {
+  .quotation-sheet {
+    position: relative;
+  }
+  .quotation-sheet .footer-address {
+    position: absolute;
+    left: 12mm;
+    right: 12mm;
+    bottom: 6mm;
+    margin-top: 0;
+  }
+}
+
 @media print {
   html,
   body {
