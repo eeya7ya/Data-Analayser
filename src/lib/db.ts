@@ -63,9 +63,14 @@ export function sql(): Sql {
       // Required for Supabase Transaction Pooler (pgbouncer-in-transaction-mode)
       // because prepared statements cannot span pooled connections.
       prepare: false,
-      // Serverless functions are short-lived — keep the local pool tiny so we
-      // don't exhaust the shared Supavisor connection budget.
-      max: 1,
+      // Small pool per lambda — three sockets is the sweet spot for the CRM
+      // fan-out queries (dashboard summary, list+count pairs) where
+      // Promise.all only helps if there are multiple connections to dispatch
+      // across. Previously `max: 1` serialised those queries and was a major
+      // cause of the "dashboard times out" symptom. Three is still tiny
+      // enough that 100 concurrent warm lambdas stay well under the
+      // Supavisor client budget.
+      max: 3,
       idle_timeout: 20,
       connect_timeout: 10,
       // Let transient network hiccups retry instead of failing the request.
