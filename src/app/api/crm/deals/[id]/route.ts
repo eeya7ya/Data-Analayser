@@ -48,7 +48,30 @@ export async function GET(
     await requireCrmEnabled();
     const { id } = await params;
     const deal = await loadOrThrow(Number(id), user.id, user.role === "admin");
-    return NextResponse.json({ deal });
+    // Attach the linked quotation summary so the detail view can render a
+    // "View quotation" button without a second round-trip.
+    let quotation: {
+      id: number;
+      ref: string;
+      project_name: string;
+      status: string;
+    } | null = null;
+    if (deal.quotation_id) {
+      const q = sql();
+      const rows = (await q`
+        select id, ref, project_name, status
+        from quotations
+        where id = ${deal.quotation_id} and deleted_at is null
+        limit 1
+      `) as Array<{
+        id: number;
+        ref: string;
+        project_name: string;
+        status: string;
+      }>;
+      quotation = rows[0] ?? null;
+    }
+    return NextResponse.json({ deal, quotation });
   } catch (err) {
     const msg = (err as Error).message;
     return NextResponse.json({ error: msg }, { status: statusForError(msg) });

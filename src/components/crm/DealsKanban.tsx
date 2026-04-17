@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { fetchJson } from "@/lib/crm/fetchJson";
 
 interface Pipeline {
@@ -29,6 +30,11 @@ interface Deal {
   expected_close_at: string | null;
   company_id: number | null;
   contact_id: number | null;
+  // Cross-module join — populated by /api/crm/deals so the kanban card can
+  // link directly to the source quotation + company without a second fetch.
+  quotation_id?: number | null;
+  quotation_ref?: string | null;
+  company_name?: string | null;
 }
 
 export default function DealsKanban() {
@@ -264,6 +270,28 @@ export default function DealsKanban() {
                       <div className="mt-1 text-xs text-magic-ink/60">
                         {Number(d.amount).toLocaleString()} {d.currency}
                       </div>
+                      {(d.company_name || d.quotation_ref) && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px]">
+                          {d.company_name && d.company_id ? (
+                            <Link
+                              href={`/crm/companies/${d.company_id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded-full bg-magic-soft px-2 py-0.5 font-semibold text-magic-ink/70 hover:text-magic-red"
+                            >
+                              {d.company_name}
+                            </Link>
+                          ) : null}
+                          {d.quotation_ref && d.quotation_id ? (
+                            <Link
+                              href={`/quotation?id=${d.quotation_id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded-full bg-magic-red/10 px-2 py-0.5 font-mono font-semibold text-magic-red hover:underline"
+                            >
+                              {d.quotation_ref}
+                            </Link>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                   ))}
                   {stageDeals.length === 0 && (

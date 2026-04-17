@@ -48,22 +48,28 @@ async function loadListData(
       user.role === "admin"
         ? (q`
             select q.id, q.ref, q.project_name, q.client_name, q.site_name,
-                   q.folder_id, q.owner_id, q.created_at, q.updated_at,
+                   q.folder_id, q.company_id, q.owner_id,
+                   q.created_at, q.updated_at,
                    u.username as owner_username,
-                   u.display_name as owner_display_name
+                   u.display_name as owner_display_name,
+                   c.name as company_name
             from quotations q
             left join users u on u.id = q.owner_id
+            left join companies c on c.id = q.company_id and c.deleted_at is null
             where q.deleted_at is null
             order by q.id desc
             limit 500
           ` as unknown as Promise<Array<Record<string, unknown>>>)
         : (q`
-            select id, ref, project_name, client_name, site_name,
-                   folder_id, owner_id, created_at, updated_at
-            from quotations
-            where owner_id = ${user.id}
-              and deleted_at is null
-            order by id desc
+            select q.id, q.ref, q.project_name, q.client_name, q.site_name,
+                   q.folder_id, q.company_id, q.owner_id,
+                   q.created_at, q.updated_at,
+                   c.name as company_name
+            from quotations q
+            left join companies c on c.id = q.company_id and c.deleted_at is null
+            where q.owner_id = ${user.id}
+              and q.deleted_at is null
+            order by q.id desc
             limit 200
           ` as unknown as Promise<Array<Record<string, unknown>>>),
       user.role === "admin"

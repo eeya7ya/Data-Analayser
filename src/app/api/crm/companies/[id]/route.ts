@@ -43,7 +43,38 @@ export async function GET(
     await requireCrmEnabled();
     const { id } = await params;
     const company = await loadOrThrow(Number(id), user.id, user.role === "admin");
-    return NextResponse.json({ company });
+    const q = sql();
+    // Fan out the company-scoped cross-module lists in parallel — the
+    // detail page renders all three tabs at once.
+    const [quotations, contacts, deals] = await Promise.all([
+      q`
+        select id, ref, project_name, client_name, site_name, status,
+               folder_id, created_at, updated_at
+        from quotations
+        where company_id = ${company.id}
+          and deleted_at is null
+        order by updated_at desc
+        limit 200
+      ` as unknown as Promise<Array<Record<string, unknown>>>,
+      q`
+        select id, first_name, last_name, email, phone, title
+        from contacts
+        where company_id = ${company.id}
+          and deleted_at is null
+        order by updated_at desc
+        limit 200
+      ` as unknown as Promise<Array<Record<string, unknown>>>,
+      q`
+        select id, title, amount, currency, status, stage_id, pipeline_id,
+               quotation_id, expected_close_at, created_at, updated_at
+        from deals
+        where company_id = ${company.id}
+          and deleted_at is null
+        order by updated_at desc
+        limit 200
+      ` as unknown as Promise<Array<Record<string, unknown>>>,
+    ]);
+    return NextResponse.json({ company, quotations, contacts, deals });
   } catch (err) {
     const msg = (err as Error).message;
     return NextResponse.json({ error: msg }, { status: statusForError(msg) });

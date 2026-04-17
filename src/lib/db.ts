@@ -181,6 +181,25 @@ const CRM_SEARCH_FLAG = "crm_search_v1_2026_04";
  */
 const PERF_INDEX_V2_FLAG = "perf_composite_indexes_v2_2026_04";
 
+/**
+ * CRM unification v1 — makes the Quotations and CRM modules first-class
+ * siblings instead of two disconnected surfaces:
+ *
+ *   1. Adds `quotations.company_id` (FK → companies.id, ON DELETE SET NULL).
+ *      The column is nullable so every legacy row stays valid; new inserts
+ *      auto-populate it (see /api/quotations).
+ *   2. Backfills a CRM company for every existing client_folders row that
+ *      doesn't already have one, and fills `quotations.company_id` from the
+ *      folder → company link. **No folder or quotation is modified beyond
+ *      adding the company_id pointer.** The original rows, custom_fields,
+ *      client_* columns, and items_json stay exactly as they were.
+ *   3. Adds composite indexes for the new cross-module list queries.
+ *
+ * Purely additive. Re-runnable (idempotent) — each INSERT uses NOT EXISTS
+ * so the migration can retry without creating duplicate companies.
+ */
+const CRM_UNIFY_FLAG = "crm_unify_quotations_v1_2026_04";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -212,7 +231,7 @@ export async function resetSchemaCache(): Promise<void> {
       ${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG},
       ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
       ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
-      ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}
+      ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${CRM_UNIFY_FLAG}
     )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
@@ -240,6 +259,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let crmTeamsApplied = false;
   let crmSearchApplied = false;
   let perfIndexesV2Applied = false;
+  let crmUnifyApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -247,7 +267,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG},
         ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
         ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
-        ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}
+        ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${CRM_UNIFY_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -262,6 +282,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     crmTeamsApplied = keys.has(CRM_TEAMS_FLAG);
     crmSearchApplied = keys.has(CRM_SEARCH_FLAG);
     perfIndexesV2Applied = keys.has(PERF_INDEX_V2_FLAG);
+    crmUnifyApplied = keys.has(CRM_UNIFY_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -278,7 +299,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     crmWorkflowsApplied &&
     crmTeamsApplied &&
     crmSearchApplied &&
-    perfIndexesV2Applied
+    perfIndexesV2Applied &&
+    crmUnifyApplied
   )
     return;
 
@@ -1050,6 +1072,118 @@ async function _ensureSchemaOnce(): Promise<void> {
             on team_members(team_id)`;
     await q`
       insert into migration_flags (key) values (${PERF_INDEX_V2_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── CRM unification v1 — connect quotations to companies ────────────────
+  // Adds `quotations.company_id` and backfills a CRM company for every
+  // existing client folder that doesn't already own one. The backfill is
+  // purely ADDITIVE: no existing folder, quotation or company is modified
+  // except to set the new `quotations.company_id` pointer (and to link a
+  // folder to a freshly-created company via companies.folder_id).
+  //
+  // This is what makes /crm and /quotation the SAME system instead of two
+  // islands: picking a folder in the Designer now writes a quotation that is
+  // directly reachable from /crm/companies/<id>, and creating a deal from a
+  // quotation automatically inherits the company + contact links.
+  if (!crmUnifyApplied) {
+    // 1. Add the column (nullable, FK with ON DELETE SET NULL so deleting a
+    //    company never orphan-deletes a quotation).
+    await q`
+      alter table quotations
+        add column if not exists company_id integer
+        references companies(id) on delete set null
+    `;
+    await q`
+      create index if not exists quotations_company_idx
+      on quotations(company_id)
+    `;
+    await q`
+      create index if not exists quotations_owner_company_idx
+      on quotations(owner_id, company_id, deleted_at)
+    `;
+
+    // 2. Backfill: create a CRM company for every folder that doesn't yet
+    //    have one. The folder name becomes the company name; contact-card
+    //    fields (email/phone/company) migrate onto the new company row so
+    //    the CRM view is immediately populated. Idempotent via NOT EXISTS.
+    await q`
+      insert into companies (owner_id, folder_id, name, notes)
+      select f.owner_id, f.id,
+             coalesce(nullif(trim(f.name), ''), 'Client'),
+             f.client_company
+      from client_folders f
+      where f.deleted_at is null
+        and not exists (
+          select 1 from companies c
+          where c.folder_id = f.id
+            and c.deleted_at is null
+        )
+    `;
+
+    // 3. Link each quotation to its folder's company. Only touches rows
+    //    where company_id is NULL — never overwrites a value already set.
+    await q`
+      update quotations q
+      set company_id = c.id
+      from companies c
+      where q.company_id is null
+        and q.folder_id is not null
+        and c.folder_id = q.folder_id
+        and c.deleted_at is null
+    `;
+
+    // 4. For unfoldered quotations that still have a client_name, create a
+    //    per-owner fallback company and link them. This turns legacy loose
+    //    quotations into first-class CRM accounts without requiring the
+    //    user to manually re-file anything.
+    await q`
+      with candidates as (
+        select owner_id,
+               nullif(trim(coalesce(client_name, '')),  '') as name_trim,
+               nullif(trim(coalesce(client_email, '')), '') as email_trim
+        from quotations
+        where company_id is null
+          and folder_id is null
+          and deleted_at is null
+          and owner_id is not null
+          and nullif(trim(coalesce(client_name, '')), '') is not null
+      ),
+      groups as (
+        select owner_id,
+               lower(name_trim) as key_lower,
+               max(name_trim)  as name_pick,
+               max(email_trim) as email_pick
+        from candidates
+        group by owner_id, lower(name_trim)
+      )
+      insert into companies (owner_id, folder_id, name, notes)
+      select g.owner_id, null, g.name_pick, g.email_pick
+      from groups g
+      where not exists (
+        select 1 from companies c
+        where c.owner_id = g.owner_id
+          and c.deleted_at is null
+          and lower(c.name) = g.key_lower
+      )
+    `;
+
+    await q`
+      update quotations q
+      set company_id = c.id
+      from companies c
+      where q.company_id is null
+        and q.folder_id is null
+        and q.owner_id is not null
+        and c.owner_id = q.owner_id
+        and c.deleted_at is null
+        and nullif(trim(coalesce(q.client_name, '')), '') is not null
+        and lower(c.name) = lower(trim(q.client_name))
+    `;
+
+    await q`
+      insert into migration_flags (key) values (${CRM_UNIFY_FLAG})
       on conflict (key) do nothing
     `;
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { syncCompanyFromFolder } from "@/lib/crm/sync";
 
 export const runtime = "nodejs";
 
@@ -123,7 +124,21 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
-    return NextResponse.json({ folder: rows[0] });
+    // Mirror the new folder into CRM so the Companies list shows it too.
+    // Skip if a company already exists (possibly created by the CRM side).
+    const folder = rows[0];
+    const existingCompany = (await q`
+      select id from companies
+      where folder_id = ${folder.id} and deleted_at is null
+      limit 1
+    `) as Array<{ id: number }>;
+    if (existingCompany.length === 0) {
+      await q`
+        insert into companies (owner_id, folder_id, name, notes)
+        values (${user.id}, ${folder.id}, ${folder.name}, ${company})
+      `;
+    }
+    return NextResponse.json({ folder });
   } catch (err) {
     const msg = (err as Error).message;
     return NextResponse.json(
@@ -213,6 +228,10 @@ export async function PATCH(req: NextRequest) {
       client_phone: string | null;
       client_company: string | null;
     }>;
+    // Keep the paired CRM company in sync so a rename from the Clients page
+    // is immediately reflected in /crm/companies. syncCompanyFromFolder
+    // only fills empty fields so it won't stomp on CRM-side edits.
+    await syncCompanyFromFolder(q, id);
     return NextResponse.json({ folder: rows[0] });
   } catch (err) {
     const msg = (err as Error).message;
