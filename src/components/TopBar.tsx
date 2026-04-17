@@ -7,6 +7,7 @@ import Image from "next/image";
 import type { SessionUser } from "@/lib/auth";
 import { loadEditingContext } from "@/lib/quotationDraft";
 import NotificationBell from "@/components/crm/NotificationBell";
+import CommandPalette from "@/components/crm/CommandPalette";
 
 export default function TopBar({ user }: { user: SessionUser }) {
   const router = useRouter();
@@ -82,6 +83,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
           {crmEnabled && <NavLink href="/crm">CRM</NavLink>}
           {user.role === "admin" && <NavLink href="/admin">Admin</NavLink>}
           {crmEnabled && <NotificationBell />}
+          {crmEnabled && <CommandPalette />}
           <span className="ml-3 hidden md:inline-flex items-center gap-1.5 rounded-full border border-magic-border/60 bg-white/60 px-3 py-1 text-[11px] font-medium text-magic-ink/70">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
             {user.display_name || user.username}
