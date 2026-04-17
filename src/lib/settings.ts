@@ -13,6 +13,14 @@ import { DEFAULT_TERMS } from "./quotationDraft";
 export interface AppSettings {
   defaultTerms: string[];
   footerText: string;
+  /**
+   * Runtime kill-switch for the CRM module (Contacts, Companies, Deals, Tasks,
+   * etc.). Defaults to `false` so a fresh deploy is visually and behaviourally
+   * identical to the pre-CRM app. Flipping to `true` in the admin Settings
+   * tab reveals the /crm/* surface; flipping back to `false` is an instant
+   * rollback — no DB changes are required.
+   */
+  crmModuleEnabled: boolean;
 }
 
 /** Used when the DB has no settings row yet — matches the old hardcoded values. */
@@ -20,6 +28,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   defaultTerms: [...DEFAULT_TERMS],
   footerText:
     "Address: Amman- Gardens street- Khawaja Complex No.65- Tel: +962 65560272 Fax: +962 65560275",
+  crmModuleEnabled: false,
 };
 
 const KEY = "global";
@@ -35,6 +44,10 @@ function normalize(value: unknown): AppSettings {
       typeof v.footerText === "string" && v.footerText.trim().length > 0
         ? v.footerText
         : DEFAULT_APP_SETTINGS.footerText,
+    crmModuleEnabled:
+      typeof v.crmModuleEnabled === "boolean"
+        ? v.crmModuleEnabled
+        : DEFAULT_APP_SETTINGS.crmModuleEnabled,
   };
 }
 

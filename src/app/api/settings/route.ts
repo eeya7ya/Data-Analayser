@@ -44,6 +44,9 @@ export async function PATCH(req: NextRequest) {
     if (typeof body.footerText === "string") {
       patch.footerText = body.footerText;
     }
+    if (typeof body.crmModuleEnabled === "boolean") {
+      patch.crmModuleEnabled = body.crmModuleEnabled;
+    }
     const settings = await saveAppSettings(patch);
     return NextResponse.json({ settings });
   } catch (err) {

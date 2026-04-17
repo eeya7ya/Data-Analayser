@@ -6,6 +6,8 @@ import Link from "next/link";
 import Image from "next/image";
 import type { SessionUser } from "@/lib/auth";
 import { loadEditingContext } from "@/lib/quotationDraft";
+import NotificationBell from "@/components/crm/NotificationBell";
+import CommandPalette from "@/components/crm/CommandPalette";
 
 export default function TopBar({ user }: { user: SessionUser }) {
   const router = useRouter();
@@ -32,11 +34,20 @@ export default function TopBar({ user }: { user: SessionUser }) {
     if (typeof window === "undefined") return "/quotation";
     return designerHrefFromCtx(loadEditingContext());
   });
+  const [crmEnabled, setCrmEnabled] = useState(false);
   useEffect(() => {
     function onFocus() {
       setDesignerHref(designerHrefFromCtx(loadEditingContext()));
     }
     window.addEventListener("focus", onFocus);
+    // CRM kill-switch: hide the link by default and only reveal it once we
+    // confirm the admin has enabled the module. /api/crm/status returns
+    // {enabled: false} for unauthenticated callers and when the module is off,
+    // so mounting the link silently does the right thing in every state.
+    fetch("/api/crm/status")
+      .then((r) => (r.ok ? r.json() : { enabled: false }))
+      .then((d: { enabled?: boolean }) => setCrmEnabled(!!d.enabled))
+      .catch(() => setCrmEnabled(false));
     return () => window.removeEventListener("focus", onFocus);
   }, []);
   async function logout() {
@@ -69,7 +80,10 @@ export default function TopBar({ user }: { user: SessionUser }) {
           <NavLink href={designerHref}>Designer</NavLink>
           <NavLink href="/catalog">Catalogue</NavLink>
           <NavLink href="/ai-designer">AI Designer</NavLink>
+          {crmEnabled && <NavLink href="/crm">CRM</NavLink>}
           {user.role === "admin" && <NavLink href="/admin">Admin</NavLink>}
+          {crmEnabled && <NotificationBell />}
+          {crmEnabled && <CommandPalette />}
           <span className="ml-3 hidden md:inline-flex items-center gap-1.5 rounded-full border border-magic-border/60 bg-white/60 px-3 py-1 text-[11px] font-medium text-magic-ink/70">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
             {user.display_name || user.username}
