@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { fetchJson } from "@/lib/crm/fetchJson";
 
 interface Workflow {
   id: number;
@@ -26,9 +27,15 @@ export default function WorkflowsList() {
 
   async function load() {
     setError(null);
-    const data = await fetch("/api/crm/workflows").then((r) => r.json());
-    if (data.error) setError(data.error);
-    setItems(data.workflows ?? []);
+    try {
+      const data = await fetchJson<{ workflows?: Workflow[] }>(
+        "/api/crm/workflows",
+      );
+      setItems(data.workflows ?? []);
+    } catch (err) {
+      setError((err as Error).message);
+      setItems((prev) => prev ?? []);
+    }
   }
 
   useEffect(() => {

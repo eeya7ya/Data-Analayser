@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { fetchJson } from "@/lib/crm/fetchJson";
 import {
   BarChart,
   Bar,
@@ -39,18 +40,40 @@ const COLORS = ["#dc2626", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"
 export default function Dashboard() {
   const [s, setS] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
-    fetch("/api/crm/analytics/summary")
-      .then((r) => r.json())
+    let cancelled = false;
+    setError(null);
+    fetchJson<Summary>("/api/crm/analytics/summary")
       .then((d) => {
-        if (d.error) setError(d.error);
-        else setS(d);
+        if (!cancelled) setS(d);
       })
-      .catch((e) => setError((e as Error).message));
-  }, []);
+      .catch((e) => {
+        if (!cancelled) setError((e as Error).message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadTick]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+        <p className="font-semibold">Failed to load dashboard.</p>
+        <p className="mt-1 break-words">{error}</p>
+        <button
+          onClick={() => {
+            setS(null);
+            setReloadTick((t) => t + 1);
+          }}
+          className="mt-3 rounded-md bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
   if (!s) return <p className="text-sm text-magic-ink/60">Loading dashboard…</p>;
 
   const fmt = (n: number) =>

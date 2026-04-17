@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { fetchJson } from "@/lib/crm/fetchJson";
 
 interface Pipeline {
   id: number;
@@ -43,20 +44,25 @@ export default function DealsKanban() {
 
   async function load() {
     setError(null);
-    const pRes = await fetch("/api/crm/pipelines").then((r) => r.json());
-    if (pRes.error) {
-      setError(pRes.error);
-      return;
-    }
-    const ps: Pipeline[] = pRes.pipelines ?? [];
-    const sg: Stage[] = pRes.stages ?? [];
-    setPipelines(ps);
-    setStages(sg);
-    const ap = activePipeline ?? ps.find((p) => p.is_default)?.id ?? ps[0]?.id ?? null;
-    setActivePipeline(ap);
-    if (ap != null) {
-      const dRes = await fetch(`/api/crm/deals?pipeline_id=${ap}`).then((r) => r.json());
-      setDeals(dRes.deals ?? []);
+    try {
+      const pRes = await fetchJson<{ pipelines?: Pipeline[]; stages?: Stage[] }>(
+        "/api/crm/pipelines",
+      );
+      const ps: Pipeline[] = pRes.pipelines ?? [];
+      const sg: Stage[] = pRes.stages ?? [];
+      setPipelines(ps);
+      setStages(sg);
+      const ap =
+        activePipeline ?? ps.find((p) => p.is_default)?.id ?? ps[0]?.id ?? null;
+      setActivePipeline(ap);
+      if (ap != null) {
+        const dRes = await fetchJson<{ deals?: Deal[] }>(
+          `/api/crm/deals?pipeline_id=${ap}`,
+        );
+        setDeals(dRes.deals ?? []);
+      }
+    } catch (err) {
+      setError((err as Error).message);
     }
   }
 
@@ -67,9 +73,17 @@ export default function DealsKanban() {
 
   useEffect(() => {
     if (activePipeline == null) return;
-    fetch(`/api/crm/deals?pipeline_id=${activePipeline}`)
-      .then((r) => r.json())
-      .then((d) => setDeals(d.deals ?? []));
+    let cancelled = false;
+    fetchJson<{ deals?: Deal[] }>(`/api/crm/deals?pipeline_id=${activePipeline}`)
+      .then((d) => {
+        if (!cancelled) setDeals(d.deals ?? []);
+      })
+      .catch((err) => {
+        if (!cancelled) setError((err as Error).message);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [activePipeline]);
 
   const stagesForActive = useMemo(

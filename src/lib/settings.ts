@@ -68,11 +68,20 @@ function normalize(value: unknown): AppSettings {
 // (Designer + QuotationViewer + layout gate) don't each hit the DB. Short
 // TTL so admin edits propagate across warm lambdas within seconds.
 const CACHE_TTL_MS = 5_000;
+// Hard ceiling on a single DB read. With postgres `max: 1` + transaction
+// pooler, a hung query on another request serialises behind this one, so
+// we cannot afford to wait indefinitely — the CRM layout gate calls into
+// here on every /crm/* navigation and an indefinite wait froze the whole
+// module ("nothing loads, navigation is dead"). On timeout we serve the
+// last cached value if we have one; otherwise we assume DEFAULTS and let
+// the real fetch finish in the background for the next request.
+const READ_TIMEOUT_MS = 8_000;
 const globalForSettings = globalThis as unknown as {
   __mtAppSettingsCache?: { at: number; data: AppSettings };
+  __mtAppSettingsInFlight?: Promise<AppSettings>;
 };
 
-async function readFromDb(): Promise<AppSettings> {
+async function queryDb(): Promise<AppSettings> {
   await ensureSchema();
   const q = sql();
   const rows = (await q`
@@ -84,25 +93,53 @@ async function readFromDb(): Promise<AppSettings> {
   return data;
 }
 
+function readFromDb(): Promise<AppSettings> {
+  // Coalesce concurrent callers onto a single in-flight query so the CRM
+  // layout + the analytics endpoint + /api/crm/status pounding this on
+  // the same cold lambda don't each open a fresh round-trip.
+  let inflight = globalForSettings.__mtAppSettingsInFlight;
+  if (!inflight) {
+    inflight = queryDb().finally(() => {
+      globalForSettings.__mtAppSettingsInFlight = undefined;
+    });
+    globalForSettings.__mtAppSettingsInFlight = inflight;
+  }
+  // Swallow the background rejection so unhandled-rejection noise doesn't
+  // leak out; the raced copy below still surfaces errors to the caller.
+  inflight.catch(() => {});
+  return inflight;
+}
+
 /**
  * Returns the current app settings. `fresh: true` skips the in-process
  * cache so the admin Settings tab always seeds from the latest persisted
  * row (critical on Vercel where each lambda keeps its own cache).
  *
- * There is no timeout race here. The previous implementation fell back to
- * DEFAULT_APP_SETTINGS when Supabase took longer than 400 ms, which
- * silently disabled the CRM module on cold lambdas even after an admin
- * had enabled it — the exact "CRM feature not applied no matter what I
- * press" bug. Settings reads are tiny; we'd rather wait than lie.
+ * Reads race against an 8s timeout. If the query is still outstanding we
+ * hand back the last-known cache (or defaults, if none exists) and let
+ * the background fetch populate the cache for the next request. This is
+ * the "wait, but never wait forever" shape — the earlier 400ms timeout
+ * lied to callers on every cold start, and removing the timeout entirely
+ * deadlocked /crm/* on a slow pooler.
  */
 export async function getAppSettings(
   opts: { fresh?: boolean } = {},
 ): Promise<AppSettings> {
-  if (!opts.fresh) {
-    const cached = globalForSettings.__mtAppSettingsCache;
-    if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.data;
+  const cached = globalForSettings.__mtAppSettingsCache;
+  if (!opts.fresh && cached && Date.now() - cached.at < CACHE_TTL_MS) {
+    return cached.data;
   }
-  return readFromDb();
+  const inflight = readFromDb();
+  const timeout = new Promise<"TIMEOUT">((resolve) =>
+    setTimeout(() => resolve("TIMEOUT"), READ_TIMEOUT_MS),
+  );
+  try {
+    const result = await Promise.race([inflight, timeout]);
+    if (result !== "TIMEOUT") return result;
+  } catch {
+    return cached?.data ?? { ...DEFAULT_APP_SETTINGS };
+  }
+  return cached?.data ?? { ...DEFAULT_APP_SETTINGS };
 }
 
 /**
