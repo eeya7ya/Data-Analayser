@@ -151,14 +151,6 @@ body > * {
   width: 100%;
   border-collapse: collapse;
   font-size: 10.5px;
-  /* `table-layout: fixed` makes the printed column widths match the
-   * <th style={width}> values exactly instead of the browser re-flowing
-   * them to accommodate wide content. Without this, long descriptions in
-   * the first few rows could stretch the table past the 100% container
-   * width, which the printer then clipped on the right edge (the user
-   * reported "table side is cut off" in the printed PDF). */
-  table-layout: fixed;
-  box-sizing: border-box;
 }
 
 .quotation-sheet th,
@@ -167,11 +159,6 @@ body > * {
   padding: 6px 5px;
   vertical-align: middle;
   text-align: center;
-  /* Keep long tokens (model codes, URLs, brand names) from forcing a
-   * cell wider than its declared width and overflowing the sheet. */
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  box-sizing: border-box;
 }
 
 .quotation-sheet thead th {
@@ -249,6 +236,26 @@ body > * {
   }
   .no-print {
     display: none !important;
+  }
+  /* `table-layout: fixed` makes the printed column widths match the
+   * <th style={width}> values exactly instead of the browser re-flowing
+   * them to accommodate wide content. Without this, long descriptions in
+   * the first few rows could stretch the table past the 100% container
+   * width, which the printer then clipped on the right edge (the user
+   * reported "table side is cut off" in the printed PDF). Scoped to
+   * @media print so the on-screen editable table can still expand to fit
+   * its inline action-button toolbar. */
+  .quotation-sheet table {
+    table-layout: fixed;
+    box-sizing: border-box;
+  }
+  .quotation-sheet th,
+  .quotation-sheet td {
+    /* Keep long tokens (model codes, URLs, brand names) from forcing a
+     * cell wider than its declared width and overflowing the sheet. */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    box-sizing: border-box;
   }
   /* Strip the app chrome (page background, header spacing, main padding)
    * in print mode so the quotation sheet sits directly against the @page
