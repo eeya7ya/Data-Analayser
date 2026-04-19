@@ -5,6 +5,10 @@
   "functions": {
     "src/app/api/**/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/quotations/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
     }
   },
   "crons": [
