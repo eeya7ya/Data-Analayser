@@ -1653,6 +1653,60 @@ function SystemTable({
 
 // ─── Picture cell with manual upload ─────────────────────────────────────────
 
+// Downscales an uploaded image to at most MAX_IMAGE_WIDTH px wide and re-encodes
+// it (JPEG for photos, PNG when the source has an alpha channel) so each
+// picture stays small enough to fit in the /api/quotations JSON payload.
+// Keeps the display data URL lossless at the sizes the table renders (≤ 80 px).
+const MAX_IMAGE_WIDTH = 1024;
+const JPEG_QUALITY = 0.75;
+
+function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressImage(file: File): Promise<string> {
+  const original = await readFileAsDataURL(file);
+  if (!file.type.startsWith("image/")) return original;
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("image decode failed"));
+      el.src = original;
+    });
+
+    if (img.naturalWidth <= MAX_IMAGE_WIDTH) {
+      // Already small enough — skip re-encoding to avoid needless quality loss.
+      return original;
+    }
+
+    const scale = MAX_IMAGE_WIDTH / img.naturalWidth;
+    const canvas = document.createElement("canvas");
+    canvas.width = MAX_IMAGE_WIDTH;
+    canvas.height = Math.round(img.naturalHeight * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return original;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    const keepAlpha = file.type === "image/png" || file.type === "image/webp";
+    const out = keepAlpha
+      ? canvas.toDataURL("image/png")
+      : canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+
+    // If the "compressed" version is somehow bigger (rare, e.g. tiny source
+    // already highly compressed), prefer the original so we never upsize.
+    return out.length < original.length ? out : original;
+  } catch {
+    return original;
+  }
+}
+
 function PictureCell({
   item,
   editable,
@@ -1665,13 +1719,10 @@ function PictureCell({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const src = item.picture_url || "";
 
-  function onPick(file: File | null) {
+  async function onPick(file: File | null) {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      onUpdate({ picture_url: String(reader.result || "") });
-    };
-    reader.readAsDataURL(file);
+    const dataUrl = await compressImage(file);
+    onUpdate({ picture_url: dataUrl });
   }
 
   return (
