@@ -78,6 +78,17 @@ interface ClientFolder {
   client_company?: string | null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function readJson(res: Response): Promise<any> {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: text.slice(0, 200) || res.statusText };
+  }
+}
+
 export default function Designer({
   user,
   existing,
@@ -619,7 +630,7 @@ export default function Designer({
   // ── Fetch client folders ──────────────────────────────────────────────────
   useEffect(() => {
     fetch("/api/folders")
-      .then((r) => r.json())
+      .then((r) => readJson(r))
       .then((d) => setFolders(d.folders || []))
       .catch(() => {});
   }, []);
@@ -712,8 +723,8 @@ export default function Designer({
           client_company: newFolderCompany.trim() || null,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "failed");
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(data.error || `failed (${res.status})`);
       setFolders((prev) =>
         [...prev, data.folder].sort((a, b) => a.name.localeCompare(b.name)),
       );
@@ -973,8 +984,15 @@ export default function Designer({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload),
             });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "save failed");
+      const data = await readJson(res);
+      if (!res.ok) {
+        if (res.status === 413) {
+          throw new Error(
+            "Payload too large — please remove or shrink product pictures and try again.",
+          );
+        }
+        throw new Error(data.error || `save failed (${res.status})`);
+      }
 
       if (isSnapshot) {
         // Snapshot succeeded — leave the original quotation open in the
