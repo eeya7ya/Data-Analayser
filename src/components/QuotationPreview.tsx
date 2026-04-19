@@ -1653,12 +1653,17 @@ function SystemTable({
 
 // ─── Picture cell with manual upload ─────────────────────────────────────────
 
-// Downscales an uploaded image to at most MAX_IMAGE_WIDTH px wide and re-encodes
-// it (JPEG for photos, PNG when the source has an alpha channel) so each
-// picture stays small enough to fit in the /api/quotations JSON payload.
-// Keeps the display data URL lossless at the sizes the table renders (≤ 80 px).
-const MAX_IMAGE_WIDTH = 1024;
-const JPEG_QUALITY = 0.75;
+// Downscales pictures to at most MAX_IMAGE_WIDTH px wide and re-encodes them
+// (JPEG for photos, PNG when the source has an alpha channel) so each picture
+// stays small enough to fit in the /api/quotations JSON payload even when a
+// quotation carries dozens of them across multiple pages. The table cell only
+// renders at ~80 px so 800 px is still ~10× oversampled — no visible loss.
+const MAX_IMAGE_WIDTH = 800;
+const JPEG_QUALITY = 0.7;
+// Any existing data URL larger than this gets re-compressed on save. At
+// MAX_IMAGE_WIDTH × JPEG_QUALITY a typical photo encodes to 50–120 KB, so
+// 180 KB is a generous "already compressed" threshold.
+export const REENCODE_THRESHOLD = 180_000;
 
 function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -1669,42 +1674,47 @@ function readFileAsDataURL(file: File): Promise<string> {
   });
 }
 
-async function compressImage(file: File): Promise<string> {
-  const original = await readFileAsDataURL(file);
-  if (!file.type.startsWith("image/")) return original;
+// Core compressor: takes a data URL, returns a downscaled/re-encoded data URL
+// (or the original if it's already small, not an image, or anything fails).
+export async function compressDataUrl(dataUrl: string): Promise<string> {
+  if (!dataUrl || !dataUrl.startsWith("data:image/")) return dataUrl;
 
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
       el.onload = () => resolve(el);
       el.onerror = () => reject(new Error("image decode failed"));
-      el.src = original;
+      el.src = dataUrl;
     });
 
-    if (img.naturalWidth <= MAX_IMAGE_WIDTH) {
-      // Already small enough — skip re-encoding to avoid needless quality loss.
-      return original;
-    }
-
-    const scale = MAX_IMAGE_WIDTH / img.naturalWidth;
+    const needsDownscale = img.naturalWidth > MAX_IMAGE_WIDTH;
+    const targetWidth = needsDownscale ? MAX_IMAGE_WIDTH : img.naturalWidth;
+    const scale = targetWidth / img.naturalWidth;
     const canvas = document.createElement("canvas");
-    canvas.width = MAX_IMAGE_WIDTH;
+    canvas.width = targetWidth;
     canvas.height = Math.round(img.naturalHeight * scale);
     const ctx = canvas.getContext("2d");
-    if (!ctx) return original;
+    if (!ctx) return dataUrl;
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    const keepAlpha = file.type === "image/png" || file.type === "image/webp";
+    const keepAlpha = dataUrl.startsWith("data:image/png") ||
+      dataUrl.startsWith("data:image/webp");
     const out = keepAlpha
       ? canvas.toDataURL("image/png")
       : canvas.toDataURL("image/jpeg", JPEG_QUALITY);
 
-    // If the "compressed" version is somehow bigger (rare, e.g. tiny source
-    // already highly compressed), prefer the original so we never upsize.
-    return out.length < original.length ? out : original;
+    // Never upsize: if re-encoding produced a larger string (tiny, already
+    // highly compressed source), keep the original.
+    return out.length < dataUrl.length ? out : dataUrl;
   } catch {
-    return original;
+    return dataUrl;
   }
+}
+
+async function compressImage(file: File): Promise<string> {
+  const original = await readFileAsDataURL(file);
+  if (!file.type.startsWith("image/")) return original;
+  return compressDataUrl(original);
 }
 
 function PictureCell({

@@ -6,6 +6,8 @@ import type { SessionUser } from "@/lib/auth";
 import QuotationPreview, {
   QuotationItem,
   QuotationExtraColumn,
+  compressDataUrl,
+  REENCODE_THRESHOLD,
 } from "./QuotationPreview";
 import type { AppSettings } from "@/lib/settings";
 import {
@@ -929,7 +931,35 @@ export default function Designer({
     setSaving(true);
     setSaveStatus("");
     try {
-      const totals = computeQuotationTotals(items, includeTax ? taxPercent : 0, includeTax && taxInclusive);
+      // Shrink any oversized item pictures before building the payload.
+      // Legacy quotations saved before the client-side compressor landed
+      // carry full-resolution base64 data URLs on `picture_url`; a handful
+      // of those easily blow past the API body limit. We re-encode them
+      // here so the save succeeds, and write the smaller versions back
+      // into local state so future saves stay small without re-doing the
+      // work. External http(s) URLs and already-small data URLs pass
+      // through untouched.
+      const oversizedCount = items.filter(
+        (it) =>
+          it.picture_url?.startsWith("data:image/") &&
+          it.picture_url.length > REENCODE_THRESHOLD,
+      ).length;
+      let compressedItems = items;
+      if (oversizedCount > 0) {
+        setSaveStatus(`Compressing ${oversizedCount} picture(s)…`);
+        compressedItems = await Promise.all(
+          items.map(async (it) => {
+            const url = it.picture_url;
+            if (!url || !url.startsWith("data:image/")) return it;
+            if (url.length <= REENCODE_THRESHOLD) return it;
+            const shrunk = await compressDataUrl(url);
+            return shrunk === url ? it : { ...it, picture_url: shrunk };
+          }),
+        );
+        // Sync back so the UI and subsequent saves use the smaller copies.
+        setItems(compressedItems);
+      }
+      const totals = computeQuotationTotals(compressedItems, includeTax ? taxPercent : 0, includeTax && taxInclusive);
       // Snapshot payloads deliberately omit `ref` so the server mints a
       // fresh QX…D<m> / QX…R<m> from the parent. The regular save path
       // keeps the current refCode so edits don't churn the number.
@@ -944,7 +974,7 @@ export default function Designer({
         tax_percent: taxPercent,
         folder_id: folderId,
         contact_id: contactId,
-        items,
+        items: compressedItems,
         totals,
         config: {
           showPictures,
