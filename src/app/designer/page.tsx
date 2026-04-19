@@ -21,6 +21,13 @@ interface SearchParams {
    * /crm/companies/[id] so each person's card lists their own deals.
    */
   contact?: string;
+  /**
+   * Opt-out flag for the server-side "no folder → /quotation" gate.
+   * Sent by the in-designer "+ New quotation" button so the user can
+   * land on a clean create-mode hero and pick a client from there,
+   * instead of being bounced back to the quotation list.
+   */
+  new?: string;
 }
 
 export default async function DesignerPage({
@@ -76,7 +83,20 @@ export default async function DesignerPage({
               updates.
             </p>
           </header>
+          {/* `key={quotationId}` forces a full remount when the user
+              navigates between two saved quotations (e.g.
+              /designer?id=32 → /designer?id=33). Without the key, the
+              same DesignerShell instance re-ran its fetch effect but
+              the `hasLoadedOnceRef` guard suppressed the blocking
+              spinner, so the Designer kept rendering the previous
+              quotation's `existing` data under the new "Editing
+              quotation #<id>" header until the new fetch resolved. The
+              remount clears that stale state and the spinner blocks
+              the stale render. Post-save `reloadTick` bumps still
+              share the same key, so edit-mode re-fetches stay
+              silent — the Designer doesn't unmount mid-edit. */}
           <DesignerShell
+            key={quotationId}
             user={user}
             quotationId={quotationId}
             appSettings={appSettings}
@@ -98,11 +118,14 @@ export default async function DesignerPage({
     if (Number.isFinite(n) && n > 0) initialContactId = n;
   }
 
-  // Gate: the Designer can only be opened from a client (`?folder=<n>`) or
-  // an existing quotation (`?id=<n>`). Attempting to reach /designer directly
-  // redirects to the Clients & Quotations page so the user must pick a
-  // client/quotation first.
-  if (!initialFolderId) {
+  // Gate: the Designer can only be opened from a client (`?folder=<n>`),
+  // an existing quotation (`?id=<n>`), or the explicit "+ New quotation"
+  // button inside the Designer itself (`?new=1`). Attempting to reach
+  // /designer directly redirects to the Clients & Quotations page so the
+  // user must pick a client/quotation first. The `?new=1` opt-out lets
+  // the in-designer button land on a clean create-mode hero where the
+  // user picks a client without first bouncing through /quotation.
+  if (!initialFolderId && !sp.new) {
     redirect("/quotation");
   }
 
