@@ -541,6 +541,120 @@ export default function QuotationPreview({
     );
   }
 
+  // ── Bulk-paste a list of values into a single column ────────────────────
+  // Lets the user paste a newline-separated list (e.g. copied straight from
+  // an Excel column) into any editable column header. Each non-empty line
+  // becomes a new row appended to the target system group, with only the
+  // target column populated — every other field stays at the blank-row
+  // defaults matching addRowToSystem().
+  //
+  // `bulkPasteTarget` holds the modal context when open; `null` means closed.
+  const [bulkPasteTarget, setBulkPasteTarget] = useState<{
+    system: string;
+    /**
+     * Column key. Built-ins: "brand" | "model" | "description" | "quantity"
+     * | "delivery" | "unit_price". Manual columns are keyed as
+     * `extra:<columnId>` so the handler can target the right cell on write.
+     */
+    key: string;
+    /** Header label shown in the modal title. */
+    label: string;
+  } | null>(null);
+
+  /**
+   * Parses the pasted textarea content into trimmed lines (blank lines
+   * dropped) and either appends each line as a new row in the target
+   * system, or — when `fillExisting` is true — overwrites the first N
+   * existing rows in that system before spilling any remainder into new
+   * appended rows. Numeric columns (quantity, unit_price) are coerced via
+   * Number(); non-numeric input lines in those columns fall back to the
+   * blank-row default so the sheet stays well-formed.
+   */
+  function applyBulkPaste(rawText: string, fillExisting: boolean) {
+    if (!setItems || !bulkPasteTarget) return;
+    const lines = rawText
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    if (lines.length === 0) {
+      setBulkPasteTarget(null);
+      return;
+    }
+
+    const { system, key } = bulkPasteTarget;
+
+    // Convert one pasted line into the appropriate patch for this column.
+    function patchForLine(line: string): Partial<QuotationItem> {
+      if (key === "quantity") {
+        const n = Number(line);
+        return { quantity: Number.isFinite(n) && n > 0 ? n : 1 };
+      }
+      if (key === "unit_price") {
+        const n = Number(line);
+        return { unit_price: Number.isFinite(n) ? n : 0 };
+      }
+      if (key.startsWith("extra:")) {
+        const colId = key.slice("extra:".length);
+        return { extra: { [colId]: line } };
+      }
+      // Text columns: brand / model / description / delivery
+      return { [key]: line } as Partial<QuotationItem>;
+    }
+
+    const blankRow = (overrides: Partial<QuotationItem>): QuotationItem => ({
+      no: 0,
+      system,
+      brand: "",
+      model: "",
+      description: `New ${system} item — please add a short description.`,
+      quantity: 1,
+      unit_price: 0,
+      delivery: "TBD",
+      extra: {},
+      ...overrides,
+    });
+
+    const next = items.slice();
+    let cursor = 0;
+
+    if (fillExisting) {
+      // Walk the target system's rows in document order and overwrite
+      // their column value with the next pasted line. We patch rows in
+      // place so all other columns (including merge flags and manual
+      // columns the user already filled) stay intact.
+      for (let i = 0; i < next.length && cursor < lines.length; i++) {
+        const it = next[i];
+        const sysKey = it.system || it.brand || "General";
+        if (sysKey !== system) continue;
+        const patch = patchForLine(lines[cursor]);
+        // extra: { colId: value } must be merged, not replaced, so the
+        // other manual columns on this row don't get wiped out.
+        if (patch.extra) {
+          next[i] = {
+            ...it,
+            extra: { ...(it.extra || {}), ...patch.extra },
+          };
+        } else {
+          next[i] = { ...it, ...patch };
+        }
+        cursor++;
+      }
+    }
+
+    // Any remaining lines become newly appended rows in the target system.
+    for (; cursor < lines.length; cursor++) {
+      next.push(blankRow(patchForLine(lines[cursor])));
+    }
+
+    setItems(renumber(next));
+    setBulkPasteTarget(null);
+  }
+
+  function openBulkPaste(system: string, key: string, label: string) {
+    if (!setItems) return;
+    setBulkPasteTarget({ system, key, label });
+  }
+
   // ── Manual (user-added) columns ─────────────────────────────────────────
   const extraColumns: QuotationExtraColumn[] = header.extra_columns || [];
 
@@ -691,6 +805,7 @@ export default function QuotationPreview({
             onToggleOptional={toggleOptional}
             onRenameExtraColumn={renameExtraColumn}
             onRemoveExtraColumn={removeExtraColumn}
+            onBulkPasteColumn={openBulkPaste}
           />
           {editable && (
             <div className="no-print mt-2 flex flex-wrap items-center gap-2">
@@ -779,6 +894,17 @@ export default function QuotationPreview({
             presalesEngineer={header.design_engineer || header.sales_engineer}
           />
         </QuotationPage>
+      )}
+
+      {/* Bulk-paste modal — opens when a user clicks the ⎘ button on any
+          editable column header. Lives outside the printable sheets so its
+          own chrome (dim backdrop, buttons) never leaks into the PDF. */}
+      {bulkPasteTarget && (
+        <BulkPasteModal
+          target={bulkPasteTarget}
+          onCancel={() => setBulkPasteTarget(null)}
+          onApply={applyBulkPaste}
+        />
       )}
     </div>
   );
@@ -1211,6 +1337,7 @@ function SystemTable({
   onToggleOptional,
   onRenameExtraColumn,
   onRemoveExtraColumn,
+  onBulkPasteColumn,
 }: {
   group: { system: string; rows: Array<{ item: QuotationItem; globalIndex: number }> };
   allPages: string[];
@@ -1230,6 +1357,7 @@ function SystemTable({
   onToggleOptional: (globalIndex: number) => void;
   onRenameExtraColumn: (id: string, label: string) => void;
   onRemoveExtraColumn: (id: string) => void;
+  onBulkPasteColumn: (system: string, key: string, label: string) => void;
 }) {
   // Base = No, Brand, Model, Description, [Picture], Quantity, Delivery,
   // Unit Price, Total Price — plus one cell per manual column. In BoQ
@@ -1341,18 +1469,69 @@ function SystemTable({
     );
   }
 
+  // Tiny button rendered alongside each header label in edit mode. Clicking
+  // it opens the bulk-paste modal scoped to this system + column, letting
+  // the user drop a newline-separated list (e.g. copied from Excel) and
+  // create / fill many rows at once.
+  const bulkPasteButton = (key: string, label: string) => {
+    if (!editable) return null;
+    return (
+      <button
+        type="button"
+        onClick={() => onBulkPasteColumn(group.system, key, label)}
+        className="no-print inline-flex items-center justify-center w-4 h-4 rounded text-[10px] leading-none bg-white/80 text-magic-ink/60 border border-magic-border hover:bg-magic-soft"
+        title={`Paste a list of ${label} values — one per line — as new rows`}
+        aria-label={`Bulk paste into ${label}`}
+      >
+        ⎘
+      </button>
+    );
+  };
+
   return (
     <table>
       <thead>
         <tr>
           <th style={{ width: "4%" }}>No</th>
-          <th style={{ width: "10%" }}>Brand</th>
-          <th style={{ width: "12%" }}>Model</th>
-          <th style={{ width: `${descWidth}%` }}>Description</th>
+          <th style={{ width: "10%" }}>
+            <span className="inline-flex items-center justify-center gap-1">
+              Brand
+              {bulkPasteButton("brand", "Brand")}
+            </span>
+          </th>
+          <th style={{ width: "12%" }}>
+            <span className="inline-flex items-center justify-center gap-1">
+              Model
+              {bulkPasteButton("model", "Model")}
+            </span>
+          </th>
+          <th style={{ width: `${descWidth}%` }}>
+            <span className="inline-flex items-center justify-center gap-1">
+              Description
+              {bulkPasteButton("description", "Description")}
+            </span>
+          </th>
           {showPictures && <th style={{ width: "10%" }}>Picture</th>}
-          <th style={{ width: "6%" }}>Quantity</th>
-          <th style={{ width: "8%" }}>Delivery</th>
-          {!boqMode && <th style={{ width: "10%" }}>Unit Price</th>}
+          <th style={{ width: "6%" }}>
+            <span className="inline-flex items-center justify-center gap-1">
+              Quantity
+              {bulkPasteButton("quantity", "Quantity")}
+            </span>
+          </th>
+          <th style={{ width: "8%" }}>
+            <span className="inline-flex items-center justify-center gap-1">
+              Delivery
+              {bulkPasteButton("delivery", "Delivery")}
+            </span>
+          </th>
+          {!boqMode && (
+            <th style={{ width: "10%" }}>
+              <span className="inline-flex items-center justify-center gap-1">
+                Unit Price
+                {bulkPasteButton("unit_price", "Unit Price")}
+              </span>
+            </th>
+          )}
           {!boqMode && <th style={{ width: "12%" }}>Total Price</th>}
           {extraColumns.map((col) => (
             <th key={col.id} style={{ width: `${extraShare / Math.max(extraColumns.length, 1)}%` }}>
@@ -1364,6 +1543,7 @@ function SystemTable({
                     onChange={(e) => onRenameExtraColumn(col.id, e.target.value)}
                     aria-label="Rename manual column"
                   />
+                  {bulkPasteButton(`extra:${col.id}`, col.label || "Column")}
                   <button
                     onClick={() => onRemoveExtraColumn(col.id)}
                     className="no-print text-red-500 text-[10px] leading-none"
@@ -1772,6 +1952,136 @@ function PictureCell({
           />
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Bulk-paste modal ───────────────────────────────────────────────────────
+// Simple centred overlay that captures a newline-separated list from the
+// user and hands it back to QuotationPreview.applyBulkPaste. Supports two
+// modes — "Add as new rows" (append) or "Fill existing rows first, then
+// append the rest". A paste event on the textarea that drops Excel
+// (TSV-style) data still splits on newlines, so users who copy a single
+// column out of Excel get the expected "one value per row" behaviour.
+
+function BulkPasteModal({
+  target,
+  onApply,
+  onCancel,
+}: {
+  target: { system: string; key: string; label: string };
+  onApply: (rawText: string, fillExisting: boolean) => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = React.useState("");
+  const [fillExisting, setFillExisting] = React.useState(false);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Autofocus on mount so the user can start pasting immediately without
+  // having to click into the textarea first.
+  React.useEffect(() => {
+    taRef.current?.focus();
+  }, []);
+
+  // Live preview of how many rows the current input will produce — helps
+  // the user notice before clicking Apply when the paste accidentally
+  // collapsed newlines into one line.
+  const lineCount = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0).length;
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    // Cmd/Ctrl+Enter submits, Esc cancels — standard modal affordances.
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      if (lineCount > 0) onApply(text, fillExisting);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onCancel();
+    }
+  }
+
+  return (
+    <div
+      className="no-print fixed inset-0 z-50 flex items-center justify-center bg-magic-ink/40 backdrop-blur-sm"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Paste a list of ${target.label} values`}
+    >
+      <div
+        className="w-full max-w-lg rounded-lg border border-magic-border bg-white shadow-mt-soft p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <div className="text-sm font-bold text-magic-ink">
+              Paste list into <span className="text-magic-red">{target.label}</span>
+            </div>
+            <div className="text-[11px] text-magic-ink/60 mt-0.5">
+              Target page: <span className="font-semibold">{target.system}</span>
+              {" · "}one value per line
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-magic-ink/50 hover:text-magic-red text-lg leading-none"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <textarea
+          ref={taRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={onKeyDown}
+          rows={10}
+          placeholder={`Paste one ${target.label.toLowerCase()} per line…\n\ne.g.\nItem A\nItem B\nItem C`}
+          className="w-full resize-y rounded-md border border-magic-border bg-white px-3 py-2 text-[12px] font-mono text-magic-ink outline-none focus:border-magic-red"
+        />
+
+        <label className="mt-3 flex items-start gap-2 text-[11px] text-magic-ink/70">
+          <input
+            type="checkbox"
+            checked={fillExisting}
+            onChange={(e) => setFillExisting(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            Fill existing rows in {target.system} first, then append any
+            remaining values as new rows. When unchecked, all pasted values
+            are added as new rows.
+          </span>
+        </label>
+
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-[11px] text-magic-ink/60">
+            {lineCount} {lineCount === 1 ? "row" : "rows"} detected
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-md border border-magic-border bg-white px-3 py-1.5 text-[12px] font-semibold text-magic-ink hover:bg-magic-soft"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => onApply(text, fillExisting)}
+              disabled={lineCount === 0}
+              className="rounded-md bg-magic-red px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-red-700 disabled:opacity-50 disabled:hover:bg-magic-red"
+              title="Ctrl/Cmd+Enter"
+            >
+              Apply ({lineCount})
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
