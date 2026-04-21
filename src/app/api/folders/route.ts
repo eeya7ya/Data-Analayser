@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 
@@ -63,11 +64,18 @@ export async function GET() {
             client_phone: string | null;
             client_company: string | null;
           }>);
+    // Short cache window: folders are mutable user data and the UX tolerates
+    // an occasional fresh round-trip better than a stale list. A longer cache
+    // (30s previously) caused freshly-created client folders to appear
+    // "missing" right after POST because the browser served the pre-creation
+    // cached body on the next navigation. The server preload on /quotation
+    // bypasses HTTP altogether, so this only affects the rare client-side
+    // fallback path.
     return NextResponse.json(
       { folders: rows },
       {
         headers: {
-          "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+          "Cache-Control": "private, max-age=0, must-revalidate",
         },
       },
     );
@@ -123,6 +131,11 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
+    // Invalidate the Next.js Router Cache for pages that render the folder
+    // list, so navigating back to /quotation after creating a client — even
+    // without ever saving a quotation — picks up the new row.
+    revalidatePath("/quotation");
+    revalidatePath("/designer");
     return NextResponse.json({ folder: rows[0] });
   } catch (err) {
     const msg = (err as Error).message;
@@ -213,6 +226,8 @@ export async function PATCH(req: NextRequest) {
       client_phone: string | null;
       client_company: string | null;
     }>;
+    revalidatePath("/quotation");
+    revalidatePath("/designer");
     return NextResponse.json({ folder: rows[0] });
   } catch (err) {
     const msg = (err as Error).message;
@@ -264,6 +279,8 @@ export async function DELETE(req: NextRequest) {
       set deleted_at = now(), updated_at = now()
       where id = ${id}
     `;
+    revalidatePath("/quotation");
+    revalidatePath("/designer");
     return NextResponse.json({ ok: true });
   } catch (err) {
     const msg = (err as Error).message;
