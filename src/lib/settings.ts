@@ -7,19 +7,16 @@ import { DEFAULT_TERMS } from "./quotationDraft";
  * - `defaultTerms` populates the Terms and Conditions block whenever a new
  *   quotation is created or a saved quotation has no stored terms.
  * - `footerText` is rendered at the bottom of every printable sheet.
- * - `crmModuleEnabled` is the runtime kill-switch for /crm/*.
  */
 export interface AppSettings {
   defaultTerms: string[];
   footerText: string;
-  crmModuleEnabled: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   defaultTerms: [...DEFAULT_TERMS],
   footerText:
     "Address: Amman- Gardens street- Khawaja Complex No.65- Tel: +962 65560272 Fax: +962 65560275",
-  crmModuleEnabled: false,
 };
 
 const KEY = "global";
@@ -37,7 +34,7 @@ const KEY = "global";
  * normalisation QuotationViewer applies to `items_json` / `config_json`.
  * Without this unwrap, every settings read returned all-defaults on the
  * serverless deploy, which is why the Save toast flashed "Saved." and the
- * form immediately re-seeded to CRM=off / built-in terms.
+ * form immediately re-seeded to the built-in defaults.
  */
 function normalize(value: unknown): AppSettings {
   let raw: unknown = value;
@@ -57,10 +54,6 @@ function normalize(value: unknown): AppSettings {
       typeof v.footerText === "string"
         ? v.footerText
         : DEFAULT_APP_SETTINGS.footerText,
-    crmModuleEnabled:
-      typeof v.crmModuleEnabled === "boolean"
-        ? v.crmModuleEnabled
-        : DEFAULT_APP_SETTINGS.crmModuleEnabled,
   };
 }
 
@@ -70,11 +63,9 @@ function normalize(value: unknown): AppSettings {
 const CACHE_TTL_MS = 5_000;
 // Hard ceiling on a single DB read. With postgres `max: 1` + transaction
 // pooler, a hung query on another request serialises behind this one, so
-// we cannot afford to wait indefinitely — the CRM layout gate calls into
-// here on every /crm/* navigation and an indefinite wait froze the whole
-// module ("nothing loads, navigation is dead"). On timeout we serve the
-// last cached value if we have one; otherwise we assume DEFAULTS and let
-// the real fetch finish in the background for the next request.
+// we cannot afford to wait indefinitely. On timeout we serve the last
+// cached value if we have one; otherwise we assume DEFAULTS and let the
+// real fetch finish in the background for the next request.
 const READ_TIMEOUT_MS = 8_000;
 const globalForSettings = globalThis as unknown as {
   __mtAppSettingsCache?: { at: number; data: AppSettings };
@@ -94,9 +85,8 @@ async function queryDb(): Promise<AppSettings> {
 }
 
 function readFromDb(): Promise<AppSettings> {
-  // Coalesce concurrent callers onto a single in-flight query so the CRM
-  // layout + the analytics endpoint + /api/crm/status pounding this on
-  // the same cold lambda don't each open a fresh round-trip.
+  // Coalesce concurrent callers onto a single in-flight query so multiple
+  // callers hitting the same cold lambda don't each open a fresh round-trip.
   let inflight = globalForSettings.__mtAppSettingsInFlight;
   if (!inflight) {
     inflight = queryDb().finally(() => {
@@ -120,7 +110,7 @@ function readFromDb(): Promise<AppSettings> {
  * the background fetch populate the cache for the next request. This is
  * the "wait, but never wait forever" shape — the earlier 400ms timeout
  * lied to callers on every cold start, and removing the timeout entirely
- * deadlocked /crm/* on a slow pooler.
+ * deadlocked callers on a slow pooler.
  */
 export async function getAppSettings(
   opts: { fresh?: boolean } = {},

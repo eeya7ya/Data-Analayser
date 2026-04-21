@@ -9,7 +9,7 @@ export async function GET() {
     await requireAdmin();
     const q = sql();
     const rows = (await q`
-      select id, username, display_name, role, created_at
+      select id, username, display_name, role, phone, created_at
       from users
       order by id asc
     `) as Array<{
@@ -17,6 +17,7 @@ export async function GET() {
       username: string;
       display_name: string;
       role: string;
+      phone: string;
       created_at: string;
     }>;
     return NextResponse.json({ users: rows });
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
       password?: string;
       role?: "admin" | "user";
       display_name?: string;
+      phone?: string;
     };
     if (!body.username || !body.password) {
       return NextResponse.json(
@@ -46,18 +48,20 @@ export async function POST(req: NextRequest) {
     }
     const role: "admin" | "user" = body.role === "admin" ? "admin" : "user";
     const displayName = body.display_name || "";
+    const phone = (body.phone || "").trim();
     const hash = await hashPassword(body.password);
     const q = sql();
     const rows = (await q`
-      insert into users (username, password_hash, role, display_name)
-      values (${body.username}, ${hash}, ${role}, ${displayName})
+      insert into users (username, password_hash, role, display_name, phone)
+      values (${body.username}, ${hash}, ${role}, ${displayName}, ${phone})
       on conflict (username) do nothing
-      returning id, username, display_name, role, created_at
+      returning id, username, display_name, role, phone, created_at
     `) as Array<{
       id: number;
       username: string;
       display_name: string;
       role: string;
+      phone: string;
       created_at: string;
     }>;
     if (rows.length === 0) {
@@ -88,6 +92,7 @@ export async function PATCH(req: NextRequest) {
       display_name?: string;
       role?: "admin" | "user";
       password?: string;
+      phone?: string;
     };
     const q = sql();
 
@@ -101,15 +106,19 @@ export async function PATCH(req: NextRequest) {
       const hash = await hashPassword(body.password);
       await q`update users set password_hash = ${hash} where id = ${id}`;
     }
+    if (body.phone !== undefined) {
+      await q`update users set phone = ${body.phone.trim()} where id = ${id}`;
+    }
 
     const rows = (await q`
-      select id, username, display_name, role, created_at
+      select id, username, display_name, role, phone, created_at
       from users where id = ${id}
     `) as Array<{
       id: number;
       username: string;
       display_name: string;
       role: string;
+      phone: string;
       created_at: string;
     }>;
     if (rows.length === 0) {

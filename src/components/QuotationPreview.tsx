@@ -1238,7 +1238,8 @@ function QuotationPage({
             <div className="text-left font-bold">Phone:</div>
             <div className="text-left">
               <HeaderField
-                value={header.sales_phone || "+962 795172566"}
+                value={header.sales_phone || ""}
+                placeholder="—"
                 editable={editable && !!setHeader}
                 onChange={(v) => setHeader?.({ sales_phone: v })}
               />
