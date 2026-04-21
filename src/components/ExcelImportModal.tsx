@@ -129,7 +129,9 @@ function valueLooksOptional(v: string): boolean {
 function findHeaderRow(rows: string[][]): number {
   let bestIdx = -1;
   let bestScore = 0;
-  const maxScan = Math.min(rows.length, 15);
+  // Widened from 15 → 30 so sheets with a title block or metadata header
+  // above the table still resolve their real column row.
+  const maxScan = Math.min(rows.length, 30);
   for (let i = 0; i < maxScan; i++) {
     const row = rows[i] || [];
     let score = 0;
@@ -170,12 +172,24 @@ export default function ExcelImportModal({
     return set;
   }, [mapping]);
 
-  const canImport = rows.length > 0 && mappedFields.has("model");
+  // Previously required mappedFields.has("model") — which blocked the
+  // Import button for sheets that use Brand + Description only. We now
+  // let the user click as long as at least one text column is mapped;
+  // handleImport below still reports a clear error if the mapping
+  // produces zero items.
+  const canImport =
+    rows.length > 0 &&
+    (mappedFields.has("model") ||
+      mappedFields.has("description") ||
+      mappedFields.has("brand"));
 
   const parseFile = useCallback((file: File) => {
     setError(null);
     setFileName(file.name);
     setParsing(true);
+    setHeaders([]);
+    setRows([]);
+    setMapping({});
     const xlsxReady = loadXlsx();
 
     const reader = new FileReader();
@@ -184,43 +198,59 @@ export default function ExcelImportModal({
         const XLSX = await xlsxReady;
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: "array" });
-        const sheetName = wb.SheetNames[0];
-        const sheet = sheetName ? wb.Sheets[sheetName] : undefined;
-        if (!sheet) {
+        if (!wb.SheetNames || wb.SheetNames.length === 0) {
           setError("No sheets found in the file.");
           setParsing(false);
           return;
         }
-        const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-          header: 1,
-          defval: "",
-          blankrows: false,
-        }) as unknown[][];
-        const stringified: string[][] = aoa.map((row) =>
-          row.map((cell) =>
-            cell === null || cell === undefined ? "" : String(cell).trim(),
-          ),
-        );
-        if (stringified.length === 0) {
-          setError("The sheet is empty.");
-          setParsing(false);
-          return;
+
+        // Walk every sheet in the workbook and keep the first one whose
+        // header detector actually fires. Plenty of real-world quotation
+        // sheets stash the table on "Sheet2" or "Items" with a cover
+        // sheet in front, and only scanning SheetNames[0] would silently
+        // refuse to import those files.
+        let chosenSheetName = "";
+        let chosenHeaderIdx = -1;
+        let chosenStringified: string[][] = [];
+        const scanSummaries: string[] = [];
+        for (const name of wb.SheetNames) {
+          const sheet = wb.Sheets[name];
+          if (!sheet) continue;
+          const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+            header: 1,
+            defval: "",
+            blankrows: false,
+          }) as unknown[][];
+          const stringified: string[][] = aoa.map((row) =>
+            (row || []).map((cell) =>
+              cell === null || cell === undefined ? "" : String(cell).trim(),
+            ),
+          );
+          scanSummaries.push(`${name}:${stringified.length}rows`);
+          if (stringified.length === 0) continue;
+          const idx = findHeaderRow(stringified);
+          if (idx >= 0) {
+            chosenSheetName = name;
+            chosenHeaderIdx = idx;
+            chosenStringified = stringified;
+            break;
+          }
         }
 
-        const headerIdx = findHeaderRow(stringified);
-        if (headerIdx < 0) {
+        if (chosenHeaderIdx < 0) {
           setError(
-            "Couldn't find a header row with recognisable column names. Expected headers like Brand, Model, Description, Quantity, Unit Price.",
+            `Couldn't find a header row with recognisable column names in any sheet (${scanSummaries.join(", ")}). Expected headers like Brand, Model, Description, Quantity, Unit Price.`,
           );
           setParsing(false);
           return;
         }
-        const rawHeaders = stringified[headerIdx];
+
+        const rawHeaders = chosenStringified[chosenHeaderIdx];
         // Pad every data row to the header length so missing trailing
         // cells don't offset the mapping.
         const colCount = rawHeaders.length;
-        const dataRows = stringified
-          .slice(headerIdx + 1)
+        const dataRows = chosenStringified
+          .slice(chosenHeaderIdx + 1)
           .filter((r) => r.some((c) => c && c.trim().length > 0))
           .map((r) => {
             const padded = r.slice(0, colCount);
@@ -233,6 +263,22 @@ export default function ExcelImportModal({
           const detected = detectField(h);
           autoMap[i] = detected ?? "";
         });
+
+        // Surface a diagnostic to the console so users (and support) can
+        // tell at a glance where things landed if the Import button is
+        // still disabled — the most common cause of "nothing happened" is
+        // a mapping miss the user didn't notice.
+        if (typeof console !== "undefined") {
+          // eslint-disable-next-line no-console
+          console.log("[Import Excel] parsed", {
+            file: file.name,
+            sheet: chosenSheetName,
+            headerRow: chosenHeaderIdx,
+            headers: rawHeaders,
+            dataRowCount: dataRows.length,
+            autoMap,
+          });
+        }
 
         setHeaders(rawHeaders);
         setRows(dataRows);
@@ -250,8 +296,14 @@ export default function ExcelImportModal({
     reader.readAsArrayBuffer(file);
   }, []);
 
-  const handleImport = useCallback(() => {
-    if (rows.length === 0) return;
+  /**
+   * Convert the parsed-and-mapped rows into QuotationItems according to
+   * the current column mapping. Kept as a pure function (no state
+   * mutation) so it can be reused by the live preview counter and by
+   * the actual import handler below — keeps the two in lock-step.
+   */
+  const buildItems = useCallback((): QuotationItem[] => {
+    if (rows.length === 0) return [];
     const colFor = (field: FieldKey): number => {
       for (const [idx, v] of Object.entries(mapping)) {
         if (v === field) return Number(idx);
@@ -275,11 +327,13 @@ export default function ExcelImportModal({
       const v = r.values;
       const model = modelCol >= 0 ? v[modelCol] : "";
       const description = descCol >= 0 ? v[descCol] : "";
-      // Skip rows with neither model nor description — they're section
-      // separators or stray labels in the source sheet, not real items.
-      if (!model && !description) continue;
-
       const brand = brandCol >= 0 ? v[brandCol] : "";
+      // Relaxed from the previous "needs model OR description": if none
+      // of those three is present we skip the row, but having just a
+      // brand + qty + price is enough — matches loose sheets where the
+      // description lives in the Model cell, or vice versa.
+      if (!model && !description && !brand) continue;
+
       const qtyStr = qtyCol >= 0 ? v[qtyCol] : "";
       const unitStr = unitCol >= 0 ? v[unitCol] : "";
       const totalStr = totalCol >= 0 ? v[totalCol] : "";
@@ -299,9 +353,8 @@ export default function ExcelImportModal({
       const optional = valueLooksOptional(totalStr);
 
       const sys = (sysStr || "").trim() || fallbackPage;
-      const pictureUrl = picture && /^https?:|^data:/i.test(picture)
-        ? picture
-        : undefined;
+      const pictureUrl =
+        picture && /^https?:|^data:/i.test(picture) ? picture : undefined;
 
       items.push({
         no: 0,
@@ -317,15 +370,40 @@ export default function ExcelImportModal({
         optional: optional || undefined,
       });
     }
+    return items;
+  }, [rows, mapping, pageName, defaultPage]);
 
+  // Live count of what the current mapping would produce — drives the
+  // "N rows will become items" hint and the Import button label. Keeps
+  // the user from clicking Import only to be told "nothing matched".
+  const previewItemCount = useMemo(() => buildItems().length, [buildItems]);
+
+  const handleImport = useCallback(() => {
+    if (rows.length === 0) return;
+    const items = buildItems();
+    if (typeof console !== "undefined") {
+      // eslint-disable-next-line no-console
+      console.log("[Import Excel] importing", {
+        rows: rows.length,
+        items: items.length,
+        mode,
+        firstItem: items[0],
+      });
+    }
     if (items.length === 0) {
+      const missing: string[] = [];
+      if (!mappedFields.has("model")) missing.push("Model");
+      if (!mappedFields.has("description")) missing.push("Description");
       setError(
-        "No valid rows found after mapping — check that the Model column is mapped and data rows aren't empty.",
+        `No rows could be turned into items. ${rows.length} data row${rows.length === 1 ? "" : "s"} scanned; every one was missing a Brand, Model and Description. ` +
+          (missing.length > 0
+            ? `Map ${missing.join(" or ")} to the column that holds the product identifier, then try again.`
+            : "Double-check your column mapping above."),
       );
       return;
     }
     onImport(items, mode);
-  }, [rows, mapping, pageName, defaultPage, mode, onImport]);
+  }, [rows, buildItems, mode, onImport, mappedFields]);
 
   const preview = rows.slice(0, 5);
 
@@ -456,11 +534,10 @@ export default function ExcelImportModal({
                   </tbody>
                 </table>
               </div>
-              {!mappedFields.has("model") && (
-                <p className="mt-2 text-[11px] text-red-600">
-                  Map at least the <b>Model</b> column before importing.
-                </p>
-              )}
+              <p className="mt-2 text-[11px] text-magic-ink/60">
+                Map at least one of <b>Model</b>, <b>Description</b> or
+                <b> Brand</b> to continue.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -555,7 +632,21 @@ export default function ExcelImportModal({
           </div>
         )}
 
-        <div className="mt-6 flex items-center justify-end gap-2">
+        <div className="mt-6 flex items-center justify-end gap-3">
+          {rows.length > 0 && (
+            <span className="text-[11px] text-magic-ink/70 mr-auto">
+              <b>{previewItemCount}</b> of {rows.length} row
+              {rows.length === 1 ? "" : "s"} will be imported
+              {previewItemCount < rows.length && (
+                <span className="text-magic-ink/50">
+                  {" "}
+                  ({rows.length - previewItemCount} skipped — empty
+                  Brand/Model/Description)
+                </span>
+              )}
+              .
+            </span>
+          )}
           <button
             onClick={onCancel}
             className="rounded-lg px-4 py-2 text-sm text-magic-ink/70 hover:bg-magic-soft"
@@ -564,10 +655,10 @@ export default function ExcelImportModal({
           </button>
           <button
             onClick={handleImport}
-            disabled={!canImport}
+            disabled={!canImport || previewItemCount === 0}
             className="rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Import {rows.length > 0 ? `${rows.length} row${rows.length === 1 ? "" : "s"}` : ""}
+            Import{previewItemCount > 0 ? ` ${previewItemCount} item${previewItemCount === 1 ? "" : "s"}` : ""}
           </button>
         </div>
       </div>

@@ -395,6 +395,18 @@ export default function Designer({
   // items list or replaces the list entirely, depending on the mode the
   // user selected in the modal.
   function applyImportedItems(imported: QuotationItem[], mode: "append" | "replace") {
+    if (typeof console !== "undefined") {
+      // Leaves a breadcrumb in the browser console so if the rows
+      // don't appear after import the user (or support) can tell
+      // whether the modal actually reached the Designer or stopped
+      // before `setItems`.
+      // eslint-disable-next-line no-console
+      console.log("[Import Excel] Designer received", {
+        count: imported.length,
+        mode,
+        firstItem: imported[0],
+      });
+    }
     if (imported.length === 0) {
       setExcelImportOpen(false);
       return;
