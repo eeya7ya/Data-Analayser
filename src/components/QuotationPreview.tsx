@@ -145,6 +145,161 @@ function money(n: number): string {
   return `JOD ${n.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 }
 
+// ─── Excel-aware clipboard readers ──────────────────────────────────────────
+// Used by the "Paste column" button in every editable table header. We try
+// the HTML clipboard payload first because when Excel (or Google Sheets)
+// copies cells it embeds them as a <table> where each <td> is one real
+// cell — including cells whose visible content is multi-line (Excel stores
+// those internal line breaks as <br> inside the td). Parsing the table
+// gives us per-cell strings with their line breaks preserved exactly.
+//
+// When the HTML part isn't available (e.g. a paste from a plain text
+// source, or a browser that blocked clipboard.read), we fall back to a
+// CSV-style parser over text/plain that honours double-quoted fields so
+// Excel's convention of wrapping multi-line cells in quotes still yields
+// one string per cell instead of one string per newline.
+//
+// Both paths return the FIRST column of the clipboard — which is what the
+// user copied when they selected a single column in Excel. If the
+// clipboard happens to carry multiple columns we silently ignore the
+// others; the button is per-column and the user is pasting one column at
+// a time by design.
+
+/** Convert an HTML table cell into a string, replacing <br> with \n. */
+function cellHtmlToText(cell: Element): string {
+  const clone = cell.cloneNode(true) as HTMLElement;
+  // Excel emits <br> between the physical lines of a multi-line cell; map
+  // them back to real newlines so the string we hand to the designer is
+  // the same thing the user sees in Excel.
+  clone.querySelectorAll("br").forEach((br) => {
+    br.replaceWith("\n");
+  });
+  // Paragraphs / divs also represent line breaks in some sources — flush
+  // each to its own line before textContent collapses them.
+  clone.querySelectorAll("p, div").forEach((block) => {
+    block.append("\n");
+  });
+  return (clone.textContent || "").replace(/ /g, " ").replace(/[ \t]+\n/g, "\n").trim();
+}
+
+function parseHtmlFirstColumn(html: string): string[] {
+  if (!html) return [];
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  const table = doc.querySelector("table");
+  if (!table) return [];
+  const rows = Array.from(table.querySelectorAll("tr"));
+  const cells: string[] = [];
+  for (const row of rows) {
+    const firstCell = row.querySelector("td, th");
+    if (!firstCell) continue;
+    cells.push(cellHtmlToText(firstCell));
+  }
+  // Drop trailing completely-empty rows — Excel sometimes appends one.
+  while (cells.length > 0 && cells[cells.length - 1] === "") cells.pop();
+  return cells;
+}
+
+/**
+ * CSV/TSV parser that respects double-quoted fields (which may span
+ * newlines and may contain tabs). Returns the FIRST column of every row
+ * in the pasted payload. Intended as a fallback for when the HTML side
+ * of the clipboard isn't accessible.
+ */
+function parsePlainFirstColumn(text: string): string[] {
+  if (!text) return [];
+  const rows: string[][] = [[""]];
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const row = rows[rows.length - 1];
+    const colIdx = row.length - 1;
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          row[colIdx] += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        row[colIdx] += ch;
+      }
+      continue;
+    }
+    if (ch === '"' && row[colIdx] === "") {
+      inQuotes = true;
+      continue;
+    }
+    if (ch === "\t") {
+      row.push("");
+      continue;
+    }
+    if (ch === "\r") {
+      // Treat as part of the upcoming \n; single \r line endings are rare.
+      continue;
+    }
+    if (ch === "\n") {
+      rows.push([""]);
+      continue;
+    }
+    row[colIdx] += ch;
+  }
+  while (rows.length > 0 && rows[rows.length - 1].every((c) => c === "")) {
+    rows.pop();
+  }
+  return rows.map((r) => r[0] || "");
+}
+
+/**
+ * Read a single column of cells out of the system clipboard, preferring
+ * the Excel-provided HTML payload so multi-line cell content stays inside
+ * one cell instead of being split on newlines. Returns an empty array
+ * when the clipboard is empty or neither API path succeeded.
+ */
+async function readClipboardColumn(): Promise<string[]> {
+  // Preferred path: navigator.clipboard.read() exposes every MIME type
+  // Excel wrote, letting us grab text/html and parse it as a table.
+  if (typeof navigator !== "undefined" && navigator.clipboard && "read" in navigator.clipboard) {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        if (item.types.includes("text/html")) {
+          const blob = await item.getType("text/html");
+          const html = await blob.text();
+          const cells = parseHtmlFirstColumn(html);
+          if (cells.length > 0) return cells;
+        }
+      }
+      // HTML part missing (plain-text-only source): fall through to the
+      // text path below using whatever we can read.
+      for (const item of items) {
+        if (item.types.includes("text/plain")) {
+          const blob = await item.getType("text/plain");
+          const text = await blob.text();
+          const cells = parsePlainFirstColumn(text);
+          if (cells.length > 0) return cells;
+        }
+      }
+    } catch {
+      // Permission denied / unsupported MIME / non-secure context →
+      // fall through to readText below.
+    }
+  }
+  // Final fallback: readText is more widely supported but only gives us
+  // plain text, so multi-line cells MUST be in the Excel-style quoted
+  // format for parsePlainFirstColumn to keep them in one string.
+  if (typeof navigator !== "undefined" && navigator.clipboard?.readText) {
+    try {
+      const text = await navigator.clipboard.readText();
+      return parsePlainFirstColumn(text);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 /**
  * Assign a 1-based row number to every item, counting independently
  * within each system group. Continuous global numbering (CCTV rows 1..9,
@@ -541,6 +696,115 @@ export default function QuotationPreview({
     );
   }
 
+  // ── Paste a whole Excel column into one designer column ────────────────
+  // Triggered by the 📋 button on top of each editable column header. We
+  // read the system clipboard (preferring Excel's HTML payload so multi-
+  // line cells stay intact) and drop each cell value into the next row of
+  // the target system page, creating new rows when the clipboard has more
+  // entries than the table does. Unlike a split-on-newline paste, this
+  // respects the user's original Excel cell boundaries — a cell that
+  // contains "Line A\nLine B" in Excel lands in ONE description cell
+  // here, with the newline preserved.
+  async function pasteColumnFromClipboard(system: string, colKey: string) {
+    if (!setItems) return;
+    const cells = await readClipboardColumn();
+    if (cells.length === 0) {
+      window.alert(
+        "Nothing to paste. Copy a column of cells from Excel (or Google Sheets) first, then click the 📋 button again.\n\n" +
+          "If the browser blocked clipboard access, reload the page and try once more — it asks for permission on the first read."
+      );
+      return;
+    }
+
+    // Convert one clipboard cell into a patch for the target column.
+    // Numeric columns coerce via Number(); text columns keep the full
+    // multi-line string (including internal \n) so the Description
+    // textarea renders it verbatim.
+    function patchForCell(raw: string): Partial<QuotationItem> {
+      if (colKey === "quantity") {
+        const n = Number(raw.trim());
+        return { quantity: Number.isFinite(n) && n > 0 ? n : 1 };
+      }
+      if (colKey === "unit_price") {
+        const n = Number(raw.trim());
+        return { unit_price: Number.isFinite(n) ? n : 0 };
+      }
+      if (colKey.startsWith("extra:")) {
+        const colId = colKey.slice("extra:".length);
+        return { extra: { [colId]: raw } };
+      }
+      return { [colKey]: raw } as Partial<QuotationItem>;
+    }
+
+    // Global indices of rows currently on the target system page, in
+    // document order. Filling starts at the first row of the page.
+    const groupIndices: number[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const sys = items[i].system || items[i].brand || "General";
+      if (sys === system) groupIndices.push(i);
+    }
+
+    const next = items.slice();
+    let cursor = 0;
+
+    // Phase 1 — overwrite every existing row on this page with the next
+    // clipboard cell, one by one. The `extra` object needs a merge (not
+    // a replace) so the other manual columns on the row survive the
+    // update.
+    for (
+      let local = 0;
+      local < groupIndices.length && cursor < cells.length;
+      local++, cursor++
+    ) {
+      const g = groupIndices[local];
+      const patch = patchForCell(cells[cursor]);
+      if (patch.extra) {
+        next[g] = {
+          ...next[g],
+          extra: { ...(next[g].extra || {}), ...patch.extra },
+        };
+      } else {
+        next[g] = { ...next[g], ...patch };
+      }
+    }
+
+    // Phase 2 — any leftover clipboard cells spill into brand new rows
+    // appended right after the last existing row of this page, so they
+    // stay inside the same printed system group.
+    if (cursor < cells.length) {
+      const insertAt =
+        groupIndices.length > 0
+          ? groupIndices[groupIndices.length - 1] + 1
+          : next.length;
+      const newRows: QuotationItem[] = [];
+      for (; cursor < cells.length; cursor++) {
+        const base: QuotationItem = {
+          no: 0,
+          system,
+          brand: "",
+          model: "",
+          description: `New ${system} item — please add a short description.`,
+          quantity: 1,
+          unit_price: 0,
+          delivery: "TBD",
+          extra: {},
+        };
+        const patch = patchForCell(cells[cursor]);
+        if (patch.extra) {
+          newRows.push({
+            ...base,
+            extra: { ...(base.extra || {}), ...patch.extra },
+          });
+        } else {
+          newRows.push({ ...base, ...patch });
+        }
+      }
+      next.splice(insertAt, 0, ...newRows);
+    }
+
+    setItems(renumber(next));
+  }
+
   // ── Manual (user-added) columns ─────────────────────────────────────────
   const extraColumns: QuotationExtraColumn[] = header.extra_columns || [];
 
@@ -691,6 +955,7 @@ export default function QuotationPreview({
             onToggleOptional={toggleOptional}
             onRenameExtraColumn={renameExtraColumn}
             onRemoveExtraColumn={removeExtraColumn}
+            onPasteColumn={pasteColumnFromClipboard}
           />
           {editable && (
             <div className="no-print mt-2 flex flex-wrap items-center gap-2">
@@ -1211,6 +1476,7 @@ function SystemTable({
   onToggleOptional,
   onRenameExtraColumn,
   onRemoveExtraColumn,
+  onPasteColumn,
 }: {
   group: { system: string; rows: Array<{ item: QuotationItem; globalIndex: number }> };
   allPages: string[];
@@ -1230,6 +1496,13 @@ function SystemTable({
   onToggleOptional: (globalIndex: number) => void;
   onRenameExtraColumn: (id: string, label: string) => void;
   onRemoveExtraColumn: (id: string) => void;
+  /**
+   * Called from the 📋 "Paste column" button in each editable column
+   * header. Reads the system clipboard and fills the column down from
+   * row 1 of the target system page, preserving multi-line cell content
+   * exactly as Excel had it.
+   */
+  onPasteColumn: (system: string, colKey: string) => Promise<void> | void;
 }) {
   // Base = No, Brand, Model, Description, [Picture], Quantity, Delivery,
   // Unit Price, Total Price — plus one cell per manual column. In BoQ
@@ -1341,18 +1614,59 @@ function SystemTable({
     );
   }
 
+  // Tiny paste-column button shown inside each editable column header.
+  // One click reads the system clipboard, parses the first column out of
+  // whatever Excel put there, and fills it down this column — preserving
+  // any multi-line cell content exactly (a single Excel cell with three
+  // lines of text lands in ONE row of the designer, keeping the line
+  // breaks). Hidden in the printed sheet via `no-print`.
+  const pasteBtn = (colKey: string, columnLabel: string) => {
+    if (!editable) return null;
+    return (
+      <button
+        type="button"
+        onClick={() => onPasteColumn(group.system, colKey)}
+        className="no-print ml-1 inline-flex items-center justify-center w-5 h-5 rounded border border-magic-border bg-white text-magic-ink/70 hover:bg-magic-soft hover:text-magic-red text-[11px] leading-none align-middle"
+        title={`Paste an Excel column into ${columnLabel} — one click fills every cell down this column`}
+        aria-label={`Paste clipboard column into ${columnLabel}`}
+      >
+        📋
+      </button>
+    );
+  };
+
   return (
     <table>
       <thead>
         <tr>
           <th style={{ width: "4%" }}>No</th>
-          <th style={{ width: "10%" }}>Brand</th>
-          <th style={{ width: "12%" }}>Model</th>
-          <th style={{ width: `${descWidth}%` }}>Description</th>
+          <th style={{ width: "10%" }}>
+            Brand
+            {pasteBtn("brand", "Brand")}
+          </th>
+          <th style={{ width: "12%" }}>
+            Model
+            {pasteBtn("model", "Model")}
+          </th>
+          <th style={{ width: `${descWidth}%` }}>
+            Description
+            {pasteBtn("description", "Description")}
+          </th>
           {showPictures && <th style={{ width: "10%" }}>Picture</th>}
-          <th style={{ width: "6%" }}>Quantity</th>
-          <th style={{ width: "8%" }}>Delivery</th>
-          {!boqMode && <th style={{ width: "10%" }}>Unit Price</th>}
+          <th style={{ width: "6%" }}>
+            Quantity
+            {pasteBtn("quantity", "Quantity")}
+          </th>
+          <th style={{ width: "8%" }}>
+            Delivery
+            {pasteBtn("delivery", "Delivery")}
+          </th>
+          {!boqMode && (
+            <th style={{ width: "10%" }}>
+              Unit Price
+              {pasteBtn("unit_price", "Unit Price")}
+            </th>
+          )}
           {!boqMode && <th style={{ width: "12%" }}>Total Price</th>}
           {extraColumns.map((col) => (
             <th key={col.id} style={{ width: `${extraShare / Math.max(extraColumns.length, 1)}%` }}>
@@ -1364,6 +1678,7 @@ function SystemTable({
                     onChange={(e) => onRenameExtraColumn(col.id, e.target.value)}
                     aria-label="Rename manual column"
                   />
+                  {pasteBtn(`extra:${col.id}`, col.label || "Column")}
                   <button
                     onClick={() => onRemoveExtraColumn(col.id)}
                     className="no-print text-red-500 text-[10px] leading-none"
