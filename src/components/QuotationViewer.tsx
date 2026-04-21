@@ -307,6 +307,15 @@ export default function QuotationViewer({
           Edit
         </button>
         <button
+          onClick={() =>
+            router.push(`/purchase-orders?quotation=${id}`)
+          }
+          title="Create a purchase order linked to this quotation"
+          className="rounded-md border border-magic-border px-4 py-2 text-sm font-semibold hover:bg-magic-soft"
+        >
+          Convert to PO
+        </button>
+        <button
           onClick={() => runPrint(false)}
           className="rounded-md bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700"
         >

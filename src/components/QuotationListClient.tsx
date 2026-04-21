@@ -211,6 +211,68 @@ export default function QuotationListClient({
   const [quotationSearch, setQuotationSearch] = useState("");
   const [debouncedQuotationSearch, setDebouncedQuotationSearch] = useState("");
 
+  // ── Sort ──────────────────────────────────────────────────────────────
+  // Users kept asking for more control than free-text search, so both the
+  // client grid and the per-client quotation table now expose an explicit
+  // sort dropdown. Persisted to localStorage so refreshing the page keeps
+  // the chosen ordering instead of snapping back to "newest first".
+  type ClientSortBy =
+    | "name"
+    | "company"
+    | "email"
+    | "phone"
+    | "quotationCount"
+    | "created"
+    | "updated";
+  type QuotationSortBy =
+    | "ref"
+    | "project"
+    | "client"
+    | "site"
+    | "created"
+    | "updated";
+  type SortDir = "asc" | "desc";
+
+  const [clientSortBy, setClientSortBy] = useState<ClientSortBy>(() => {
+    if (typeof window === "undefined") return "name";
+    return (
+      (window.localStorage.getItem("mt_clientSortBy") as ClientSortBy | null) ||
+      "name"
+    );
+  });
+  const [clientSortDir, setClientSortDir] = useState<SortDir>(() => {
+    if (typeof window === "undefined") return "asc";
+    return (
+      (window.localStorage.getItem("mt_clientSortDir") as SortDir | null) ||
+      "asc"
+    );
+  });
+  const [quotationSortBy, setQuotationSortBy] = useState<QuotationSortBy>(
+    () => {
+      if (typeof window === "undefined") return "updated";
+      return (
+        (window.localStorage.getItem(
+          "mt_quotationSortBy",
+        ) as QuotationSortBy | null) || "updated"
+      );
+    },
+  );
+  const [quotationSortDir, setQuotationSortDir] = useState<SortDir>(() => {
+    if (typeof window === "undefined") return "desc";
+    return (
+      (window.localStorage.getItem("mt_quotationSortDir") as SortDir | null) ||
+      "desc"
+    );
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("mt_clientSortBy", clientSortBy);
+    window.localStorage.setItem("mt_clientSortDir", clientSortDir);
+    window.localStorage.setItem("mt_quotationSortBy", quotationSortBy);
+    window.localStorage.setItem("mt_quotationSortDir", quotationSortDir);
+  }, [clientSortBy, clientSortDir, quotationSortBy, quotationSortDir]);
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedClientSearch(clientSearch), 350);
     return () => clearTimeout(t);
@@ -431,28 +493,123 @@ export default function QuotationListClient({
   const filteredGroups = useMemo<Group[]>(() => {
     const base = userScopedGroups;
     const q = debouncedClientSearch.trim().toLowerCase();
-    if (!q) return base;
-    return base.filter((g) => {
+    const matched = !q
+      ? [...base]
+      : base.filter((g) => {
+          if (g.folder) {
+            const f = g.folder;
+            if ((f.name || "").toLowerCase().includes(q)) return true;
+            if ((f.client_email || "").toLowerCase().includes(q)) return true;
+            if ((f.client_phone || "").toLowerCase().includes(q)) return true;
+            if ((f.client_company || "").toLowerCase().includes(q)) return true;
+          } else if ("unfiled".includes(q)) {
+            return true;
+          }
+          // Also match if any contained quotation matches — lets users
+          // land on the right client by typing a ref or project name.
+          return g.items.some(
+            (r) =>
+              r.ref.toLowerCase().includes(q) ||
+              r.project_name.toLowerCase().includes(q) ||
+              (r.client_name && r.client_name.toLowerCase().includes(q)) ||
+              r.site_name.toLowerCase().includes(q),
+          );
+        });
+
+    // Pull the newest / oldest date out of a group's quotations. Used when
+    // the user sorts by "recently updated" / "recently created" — the group
+    // itself has no such field, so we fold over the items.
+    function latestUpdated(g: Group): number {
       if (g.folder) {
-        const f = g.folder;
-        if ((f.name || "").toLowerCase().includes(q)) return true;
-        if ((f.client_email || "").toLowerCase().includes(q)) return true;
-        if ((f.client_phone || "").toLowerCase().includes(q)) return true;
-        if ((f.client_company || "").toLowerCase().includes(q)) return true;
-      } else if ("unfiled".includes(q)) {
-        return true;
+        const t = Date.parse(g.folder.updated_at || g.folder.created_at || "");
+        let best = isFinite(t) ? t : 0;
+        for (const r of g.items) {
+          const rt = Date.parse(r.updated_at || r.created_at || "");
+          if (isFinite(rt) && rt > best) best = rt;
+        }
+        return best;
       }
-      // Also match if any contained quotation matches — lets users
-      // land on the right client by typing a ref or project name.
-      return g.items.some(
-        (r) =>
-          r.ref.toLowerCase().includes(q) ||
-          r.project_name.toLowerCase().includes(q) ||
-          (r.client_name && r.client_name.toLowerCase().includes(q)) ||
-          r.site_name.toLowerCase().includes(q),
-      );
+      let best = 0;
+      for (const r of g.items) {
+        const rt = Date.parse(r.updated_at || r.created_at || "");
+        if (isFinite(rt) && rt > best) best = rt;
+      }
+      return best;
+    }
+    function oldestCreated(g: Group): number {
+      if (g.folder) {
+        const t = Date.parse(g.folder.created_at || "");
+        return isFinite(t) ? t : 0;
+      }
+      let best = Number.POSITIVE_INFINITY;
+      for (const r of g.items) {
+        const rt = Date.parse(r.created_at || "");
+        if (isFinite(rt) && rt < best) best = rt;
+      }
+      return isFinite(best) ? best : 0;
+    }
+
+    const dir = clientSortDir === "asc" ? 1 : -1;
+    matched.sort((a, b) => {
+      // Always keep the "Unfiled" bucket(s) at the end regardless of sort —
+      // it isn't a real client and mixing it into an alphabetical list is
+      // more confusing than helpful.
+      const aUnfiled = a.folderId === null;
+      const bUnfiled = b.folderId === null;
+      if (aUnfiled && !bUnfiled) return 1;
+      if (!aUnfiled && bUnfiled) return -1;
+
+      let cmp = 0;
+      switch (clientSortBy) {
+        case "name": {
+          const an = (a.folder?.name || (aUnfiled ? "Unfiled" : "")).toLowerCase();
+          const bn = (b.folder?.name || (bUnfiled ? "Unfiled" : "")).toLowerCase();
+          cmp = an.localeCompare(bn);
+          break;
+        }
+        case "company": {
+          const an = (a.folder?.client_company || "").toLowerCase();
+          const bn = (b.folder?.client_company || "").toLowerCase();
+          // Empty company → sort after populated ones regardless of dir.
+          if (!an && bn) return 1;
+          if (an && !bn) return -1;
+          cmp = an.localeCompare(bn);
+          break;
+        }
+        case "email": {
+          const an = (a.folder?.client_email || "").toLowerCase();
+          const bn = (b.folder?.client_email || "").toLowerCase();
+          if (!an && bn) return 1;
+          if (an && !bn) return -1;
+          cmp = an.localeCompare(bn);
+          break;
+        }
+        case "phone": {
+          const an = (a.folder?.client_phone || "").toLowerCase();
+          const bn = (b.folder?.client_phone || "").toLowerCase();
+          if (!an && bn) return 1;
+          if (an && !bn) return -1;
+          cmp = an.localeCompare(bn);
+          break;
+        }
+        case "quotationCount": {
+          cmp = a.items.length - b.items.length;
+          break;
+        }
+        case "created": {
+          cmp = oldestCreated(a) - oldestCreated(b);
+          break;
+        }
+        case "updated": {
+          cmp = latestUpdated(a) - latestUpdated(b);
+          break;
+        }
+      }
+      return cmp * dir;
     });
-  }, [userScopedGroups, debouncedClientSearch]);
+
+    return matched;
+  }, [userScopedGroups, debouncedClientSearch, clientSortBy, clientSortDir]);
 
   // Currently selected client (detail view), resolved against the group
   // list so edits / reloads stay in sync.
@@ -471,19 +628,49 @@ export default function QuotationListClient({
   }, [selectedClientKey, selectedGroup]);
 
   // Quotations shown inside the detail view, filtered by the per-client
-  // search box.
+  // search box and ordered by the chosen sort key.
   const selectedQuotations = useMemo<Quotation[]>(() => {
     if (!selectedGroup) return [];
     const q = debouncedQuotationSearch.trim().toLowerCase();
-    if (!q) return selectedGroup.items;
-    return selectedGroup.items.filter(
-      (r) =>
-        r.ref.toLowerCase().includes(q) ||
-        r.project_name.toLowerCase().includes(q) ||
-        (r.client_name && r.client_name.toLowerCase().includes(q)) ||
-        r.site_name.toLowerCase().includes(q),
-    );
-  }, [selectedGroup, debouncedQuotationSearch]);
+    const matched = !q
+      ? [...selectedGroup.items]
+      : selectedGroup.items.filter(
+          (r) =>
+            r.ref.toLowerCase().includes(q) ||
+            r.project_name.toLowerCase().includes(q) ||
+            (r.client_name && r.client_name.toLowerCase().includes(q)) ||
+            r.site_name.toLowerCase().includes(q),
+        );
+
+    const dir = quotationSortDir === "asc" ? 1 : -1;
+    matched.sort((a, b) => {
+      let cmp = 0;
+      switch (quotationSortBy) {
+        case "ref":
+          cmp = a.ref.localeCompare(b.ref, undefined, { numeric: true });
+          break;
+        case "project":
+          cmp = a.project_name.localeCompare(b.project_name);
+          break;
+        case "client":
+          cmp = (a.client_name || "").localeCompare(b.client_name || "");
+          break;
+        case "site":
+          cmp = a.site_name.localeCompare(b.site_name);
+          break;
+        case "created":
+          cmp =
+            Date.parse(a.created_at || "") - Date.parse(b.created_at || "");
+          break;
+        case "updated":
+          cmp =
+            Date.parse(a.updated_at || "") - Date.parse(b.updated_at || "");
+          break;
+      }
+      return cmp * dir;
+    });
+    return matched;
+  }, [selectedGroup, debouncedQuotationSearch, quotationSortBy, quotationSortDir]);
 
   const foldersForMove = useMemo(
     () => folders.map((f) => ({ id: f.id, name: f.name })),
@@ -941,6 +1128,43 @@ export default function QuotationListClient({
                 </button>
               )}
             </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <label
+                htmlFor="quotationSortBy"
+                className="text-[11px] uppercase tracking-wide text-magic-ink/50 font-semibold"
+              >
+                Sort
+              </label>
+              <select
+                id="quotationSortBy"
+                value={quotationSortBy}
+                onChange={(e) =>
+                  setQuotationSortBy(e.target.value as QuotationSortBy)
+                }
+                className="px-2 py-1.5 text-xs border border-magic-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+              >
+                <option value="updated">Last edited</option>
+                <option value="created">Created</option>
+                <option value="ref">Ref</option>
+                <option value="project">Project</option>
+                <option value="client">Client</option>
+                <option value="site">Site</option>
+              </select>
+              <button
+                type="button"
+                onClick={() =>
+                  setQuotationSortDir(
+                    quotationSortDir === "asc" ? "desc" : "asc",
+                  )
+                }
+                title={
+                  quotationSortDir === "asc" ? "Ascending" : "Descending"
+                }
+                className="px-2 py-1.5 text-xs border border-magic-border rounded-lg bg-white text-magic-ink/70 hover:text-magic-red hover:border-magic-red/60 transition-colors"
+              >
+                {quotationSortDir === "asc" ? "↑" : "↓"}
+              </button>
+            </div>
             {!isUnfiled && (
               <Link
                 href={`/designer?folder=${g.folderId}`}
@@ -1227,6 +1451,40 @@ export default function QuotationListClient({
                   </svg>
                 </button>
               )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <label
+                htmlFor="clientSortBy"
+                className="text-[11px] uppercase tracking-wide text-magic-ink/50 font-semibold"
+              >
+                Sort
+              </label>
+              <select
+                id="clientSortBy"
+                value={clientSortBy}
+                onChange={(e) =>
+                  setClientSortBy(e.target.value as ClientSortBy)
+                }
+                className="px-2 py-1.5 text-xs border border-magic-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-magic-red/30"
+              >
+                <option value="name">Name</option>
+                <option value="company">Company</option>
+                <option value="email">Email</option>
+                <option value="phone">Phone</option>
+                <option value="quotationCount">Quotation count</option>
+                <option value="updated">Last activity</option>
+                <option value="created">Created</option>
+              </select>
+              <button
+                type="button"
+                onClick={() =>
+                  setClientSortDir(clientSortDir === "asc" ? "desc" : "asc")
+                }
+                title={clientSortDir === "asc" ? "Ascending" : "Descending"}
+                className="px-2 py-1.5 text-xs border border-magic-border rounded-lg bg-white text-magic-ink/70 hover:text-magic-red hover:border-magic-red/60 transition-colors"
+              >
+                {clientSortDir === "asc" ? "↑" : "↓"}
+              </button>
             </div>
             <button
               onClick={() => {

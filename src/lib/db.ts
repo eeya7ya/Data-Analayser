@@ -189,6 +189,22 @@ const PERF_INDEX_V2_FLAG = "perf_composite_indexes_v2_2026_04";
  */
 const QUOTATION_CONTACT_FLAG = "crm_quotation_contact_v1_2026_04";
 
+/**
+ * Per-user phone number. Before this migration every non-admin quotation
+ * stamped the admin's hardcoded phone under "Presales Engineer" because
+ * the sales_phone field had a module-level fallback. Each user now gets
+ * their own column so the quotation header prints the salesperson's
+ * actual number.
+ */
+const USER_PHONE_FLAG = "user_phone_v1_2026_04";
+
+/**
+ * Purchase orders. Each PO is attached to a quotation (nullable so an
+ * ad-hoc PO is still expressible) and owned by the user who created it.
+ * Purely additive — existing quotation / folder flows are untouched.
+ */
+const PURCHASE_ORDERS_FLAG = "purchase_orders_v1_2026_04";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -220,7 +236,8 @@ export async function resetSchemaCache(): Promise<void> {
       ${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG},
       ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
       ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
-      ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG}
+      ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
+      ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}
     )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
@@ -249,6 +266,8 @@ async function _ensureSchemaOnce(): Promise<void> {
   let crmSearchApplied = false;
   let perfIndexesV2Applied = false;
   let quotationContactApplied = false;
+  let userPhoneApplied = false;
+  let purchaseOrdersApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -256,7 +275,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${SCHEMA_FINGERPRINT}, ${PERF_INDEX_FLAG}, ${QUOTATION_STATUS_FLAG},
         ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
         ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
-        ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG}
+        ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
+        ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -272,6 +292,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     crmSearchApplied = keys.has(CRM_SEARCH_FLAG);
     perfIndexesV2Applied = keys.has(PERF_INDEX_V2_FLAG);
     quotationContactApplied = keys.has(QUOTATION_CONTACT_FLAG);
+    userPhoneApplied = keys.has(USER_PHONE_FLAG);
+    purchaseOrdersApplied = keys.has(PURCHASE_ORDERS_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -289,7 +311,9 @@ async function _ensureSchemaOnce(): Promise<void> {
     crmTeamsApplied &&
     crmSearchApplied &&
     perfIndexesV2Applied &&
-    quotationContactApplied
+    quotationContactApplied &&
+    userPhoneApplied &&
+    purchaseOrdersApplied
   )
     return;
 
@@ -1082,6 +1106,59 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${QUOTATION_CONTACT_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── Per-user phone number ────────────────────────────────────────────────
+  // Stamped onto each new quotation as the "Presales Engineer" phone in
+  // the printed header. Defaults to empty string so existing rows stay
+  // unchanged; the admin sets each user's number from the Admin → Users
+  // surface after this migration runs.
+  if (!userPhoneApplied) {
+    await q`
+      alter table users add column if not exists phone text not null default ''
+    `;
+    await q`
+      insert into migration_flags (key) values (${USER_PHONE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── Purchase orders ──────────────────────────────────────────────────────
+  // A PO is a sales-stage after a quotation is accepted. Optional link to
+  // a quotation (quotation_id) so an ad-hoc PO is still expressible, and
+  // owner-isolated like every other user-facing record. Soft-delete via
+  // deleted_at so POs follow the same "nothing is ever hard-deleted"
+  // guarantee as quotations and folders.
+  if (!purchaseOrdersApplied) {
+    await q`
+      create table if not exists purchase_orders (
+        id            serial primary key,
+        owner_id      integer references users(id) on delete set null,
+        quotation_id  integer references quotations(id) on delete set null,
+        folder_id     integer references client_folders(id) on delete set null,
+        po_number     text not null,
+        supplier      text,
+        client_name   text,
+        project_name  text,
+        amount        numeric not null default 0,
+        currency      text not null default 'JOD',
+        status        text not null default 'open',
+        notes         text,
+        issued_at     date,
+        expected_at   date,
+        deleted_at    timestamptz,
+        created_at    timestamptz not null default now(),
+        updated_at    timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists purchase_orders_owner_idx on purchase_orders(owner_id, deleted_at)`;
+    await q`create index if not exists purchase_orders_quotation_idx on purchase_orders(quotation_id)`;
+    await q`create index if not exists purchase_orders_folder_idx on purchase_orders(folder_id)`;
+    await q`create unique index if not exists purchase_orders_owner_number_idx on purchase_orders(owner_id, po_number) where deleted_at is null`;
+    await q`
+      insert into migration_flags (key) values (${PURCHASE_ORDERS_FLAG})
       on conflict (key) do nothing
     `;
   }

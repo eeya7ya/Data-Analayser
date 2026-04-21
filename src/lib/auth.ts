@@ -18,6 +18,14 @@ export interface SessionUser {
   username: string;
   role: "admin" | "user";
   display_name: string;
+  /**
+   * Per-user phone number, used as the default "Presales Engineer" phone
+   * stamped onto every new quotation this user prepares. Empty string when
+   * the admin hasn't set one yet — the Designer falls through to its
+   * blank input so the user can type one explicitly, instead of inheriting
+   * whatever hardcoded number the previous implementation was carrying.
+   */
+  phone: string;
 }
 
 /**
@@ -105,6 +113,7 @@ export async function createSessionCookie(user: SessionUser): Promise<void> {
     username: user.username,
     role: user.role,
     display_name: user.display_name,
+    phone: user.phone,
   })
     .setProtectedHeader({ alg: ALG })
     .setIssuedAt()
@@ -136,6 +145,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       username: String(payload.username),
       role: (payload.role as "admin" | "user") || "user",
       display_name: String(payload.display_name || ""),
+      phone: String(payload.phone || ""),
     };
   } catch {
     return null;

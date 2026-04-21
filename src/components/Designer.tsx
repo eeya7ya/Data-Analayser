@@ -459,7 +459,13 @@ export default function Designer({
       // back to the logged-in user would re-introduce the "sales and
       // presales are always the same" bug on unsigned records.
       setSalesEng(existing.sales_engineer || "");
-      setSalesPhone(existing.config_json?.salesPhone || "");
+      // Presales phone: prefer the value saved on the quotation (lossless
+      // re-open), otherwise fall back to the LOGGED-IN user's phone rather
+      // than an empty string. The previous blank fallback let
+      // QuotationPreview's default kick in, which was a hardcoded
+      // "+962 795172566" — effectively the admin's number showing up on
+      // every non-admin user's quotations.
+      setSalesPhone(existing.config_json?.salesPhone || user.phone || "");
       setPreparedBy(existing.prepared_by || user.username);
       setRefCode(existing.ref);
       setSiteName(editDraft?.siteName ?? (existing.site_name || ""));
@@ -592,7 +598,11 @@ export default function Designer({
     // restore whatever the current new-quotation draft had typed into
     // the field so a browser refresh doesn't wipe the user's input.
     setSalesEng(d.salesEng || "");
-    setSalesPhone(d.salesPhone || "");
+    // Same rationale as the edit-mode branch: default to the logged-in
+    // user's per-user phone so each salesperson's quotations print
+    // their OWN number under "Presales Engineer" instead of whatever
+    // fallback the preview layer used to hard-code.
+    setSalesPhone(d.salesPhone || user.phone || "");
     setPreparedBy(d.preparedBy || user.username);
     setRefCode(d.refCode);
     setSiteName(d.siteName);
@@ -630,8 +640,17 @@ export default function Designer({
   }, [existing, user.username, user.display_name]);
 
   // ── Fetch client folders ──────────────────────────────────────────────────
+  // `cache: "no-store"` is intentional here even though /api/folders ships
+  // `private, max-age=30`. A brand-new client created on /quotation lives
+  // only in the other page's local state; the browser HTTP cache still
+  // holds the pre-create response, and a cached hit here would make the
+  // newly-created folder invisible to the Designer — `folders.find(...)`
+  // below returns null, `selectedFolder` stays null, and the Designer
+  // falls back to its empty "pick a client" hero instead of locking onto
+  // the folder the user just created. Fetching fresh on mount keeps the
+  // "create client → new quotation" path deterministic.
   useEffect(() => {
-    fetch("/api/folders")
+    fetch("/api/folders", { cache: "no-store" })
       .then((r) => readJson(r))
       .then((d) => setFolders(d.folders || []))
       .catch(() => {});
@@ -874,12 +893,26 @@ export default function Designer({
     if (editMode) return;
     if (typeof window === "undefined") return;
     // Honour the ?new=1 opt-out so the "+ New quotation" button can
-    // land on a clean /designer without getting bounced back.
+    // land on a clean /designer without getting bounced back. Any
+    // caller that already scoped the URL to a specific client
+    // (`?folder=<n>`) or existing record (`?id=<n>`) is ALSO off-
+    // limits: the previous implementation only opted out on ?new and
+    // let ?folder requests fall through to the stale editing context
+    // resume, which is why creating a new client and clicking
+    // "+ New quotation" sometimes re-opened an old saved quotation
+    // instead of the fresh hero for the just-picked client.
     const sp = new URLSearchParams(window.location.search);
-    if (sp.has("new")) return;
-    // Only redirect on actual browser refreshes. Client-side nav
-    // doesn't create a new PerformanceNavigationTiming entry, so the
-    // initial entry's `type` reliably distinguishes the two cases.
+    if (sp.has("new") || sp.has("folder") || sp.has("id")) return;
+    // Only redirect on actual browser refreshes. `performance.getEntries
+    // ByType("navigation")[0]` returns the ORIGINAL navigation entry for
+    // the tab, which means once a user has F5-reloaded the app, every
+    // subsequent soft-nav still reads navType === "reload" — so this
+    // check was never doing what its comment claimed, it was triggering
+    // on nearly every in-app hop. Combined with a stale editing
+    // context in localStorage, that's exactly the "old quotation
+    // resurrects on new client" symptom. We keep the performance check
+    // as a last-ditch guard, but the real gate is the URL-sentinel
+    // check above.
     try {
       const navEntries = performance.getEntriesByType(
         "navigation",
