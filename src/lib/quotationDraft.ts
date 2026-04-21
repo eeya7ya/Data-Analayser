@@ -373,6 +373,43 @@ export function syncDraftTaxContext(
   }
 }
 
+/**
+ * Merge a batch of new items into an existing in-memory list, deduping on
+ * system + model (bumps qty on collision) and renumbering per-system so
+ * each page's rows count from 1. Used by the in-Designer Quick Catalogue
+ * picker and Excel-import flows, which hand rows to `setItems` directly
+ * instead of routing through the localStorage draft the way /catalog does.
+ */
+export function mergeQuotationItems(
+  current: QuotationItem[],
+  incoming: QuotationItem[],
+): QuotationItem[] {
+  const out = current.slice();
+  for (const staged of incoming) {
+    const sys = staged.system || staged.brand || "General";
+    const key = `${sys}__${staged.model}`;
+    const idx = out.findIndex(
+      (it) => `${it.system || it.brand || "General"}__${it.model}` === key,
+    );
+    if (idx >= 0 && staged.model) {
+      out[idx] = {
+        ...out[idx],
+        quantity:
+          (Number(out[idx].quantity) || 0) + (Number(staged.quantity) || 0),
+      };
+    } else {
+      out.push({ ...staged });
+    }
+  }
+  const perSystem = new Map<string, number>();
+  return out.map((it) => {
+    const sys = it.system || it.brand || "General";
+    const next = (perSystem.get(sys) ?? 0) + 1;
+    perSystem.set(sys, next);
+    return { ...it, no: next };
+  });
+}
+
 /** Append a catalog item to the draft (dedupes on system + model, bumps qty). */
 export function appendItem(newItem: QuotationItem): QuotationDraft {
   const draft = loadDraft();

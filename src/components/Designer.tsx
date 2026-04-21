@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
 import QuotationPreview, {
@@ -21,10 +21,13 @@ import {
   saveEditDraft,
   clearEditDraft,
   syncDraftTaxContext,
+  mergeQuotationItems,
   PRICING_FACTORS,
   PRICING_LABELS,
   type PricingCategory,
 } from "@/lib/quotationDraft";
+import QuickCatalogPicker from "./QuickCatalogPicker";
+import ExcelImportModal from "./ExcelImportModal";
 import {
   BRAND_VARIANTS,
   DEFAULT_BRAND_VARIANT_ID,
@@ -201,6 +204,13 @@ export default function Designer({
   // `afterprint` alongside `printMode` so the editable UI comes back
   // untouched when the print dialog closes.
   const [boqMode, setBoqMode] = useState(false);
+  // Controls the Quick Catalogue picker sidebar shown beside the preview.
+  // Open by default so the empty RHS area on a blank draft immediately
+  // offers an actionable search-and-add surface.
+  const [quickPickerOpen, setQuickPickerOpen] = useState(true);
+  // Whether the Excel-import modal is currently visible. Triggered from
+  // the toolbar "Import Excel" button.
+  const [excelImportOpen, setExcelImportOpen] = useState(false);
   // Hydration status is tracked as a state (not a ref) so the persist
   // effects can depend on it. A ref would flip mid-effect and let the
   // save effects run on the same tick as hydration — with React's
@@ -338,6 +348,63 @@ export default function Designer({
       })),
     );
     setTaxInclusive((v) => !v);
+  }
+
+  // Derived list of unique system / page names for the current draft —
+  // surfaced as quick-pick chips in the side picker and as a datalist for
+  // the Excel-import default page input so users don't have to retype
+  // page names they've already created.
+  const existingPageNames = useMemo(() => {
+    const seen = new Set<string>();
+    for (const it of items) {
+      const sys = it.system || it.brand;
+      if (sys) seen.add(sys);
+    }
+    return [...seen];
+  }, [items]);
+
+  // Adds a single catalogue item (from the Quick Catalogue picker) to the
+  // live items list, deduping on system + model. Mirrors the behaviour of
+  // `appendItem` in quotationDraft.ts but operates on React state so the
+  // Designer doesn't have to bounce through localStorage to pick up the
+  // new row.
+  function addCatalogItem(item: QuotationItem) {
+    setItems((cur) => {
+      // Tax normalisation: catalogue prices arrive tax-inclusive. If the
+      // current draft is in "Excl. Tax" mode, divide once on insert so
+      // the new row lines up with every other row (which has already
+      // been divided by toggleTaxInclusive).
+      const rate = (Number(taxPercent) || 0) / 100;
+      const normalized: QuotationItem =
+        taxInclusive && rate > 0
+          ? {
+              ...item,
+              unit_price: Number(((Number(item.unit_price) || 0) / (1 + rate)).toFixed(2)),
+              price_si:
+                item.price_si != null
+                  ? Number(((Number(item.price_si) || 0) / (1 + rate)).toFixed(2))
+                  : item.price_si,
+            }
+          : item;
+      return mergeQuotationItems(cur, [normalized]);
+    });
+  }
+
+  // Called by ExcelImportModal once the user has reviewed the detected
+  // column mapping. Either merges the imported rows into the existing
+  // items list or replaces the list entirely, depending on the mode the
+  // user selected in the modal.
+  function applyImportedItems(imported: QuotationItem[], mode: "append" | "replace") {
+    if (imported.length === 0) {
+      setExcelImportOpen(false);
+      return;
+    }
+    setItems((cur) =>
+      mode === "replace"
+        ? mergeQuotationItems([], imported)
+        : mergeQuotationItems(cur, imported),
+    );
+    setExcelImportOpen(false);
   }
 
   // ── Hydrate state on mount ────────────────────────────────────────────────
@@ -1804,11 +1871,33 @@ export default function Designer({
               </span>
             )}
             <button
+              onClick={() => setQuickPickerOpen((v) => !v)}
+              title={
+                quickPickerOpen
+                  ? "Hide the quick catalogue picker sidebar"
+                  : "Show the quick catalogue picker sidebar"
+              }
+              className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                quickPickerOpen
+                  ? "bg-magic-red text-white border-magic-red hover:bg-red-700"
+                  : "border-magic-red text-magic-red hover:bg-magic-red hover:text-white"
+              }`}
+            >
+              {quickPickerOpen ? "Hide picker" : "Show picker"}
+            </button>
+            <button
               onClick={() => router.push("/catalog")}
-              title="Browse the product catalogue and add items"
+              title="Browse the full product catalogue (opens the Catalogue page)"
               className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors"
             >
               + Add from Catalogue
+            </button>
+            <button
+              onClick={() => setExcelImportOpen(true)}
+              title="Import items from an Excel or CSV file (auto-detects Brand / Model / Description / Quantity / Unit Price)"
+              className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors"
+            >
+              Import Excel
             </button>
             <button
               onClick={clearAll}
@@ -1896,65 +1985,88 @@ export default function Designer({
             )}
           </div>
         </div>
-        <QuotationPreview
-          header={{
-            project_name: projectName,
-            client_name: clientName,
-            client_email: clientEmail,
-            client_phone: clientPhone,
-            sales_engineer: salesEng,
-            sales_phone: salesPhone,
-            prepared_by: preparedBy,
-            design_engineer: designEng,
-            site_name: siteName,
-            ref: refCode || "PREVIEW",
-            tax_percent: taxPercent,
-            date: new Date().toLocaleDateString("en-GB"),
-            extra_columns: extraColumns,
-            scope_intro: scopeIntro,
-          }}
-          items={items}
-          setItems={setItems}
-          setHeader={(patch) => {
-            if (patch.project_name !== undefined)
-              setProjectName(patch.project_name);
-            if (patch.client_name !== undefined)
-              setClientName(patch.client_name);
-            if (patch.client_email !== undefined)
-              setClientEmail(patch.client_email);
-            if (patch.client_phone !== undefined)
-              setClientPhone(patch.client_phone);
-            if (patch.sales_engineer !== undefined)
-              setSalesEng(patch.sales_engineer);
-            if (patch.sales_phone !== undefined)
-              setSalesPhone(patch.sales_phone);
-            if (patch.prepared_by !== undefined)
-              setPreparedBy(patch.prepared_by);
-            if (patch.ref !== undefined) setRefCode(patch.ref);
-            if (patch.site_name !== undefined) setSiteName(patch.site_name);
-            if (patch.extra_columns !== undefined)
-              setExtraColumns(patch.extra_columns);
-            if (patch.scope_intro !== undefined)
-              setScopeIntro(patch.scope_intro);
-            if (patch.design_engineer !== undefined)
-              setDesignEng(patch.design_engineer);
-          }}
-          // While `printMode` is on we re-render in read-only form so the
-          // browser print dialog captures the same DOM the /quotation
-          // viewer produces — no editable inputs, no add-row toolbars, no
-          // empty-state sheet with an "Add manual item" button.
-          editable={!printMode}
-          showPictures={showPictures}
-          terms={terms}
-          setTerms={setTerms}
-          includeTax={includeTax}
-          taxInclusive={taxInclusive}
-          clientLocked={clientLocked}
-          footerText={appSettings.footerText}
-          brandVariantId={brandVariantId}
-          boqMode={boqMode}
-        />
+        <div className="flex flex-col lg:flex-row gap-4 items-start">
+          <div className="flex-1 min-w-0">
+            <QuotationPreview
+              header={{
+                project_name: projectName,
+                client_name: clientName,
+                client_email: clientEmail,
+                client_phone: clientPhone,
+                sales_engineer: salesEng,
+                sales_phone: salesPhone,
+                prepared_by: preparedBy,
+                design_engineer: designEng,
+                site_name: siteName,
+                ref: refCode || "PREVIEW",
+                tax_percent: taxPercent,
+                date: new Date().toLocaleDateString("en-GB"),
+                extra_columns: extraColumns,
+                scope_intro: scopeIntro,
+              }}
+              items={items}
+              setItems={setItems}
+              setHeader={(patch) => {
+                if (patch.project_name !== undefined)
+                  setProjectName(patch.project_name);
+                if (patch.client_name !== undefined)
+                  setClientName(patch.client_name);
+                if (patch.client_email !== undefined)
+                  setClientEmail(patch.client_email);
+                if (patch.client_phone !== undefined)
+                  setClientPhone(patch.client_phone);
+                if (patch.sales_engineer !== undefined)
+                  setSalesEng(patch.sales_engineer);
+                if (patch.sales_phone !== undefined)
+                  setSalesPhone(patch.sales_phone);
+                if (patch.prepared_by !== undefined)
+                  setPreparedBy(patch.prepared_by);
+                if (patch.ref !== undefined) setRefCode(patch.ref);
+                if (patch.site_name !== undefined) setSiteName(patch.site_name);
+                if (patch.extra_columns !== undefined)
+                  setExtraColumns(patch.extra_columns);
+                if (patch.scope_intro !== undefined)
+                  setScopeIntro(patch.scope_intro);
+                if (patch.design_engineer !== undefined)
+                  setDesignEng(patch.design_engineer);
+              }}
+              // While `printMode` is on we re-render in read-only form so the
+              // browser print dialog captures the same DOM the /quotation
+              // viewer produces — no editable inputs, no add-row toolbars, no
+              // empty-state sheet with an "Add manual item" button.
+              editable={!printMode}
+              showPictures={showPictures}
+              terms={terms}
+              setTerms={setTerms}
+              includeTax={includeTax}
+              taxInclusive={taxInclusive}
+              clientLocked={clientLocked}
+              footerText={appSettings.footerText}
+              brandVariantId={brandVariantId}
+              boqMode={boqMode}
+            />
+          </div>
+          {/* Quick catalogue picker — fills the otherwise-empty space to
+              the right of the fixed-width printable sheet. Keeps the user
+              on the Designer instead of round-tripping through /catalog
+              for every product. Hidden automatically while printing. */}
+          {quickPickerOpen && !printMode && (
+            <QuickCatalogPicker
+              existingPages={existingPageNames}
+              onAdd={addCatalogItem}
+              className="w-full lg:w-72 lg:sticky lg:top-4 shrink-0"
+            />
+          )}
+        </div>
       </div>
+      )}
+      {excelImportOpen && (
+        <ExcelImportModal
+          defaultPage={existingPageNames[0] || ""}
+          existingPages={existingPageNames}
+          onCancel={() => setExcelImportOpen(false)}
+          onImport={applyImportedItems}
+        />
       )}
     </div>
   );
