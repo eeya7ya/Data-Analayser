@@ -541,136 +541,6 @@ export default function QuotationPreview({
     );
   }
 
-  // ── Paste-a-whole-column from the clipboard ─────────────────────────────
-  // Fired from every editable cell's onPaste handler. If the clipboard
-  // holds a single value we let the browser run its default paste; when it
-  // holds several lines (e.g. a column copied straight out of Excel) we
-  // intercept and spread the values down the column, overwriting the
-  // current row and every row after it — appending new blank rows inside
-  // the same system page when there aren't enough existing rows to take
-  // all the pasted values. This matches the familiar spreadsheet "paste
-  // fills down" behaviour so users can copy a column from Excel and drop
-  // it into the designer with a single Ctrl/Cmd+V.
-  function handleCellPaste(
-    e: React.ClipboardEvent,
-    globalIndex: number,
-    colKey: string,
-  ) {
-    if (!setItems) return;
-    const raw = e.clipboardData.getData("text/plain");
-    if (!raw) return;
-
-    // Excel typically terminates the clipboard payload with a trailing
-    // newline; dropping it before we split avoids a stray empty row at
-    // the end of the paste.
-    const body = raw.replace(/\r?\n$/, "");
-    const lines = body.split(/\r?\n/);
-
-    // Treat the paste as "fill-down" only when there's more than one line
-    // AND more than one of those lines is non-empty. A single-cell paste
-    // (no newline) or a paste of "value\n" (stray trailing newline
-    // already stripped above) falls through to the browser's default
-    // behaviour so users can still paste normally into one input.
-    const nonEmpty = lines.filter((l) => l.length > 0);
-    if (nonEmpty.length < 2) return;
-
-    e.preventDefault();
-
-    // Map a raw cell value into the patch for `colKey`, coercing numeric
-    // columns and routing manual columns into the per-row `extra` map.
-    function patchFor(value: string): Partial<QuotationItem> {
-      const v = value.trim();
-      if (colKey === "quantity") {
-        const n = Number(v);
-        return { quantity: Number.isFinite(n) && n > 0 ? n : 1 };
-      }
-      if (colKey === "unit_price") {
-        const n = Number(v);
-        return { unit_price: Number.isFinite(n) ? n : 0 };
-      }
-      if (colKey.startsWith("extra:")) {
-        const colId = colKey.slice("extra:".length);
-        return { extra: { [colId]: v } };
-      }
-      // Text columns: brand / model / description / delivery. We keep
-      // the original (untrimmed) string for text cells to preserve
-      // leading/trailing spaces the user might genuinely want.
-      return { [colKey]: value } as Partial<QuotationItem>;
-    }
-
-    const anchor = items[globalIndex];
-    if (!anchor) return;
-    const targetSystem = anchor.system || anchor.brand || "General";
-
-    // Walk the current items array gathering the global indices that
-    // belong to the anchor's system, in document order. We fill from the
-    // anchor down, then append to the tail of the group.
-    const groupIndices: number[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const sys = items[i].system || items[i].brand || "General";
-      if (sys === targetSystem) groupIndices.push(i);
-    }
-    const anchorLocal = groupIndices.indexOf(globalIndex);
-    if (anchorLocal < 0) return;
-
-    const next = items.slice();
-
-    // Phase 1 — overwrite existing rows from the anchor onward.
-    let cursor = 0;
-    for (
-      let local = anchorLocal;
-      local < groupIndices.length && cursor < lines.length;
-      local++, cursor++
-    ) {
-      const g = groupIndices[local];
-      const patch = patchFor(lines[cursor]);
-      if (patch.extra) {
-        next[g] = {
-          ...next[g],
-          extra: { ...(next[g].extra || {}), ...patch.extra },
-        };
-      } else {
-        next[g] = { ...next[g], ...patch };
-      }
-    }
-
-    // Phase 2 — anything past the existing group becomes a new row,
-    // inserted right after the group's last index so the new rows stay
-    // inside the same printed system page.
-    if (cursor < lines.length) {
-      const insertAt =
-        groupIndices.length > 0
-          ? groupIndices[groupIndices.length - 1] + 1
-          : next.length;
-      const newRows: QuotationItem[] = [];
-      for (; cursor < lines.length; cursor++) {
-        const base: QuotationItem = {
-          no: 0,
-          system: targetSystem,
-          brand: "",
-          model: "",
-          description: `New ${targetSystem} item — please add a short description.`,
-          quantity: 1,
-          unit_price: 0,
-          delivery: "TBD",
-          extra: {},
-        };
-        const patch = patchFor(lines[cursor]);
-        if (patch.extra) {
-          newRows.push({
-            ...base,
-            extra: { ...(base.extra || {}), ...patch.extra },
-          });
-        } else {
-          newRows.push({ ...base, ...patch });
-        }
-      }
-      next.splice(insertAt, 0, ...newRows);
-    }
-
-    setItems(renumber(next));
-  }
-
   // ── Manual (user-added) columns ─────────────────────────────────────────
   const extraColumns: QuotationExtraColumn[] = header.extra_columns || [];
 
@@ -821,7 +691,6 @@ export default function QuotationPreview({
             onToggleOptional={toggleOptional}
             onRenameExtraColumn={renameExtraColumn}
             onRemoveExtraColumn={removeExtraColumn}
-            onCellPaste={handleCellPaste}
           />
           {editable && (
             <div className="no-print mt-2 flex flex-wrap items-center gap-2">
@@ -1342,7 +1211,6 @@ function SystemTable({
   onToggleOptional,
   onRenameExtraColumn,
   onRemoveExtraColumn,
-  onCellPaste,
 }: {
   group: { system: string; rows: Array<{ item: QuotationItem; globalIndex: number }> };
   allPages: string[];
@@ -1362,18 +1230,6 @@ function SystemTable({
   onToggleOptional: (globalIndex: number) => void;
   onRenameExtraColumn: (id: string, label: string) => void;
   onRemoveExtraColumn: (id: string) => void;
-  /**
-   * Called from every editable cell's onPaste. When the clipboard holds
-   * more than one non-empty line, the handler fills down the column
-   * starting at `globalIndex`, creating new rows in the same system as
-   * needed, and calls `e.preventDefault()`. Single-cell pastes are left
-   * alone so normal copy/paste in a cell still works.
-   */
-  onCellPaste: (
-    e: React.ClipboardEvent,
-    globalIndex: number,
-    colKey: string,
-  ) => void;
 }) {
   // Base = No, Brand, Model, Description, [Picture], Quantity, Delivery,
   // Unit Price, Total Price — plus one cell per manual column. In BoQ
@@ -1565,7 +1421,6 @@ function SystemTable({
                   className="w-full bg-transparent text-center"
                   value={item.brand}
                   onChange={(e) => onUpdate(globalIndex, { brand: e.target.value })}
-                  onPaste={(e) => onCellPaste(e, globalIndex, "brand")}
                 />
               ) : (
                 item.brand
@@ -1582,7 +1437,6 @@ function SystemTable({
                   className="w-full bg-transparent text-center"
                   value={item.model}
                   onChange={(e) => onUpdate(globalIndex, { model: e.target.value })}
-                  onPaste={(e) => onCellPaste(e, globalIndex, "model")}
                 />
               ) : (
                 item.model
@@ -1603,7 +1457,6 @@ function SystemTable({
                   onChange={(e) =>
                     onUpdate(globalIndex, { description: e.target.value })
                   }
-                  onPaste={(e) => onCellPaste(e, globalIndex, "description")}
                 />
               ) : (
                 <div className="whitespace-pre-wrap text-left">
@@ -1632,7 +1485,6 @@ function SystemTable({
                   onChange={(e) =>
                     onUpdate(globalIndex, { quantity: Number(e.target.value) })
                   }
-                  onPaste={(e) => onCellPaste(e, globalIndex, "quantity")}
                 />
               ) : (
                 item.quantity
@@ -1649,7 +1501,6 @@ function SystemTable({
                   className="w-full bg-transparent text-center"
                   value={item.delivery}
                   onChange={(e) => onUpdate(globalIndex, { delivery: e.target.value })}
-                  onPaste={(e) => onCellPaste(e, globalIndex, "delivery")}
                 />
               ) : (
                 item.delivery
@@ -1670,7 +1521,6 @@ function SystemTable({
                     onChange={(e) =>
                       onUpdate(globalIndex, { unit_price: Number(e.target.value) })
                     }
-                    onPaste={(e) => onCellPaste(e, globalIndex, "unit_price")}
                   />
                 ) : (
                   Number(item.unit_price) ? money(item.unit_price) : ""
@@ -1780,7 +1630,6 @@ function SystemTable({
                           extra: { ...(item.extra || {}), [col.id]: e.target.value },
                         })
                       }
-                      onPaste={(e) => onCellPaste(e, globalIndex, `extra:${col.id}`)}
                     />
                   ) : (
                     cellValue || "—"
