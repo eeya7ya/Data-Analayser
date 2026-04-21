@@ -755,6 +755,12 @@ export default function Designer({
       setNewFolderPhone("");
       setNewFolderCompany("");
       setShowNewFolder(false);
+      // Invalidate the Next.js Router Cache so the next visit to /quotation
+      // re-runs its server component and picks up the new folder. Without
+      // this, a folder created here but never attached to a saved quotation
+      // can appear "not stored" because the cached /quotation RSC payload
+      // still reflects the pre-creation state.
+      router.refresh();
     } catch (err) {
       alert((err as Error).message || "Failed to create client folder");
     } finally {

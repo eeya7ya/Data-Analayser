@@ -728,6 +728,11 @@ export default function QuotationListClient({
       setNewPhone("");
       setNewCompany("");
       setShowCreate(false);
+      // Invalidate the Next.js Router Cache so navigating away and back
+      // doesn't serve the pre-creation RSC payload. Without this, a
+      // freshly-created empty client can appear "not stored" on the next
+      // visit because the cached server render doesn't include it.
+      router.refresh();
     } finally {
       setCreating(false);
     }
