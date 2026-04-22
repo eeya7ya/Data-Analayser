@@ -119,11 +119,13 @@ const PERF_INDEX_FLAG = "perf_composite_indexes_v1_2026_04";
  * generator in `src/app/api/quotations/route.ts` uses these to build the
  * smart ref format
  *
- *   Q<L><DDMMYY>MT<n>[R<m> | D<m>]
+ *   Q<L><MDDYY>MT<n>[R<m> | D<m>]
  *
- * where L is the owner's first-letter initial, n is the per-user counter
- * of "active" quotations they've created, and m is the per-parent counter
- * of reviews/drafts anchored to that original record.
+ * where L is the owner's first-letter initial, <MDDYY> is the creation
+ * date (month unpadded, day zero-padded, two-digit year — e.g. April 22,
+ * 2026 → "42226"), n is a GLOBAL incremental counter that reuses numbers
+ * freed by soft-deleted quotations, and m is the per-parent counter of
+ * reviews/drafts anchored to that original record.
  */
 const QUOTATION_STATUS_FLAG = "quotation_status_v1_2026_04";
 
@@ -647,8 +649,8 @@ async function _ensureSchemaOnce(): Promise<void> {
   //   - 'draft'  → appends D<m> where m counts drafts under parent_ref
   //   - 'review' → appends R<m> where m counts reviews under parent_ref
   // `parent_ref` points at the ORIGINAL active quotation the snapshot was
-  // taken from, so every draft/review of QA140426MT5 shares the anchor
-  // "QA140426MT5" regardless of whether the user re-drafted from a previous
+  // taken from, so every draft/review of QA42226MT5 shares the anchor
+  // "QA42226MT5" regardless of whether the user re-drafted from a previous
   // draft. NULL for active quotations.
   if (!quotationStatusApplied) {
     await q`

@@ -321,19 +321,24 @@ body > * {
   .quotation-sheet > table.sheet-layout > tfoot {
     display: table-footer-group;
   }
-  /* Strip the Designer's on-screen preview wrapper (card border / padding
-   * around the printable sheet) so printed output starts at the @page
-   * edge instead of leaving a 16 px gap that can push the first sheet
-   * onto page 2 — which manifested as an empty first page in the user's
-   * "+ Print / PDF" output. */
-  .print-main > div,
-  .print-main > div > div {
+  /* Strip every wrapper between `.print-main` and `.quotation-doc` (the
+   * Designer nests the preview inside a card → row → flex-1 chain, so the
+   * printable sheet ended up with ~24 px of cumulative padding/gap and the
+   * quotation ran off the right edge — the "doesn't fit the paper
+   * accurately" regression). The :not() guards leave `.quotation-doc` and
+   * every sheet inside it untouched so the explicit print geometry below
+   * still owns the printed sheet layout. */
+  .print-main
+    *:not(.quotation-doc):not(.quotation-doc *):not(.quotation-sheet):not(
+      .quotation-sheet *
+    ) {
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
     border-radius: 0 !important;
+    gap: 0 !important;
   }
   /* Hide editable form chrome in print so inputs print as plain text. */
   .quotation-sheet input,
