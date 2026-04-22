@@ -275,24 +275,52 @@ body > * {
     margin: 0 !important;
     padding: 0 !important;
   }
+  /* Strip every wrapper between `.print-main` and `.quotation-doc` (the
+   * Designer nests the preview inside a card → row → flex-1 chain). The
+   * :not() guards leave `.quotation-doc` and every sheet inside it
+   * untouched so the explicit print geometry below owns the printed sheet
+   * layout. */
+  .print-main
+    *:not(.quotation-doc):not(.quotation-doc *):not(.quotation-sheet):not(
+      .quotation-sheet *
+    ) {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    gap: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+  }
   .quotation-doc {
     gap: 0;
     display: block;
     margin: 0 auto;
     width: 210mm;
   }
-  /* Keep the sheet geometry identical to the on-screen preview so the
-   * printed output matches what the user sees. The @page rule below uses
-   * zero margins, and the sheet's own padding provides the safe area. */
+  /* The sheet is the A4 page. We deliberately own the full 210 × 297 mm
+   * geometry + a 14 / 12 mm internal safe area inside `@page { margin: 0 }`
+   * instead of reserving the safe area via `@page { margin }`. Browsers
+   * vary wildly on how print-dialog margin presets interact with @page:
+   *   - Chrome "None"      → ignores @page margins entirely (paper edge).
+   *   - Chrome "Default"   → applies its own 9mm OVER the @page margin.
+   *   - Firefox (default)  → often ignores @page horizontal margins.
+   * Relying on @page margins meant the user's "None" print preset left the
+   * quotation's right edge clipped against the paper border. Letting the
+   * sheet carry the safe area makes the 14mm left/right margin visible
+   * regardless of which preset is active, because it's part of the
+   * content box the browser is asked to lay out. */
   .quotation-sheet {
     box-shadow: none;
-    margin: 0;
+    margin: 0 auto;
     width: 210mm;
     min-height: 297mm;
-    padding: 14mm 12mm 18mm 12mm;
+    padding: 14mm 14mm 18mm 14mm;
+    box-sizing: border-box;
   }
-  /* Re-enable the full-bleed cover/about-us sheets and drop their
-   * padding so the supplied artwork really does fill the whole A4. */
+  /* Full-bleed cover/about sheets still want edge-to-edge artwork. */
   .quotation-sheet.full-bleed {
     display: block;
     padding: 0;
@@ -321,25 +349,6 @@ body > * {
   .quotation-sheet > table.sheet-layout > tfoot {
     display: table-footer-group;
   }
-  /* Strip every wrapper between `.print-main` and `.quotation-doc` (the
-   * Designer nests the preview inside a card → row → flex-1 chain, so the
-   * printable sheet ended up with ~24 px of cumulative padding/gap and the
-   * quotation ran off the right edge — the "doesn't fit the paper
-   * accurately" regression). The :not() guards leave `.quotation-doc` and
-   * every sheet inside it untouched so the explicit print geometry below
-   * still owns the printed sheet layout. */
-  .print-main
-    *:not(.quotation-doc):not(.quotation-doc *):not(.quotation-sheet):not(
-      .quotation-sheet *
-    ) {
-    background: transparent !important;
-    border: 0 !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border-radius: 0 !important;
-    gap: 0 !important;
-  }
   /* Hide editable form chrome in print so inputs print as plain text. */
   .quotation-sheet input,
   .quotation-sheet textarea,
@@ -358,55 +367,9 @@ body > * {
   }
   @page {
     size: A4;
-    /* Move the safe area from the sheet's own padding to the @page margin
-     * so EVERY physical page — including continuation pages when a long
-     * system table breaks across multiple A4 sheets — has breathing room
-     * at the top and bottom. Without this, the repeated brand strip in
-     * the sheet-layout's <thead> lands flush against the paper edge on
-     * continuation pages and the logo prints clipped.
-     *
-     * A nudge to 14mm on the horizontal margins (was 12mm) ensures the
-     * right-most table border is never clipped by the printer's
-     * non-printable area — the issue the user reported as "table side
-     * is cut off" in the final PDF. 2mm extra on each side is
-     * imperceptible in the overall layout but restores the missing
-     * border. */
-    margin: 14mm 14mm 18mm 14mm;
-  }
-  /* Cover and about-us sheets opt into a zero-margin page so the artwork
-   * still fills the full A4 bleed while the rest of the quotation picks
-   * up the global safe-area margins above. Named-page selection is
-   * supported by Chrome, Firefox and Safari. */
-  .quotation-sheet.full-bleed {
-    page: bleed;
-  }
-  @page bleed {
-    size: A4;
+    /* Zero @page margins: the sheet's own padding provides the safe area,
+     * so the print dialog's margin preset ("None" / "Default" / "Custom")
+     * can no longer shrink or overlap the quotation. */
     margin: 0;
-  }
-  /* @page margins now own the page safe area, so strip the sheet's own
-   * padding and let the content fit the printable region naturally.
-   * Sheet-level min-height / fixed width also have to go: with @page
-   * margins in play a 210mm-wide sheet would overflow the narrowed
-   * printable area. */
-  .quotation-sheet:not(.full-bleed) {
-    padding: 0 !important;
-    width: auto !important;
-    min-height: 0 !important;
-    /* Belt-and-braces: guarantee nothing inside the sheet (an over-wide
-     * table, a long model code, a stray input) pushes past the right
-     * margin. Combined with `table-layout: fixed` above this keeps every
-     * printed page within the safe area. */
-    overflow: hidden;
-  }
-  /* Full-bleed sheets keep the explicit 210×297mm geometry so the
-   * cover/about images really do fill the whole A4. */
-  .quotation-sheet.full-bleed {
-    width: 210mm !important;
-    min-height: 297mm !important;
-    padding: 0 !important;
-  }
-  .quotation-doc {
-    width: auto !important;
   }
 }
