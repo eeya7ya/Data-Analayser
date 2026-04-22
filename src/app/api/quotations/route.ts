@@ -24,60 +24,81 @@ function ownerInitial(displayName: string | null | undefined, username: string):
 /**
  * "Smart" REF for a brand-new active quotation.
  *
- * Format: Q<L><DDMMYY>MT<n>
- *   L  — first letter of the assigned user's display name
- *   DD — zero-padded day of month
- *   MM — zero-padded month
- *   YY — last two digits of the year
- *   n  — per-user counter of active quotations, incremented on each new /
- *        copied / duplicated record
+ * Format: Q<L><MDDYY>MT<n>
+ *   L   — first letter of the presales/assigned user's display name
+ *   M   — month of creation (unpadded, so April → "4", October → "10")
+ *   DD  — zero-padded day of month
+ *   YY  — last two digits of the year
+ *   MT  — literal, stands for Magic Technology
+ *   n   — GLOBAL incremental counter. Picks the lowest positive integer
+ *         that no live active quotation currently holds. Counters held
+ *         only by soft-deleted rows are freed for reuse so a "test"
+ *         quotation that lands in the trash doesn't leave a gap.
  *
- * Drafts and reviews never bump `n`; they live under the parent's REF with
- * D<m> / R<m> suffixes instead (see {@link genSuffixedRef}).
+ * Drafts and reviews never mint a new `n`; they inherit the parent's
+ * counter and append D<m> / R<m> suffixes via {@link genSuffixedRef}.
  *
- * The counter is seeded from `count(*)` over the user's existing active
- * quotations (including soft-deleted ones, so trashed records don't free
- * numbers for reuse) and then probed against the unique constraint on
- * `ref`. Two users who share an initial and save on the same day would
- * otherwise collide — the retry loop just bumps `n` until the DB accepts
- * the insert.
+ * Implementation notes:
+ *   - We scan the `MT(\d+)` tail across every non-deleted row (active,
+ *     draft and review alike), so a live draft of QA42226MT5 still
+ *     reserves the counter 5 until the root active is retired. The
+ *     collision probe below is the real safety net — the unique index
+ *     on `ref` is the source of truth and catches races.
+ *   - Today's example: user "Yasmine" on April 22, 2026, first quotation
+ *     of the day in a fresh DB → `QY42226MT1`; the next new one the same
+ *     day (or next day, different user) becomes `...MT2`.
  */
 async function genActiveRef(
   q: Sql,
   userInitial: string,
-  ownerId: number,
 ): Promise<string> {
   const d = new Date();
+  const m = String(d.getMonth() + 1); // unpadded month, e.g. "4" or "10"
   const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yy = String(d.getFullYear()).slice(-2);
+  const datePart = `${m}${dd}${yy}`;
 
-  const countRows = (await q`
-    select count(*)::int as c from quotations
-    where owner_id = ${ownerId} and status = 'active'
-  `) as Array<{ c: number }>;
-  let n = (countRows[0]?.c ?? 0) + 1;
+  // Every live (non-deleted) ref, regardless of status. Soft-deleted rows
+  // are excluded so their counters become reusable — the requested
+  // "deleted MT86 frees up 86 for the next new quotation" behaviour.
+  const rows = (await q`
+    select ref from quotations
+    where deleted_at is null
+  `) as Array<{ ref: string }>;
 
-  // Collision guard. The unique index on `ref` is the source of truth; this
-  // pre-check just saves a failed INSERT round-trip on a contended day.
-  for (let attempts = 0; attempts < 50; attempts++) {
-    const candidate = `Q${userInitial}${dd}${mm}${yy}MT${n}`;
+  const used = new Set<number>();
+  for (const { ref } of rows) {
+    const match = /MT(\d+)/.exec(ref || "");
+    if (match) used.add(Number(match[1]));
+  }
+
+  // Lowest unused positive integer.
+  let n = 1;
+  while (used.has(n)) n++;
+
+  // Collision probe. The unique index on `ref` is authoritative; this
+  // pre-check just avoids a failed INSERT round-trip if two requests
+  // race on the same counter, and also skips counters that exist on a
+  // soft-deleted row of the same date (we'd generate the same full ref
+  // and hit the unique constraint).
+  for (let attempts = 0; attempts < 100; attempts++) {
+    const candidate = `Q${userInitial}${datePart}MT${n}`;
     const existing = (await q`
       select 1 from quotations where ref = ${candidate} limit 1
     `) as unknown as Array<Record<string, unknown>>;
     if (existing.length === 0) return candidate;
     n++;
   }
-  // Fall through: 50 consecutive collisions is unrealistic in practice, but
-  // if it ever happens the INSERT will still hit the UNIQUE constraint and
-  // surface a clear error to the caller.
-  return `Q${userInitial}${dd}${mm}${yy}MT${n}`;
+  // Fall through: 100 consecutive collisions would mean every low integer
+  // is taken on this exact date+initial; hand the highest candidate back
+  // and let the unique index surface the error to the caller.
+  return `Q${userInitial}${datePart}MT${n}`;
 }
 
 /**
  * Strip a trailing `R<digits>` / `D<digits>` so every draft/review anchors
  * to the ROOT active quotation. That way reviewing a draft still produces
- * QA140426MT5R1 (not QA140426MT5D2R1), keeping the REF chain readable.
+ * QA42226MT5R1 (not QA42226MT5D2R1), keeping the REF chain readable.
  */
 function rootOfRef(ref: string): string {
   return ref.replace(/(?:[RD])\d+$/, "");
@@ -86,8 +107,8 @@ function rootOfRef(ref: string): string {
 /**
  * Mint a draft/review REF by appending `D<m>` or `R<m>` to the parent's
  * root REF. `m` is the 1-indexed count of existing drafts (or reviews)
- * that share the same root, so the first draft of QA140426MT5 is
- * QA140426MT5D1, the second is QA140426MT5D2, and so on.
+ * that share the same root, so the first draft of QA42226MT5 is
+ * QA42226MT5D1, the second is QA42226MT5D2, and so on.
  */
 async function genSuffixedRef(
   q: Sql,
@@ -434,10 +455,11 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as {
       ref?: string;
       /**
-       * Quotation kind. 'active' (default) is a brand-new record that bumps
-       * the user's per-user counter and gets a plain QY<DDMMYY>MT<n> ref.
-       * 'draft' / 'review' are snapshots anchored to an existing active
-       * quotation identified by `parent_id` (preferred) or `parent_ref`.
+       * Quotation kind. 'active' (default) is a brand-new record that
+       * claims the next free slot in the global counter and gets a plain
+       * QY<MDDYY>MT<n> ref. 'draft' / 'review' are snapshots anchored to
+       * an existing active quotation identified by `parent_id`
+       * (preferred) or `parent_ref`.
        */
       mode?: QuotationMode;
       parent_id?: number;
@@ -511,7 +533,7 @@ export async function POST(req: NextRequest) {
       ref = body.ref.trim();
     } else if (mode === "active") {
       const initial = ownerInitial(user.display_name, user.username);
-      ref = await genActiveRef(q, initial, user.id);
+      ref = await genActiveRef(q, initial);
     } else {
       ref = await genSuffixedRef(
         q,

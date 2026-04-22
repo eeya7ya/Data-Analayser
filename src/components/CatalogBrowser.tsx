@@ -102,7 +102,7 @@ const PAGE_SUGGESTIONS = [
 // ─── Main component ─────────────────────────────────────────────────────────
 
 export default function CatalogBrowser({
-  user: _user,
+  user,
   initialSystems = [],
 }: {
   user: SessionUser;
@@ -116,6 +116,11 @@ export default function CatalogBrowser({
   initialSystems?: SystemInfo[];
 }) {
   const router = useRouter();
+  // Admins get the inline edit pencil on every row + the delete option.
+  // Regular users never see those controls and the API enforces the same
+  // rule server-side (PATCH / DELETE require admin).
+  const canEdit = user.role === "admin";
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   // ── System list ──────────────────────────────────────────────────────────
   const [systems, setSystems] = useState<SystemInfo[]>(initialSystems);
@@ -516,6 +521,24 @@ export default function CatalogBrowser({
           />
         )}
 
+        {editingProduct && (
+          <EditProductModal
+            product={editingProduct}
+            onCancel={() => setEditingProduct(null)}
+            onSaved={(updated) => {
+              setProducts((prev) =>
+                prev.map((row) => (row.id === updated.id ? updated : row)),
+              );
+              setEditingProduct(null);
+            }}
+            onDeleted={(id) => {
+              setProducts((prev) => prev.filter((row) => row.id !== id));
+              setTotal((t) => Math.max(0, t - 1));
+              setEditingProduct(null);
+            }}
+          />
+        )}
+
         {sorted.length > 0 && (
           <div className="rounded-2xl border border-magic-border bg-white overflow-hidden">
             <div className="px-4 py-3 border-b border-magic-border flex items-center justify-between">
@@ -566,26 +589,46 @@ export default function CatalogBrowser({
                       className="border-t border-magic-border/50 hover:bg-magic-soft/30 transition-colors"
                     >
                       <td className="px-2 py-1.5">
-                        <button
-                          onClick={() => setPendingItem(p)}
-                          title="Add to quotation"
-                          aria-label="Add product to quotation"
-                          className="w-7 h-7 rounded-full bg-magic-red text-white flex items-center justify-center shadow-sm shadow-magic-red/30 hover:bg-red-700 hover:scale-110 hover:shadow-md hover:shadow-magic-red/40 active:scale-95 focus:outline-none focus:ring-2 focus:ring-magic-red/40 focus:ring-offset-1 transition-all duration-150"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                            className="w-4 h-4"
-                            aria-hidden="true"
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setPendingItem(p)}
+                            title="Add to quotation"
+                            aria-label="Add product to quotation"
+                            className="w-7 h-7 rounded-full bg-magic-red text-white flex items-center justify-center shadow-sm shadow-magic-red/30 hover:bg-red-700 hover:scale-110 hover:shadow-md hover:shadow-magic-red/40 active:scale-95 focus:outline-none focus:ring-2 focus:ring-magic-red/40 focus:ring-offset-1 transition-all duration-150"
                           >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                              className="w-4 h-4"
+                              aria-hidden="true"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => setEditingProduct(p)}
+                              title="Edit product values"
+                              aria-label="Edit product"
+                              className="w-7 h-7 rounded-full border border-magic-border bg-white text-magic-ink/60 flex items-center justify-center hover:bg-magic-soft hover:text-magic-red hover:border-magic-red/40 focus:outline-none focus:ring-2 focus:ring-magic-red/30 transition-colors"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                className="w-3.5 h-3.5"
+                                aria-hidden="true"
+                              >
+                                <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828zM2 17a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
                       </td>
                       {DISPLAY_COLUMNS.map((col) => {
                         const val = p[col.key];
@@ -821,6 +864,252 @@ function PagePickerModal({
           >
             Add to page
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Admin: edit a single catalogue row ──────────────────────────────────────
+
+const EDIT_FIELDS: Array<{
+  key: keyof Omit<Product, "id">;
+  label: string;
+  type: "text" | "textarea" | "number";
+}> = [
+  { key: "vendor", label: "Vendor", type: "text" },
+  { key: "system", label: "System", type: "text" },
+  { key: "category", label: "Category", type: "text" },
+  { key: "sub_category", label: "Sub Category", type: "text" },
+  { key: "fast_view", label: "Fast View", type: "text" },
+  { key: "model", label: "Model", type: "text" },
+  { key: "currency", label: "Currency", type: "text" },
+  { key: "price_si", label: "Price SI", type: "number" },
+  { key: "description", label: "Description", type: "textarea" },
+  { key: "specifications", label: "Specifications", type: "textarea" },
+];
+
+function EditProductModal({
+  product,
+  onCancel,
+  onSaved,
+  onDeleted,
+}: {
+  product: Product;
+  onCancel: () => void;
+  onSaved: (updated: Product) => void;
+  onDeleted: (id: number) => void;
+}) {
+  const [draft, setDraft] = useState<Product>(product);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !saving && !deleting) onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel, saving, deleting]);
+
+  const dirty = useMemo(() => {
+    return EDIT_FIELDS.some((f) => {
+      const a = product[f.key];
+      const b = draft[f.key];
+      if (f.type === "number") return Number(a) !== Number(b);
+      return String(a ?? "") !== String(b ?? "");
+    });
+  }, [product, draft]);
+
+  const update = useCallback(
+    (key: keyof Omit<Product, "id">, value: string) => {
+      setDraft((prev) => {
+        if (key === "price_si") {
+          const n = Number(value);
+          return { ...prev, price_si: Number.isFinite(n) ? n : 0 };
+        }
+        return { ...prev, [key]: value };
+      });
+    },
+    [],
+  );
+
+  const save = useCallback(async () => {
+    if (!dirty || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const body: Partial<Product> = {};
+      for (const f of EDIT_FIELDS) {
+        const prev = product[f.key];
+        const next = draft[f.key];
+        if (f.type === "number") {
+          if (Number(prev) !== Number(next)) {
+            (body as Record<string, unknown>)[f.key] = Number(next);
+          }
+        } else if (String(prev ?? "") !== String(next ?? "")) {
+          (body as Record<string, unknown>)[f.key] = String(next ?? "").trim();
+        }
+      }
+      const res = await fetch(`/api/catalogue/products/${product.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json()) as {
+        product?: Product;
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(data.error || `HTTP ${res.status}`);
+        return;
+      }
+      if (data.product) onSaved(data.product);
+    } catch (err) {
+      setError((err as Error).message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }, [dirty, saving, draft, product, onSaved]);
+
+  const remove = useCallback(async () => {
+    if (deleting) return;
+    if (
+      !confirm(
+        `Delete "${product.model}" from the catalogue? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/catalogue/products/${product.id}`, {
+        method: "DELETE",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(data.error || `HTTP ${res.status}`);
+        return;
+      }
+      onDeleted(product.id);
+    } catch (err) {
+      setError((err as Error).message || "Delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleting, product, onDeleted]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => {
+        if (!saving && !deleting) onCancel();
+      }}
+    >
+      <div
+        className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-magic-ink">Edit product</h2>
+            <p className="mt-1 text-xs text-magic-ink/60">
+              Updating <b>{product.model}</b>. Changes are written straight to
+              the catalogue database.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving || deleting}
+            className="rounded-full w-8 h-8 flex items-center justify-center text-magic-ink/40 hover:bg-magic-soft hover:text-magic-ink disabled:opacity-50"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {EDIT_FIELDS.map((f) => {
+            const value = draft[f.key];
+            const commonClass =
+              "w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20";
+            return (
+              <label
+                key={f.key as string}
+                className={`flex flex-col gap-1 ${
+                  f.type === "textarea" ? "md:col-span-2" : ""
+                }`}
+              >
+                <span className="text-[10px] font-semibold uppercase text-magic-ink/60">
+                  {f.label}
+                </span>
+                {f.type === "textarea" ? (
+                  <textarea
+                    value={String(value ?? "")}
+                    rows={3}
+                    onChange={(e) => update(f.key, e.target.value)}
+                    className={commonClass}
+                  />
+                ) : f.type === "number" ? (
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={Number(value) || 0}
+                    onChange={(e) => update(f.key, e.target.value)}
+                    className={commonClass}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={String(value ?? "")}
+                    onChange={(e) => update(f.key, e.target.value)}
+                    className={commonClass}
+                  />
+                )}
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={remove}
+            disabled={saving || deleting}
+            className="rounded-lg border border-red-200 text-red-700 px-3 py-2 text-xs font-semibold hover:bg-red-50 disabled:opacity-50"
+          >
+            {deleting ? "Deleting…" : "Delete product"}
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={saving || deleting}
+              className="rounded-lg px-4 py-2 text-sm text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={!dirty || saving || deleting}
+              className="rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
