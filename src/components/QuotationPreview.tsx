@@ -182,7 +182,91 @@ function cellHtmlToText(cell: Element): string {
   return (clone.textContent || "").replace(/ /g, " ").replace(/[ \t]+\n/g, "\n").trim();
 }
 
-function parseHtmlFirstColumn(html: string): string[] {
+/**
+ * When Excel copies a numeric cell, the rendered text is locale-formatted
+ * (e.g. "1,234.56" or "1.234,56"), but the raw machine-readable value sits
+ * on the <td> as `x:num="1234.56"` (Excel) or `sdval` (LibreOffice Calc).
+ * Returning that raw value when present means a price column pastes
+ * losslessly regardless of the user's locale or thousands separator
+ * preference. Returns null when no machine value is exposed so callers
+ * can fall back to the rendered text and parse it leniently.
+ */
+function cellRawNumber(cell: Element): string | null {
+  const xnum = cell.getAttribute("x:num") || cell.getAttribute("sdval");
+  if (xnum && xnum.trim()) return xnum.trim();
+  return null;
+}
+
+/**
+ * Parse a clipboard cell into a finite number, tolerant to Excel / Sheets
+ * / Calc formatting. Handles:
+ *   - Currency prefixes / suffixes ("$1,234.56", "1234 JD", "USD 99")
+ *   - Thousands separators in any of:  ","  "."  " "  NBSP  "'"
+ *   - en-US "1,234.56" AND EU "1.234,56" — the LAST separator is the
+ *     decimal point; the others are stripped as thousands marks
+ *   - A single separator with a 3-digit tail ("1,234") -> thousands mark,
+ *     not a decimal — so users pasting "1,500" get 1500 instead of 1.5
+ *   - Accounting-style negatives "(1,234.56)" -> -1234.56
+ * Returns NaN when the input has no usable digits, leaving the choice
+ * of fallback (0, 1, …) up to the caller.
+ */
+function parseClipboardNumber(raw: string): number {
+  if (raw == null) return NaN;
+  let s = String(raw).trim();
+  if (!s) return NaN;
+  let sign = 1;
+  if (/^\(.*\)$/.test(s)) {
+    sign = -1;
+    s = s.slice(1, -1).trim();
+  }
+  // Drop currency symbols, letters, and any other non-numeric chrome
+  // Excel might emit (e.g. "USD", "JD", "kg"). Keep digits, separators,
+  // leading sign and whitespace candidates only.
+  s = s.replace(/[^\d.,\-+\s ']/g, "");
+  if (s.startsWith("-")) {
+    sign *= -1;
+    s = s.slice(1).trim();
+  } else if (s.startsWith("+")) {
+    s = s.slice(1).trim();
+  }
+  // Whitespace (incl. NBSP) and apostrophes are pure thousands separators
+  // across the locales Excel emits — strip them unconditionally.
+  s = s.replace(/[\s ']/g, "");
+  if (!s) return NaN;
+  const lastDot = s.lastIndexOf(".");
+  const lastComma = s.lastIndexOf(",");
+  if (lastDot === -1 && lastComma === -1) {
+    const n = Number(s);
+    return Number.isFinite(n) ? sign * n : NaN;
+  }
+  if (lastDot >= 0 && lastComma >= 0) {
+    // Both present: whichever comes later is the decimal point.
+    const decimalChar = lastDot > lastComma ? "." : ",";
+    const thousandsChar = decimalChar === "." ? "," : ".";
+    s = s.split(thousandsChar).join("");
+    if (decimalChar === ",") s = s.replace(",", ".");
+    const n = Number(s);
+    return Number.isFinite(n) ? sign * n : NaN;
+  }
+  // Only one separator type present.
+  const onlyChar = lastDot >= 0 ? "." : ",";
+  const occurrences = s.split(onlyChar).length - 1;
+  const tail = s.slice(s.lastIndexOf(onlyChar) + 1);
+  if (occurrences > 1) {
+    // Multiple occurrences of the same separator -> all thousands.
+    s = s.split(onlyChar).join("");
+  } else if (tail.length === 3 && /^\d+$/.test(tail)) {
+    // Single separator + 3-digit tail -> thousands ("1,234" -> 1234).
+    s = s.split(onlyChar).join("");
+  } else if (onlyChar === ",") {
+    // EU-style decimal: "1,5" -> 1.5.
+    s = s.replace(",", ".");
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? sign * n : NaN;
+}
+
+function parseHtmlFirstColumn(html: string, opts?: { numeric?: boolean }): string[] {
   if (!html) return [];
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
@@ -193,6 +277,16 @@ function parseHtmlFirstColumn(html: string): string[] {
   for (const row of rows) {
     const firstCell = row.querySelector("td, th");
     if (!firstCell) continue;
+    // For numeric targets (quantity / unit_price), prefer the cell's raw
+    // machine value when Excel/Calc exposed one — that side-steps every
+    // locale/thousands-separator parsing trap downstream.
+    if (opts?.numeric) {
+      const raw = cellRawNumber(firstCell);
+      if (raw !== null) {
+        cells.push(raw);
+        continue;
+      }
+    }
     cells.push(cellHtmlToText(firstCell));
   }
   // Drop trailing completely-empty rows — Excel sometimes appends one.
@@ -257,7 +351,7 @@ function parsePlainFirstColumn(text: string): string[] {
  * one cell instead of being split on newlines. Returns an empty array
  * when the clipboard is empty or neither API path succeeded.
  */
-async function readClipboardColumn(): Promise<string[]> {
+async function readClipboardColumn(opts?: { numeric?: boolean }): Promise<string[]> {
   // Preferred path: navigator.clipboard.read() exposes every MIME type
   // Excel wrote, letting us grab text/html and parse it as a table.
   if (typeof navigator !== "undefined" && navigator.clipboard && "read" in navigator.clipboard) {
@@ -267,7 +361,7 @@ async function readClipboardColumn(): Promise<string[]> {
         if (item.types.includes("text/html")) {
           const blob = await item.getType("text/html");
           const html = await blob.text();
-          const cells = parseHtmlFirstColumn(html);
+          const cells = parseHtmlFirstColumn(html, opts);
           if (cells.length > 0) return cells;
         }
       }
@@ -707,7 +801,11 @@ export default function QuotationPreview({
   // here, with the newline preserved.
   async function pasteColumnFromClipboard(system: string, colKey: string) {
     if (!setItems) return;
-    const cells = await readClipboardColumn();
+    // Tell the clipboard reader to prefer Excel's `x:num` raw machine
+    // value over the locale-formatted display text so a price column
+    // like "1,234.56" / "1.234,56" survives the round trip intact.
+    const numericTarget = colKey === "quantity" || colKey === "unit_price";
+    const cells = await readClipboardColumn({ numeric: numericTarget });
     if (cells.length === 0) {
       window.alert(
         "Nothing to paste. Copy a column of cells from Excel (or Google Sheets) first, then click the 📋 button again.\n\n" +
@@ -717,16 +815,17 @@ export default function QuotationPreview({
     }
 
     // Convert one clipboard cell into a patch for the target column.
-    // Numeric columns coerce via Number(); text columns keep the full
-    // multi-line string (including internal \n) so the Description
-    // textarea renders it verbatim.
+    // Numeric columns route through parseClipboardNumber so locale-
+    // formatted prices ("$1,234.56", "1.234,56", "(99.00)") all coerce
+    // cleanly. Text columns keep the full multi-line string (including
+    // internal \n) so the Description textarea renders it verbatim.
     function patchForCell(raw: string): Partial<QuotationItem> {
       if (colKey === "quantity") {
-        const n = Number(raw.trim());
+        const n = parseClipboardNumber(raw);
         return { quantity: Number.isFinite(n) && n > 0 ? n : 1 };
       }
       if (colKey === "unit_price") {
-        const n = Number(raw.trim());
+        const n = parseClipboardNumber(raw);
         return { unit_price: Number.isFinite(n) ? n : 0 };
       }
       if (colKey.startsWith("extra:")) {
