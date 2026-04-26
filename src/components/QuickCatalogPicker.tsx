@@ -15,6 +15,7 @@ interface Product {
   currency: string;
   price_si: number;
   specifications: string;
+  picture_url?: string | null;
 }
 
 interface Props {
@@ -45,6 +46,11 @@ function toQuotationItem(p: Product, qty: number, page: string): QuotationItem {
     unit_price: Number(p.price_si) || 0,
     delivery: "Available",
     picture_hint: p.category,
+    // Carry the catalogue thumbnail straight onto the quotation item so
+    // the Designer's PictureCell shows it the moment "Include image" is
+    // toggled on, without the user having to re-upload per row. Mirrors
+    // the same wiring in CatalogBrowser.toQuotationItem.
+    picture_url: p.picture_url || undefined,
     price_si: Number(p.price_si) || 0,
   };
 }
