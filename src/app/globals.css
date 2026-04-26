@@ -248,11 +248,25 @@ body > * {
     min-height: 8em;
     background: rgba(255, 255, 255, 0.6);
   }
+  /* On focus the textarea pops out of inline flow and overshoots its cell
+   * on both sides so the user gets a comfortable canvas for typing without
+   * the cramped column squeezing each line. The wrapping <td> already
+   * declares `position: relative` (see mergeableCell in QuotationPreview),
+   * so the absolute textarea anchors to that cell and floats above the
+   * neighbouring Brand / Model / Quantity columns. The table's column
+   * widths are therefore untouched — they don't reflow on focus and they
+   * snap straight back when the textarea blurs and returns to inline. */
   textarea.description-input:focus {
+    position: absolute;
+    top: 4px;
+    left: -8em;
+    width: calc(100% + 16em);
     min-height: 14em;
+    padding: 6px 8px;
     background: #ffffff;
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.28);
     outline: none;
+    z-index: 10;
   }
 }
 
