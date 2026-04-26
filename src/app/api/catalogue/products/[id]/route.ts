@@ -25,11 +25,30 @@ const EDITABLE_FIELDS = [
   "currency",
   "price_si",
   "specifications",
+  "picture_url",
 ] as const;
 
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 
 type PatchBody = Partial<Record<EditableField, string | number | null>>;
+
+/**
+ * Belt-and-braces guard for the picture column. The client compresses
+ * pictures to ~200 KB before sending, but a malformed/oversize body
+ * shouldn't poison the row. ~280 KB matches the upload cap with headroom
+ * for base64 overhead. Anything bigger (or anything that isn't an image
+ * data URL) is silently dropped.
+ */
+const PICTURE_MAX_LENGTH = 280_000;
+function sanitizePictureUrl(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== "string") return null;
+  const s = value.trim();
+  if (!s) return null;
+  if (!s.startsWith("data:image/")) return null;
+  if (s.length > PICTURE_MAX_LENGTH) return null;
+  return s;
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -56,7 +75,7 @@ export async function PATCH(
 
     // Only accept known editable fields; unknown keys are silently ignored so a
     // future client sending extra metadata doesn't blow up the request.
-    const patched: Record<EditableField, string | number> = {
+    const patched: Record<EditableField, string | number | null> = {
       vendor: String(existing.vendor ?? ""),
       system: String(existing.system ?? ""),
       category: String(existing.category ?? ""),
@@ -67,12 +86,23 @@ export async function PATCH(
       currency: String(existing.currency ?? "USD"),
       price_si: Number(existing.price_si ?? 0),
       specifications: String(existing.specifications ?? ""),
+      picture_url:
+        existing.picture_url === null || existing.picture_url === undefined
+          ? null
+          : String(existing.picture_url),
     };
     for (const field of EDITABLE_FIELDS) {
       if (body[field] === undefined) continue;
       if (field === "price_si") {
         const n = Number(body.price_si);
         patched.price_si = Number.isFinite(n) && n >= 0 ? n : patched.price_si;
+      } else if (field === "picture_url") {
+        // Explicit null clears the picture; any string is run through the
+        // sanitizer (which itself returns null on garbage / oversize input).
+        patched.picture_url =
+          body.picture_url === null
+            ? null
+            : sanitizePictureUrl(body.picture_url);
       } else {
         patched[field] = String(body[field] ?? "").trim();
       }
@@ -106,16 +136,17 @@ export async function PATCH(
 
     const updated = (await q`
       update products set
-        vendor         = ${patched.vendor},
-        system         = ${patched.system},
-        category       = ${patched.category},
-        sub_category   = ${patched.sub_category},
-        fast_view      = ${patched.fast_view},
-        model          = ${patched.model},
-        description    = ${patched.description},
-        currency       = ${patched.currency},
-        price_si       = ${patched.price_si},
-        specifications = ${patched.specifications},
+        vendor         = ${patched.vendor as string},
+        system         = ${patched.system as string},
+        category       = ${patched.category as string},
+        sub_category   = ${patched.sub_category as string},
+        fast_view      = ${patched.fast_view as string},
+        model          = ${patched.model as string},
+        description    = ${patched.description as string},
+        currency       = ${patched.currency as string},
+        price_si       = ${patched.price_si as number},
+        specifications = ${patched.specifications as string},
+        picture_url    = ${patched.picture_url as string | null},
         updated_at     = now()
       where id = ${id}
       returning *

@@ -207,6 +207,16 @@ const USER_PHONE_FLAG = "user_phone_v1_2026_04";
  */
 const PURCHASE_ORDERS_FLAG = "purchase_orders_v1_2026_04";
 
+/**
+ * Catalogue picture column. Adds a nullable `picture_url` text column on
+ * `products` so admins can attach a small product thumbnail (stored as a
+ * base64 data URL, capped client-side at ~200 KB after the existing
+ * `compressDataUrl` pass). Purely additive — every legacy reader, the
+ * Excel upload path, and the catalogue search predicate are all untouched
+ * by the new column.
+ */
+const CATALOGUE_PICTURE_FLAG = "catalogue_picture_v1_2026_04";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -239,7 +249,7 @@ export async function resetSchemaCache(): Promise<void> {
       ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
       ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
       ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
-      ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}
+      ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG}
     )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
@@ -270,6 +280,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let quotationContactApplied = false;
   let userPhoneApplied = false;
   let purchaseOrdersApplied = false;
+  let cataloguePictureApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -278,7 +289,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
         ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
         ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
-        ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}
+        ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -296,6 +307,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     quotationContactApplied = keys.has(QUOTATION_CONTACT_FLAG);
     userPhoneApplied = keys.has(USER_PHONE_FLAG);
     purchaseOrdersApplied = keys.has(PURCHASE_ORDERS_FLAG);
+    cataloguePictureApplied = keys.has(CATALOGUE_PICTURE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -315,7 +327,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     perfIndexesV2Applied &&
     quotationContactApplied &&
     userPhoneApplied &&
-    purchaseOrdersApplied
+    purchaseOrdersApplied &&
+    cataloguePictureApplied
   )
     return;
 
@@ -1161,6 +1174,23 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`create unique index if not exists purchase_orders_owner_number_idx on purchase_orders(owner_id, po_number) where deleted_at is null`;
     await q`
       insert into migration_flags (key) values (${PURCHASE_ORDERS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── Catalogue product pictures ───────────────────────────────────────────
+  // Adds a nullable `picture_url` text column to `products` so admins can
+  // attach a small thumbnail per catalogue row. The value is a base64 data
+  // URL produced by the existing client-side `compressDataUrl` helper
+  // (already shipped for Designer item pictures), capped at ~200 KB after
+  // compression so the products table doesn't bloat. Existing rows stay
+  // NULL — no UI surface treats NULL as broken.
+  if (!cataloguePictureApplied) {
+    await q`
+      alter table products add column if not exists picture_url text
+    `;
+    await q`
+      insert into migration_flags (key) values (${CATALOGUE_PICTURE_FLAG})
       on conflict (key) do nothing
     `;
   }

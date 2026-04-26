@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
 import {
@@ -11,6 +11,14 @@ import {
   type EditingContext,
 } from "@/lib/quotationDraft";
 import type { QuotationItem } from "@/components/QuotationPreview";
+import { compressDataUrl } from "@/components/QuotationPreview";
+
+// Belt-and-braces upload cap. The compressDataUrl pass usually lands well
+// under this for any normal product photo (canvas re-encode at 800px /
+// JPEG q=0.7 ≈ 50–120 KB). Keeping the post-compress ceiling at ~200 KB
+// matches the user's guidance ("just clear enough to see the item, no
+// more"); the API enforces the same bound server-side.
+const PICTURE_MAX_BYTES = 200_000;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -26,6 +34,7 @@ interface Product {
   currency: string;
   price_si: number;
   specifications: string;
+  picture_url?: string | null;
 }
 
 interface SystemInfo {
@@ -59,12 +68,16 @@ const DISPLAY_COLUMNS: Array<{
   wrap?: boolean;
 }> = [
   { key: "vendor", label: "Vendor", width: "6%" },
-  { key: "system", label: "System", width: "8%" },
-  { key: "category", label: "Category", width: "8%" },
+  { key: "system", label: "System", width: "7%" },
+  { key: "category", label: "Category", width: "7%" },
   { key: "sub_category", label: "Sub Category", width: "8%" },
   { key: "fast_view", label: "Fast View", width: "9%", wrap: true },
-  { key: "model", label: "Model", width: "13%", wrap: true },
-  { key: "description", label: "Description", width: "24%", wrap: true },
+  // Picture sits immediately after Fast View and before Model — the
+  // user-requested position. A square 64px thumbnail fits comfortably in
+  // an 8% column and clicks through to a full-size preview.
+  { key: "picture_url", label: "Picture", width: "8%" },
+  { key: "model", label: "Model", width: "11%", wrap: true },
+  { key: "description", label: "Description", width: "20%", wrap: true },
   { key: "currency", label: "Currency", width: "5%" },
   { key: "price_si", label: "Price SI", width: "7%" },
   { key: "specifications", label: "Specifications", width: "12%", wrap: true },
@@ -83,6 +96,11 @@ function toQuotationItem(p: Product, qty: number): QuotationItem {
     unit_price: Number(p.price_si) || 0,
     delivery: "Available",
     picture_hint: p.category,
+    // Carry the catalogue thumbnail straight onto the quotation item so
+    // the Designer's PictureCell shows it without the user re-uploading.
+    // Missing pictures leave the field undefined and the existing
+    // PictureCell upload UX still allows per-item overrides.
+    picture_url: p.picture_url || undefined,
     price_si: Number(p.price_si) || 0,
   };
 }
@@ -632,6 +650,36 @@ export default function CatalogBrowser({
                       </td>
                       {DISPLAY_COLUMNS.map((col) => {
                         const val = p[col.key];
+                        // Picture column renders an <img> instead of text;
+                        // bail out of the text/sort path early. The cell
+                        // shows a small thumbnail when set, an em-dash
+                        // placeholder otherwise.
+                        if (col.key === "picture_url") {
+                          const url = p.picture_url;
+                          return (
+                            <td
+                              key={col.key}
+                              className="px-2 py-1.5 align-middle text-center"
+                            >
+                              {url ? (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img
+                                  src={url}
+                                  alt={`${p.model} thumbnail`}
+                                  className="inline-block w-14 h-14 object-cover rounded border border-magic-border"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.open(url, "_blank", "noopener");
+                                  }}
+                                  title="Click to open the full image"
+                                  style={{ cursor: "zoom-in" }}
+                                />
+                              ) : (
+                                <span className="text-magic-ink/30">—</span>
+                              )}
+                            </td>
+                          );
+                        }
                         let display: string;
                         if (col.key === "price_si") {
                           const raw = Number(val);
@@ -875,19 +923,136 @@ function PagePickerModal({
 const EDIT_FIELDS: Array<{
   key: keyof Omit<Product, "id">;
   label: string;
-  type: "text" | "textarea" | "number";
+  type: "text" | "textarea" | "number" | "image";
 }> = [
   { key: "vendor", label: "Vendor", type: "text" },
   { key: "system", label: "System", type: "text" },
   { key: "category", label: "Category", type: "text" },
   { key: "sub_category", label: "Sub Category", type: "text" },
   { key: "fast_view", label: "Fast View", type: "text" },
+  { key: "picture_url", label: "Picture", type: "image" },
   { key: "model", label: "Model", type: "text" },
   { key: "currency", label: "Currency", type: "text" },
   { key: "price_si", label: "Price SI", type: "number" },
   { key: "description", label: "Description", type: "textarea" },
   { key: "specifications", label: "Specifications", type: "textarea" },
 ];
+
+/**
+ * Inline picture upload widget used inside the EditProductModal.
+ * Reuses the Designer's `compressDataUrl` so any uploaded image is
+ * downscaled to ≤800px wide and re-encoded as JPEG q=0.7 before being
+ * sent. Anything still larger than PICTURE_MAX_BYTES after that pass is
+ * rejected with a readable error rather than silently truncated.
+ *
+ * Value semantics:
+ *   - null / "" → no picture set, render a placeholder + "Upload" button
+ *   - data URL  → render the thumbnail + "Change" / "Remove" buttons
+ *
+ * Errors bubble up through `onError` so the parent modal can show them
+ * in its existing red banner instead of every uploader spawning its own.
+ */
+function PictureUploader({
+  value,
+  onChange,
+  onError,
+}: {
+  value: string | null;
+  onChange: (next: string | null) => void;
+  onError: (msg: string | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  const onFile = useCallback(
+    async (file: File) => {
+      onError(null);
+      if (!file.type.startsWith("image/")) {
+        onError("Please choose an image file (PNG, JPEG, WebP).");
+        return;
+      }
+      setBusy(true);
+      try {
+        const reader = new FileReader();
+        const original = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(String(reader.result || ""));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+        const compressed = await compressDataUrl(original);
+        if (compressed.length > PICTURE_MAX_BYTES) {
+          // Even after compression the image is too big — that usually
+          // means the source was a very large or noisy photo. Telling the
+          // user explicitly is friendlier than the API's silent drop.
+          onError(
+            `Picture is still too large after compression (${Math.round(compressed.length / 1024)} KB). Please choose a smaller image.`,
+          );
+          return;
+        }
+        onChange(compressed);
+      } catch (err) {
+        onError((err as Error).message || "Failed to read the image.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [onChange, onError],
+  );
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-20 h-20 rounded-lg border border-magic-border bg-magic-soft/40 flex items-center justify-center overflow-hidden flex-shrink-0">
+        {value ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={value}
+            alt="Product preview"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className="text-[10px] text-magic-ink/40 text-center px-1">
+            No picture
+          </span>
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onFile(file);
+            // Reset so re-selecting the same filename still fires onChange.
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          className="rounded-md border border-magic-border bg-white px-3 py-1.5 text-xs font-semibold text-magic-ink hover:border-magic-red hover:text-magic-red disabled:opacity-50"
+        >
+          {busy ? "Compressing…" : value ? "Change picture" : "Upload picture"}
+        </button>
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            disabled={busy}
+            className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+          >
+            Remove
+          </button>
+        )}
+        <span className="text-[10px] text-magic-ink/50">
+          Auto-compressed to ≤200 KB.
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function EditProductModal({
   product,
@@ -923,13 +1088,18 @@ function EditProductModal({
   }, [product, draft]);
 
   const update = useCallback(
-    (key: keyof Omit<Product, "id">, value: string) => {
+    (key: keyof Omit<Product, "id">, value: string | null) => {
       setDraft((prev) => {
         if (key === "price_si") {
           const n = Number(value);
           return { ...prev, price_si: Number.isFinite(n) ? n : 0 };
         }
-        return { ...prev, [key]: value };
+        if (key === "picture_url") {
+          // Empty / null clears the column; non-empty strings (data URLs)
+          // pass straight through and are validated server-side.
+          return { ...prev, picture_url: value ? value : null };
+        }
+        return { ...prev, [key]: value ?? "" };
       });
     },
     [],
@@ -947,6 +1117,16 @@ function EditProductModal({
         if (f.type === "number") {
           if (Number(prev) !== Number(next)) {
             (body as Record<string, unknown>)[f.key] = Number(next);
+          }
+        } else if (f.type === "image") {
+          // Image fields send literal null when cleared (so the API
+          // knows to wipe the column) and the raw data URL otherwise —
+          // never .trim()'d, since trim could in theory damage future
+          // formats and the data URL has no leading/trailing whitespace.
+          const prevStr = prev == null ? "" : String(prev);
+          const nextStr = next == null ? "" : String(next);
+          if (prevStr !== nextStr) {
+            (body as Record<string, unknown>)[f.key] = nextStr === "" ? null : nextStr;
           }
         } else if (String(prev ?? "") !== String(next ?? "")) {
           (body as Record<string, unknown>)[f.key] = String(next ?? "").trim();
@@ -1044,8 +1224,14 @@ function EditProductModal({
             const value = draft[f.key];
             const commonClass =
               "w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20";
+            // The image variant renders its own buttons (Change / Remove)
+            // so a wrapping <label> would forward stray clicks to the
+            // hidden file input. Use a plain <div> for image fields and
+            // keep <label> for everything that is genuinely a single
+            // labelable input.
+            const Wrapper = f.type === "image" ? "div" : "label";
             return (
-              <label
+              <Wrapper
                 key={f.key as string}
                 className={`flex flex-col gap-1 ${
                   f.type === "textarea" ? "md:col-span-2" : ""
@@ -1070,6 +1256,12 @@ function EditProductModal({
                     onChange={(e) => update(f.key, e.target.value)}
                     className={commonClass}
                   />
+                ) : f.type === "image" ? (
+                  <PictureUploader
+                    value={value == null ? null : String(value)}
+                    onChange={(next) => update(f.key, next)}
+                    onError={(msg) => setError(msg)}
+                  />
                 ) : (
                   <input
                     type="text"
@@ -1078,7 +1270,7 @@ function EditProductModal({
                     className={commonClass}
                   />
                 )}
-              </label>
+              </Wrapper>
             );
           })}
         </div>

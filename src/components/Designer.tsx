@@ -1138,6 +1138,15 @@ export default function Designer({
         setSaveStatus(
           `${label} saved as ${data.quotation.ref} — opening…`,
         );
+        // Drop the parent's per-id localStorage edit draft. Without this
+        // the in-flight changes the user just committed to the snapshot
+        // would still be sitting in the parent's slot, and the next time
+        // they open the parent the hydration effect would overlay those
+        // edits on top of the DB row — making it appear as if the
+        // modifications had been saved onto the main file. The whole
+        // point of "Save as Draft" is that the parent stays untouched,
+        // so the in-flight buffer for the parent has to go too.
+        if (existing) clearEditDraft(existing.id);
         // Invalidate any cached RSC data (notably the /quotation list)
         // so the new ref shows up the moment the user navigates back.
         router.refresh();

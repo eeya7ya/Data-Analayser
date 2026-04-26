@@ -221,6 +221,39 @@ body > * {
     bottom: 6mm;
     margin-top: 0;
   }
+
+  /* Description cell input: matches the printed font size (10.5px) so the
+   * editor mirrors print output, but that makes the field cramped to type
+   * into. On hover (a quick scan) the field grows a little so the user
+   * can see what's already there; on focus it grows to a comfortable
+   * editing height with a subtle ring. The `field-sizing: content` rule
+   * is a progressive enhancement — modern Chromium fits the box to the
+   * actual text so the visible area never lags behind what the user has
+   * typed; older engines fall through to the `min-height` rules below.
+   * The cell itself uses `vertical-align: top` (defined above) so the
+   * neighbouring Brand / Model / Quantity cells stay anchored to the
+   * top edge as the description grows.
+   */
+  textarea.description-input {
+    field-sizing: content;
+    min-height: 4em;
+    line-height: 1.35;
+    border-radius: 4px;
+    transition:
+      min-height 180ms ease,
+      background-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+  textarea.description-input:hover:not(:focus) {
+    min-height: 8em;
+    background: rgba(255, 255, 255, 0.6);
+  }
+  textarea.description-input:focus {
+    min-height: 14em;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.28);
+    outline: none;
+  }
 }
 
 @media print {
@@ -348,6 +381,36 @@ body > * {
   }
   .quotation-sheet > table.sheet-layout > tfoot {
     display: table-footer-group;
+  }
+  /* Inner item tables (one per system group) carry the column-headers row
+   * (No / Brand / Model / Description / …) inside their own <thead>. Make
+   * those repeat at the top of every physical page when the table flows
+   * onto multiple sheets, so a continuation page still shows the column
+   * labels above the rows. */
+  .quotation-sheet .sheet-body-cell table thead {
+    display: table-header-group;
+  }
+  .quotation-sheet .sheet-body-cell table tfoot {
+    display: table-footer-group;
+  }
+  /* Keep an item row atomic: when a row would straddle a page break, push
+   * the whole row onto the next page instead of splitting it. Without this
+   * the description cell wraps onto the next page on its own and the
+   * sibling cells (Brand / Model / Quantity / Unit Price …) print empty
+   * because their content already rendered on the prior page — the exact
+   * "middle page is empty except for one cell" symptom that prompted this
+   * rule. Cells use top alignment so the row's other columns stay visually
+   * aligned with the start of a long description rather than centring on
+   * its midpoint. */
+  .quotation-sheet table tr,
+  .quotation-sheet table tbody tr,
+  .quotation-sheet table thead tr,
+  .quotation-sheet table tfoot tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .quotation-sheet table td {
+    vertical-align: top;
   }
   /* Hide editable form chrome in print so inputs print as plain text. */
   .quotation-sheet input,
