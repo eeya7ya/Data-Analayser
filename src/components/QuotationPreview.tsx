@@ -1767,7 +1767,7 @@ function SystemTable({
               editable ? (
                 <textarea
                   rows={3}
-                  className="w-full bg-transparent text-[10.5px]"
+                  className="description-input w-full bg-transparent text-[10.5px]"
                   value={item.description}
                   placeholder="Add a short description for this item…"
                   onChange={(e) =>
