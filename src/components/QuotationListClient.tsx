@@ -1171,25 +1171,34 @@ export default function QuotationListClient({
               </button>
             </div>
             {!isUnfiled && (
-              <Link
-                href={`/designer?folder=${g.folderId}`}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-magic-red text-white hover:bg-magic-red/90 transition-colors whitespace-nowrap"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
+              <>
+                <Link
+                  href={`/folder/${g.folderId}`}
+                  title="Open the project view to manage projects, POs, BOQs and uploaded files"
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl border border-magic-red text-magic-red hover:bg-magic-red hover:text-white transition-colors whitespace-nowrap"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                New quotation
-              </Link>
+                  Open project view →
+                </Link>
+                <Link
+                  href={`/designer?folder=${g.folderId}`}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-magic-red text-white hover:bg-magic-red/90 transition-colors whitespace-nowrap"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  New quotation
+                </Link>
+              </>
             )}
           </div>
 

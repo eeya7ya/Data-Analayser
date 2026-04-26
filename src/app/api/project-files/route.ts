@@ -1,0 +1,186 @@
+import { NextRequest, NextResponse } from "next/server";
+import { sql, ensureSchema } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
+import { normalizeFileKind } from "@/lib/storage";
+
+export const runtime = "nodejs";
+
+/**
+ * Project file metadata. The actual binary lives in Supabase Storage;
+ * this table only stores the bucket-relative `storage_path`.
+ *
+ * Two-phase upload flow used by the browser:
+ *
+ *   1. POST /api/project-files/sign-upload  →  signed URL
+ *      The browser sends { project_id, kind, filename, mime, size }.
+ *      We validate the project, check size caps, mint a path under
+ *      `<owner>/<project>/<random>-<safe-name>` and return a Supabase
+ *      signed upload URL.
+ *
+ *   2. PUT <signedUrl>  (browser → Supabase)
+ *      The binary goes directly to Supabase Storage; nothing transits
+ *      this Next.js server (that's the whole point — Vercel body-size
+ *      caps wouldn't allow it).
+ *
+ *   3. POST /api/project-files                →  register
+ *      Once the PUT succeeds, the browser registers the file with us
+ *      so the Files panel can list / download / delete it later.
+ *
+ * The split keeps secrets (service-role key) on the server while the
+ * heavy bytes flow direct, and lets us authoritatively enforce
+ * project-ownership and size caps before issuing the signed URL.
+ */
+
+type FileRow = {
+  id: number;
+  project_id: number;
+  owner_id: number | null;
+  kind: string;
+  filename: string;
+  mime: string;
+  size_bytes: number;
+  storage_path: string;
+  created_at: string;
+};
+
+async function loadProjectForUser(
+  q: ReturnType<typeof sql>,
+  projectId: number,
+  user: { id: number; role: string },
+): Promise<{ id: number; owner_id: number | null } | null> {
+  const rows = (await q`
+    select id, owner_id from projects
+    where id = ${projectId} and deleted_at is null
+    limit 1
+  `) as Array<{ id: number; owner_id: number | null }>;
+  if (rows.length === 0) return null;
+  if (user.role !== "admin" && rows[0].owner_id !== user.id) return null;
+  return rows[0];
+}
+
+/**
+ * GET /api/project-files?project_id=X — list files in a project.
+ * Optional &kind=quotation|po|boq|other narrows to the matching tab.
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const user = await requireUser();
+    await ensureSchema();
+    const { searchParams } = new URL(req.url);
+    const projectId = Number(searchParams.get("project_id"));
+    if (!Number.isFinite(projectId) || projectId <= 0) {
+      return NextResponse.json(
+        { error: "project_id required" },
+        { status: 400 },
+      );
+    }
+    const q = sql();
+    const project = await loadProjectForUser(q, projectId, user);
+    if (!project) {
+      return NextResponse.json({ files: [] });
+    }
+    const kindParam = searchParams.get("kind");
+    const rows = kindParam
+      ? ((await q`
+          select id, project_id, owner_id, kind, filename, mime, size_bytes, storage_path, created_at
+          from project_files
+          where project_id = ${projectId}
+            and kind = ${kindParam}
+            and deleted_at is null
+          order by created_at desc, id desc
+          limit 500
+        `) as FileRow[])
+      : ((await q`
+          select id, project_id, owner_id, kind, filename, mime, size_bytes, storage_path, created_at
+          from project_files
+          where project_id = ${projectId}
+            and deleted_at is null
+          order by created_at desc, id desc
+          limit 500
+        `) as FileRow[]);
+    return NextResponse.json({ files: rows });
+  } catch (err) {
+    return NextResponse.json(
+      { error: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * POST /api/project-files — register a file after the browser uploaded
+ * its bytes via the signed URL. Body:
+ *   { project_id, kind, filename, mime, size_bytes, storage_path }
+ *
+ * `storage_path` must match what we returned from /sign-upload — we
+ * re-validate the prefix to make sure no caller invents an arbitrary
+ * path under another user's prefix.
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const user = await requireUser();
+    await ensureSchema();
+    const body = (await req.json()) as {
+      project_id?: number;
+      kind?: string;
+      filename?: string;
+      mime?: string;
+      size_bytes?: number;
+      storage_path?: string;
+    };
+    const projectId = Number(body.project_id);
+    const filename = String(body.filename || "").trim();
+    const storagePath = String(body.storage_path || "").trim();
+    const mime = String(body.mime || "application/octet-stream").trim();
+    const size = Number(body.size_bytes ?? 0);
+    if (
+      !Number.isFinite(projectId) ||
+      projectId <= 0 ||
+      !filename ||
+      !storagePath
+    ) {
+      return NextResponse.json(
+        { error: "project_id, filename and storage_path are required" },
+        { status: 400 },
+      );
+    }
+    const q = sql();
+    const project = await loadProjectForUser(q, projectId, user);
+    if (!project) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    // Belt-and-braces: the path the browser hands back must start with
+    // the per-owner / per-project prefix we minted in /sign-upload.
+    // Without this, a caller could register a file at someone else's
+    // path. (The signed URL itself already enforces the path, but we
+    // double-check at registration so a leaked URL can't subvert
+    // ownership.)
+    const expectedPrefix = `${user.id}/${projectId}/`;
+    if (
+      user.role !== "admin" &&
+      !storagePath.startsWith(expectedPrefix)
+    ) {
+      return NextResponse.json(
+        { error: "storage path mismatch" },
+        { status: 400 },
+      );
+    }
+    const rows = (await q`
+      insert into project_files
+        (project_id, owner_id, kind, filename, mime, size_bytes, storage_path)
+      values (
+        ${projectId}, ${user.id}, ${normalizeFileKind(body.kind)},
+        ${filename.slice(0, 200)}, ${mime}, ${Math.max(0, Math.trunc(size))},
+        ${storagePath}
+      )
+      returning id, project_id, owner_id, kind, filename, mime, size_bytes, storage_path, created_at
+    `) as FileRow[];
+    return NextResponse.json({ file: rows[0] });
+  } catch (err) {
+    return NextResponse.json(
+      { error: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}
+

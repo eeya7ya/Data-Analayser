@@ -22,6 +22,12 @@ interface SearchParams {
    */
   contact?: string;
   /**
+   * File the new quotation under a specific project. Sent by the
+   * "+ New quotation in this project" button on the /folder/[id] page
+   * so the Designer save lands inside the right project record.
+   */
+  project?: string;
+  /**
    * Opt-out flag for the server-side "no folder → /quotation" gate.
    * Sent by the in-designer "+ New quotation" button so the user can
    * land on a clean create-mode hero and pick a client from there,
@@ -118,6 +124,12 @@ export default async function DesignerPage({
     if (Number.isFinite(n) && n > 0) initialContactId = n;
   }
 
+  let initialProjectId: number | null = null;
+  if (sp.project) {
+    const n = Number(sp.project);
+    if (Number.isFinite(n) && n > 0) initialProjectId = n;
+  }
+
   // Gate: the Designer can only be opened from a client (`?folder=<n>`),
   // an existing quotation (`?id=<n>`), or the explicit "+ New quotation"
   // button inside the Designer itself (`?new=1`). Attempting to reach
@@ -148,6 +160,7 @@ export default async function DesignerPage({
           user={user}
           initialFolderId={initialFolderId}
           initialContactId={initialContactId}
+          initialProjectId={initialProjectId}
           appSettings={await settingsPromise}
         />
       </main>

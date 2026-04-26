@@ -17,6 +17,7 @@ interface PoRow {
   owner_id: number | null;
   quotation_id: number | null;
   folder_id: number | null;
+  project_id: number | null;
   po_number: string;
   supplier: string | null;
   client_name: string | null;
@@ -35,15 +36,53 @@ interface PoRow {
   folder_name?: string | null;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
     const q = sql();
+    const projectIdParam = req.nextUrl.searchParams.get("project_id");
+    if (projectIdParam) {
+      const projectId = Number(projectIdParam);
+      if (!Number.isFinite(projectId) || projectId <= 0) {
+        return NextResponse.json({ purchaseOrders: [] });
+      }
+      const projectRows =
+        user.role === "admin"
+          ? ((await q`
+              select po.id, po.owner_id, po.quotation_id, po.folder_id, po.project_id,
+                     po.po_number, po.supplier, po.client_name, po.project_name,
+                     po.amount, po.currency, po.status, po.notes,
+                     po.issued_at, po.expected_at, po.created_at, po.updated_at,
+                     qt.ref as quotation_ref,
+                     f.name as folder_name
+              from purchase_orders po
+              left join quotations qt on qt.id = po.quotation_id
+              left join client_folders f on f.id = po.folder_id
+              where po.project_id = ${projectId} and po.deleted_at is null
+              order by po.created_at desc
+            `) as PoRow[])
+          : ((await q`
+              select po.id, po.owner_id, po.quotation_id, po.folder_id, po.project_id,
+                     po.po_number, po.supplier, po.client_name, po.project_name,
+                     po.amount, po.currency, po.status, po.notes,
+                     po.issued_at, po.expected_at, po.created_at, po.updated_at,
+                     qt.ref as quotation_ref,
+                     f.name as folder_name
+              from purchase_orders po
+              left join quotations qt on qt.id = po.quotation_id
+              left join client_folders f on f.id = po.folder_id
+              where po.project_id = ${projectId}
+                and po.owner_id = ${user.id}
+                and po.deleted_at is null
+              order by po.created_at desc
+            `) as PoRow[]);
+      return NextResponse.json({ purchaseOrders: projectRows });
+    }
     const rows =
       user.role === "admin"
         ? ((await q`
-            select po.id, po.owner_id, po.quotation_id, po.folder_id,
+            select po.id, po.owner_id, po.quotation_id, po.folder_id, po.project_id,
                    po.po_number, po.supplier, po.client_name, po.project_name,
                    po.amount, po.currency, po.status, po.notes,
                    po.issued_at, po.expected_at, po.created_at, po.updated_at,
@@ -59,7 +98,7 @@ export async function GET() {
             order by po.created_at desc
           `) as PoRow[])
         : ((await q`
-            select po.id, po.owner_id, po.quotation_id, po.folder_id,
+            select po.id, po.owner_id, po.quotation_id, po.folder_id, po.project_id,
                    po.po_number, po.supplier, po.client_name, po.project_name,
                    po.amount, po.currency, po.status, po.notes,
                    po.issued_at, po.expected_at, po.created_at, po.updated_at,
@@ -90,6 +129,7 @@ export async function POST(req: NextRequest) {
       po_number?: string;
       quotation_id?: number | null;
       folder_id?: number | null;
+      project_id?: number | null;
       supplier?: string | null;
       client_name?: string | null;
       project_name?: string | null;
@@ -115,6 +155,7 @@ export async function POST(req: NextRequest) {
     let prefillClientName: string | null = body.client_name?.trim() || null;
     let prefillProjectName: string | null = body.project_name?.trim() || null;
     let prefillFolderId: number | null = body.folder_id ?? null;
+    let prefillProjectId: number | null = body.project_id ?? null;
     let prefillAmount: number =
       typeof body.amount === "number"
         ? body.amount
@@ -123,12 +164,13 @@ export async function POST(req: NextRequest) {
 
     if (quotationId) {
       const qrows = (await q`
-        select id, owner_id, folder_id, client_name, project_name, totals_json
+        select id, owner_id, folder_id, project_id, client_name, project_name, totals_json
         from quotations where id = ${quotationId} and deleted_at is null
       `) as Array<{
         id: number;
         owner_id: number | null;
         folder_id: number | null;
+        project_id: number | null;
         client_name: string | null;
         project_name: string | null;
         totals_json: unknown;
@@ -148,6 +190,10 @@ export async function POST(req: NextRequest) {
       prefillClientName = prefillClientName || qrows[0].client_name;
       prefillProjectName = prefillProjectName || qrows[0].project_name;
       prefillFolderId = prefillFolderId || qrows[0].folder_id;
+      // Inherit project_id from the quotation when the caller didn't
+      // explicitly override — keeps the PO filed alongside the
+      // quotation it was issued for.
+      prefillProjectId = prefillProjectId ?? qrows[0].project_id;
       if (!body.amount) {
         const tj = qrows[0].totals_json as
           | { grand_total?: number; total?: number }
@@ -173,20 +219,42 @@ export async function POST(req: NextRequest) {
 
     const currency = (body.currency || "JOD").trim() || "JOD";
     const status = (body.status || "open").trim() || "open";
+
+    // Validate the resolved project_id against the user's ownership when
+    // it's set. The PATCH path applies the same guard for symmetry.
+    if (
+      user.role !== "admin" &&
+      prefillProjectId !== null &&
+      prefillProjectId !== undefined
+    ) {
+      const projectRows = (await q`
+        select owner_id from projects
+        where id = ${prefillProjectId} and deleted_at is null
+        limit 1
+      `) as Array<{ owner_id: number | null }>;
+      if (projectRows.length === 0 || projectRows[0].owner_id !== user.id) {
+        return NextResponse.json(
+          { error: "forbidden project" },
+          { status: 403 },
+        );
+      }
+    }
+
     const rows = (await q`
       insert into purchase_orders (
-        owner_id, quotation_id, folder_id, po_number, supplier,
+        owner_id, quotation_id, folder_id, project_id, po_number, supplier,
         client_name, project_name, amount, currency, status,
         notes, issued_at, expected_at
       )
       values (
-        ${user.id}, ${quotationId}, ${prefillFolderId}, ${poNumber},
+        ${user.id}, ${quotationId}, ${prefillFolderId}, ${prefillProjectId},
+        ${poNumber},
         ${body.supplier?.trim() || null}, ${prefillClientName},
         ${prefillProjectName}, ${prefillAmount}, ${currency}, ${status},
         ${body.notes?.trim() || null}, ${body.issued_at || null},
         ${body.expected_at || null}
       )
-      returning id, owner_id, quotation_id, folder_id, po_number, supplier,
+      returning id, owner_id, quotation_id, folder_id, project_id, po_number, supplier,
                 client_name, project_name, amount, currency, status, notes,
                 issued_at, expected_at, created_at, updated_at
     `) as PoRow[];
@@ -226,6 +294,7 @@ export async function PATCH(req: NextRequest) {
       notes?: string | null;
       issued_at?: string | null;
       expected_at?: string | null;
+      project_id?: number | null;
     };
     const q = sql();
     const owned = (await q`
@@ -277,6 +346,32 @@ export async function PATCH(req: NextRequest) {
     }
     if (body.expected_at !== undefined) {
       await q`update purchase_orders set expected_at = ${body.expected_at || null} where id = ${id}`;
+    }
+    if (body.project_id !== undefined) {
+      // Setting null detaches the PO from any project. Setting a positive
+      // value re-files it; verify ownership for non-admins so a malicious
+      // caller can't park their PO under another user's project.
+      const target = body.project_id;
+      if (target !== null) {
+        const projectRows = (await q`
+          select owner_id from projects
+          where id = ${target} and deleted_at is null
+          limit 1
+        `) as Array<{ owner_id: number | null }>;
+        if (projectRows.length === 0) {
+          return NextResponse.json(
+            { error: "project not found" },
+            { status: 404 },
+          );
+        }
+        if (user.role !== "admin" && projectRows[0].owner_id !== user.id) {
+          return NextResponse.json(
+            { error: "forbidden project" },
+            { status: 403 },
+          );
+        }
+      }
+      await q`update purchase_orders set project_id = ${target} where id = ${id}`;
     }
     await q`update purchase_orders set updated_at = now() where id = ${id}`;
 
