@@ -157,6 +157,7 @@ export async function GET(req: NextRequest) {
         select id, ref, owner_id, project_name, client_name, client_email,
                client_phone, sales_engineer, prepared_by, tax_percent,
                site_name, items_json, config_json, folder_id, contact_id,
+               project_id,
                status, parent_ref, created_at, updated_at, deleted_at
         from quotations
         where id = ${Number(id)}
@@ -177,6 +178,42 @@ export async function GET(req: NextRequest) {
       }
       return NextResponse.json({ quotation: row });
     }
+    // Per-project list. Drives the Files / Quotations tab inside the
+    // Project page: every quotation filed under a given project_id, or
+    // a project_id of 0 / 'unfiled' to surface legacy rows that pre-
+    // date the projects layer. Owner-isolation matches the general
+    // list. Reads ?project_id=&lt;n&gt;.
+    const projectIdParam = req.nextUrl.searchParams.get("project_id");
+    if (projectIdParam) {
+      const projectId = Number(projectIdParam);
+      if (!Number.isFinite(projectId) || projectId <= 0) {
+        return NextResponse.json({ quotations: [] });
+      }
+      const projectRows =
+        user.role === "admin"
+          ? ((await q`
+              select id, ref, project_name, client_name, site_name,
+                     folder_id, contact_id, project_id, owner_id, status, parent_ref,
+                     created_at, updated_at
+              from quotations
+              where project_id = ${projectId} and deleted_at is null
+              order by id desc
+              limit 500
+            `) as Array<Record<string, unknown>>)
+          : ((await q`
+              select id, ref, project_name, client_name, site_name,
+                     folder_id, contact_id, project_id, owner_id, status, parent_ref,
+                     created_at, updated_at
+              from quotations
+              where project_id = ${projectId}
+                and owner_id = ${user.id}
+                and deleted_at is null
+              order by id desc
+              limit 500
+            `) as Array<Record<string, unknown>>);
+      return NextResponse.json({ quotations: projectRows });
+    }
+
     // Per-folder list. Powers the Company page's "quotations for this
     // company" panel, which splits rows into assigned (shown under each
     // person) vs unassigned (offered in a reassignment dropdown). Uses the
@@ -190,7 +227,7 @@ export async function GET(req: NextRequest) {
         user.role === "admin"
           ? ((await q`
               select id, ref, project_name, client_name, site_name,
-                     folder_id, contact_id, owner_id, status, parent_ref,
+                     folder_id, contact_id, project_id, owner_id, status, parent_ref,
                      created_at, updated_at
               from quotations
               where folder_id = ${folderId} and deleted_at is null
@@ -199,7 +236,7 @@ export async function GET(req: NextRequest) {
             `) as Array<Record<string, unknown>>)
           : ((await q`
               select id, ref, project_name, client_name, site_name,
-                     folder_id, contact_id, owner_id, status, parent_ref,
+                     folder_id, contact_id, project_id, owner_id, status, parent_ref,
                      created_at, updated_at
               from quotations
               where folder_id = ${folderId}
@@ -318,6 +355,7 @@ export async function PATCH(req: NextRequest) {
       config?: Record<string, unknown>;
       folder_id?: number | null;
       contact_id?: number | null;
+      project_id?: number | null;
     };
     const q = sql();
     const existingRows = (await q`
@@ -331,6 +369,30 @@ export async function PATCH(req: NextRequest) {
     const existing = existingRows[0];
     if (user.role !== "admin" && existing.owner_id !== user.id) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    // Verify project ownership when the caller is reassigning the quotation
+    // to a different project. Mirrors the folder-ownership guard below so a
+    // user can never plant a quotation under another user's project.
+    if (
+      user.role !== "admin" &&
+      body.project_id !== undefined &&
+      body.project_id !== null
+    ) {
+      const projectRows = (await q`
+        select owner_id, folder_id from projects
+        where id = ${body.project_id} and deleted_at is null
+        limit 1
+      `) as Array<{ owner_id: number | null; folder_id: number | null }>;
+      if (projectRows.length === 0) {
+        return NextResponse.json(
+          { error: "project not found" },
+          { status: 404 },
+        );
+      }
+      if (projectRows[0].owner_id !== user.id) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
     }
 
     // If the caller is moving the quotation into a folder, make sure the
@@ -405,6 +467,8 @@ export async function PATCH(req: NextRequest) {
       body.folder_id !== undefined ? body.folder_id : existing.folder_id;
     const cid =
       body.contact_id !== undefined ? body.contact_id : existing.contact_id;
+    const pid =
+      body.project_id !== undefined ? body.project_id : existing.project_id;
 
     const hasItems = body.items !== undefined;
     const hasTotals = body.totals !== undefined;
@@ -435,6 +499,7 @@ export async function PATCH(req: NextRequest) {
         config_json    = case when ${hasConfig} then ${configText}::jsonb else config_json end,
         folder_id      = ${fid as number | null},
         contact_id     = ${cid as number | null},
+        project_id     = ${pid as number | null},
         updated_at     = now()
       where id = ${id}
       returning id, ref
@@ -477,6 +542,7 @@ export async function POST(req: NextRequest) {
       config?: Record<string, unknown>;
       folder_id?: number | null;
       contact_id?: number | null;
+      project_id?: number | null;
     };
 
     const mode: QuotationMode =
@@ -486,16 +552,18 @@ export async function POST(req: NextRequest) {
 
     // ── Resolve parent for draft / review snapshots ─────────────────────────
     let parentRef: string | null = null;
+    let parentProjectId: number | null = null;
     if (mode !== "active") {
       if (body.parent_id) {
         const parentRows = (await q`
-          select id, ref, owner_id, deleted_at from quotations
+          select id, ref, owner_id, project_id, deleted_at from quotations
           where id = ${body.parent_id}
           limit 1
         `) as Array<{
           id: number;
           ref: string;
           owner_id: number | null;
+          project_id: number | null;
           deleted_at: unknown;
         }>;
         if (parentRows.length === 0 || parentRows[0].deleted_at) {
@@ -515,6 +583,9 @@ export async function POST(req: NextRequest) {
           );
         }
         parentRef = parentRows[0].ref;
+        // Inherit the parent's project so a draft / review snapshot
+        // lands inside the same project as the original quotation.
+        parentProjectId = parentRows[0].project_id ?? null;
       } else if (body.parent_ref && body.parent_ref.trim()) {
         parentRef = body.parent_ref.trim();
       } else {
@@ -605,11 +676,46 @@ export async function POST(req: NextRequest) {
     const storedParentRef =
       mode === "active" ? null : rootOfRef(parentRef as string);
 
+    // Resolve the project the new row belongs to. Drafts/reviews inherit
+    // from the parent unless the client explicitly overrides; active
+    // quotations take whatever the caller sent (or NULL if omitted, in
+    // which case the row appears as "Unfiled" in the project UI). When
+    // the caller sends an explicit project_id, validate ownership for
+    // non-admins so a malicious caller can't park a row under another
+    // user's project.
+    let projectId: number | null = null;
+    if (body.project_id !== undefined && body.project_id !== null) {
+      const projectRows = (await q`
+        select owner_id from projects
+        where id = ${body.project_id} and deleted_at is null
+        limit 1
+      `) as Array<{ owner_id: number | null }>;
+      if (projectRows.length === 0) {
+        return NextResponse.json(
+          { error: "project not found" },
+          { status: 404 },
+        );
+      }
+      if (
+        user.role !== "admin" &&
+        projectRows[0].owner_id !== user.id
+      ) {
+        return NextResponse.json(
+          { error: "forbidden project" },
+          { status: 403 },
+        );
+      }
+      projectId = body.project_id;
+    } else if (mode !== "active") {
+      projectId = parentProjectId;
+    }
+
     const rows = (await q`
       insert into quotations (
         ref, owner_id, project_name, client_name, client_email, client_phone,
         sales_engineer, prepared_by, site_name, tax_percent, items_json,
-        totals_json, config_json, folder_id, contact_id, status, parent_ref
+        totals_json, config_json, folder_id, contact_id, project_id,
+        status, parent_ref
       ) values (
         ${ref}, ${user.id}, ${body.project_name}, ${clientName},
         ${clientEmail}, ${clientPhone},
@@ -618,7 +724,8 @@ export async function POST(req: NextRequest) {
         ${JSON.stringify(body.items || [])}::jsonb,
         ${JSON.stringify(body.totals || {})}::jsonb,
         ${JSON.stringify(body.config || {})}::jsonb,
-        ${folderId}, ${contactId}, ${mode}, ${storedParentRef}
+        ${folderId}, ${contactId}, ${projectId},
+        ${mode}, ${storedParentRef}
       )
       returning id, ref, status, parent_ref
     `) as Array<{

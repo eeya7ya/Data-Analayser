@@ -48,6 +48,7 @@ export interface ExistingQuotation {
   tax_percent: number;
   folder_id: number | null;
   contact_id: number | null;
+  project_id?: number | null;
   items_json: QuotationItem[];
   config_json: {
     showPictures?: boolean;
@@ -99,6 +100,7 @@ export default function Designer({
   existing,
   initialFolderId,
   initialContactId,
+  initialProjectId,
   appSettings,
   onSaved,
 }: {
@@ -120,6 +122,14 @@ export default function Designer({
    * already has).
    */
   initialContactId?: number | null;
+  /**
+   * Project id passed in via `?project=<id>` when the user clicked
+   * "+ New quotation in this project" from the /folder/[id] page.
+   * Carried straight through the save payload so the new quotation is
+   * filed under that project. Ignored in edit mode where we always
+   * preserve the existing row's project_id.
+   */
+  initialProjectId?: number | null;
   /**
    * Global presets loaded on the server — seeds the default Terms list for
    * new quotations and supplies the admin-editable printable footer.
@@ -185,6 +195,13 @@ export default function Designer({
   // existing.contact_id below; create mode just carries the URL value.
   const [contactId, setContactId] = useState<number | null>(
     initialContactId ?? null,
+  );
+  // projectId is set on mount from `?project=<id>` (create mode) or from
+  // existing.project_id (edit mode). Carried into the save payload so
+  // the new quotation lands inside the right project — see PR 2's
+  // projects layer.
+  const [projectId, setProjectId] = useState<number | null>(
+    initialProjectId ?? null,
   );
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -730,6 +747,16 @@ export default function Designer({
     }
   }, [existing, folders]);
 
+  // Edit mode: rehydrate project_id from the existing row so saving an
+  // already-filed quotation doesn't strip its project link.
+  useEffect(() => {
+    const next =
+      typeof (existing as ExistingQuotation | undefined)?.project_id === "number"
+        ? (existing as ExistingQuotation).project_id ?? null
+        : null;
+    if (next !== null) setProjectId(next);
+  }, [existing]);
+
   // Edit mode: rehydrate the contact attribution from the existing row so
   // a save round-trip doesn't drop the link the company page set up.
   useEffect(() => {
@@ -1071,6 +1098,10 @@ export default function Designer({
       // keeps the current refCode so edits don't churn the number.
       const payload: Record<string, unknown> = {
         project_name: projectName || "Untitled Quotation",
+        // The DB column for the projects layer is `project_id` (a FK
+        // into the new projects table). `project_name` above is the
+        // unrelated free-text field that's been on quotations forever.
+        project_id: projectId,
         client_name: clientName,
         client_email: clientEmail,
         client_phone: clientPhone,

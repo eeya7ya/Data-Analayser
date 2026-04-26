@@ -1,0 +1,975 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+interface Project {
+  id: number;
+  folder_id: number;
+  owner_id: number | null;
+  name: string;
+  description: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface QuotationRow {
+  id: number;
+  ref: string;
+  project_name: string | null;
+  status?: string | null;
+  parent_ref?: string | null;
+  created_at: string;
+}
+
+interface PoRow {
+  id: number;
+  po_number: string;
+  supplier: string | null;
+  amount: string | number;
+  currency: string;
+  status: string;
+  created_at: string;
+}
+
+interface FileRow {
+  id: number;
+  project_id: number;
+  kind: "quotation" | "po" | "boq" | "other" | string;
+  filename: string;
+  mime: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+type FileKind = "quotation" | "po" | "boq" | "other";
+
+const KIND_LABELS: Record<FileKind, string> = {
+  quotation: "Quotation files",
+  po: "PO files",
+  boq: "BOQ files",
+  other: "Other files",
+};
+
+function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0 B";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/**
+ * Per-folder Projects + Files dashboard.
+ *
+ * The component is intentionally self-contained: it lists projects under
+ * a single folder, lets the user pick one, and renders three panels for
+ * the chosen project (Quotations / POs / Files). Files are uploaded
+ * directly to Supabase Storage via signed URLs (browser → Storage; never
+ * through this app's API), so PDF / spreadsheet uploads aren't capped by
+ * Vercel's request body limit.
+ */
+export default function FolderProjectsClient({
+  folderId,
+  folderName,
+}: {
+  folderId: number;
+  folderName: string;
+}) {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const reloadProjects = useCallback(async () => {
+    setLoadingProjects(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/projects?folder_id=${folderId}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { projects?: Project[] };
+      const list = data.projects ?? [];
+      setProjects(list);
+      // Pick the first project by default. The migration creates a
+      // "Default Project" for every existing folder, so a brand-new
+      // visit always lands on something rather than an empty pane.
+      setActiveProjectId((prev) => {
+        if (prev && list.some((p) => p.id === prev)) return prev;
+        return list[0]?.id ?? null;
+      });
+    } catch (err) {
+      setError((err as Error).message || "Failed to load projects");
+    } finally {
+      setLoadingProjects(false);
+    }
+  }, [folderId]);
+
+  useEffect(() => {
+    void reloadProjects();
+  }, [reloadProjects]);
+
+  const activeProject =
+    projects.find((p) => p.id === activeProjectId) || null;
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
+      <aside className="rounded-2xl border border-magic-border bg-white p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-sm text-magic-ink">Projects</h2>
+          <NewProjectButton
+            folderId={folderId}
+            onCreated={(p) => {
+              setProjects((prev) => [...prev, p]);
+              setActiveProjectId(p.id);
+            }}
+          />
+        </div>
+        {error && (
+          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {error}
+          </div>
+        )}
+        {loadingProjects ? (
+          <div className="text-xs text-magic-ink/50">Loading projects…</div>
+        ) : projects.length === 0 ? (
+          <div className="text-xs text-magic-ink/50">
+            No projects yet for {folderName}. Create the first one.
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {projects.map((p) => {
+              const isActive = p.id === activeProjectId;
+              return (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveProjectId(p.id)}
+                    className={`w-full text-left rounded-md px-3 py-2 text-sm border transition-colors ${
+                      isActive
+                        ? "border-magic-red bg-magic-red/5 text-magic-ink"
+                        : "border-transparent hover:bg-magic-soft text-magic-ink/80"
+                    }`}
+                    title={p.description || undefined}
+                  >
+                    <div className="font-semibold truncate">{p.name}</div>
+                    {p.description && (
+                      <div className="text-[10px] text-magic-ink/50 truncate">
+                        {p.description}
+                      </div>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </aside>
+
+      <section className="min-w-0">
+        {activeProject ? (
+          <ProjectPanel
+            project={activeProject}
+            onProjectUpdate={(updated) => {
+              setProjects((prev) =>
+                prev.map((p) => (p.id === updated.id ? updated : p)),
+              );
+            }}
+            onProjectDelete={(id) => {
+              setProjects((prev) => prev.filter((p) => p.id !== id));
+              setActiveProjectId((prev) =>
+                prev === id ? projects.find((p) => p.id !== id)?.id ?? null : prev,
+              );
+            }}
+          />
+        ) : (
+          <div className="rounded-2xl border border-magic-border bg-white p-8 text-center text-sm text-magic-ink/60">
+            Select a project on the left, or create a new one.
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function NewProjectButton({
+  folderId,
+  onCreated,
+}: {
+  folderId: number;
+  onCreated: (p: Project) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = useCallback(async () => {
+    if (!name.trim()) {
+      setError("Name is required");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folder_id: folderId,
+          name: name.trim(),
+          description: description.trim() || null,
+        }),
+      });
+      const data = (await res.json()) as { project?: Project; error?: string };
+      if (!res.ok || !data.project) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      onCreated(data.project);
+      setOpen(false);
+      setName("");
+      setDescription("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }, [folderId, name, description, onCreated]);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-md bg-magic-red text-white px-2.5 py-1 text-xs font-semibold hover:bg-red-700"
+      >
+        + New
+      </button>
+    );
+  }
+  return (
+    <div className="absolute z-30 mt-9 ml-[-260px] w-[260px] rounded-2xl border border-magic-border bg-white p-4 shadow-2xl">
+      <div className="text-xs font-semibold uppercase text-magic-ink/60 mb-2">
+        New project
+      </div>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Project name"
+        className="w-full rounded-md border border-magic-border px-2 py-1.5 text-sm mb-2"
+      />
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        rows={2}
+        placeholder="Optional description"
+        className="w-full rounded-md border border-magic-border px-2 py-1.5 text-xs mb-2"
+      />
+      {error && (
+        <div className="mb-2 rounded-md bg-red-50 px-2 py-1 text-[10px] text-red-700">
+          {error}
+        </div>
+      )}
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setName("");
+            setDescription("");
+            setError(null);
+          }}
+          disabled={busy}
+          className="rounded-md border border-magic-border px-2 py-1 text-xs hover:bg-magic-soft disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy || !name.trim()}
+          className="rounded-md bg-magic-red text-white px-2 py-1 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
+        >
+          {busy ? "Creating…" : "Create"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProjectPanel({
+  project,
+  onProjectUpdate,
+  onProjectDelete,
+}: {
+  project: Project;
+  onProjectUpdate: (p: Project) => void;
+  onProjectDelete: (id: number) => void;
+}) {
+  const [tab, setTab] = useState<"quotations" | "pos" | "files">("quotations");
+  return (
+    <div className="rounded-2xl border border-magic-border bg-white">
+      <ProjectHeader
+        project={project}
+        onProjectUpdate={onProjectUpdate}
+        onProjectDelete={onProjectDelete}
+      />
+      <div className="border-b border-magic-border px-4 flex gap-1">
+        {(
+          [
+            ["quotations", "Quotations"],
+            ["pos", "Purchase Orders"],
+            ["files", "Files"],
+          ] as const
+        ).map(([key, label]) => {
+          const isActive = tab === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                isActive
+                  ? "border-magic-red text-magic-red"
+                  : "border-transparent text-magic-ink/60 hover:text-magic-ink"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="p-4">
+        {tab === "quotations" && <QuotationsTab project={project} />}
+        {tab === "pos" && <PosTab project={project} />}
+        {tab === "files" && <FilesTab project={project} />}
+      </div>
+    </div>
+  );
+}
+
+function ProjectHeader({
+  project,
+  onProjectUpdate,
+  onProjectDelete,
+}: {
+  project: Project;
+  onProjectUpdate: (p: Project) => void;
+  onProjectDelete: (id: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description ?? "");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setName(project.name);
+    setDescription(project.description ?? "");
+  }, [project.id, project.name, project.description]);
+
+  const save = useCallback(async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/projects?id=${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim() || null,
+        }),
+      });
+      const data = (await res.json()) as { project?: Project; error?: string };
+      if (!res.ok || !data.project) {
+        alert(data.error || `HTTP ${res.status}`);
+        return;
+      }
+      onProjectUpdate(data.project);
+      setEditing(false);
+    } finally {
+      setBusy(false);
+    }
+  }, [project.id, name, description, onProjectUpdate]);
+
+  const remove = useCallback(async () => {
+    if (
+      !confirm(
+        `Delete project "${project.name}"? Quotations and POs filed under it will become unfiled.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/projects?id=${project.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        alert(data.error || `HTTP ${res.status}`);
+        return;
+      }
+      onProjectDelete(project.id);
+    } finally {
+      setBusy(false);
+    }
+  }, [project.id, project.name, onProjectDelete]);
+
+  if (editing) {
+    return (
+      <div className="px-4 pt-4 pb-3 border-b border-magic-border">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full rounded-md border border-magic-border px-2 py-1.5 text-base font-semibold mb-2"
+        />
+        <textarea
+          value={description}
+          rows={2}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Description (optional)"
+          className="w-full rounded-md border border-magic-border px-2 py-1.5 text-sm mb-2"
+        />
+        <div className="flex gap-2 justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(false);
+              setName(project.name);
+              setDescription(project.description ?? "");
+            }}
+            disabled={busy}
+            className="rounded-md border border-magic-border px-3 py-1.5 text-xs hover:bg-magic-soft disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={busy || !name.trim()}
+            className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
+          >
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 pt-4 pb-3 border-b border-magic-border flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-lg font-bold text-magic-ink truncate">
+          {project.name}
+        </h2>
+        {project.description && (
+          <p className="text-xs text-magic-ink/60 mt-0.5">
+            {project.description}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="rounded-md border border-magic-border px-2.5 py-1 text-xs hover:bg-magic-soft"
+        >
+          Rename
+        </button>
+        <button
+          type="button"
+          onClick={remove}
+          className="rounded-md border border-red-200 text-red-700 px-2.5 py-1 text-xs hover:bg-red-50"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QuotationsTab({ project }: { project: Project }) {
+  const [items, setItems] = useState<QuotationRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setItems(null);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/quotations?project_id=${project.id}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as { quotations?: QuotationRow[] };
+        if (!cancelled) setItems(data.quotations ?? []);
+      } catch (err) {
+        if (!cancelled) setError((err as Error).message);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+
+  if (error) {
+    return (
+      <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs text-magic-ink/60">
+          {items === null
+            ? "Loading…"
+            : `${items.length} quotation${items.length === 1 ? "" : "s"}`}
+        </span>
+        <Link
+          href={`/designer?folder=${project.folder_id}&project=${project.id}`}
+          className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700"
+        >
+          + New quotation in this project
+        </Link>
+      </div>
+      {items === null ? (
+        <div className="text-xs text-magic-ink/50">Loading…</div>
+      ) : items.length === 0 ? (
+        <div className="text-xs text-magic-ink/50">
+          No quotations yet for this project.
+        </div>
+      ) : (
+        <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
+          {items.map((row) => (
+            <li
+              key={row.id}
+              className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40"
+            >
+              <div className="min-w-0">
+                <Link
+                  href={`/quotation?id=${row.id}`}
+                  className="font-mono text-sm text-magic-red hover:underline"
+                >
+                  {row.ref}
+                </Link>
+                <span className="ml-2 text-sm text-magic-ink truncate">
+                  {row.project_name || "—"}
+                </span>
+              </div>
+              <span className="text-[10px] uppercase text-magic-ink/50">
+                {row.status || "active"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function PosTab({ project }: { project: Project }) {
+  const [items, setItems] = useState<PoRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setItems(null);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/purchase-orders?project_id=${project.id}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as { purchaseOrders?: PoRow[] };
+        if (!cancelled) setItems(data.purchaseOrders ?? []);
+      } catch (err) {
+        if (!cancelled) setError((err as Error).message);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+
+  if (error) {
+    return (
+      <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs text-magic-ink/60">
+          {items === null ? "Loading…" : `${items.length} purchase order${items.length === 1 ? "" : "s"}`}
+        </span>
+        <Link
+          href={`/purchase-orders`}
+          className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white"
+        >
+          Open PO module
+        </Link>
+      </div>
+      {items === null ? (
+        <div className="text-xs text-magic-ink/50">Loading…</div>
+      ) : items.length === 0 ? (
+        <div className="text-xs text-magic-ink/50">
+          No purchase orders yet for this project.
+        </div>
+      ) : (
+        <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
+          {items.map((row) => (
+            <li
+              key={row.id}
+              className="px-3 py-2 flex items-center justify-between gap-3"
+            >
+              <div className="min-w-0">
+                <span className="font-mono text-sm">{row.po_number}</span>
+                <span className="ml-2 text-sm text-magic-ink/70 truncate">
+                  {row.supplier || "—"}
+                </span>
+              </div>
+              <div className="text-xs text-magic-ink/60">
+                {row.currency} {Number(row.amount).toFixed(2)}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function FilesTab({ project }: { project: Project }) {
+  const [files, setFiles] = useState<FileRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeKind, setActiveKind] = useState<FileKind>("quotation");
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/project-files?project_id=${project.id}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { files?: FileRow[] };
+      setFiles(data.files ?? []);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [project.id]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const grouped = useMemo(() => {
+    const buckets: Record<FileKind, FileRow[]> = {
+      quotation: [],
+      po: [],
+      boq: [],
+      other: [],
+    };
+    for (const f of files) {
+      const k: FileKind =
+        f.kind === "quotation" || f.kind === "po" || f.kind === "boq"
+          ? f.kind
+          : "other";
+      buckets[k].push(f);
+    }
+    return buckets;
+  }, [files]);
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {(Object.keys(KIND_LABELS) as FileKind[]).map((k) => {
+          const isActive = activeKind === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setActiveKind(k)}
+              className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                isActive
+                  ? "border-magic-red bg-magic-red text-white"
+                  : "border-magic-border text-magic-ink/70 hover:bg-magic-soft"
+              }`}
+            >
+              {KIND_LABELS[k]}
+              <span className="ml-2 text-[10px] opacity-80">
+                {grouped[k].length}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <FileUploader
+        projectId={project.id}
+        kind={activeKind}
+        onUploaded={reload}
+      />
+
+      {error && (
+        <div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="mt-4">
+        {loading ? (
+          <div className="text-xs text-magic-ink/50">Loading files…</div>
+        ) : grouped[activeKind].length === 0 ? (
+          <div className="text-xs text-magic-ink/50">
+            No {KIND_LABELS[activeKind].toLowerCase()} yet.
+          </div>
+        ) : (
+          <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
+            {grouped[activeKind].map((f) => (
+              <FileRowItem
+                key={f.id}
+                file={f}
+                onDeleted={(id) =>
+                  setFiles((prev) => prev.filter((row) => row.id !== id))
+                }
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FileUploader({
+  projectId,
+  kind,
+  onUploaded,
+}: {
+  projectId: number;
+  kind: FileKind;
+  onUploaded: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [progressLabel, setProgressLabel] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const onPick = useCallback(
+    async (file: File) => {
+      setBusy(true);
+      setError(null);
+      setProgressLabel("Requesting upload URL…");
+      try {
+        // Phase 1 — sign-upload. Server validates project ownership and
+        // size cap before issuing a Supabase signed URL.
+        const signRes = await fetch("/api/project-files/sign-upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            project_id: projectId,
+            kind,
+            filename: file.name,
+            mime: file.type || "application/octet-stream",
+            size_bytes: file.size,
+          }),
+        });
+        const signData = (await signRes.json()) as {
+          signedUrl?: string;
+          storage_path?: string;
+          error?: string;
+        };
+        if (!signRes.ok || !signData.signedUrl || !signData.storage_path) {
+          throw new Error(signData.error || `HTTP ${signRes.status}`);
+        }
+
+        // Phase 2 — upload the bytes directly to Supabase Storage.
+        // Vercel never sees the body, so the only effective limit is
+        // our own per-MIME cap enforced in /sign-upload.
+        setProgressLabel(`Uploading ${file.name}…`);
+        const uploadRes = await fetch(signData.signedUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+          },
+          body: file,
+        });
+        if (!uploadRes.ok) {
+          throw new Error(`Upload failed: ${uploadRes.status}`);
+        }
+
+        // Phase 3 — register the metadata. Once this succeeds the file
+        // shows up in the list.
+        setProgressLabel("Saving…");
+        const regRes = await fetch("/api/project-files", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            project_id: projectId,
+            kind,
+            filename: file.name,
+            mime: file.type || "application/octet-stream",
+            size_bytes: file.size,
+            storage_path: signData.storage_path,
+          }),
+        });
+        const regData = (await regRes.json()) as {
+          file?: FileRow;
+          error?: string;
+        };
+        if (!regRes.ok || !regData.file) {
+          throw new Error(regData.error || `HTTP ${regRes.status}`);
+        }
+        onUploaded();
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setBusy(false);
+        setProgressLabel(null);
+      }
+    },
+    [projectId, kind, onUploaded],
+  );
+
+  return (
+    <div className="rounded-lg border border-dashed border-magic-border bg-magic-soft/30 p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold cursor-pointer hover:bg-red-700">
+          {busy ? "Uploading…" : `Upload ${KIND_LABELS[kind]}`}
+          <input
+            type="file"
+            className="hidden"
+            disabled={busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void onPick(file);
+            }}
+          />
+        </label>
+        <span className="text-[11px] text-magic-ink/60">
+          PDF up to 5 MB · spreadsheet up to 10 MB · image up to 2 MB
+        </span>
+        {progressLabel && (
+          <span className="text-[11px] text-magic-ink/70">{progressLabel}</span>
+        )}
+      </div>
+      {error && (
+        <div className="mt-2 rounded-md bg-red-50 px-2 py-1 text-[11px] text-red-700">
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FileRowItem({
+  file,
+  onDeleted,
+}: {
+  file: FileRow;
+  onDeleted: (id: number) => void;
+}) {
+  const [busy, setBusy] = useState<"view" | "download" | "delete" | null>(null);
+
+  const open = useCallback(
+    async (download: boolean) => {
+      setBusy(download ? "download" : "view");
+      try {
+        const res = await fetch(
+          `/api/project-files/${file.id}${download ? "?download=1" : ""}`,
+          { cache: "no-store" },
+        );
+        const data = (await res.json()) as { url?: string; error?: string };
+        if (!res.ok || !data.url) {
+          alert(data.error || `HTTP ${res.status}`);
+          return;
+        }
+        // For both view and download we just hand the signed URL to the
+        // browser; the `?download=1` query asks the API to mint it with a
+        // Content-Disposition header so the browser saves rather than
+        // inlines.
+        window.open(data.url, "_blank", "noopener");
+      } finally {
+        setBusy(null);
+      }
+    },
+    [file.id],
+  );
+
+  const remove = useCallback(async () => {
+    if (!confirm(`Delete "${file.filename}"? This cannot be undone.`)) return;
+    setBusy("delete");
+    try {
+      const res = await fetch(`/api/project-files/${file.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        alert(data.error || `HTTP ${res.status}`);
+        return;
+      }
+      onDeleted(file.id);
+    } finally {
+      setBusy(null);
+    }
+  }, [file.id, file.filename, onDeleted]);
+
+  return (
+    <li className="px-3 py-2 flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-sm text-magic-ink truncate">{file.filename}</div>
+        <div className="text-[10px] text-magic-ink/50">
+          {file.mime} · {formatBytes(file.size_bytes)}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => open(false)}
+          disabled={busy !== null}
+          className="rounded-md border border-magic-border px-2 py-1 text-xs hover:bg-magic-soft disabled:opacity-50"
+        >
+          {busy === "view" ? "…" : "View"}
+        </button>
+        <button
+          type="button"
+          onClick={() => open(true)}
+          disabled={busy !== null}
+          className="rounded-md border border-magic-border px-2 py-1 text-xs hover:bg-magic-soft disabled:opacity-50"
+        >
+          {busy === "download" ? "…" : "Download"}
+        </button>
+        <button
+          type="button"
+          onClick={remove}
+          disabled={busy !== null}
+          className="rounded-md border border-red-200 text-red-700 px-2 py-1 text-xs hover:bg-red-50 disabled:opacity-50"
+        >
+          {busy === "delete" ? "…" : "Delete"}
+        </button>
+      </div>
+    </li>
+  );
+}

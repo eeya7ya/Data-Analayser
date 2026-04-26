@@ -217,6 +217,30 @@ const PURCHASE_ORDERS_FLAG = "purchase_orders_v1_2026_04";
  */
 const CATALOGUE_PICTURE_FLAG = "catalogue_picture_v1_2026_04";
 
+/**
+ * Projects layer. Inserts an intermediate "project" entity between
+ * client folders and the things filed under them (quotations, POs and
+ * uploaded files). The migration:
+ *
+ *   1. Creates a `projects` table (id, folder_id, owner_id, name, …)
+ *      with soft-delete and the same owner-isolation contract used by
+ *      every other CRM table.
+ *   2. Adds a nullable `project_id` FK to `quotations` and
+ *      `purchase_orders`. Nullable so legacy readers that don't filter
+ *      by project still see every row.
+ *   3. Creates `project_files` for arbitrary uploads (PDFs / sheets)
+ *      whose binary lives in Supabase Storage; this table only stores
+ *      the filename, mime, byte size and the storage path.
+ *   4. Backfills: for every client_folders row that doesn't already
+ *      have a project, creates a "Default Project" and assigns every
+ *      pre-existing quotation / purchase_order under that folder to it.
+ *      No quotation column other than the new `project_id` is mutated.
+ *
+ * The whole migration is guarded by its own flag so it runs exactly
+ * once per database, regardless of which deploy first triggers it.
+ */
+const PROJECTS_FOUNDATION_FLAG = "projects_foundation_v1_2026_04";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -249,7 +273,8 @@ export async function resetSchemaCache(): Promise<void> {
       ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
       ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
       ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
-      ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG}
+      ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
+      ${PROJECTS_FOUNDATION_FLAG}
     )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
@@ -281,6 +306,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let userPhoneApplied = false;
   let purchaseOrdersApplied = false;
   let cataloguePictureApplied = false;
+  let projectsFoundationApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -289,7 +315,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${CRM_FOUNDATION_FLAG}, ${CRM_CONTACTS_FLAG}, ${CRM_DEALS_FLAG},
         ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
         ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
-        ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG}
+        ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
+      ${PROJECTS_FOUNDATION_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -308,6 +335,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     userPhoneApplied = keys.has(USER_PHONE_FLAG);
     purchaseOrdersApplied = keys.has(PURCHASE_ORDERS_FLAG);
     cataloguePictureApplied = keys.has(CATALOGUE_PICTURE_FLAG);
+    projectsFoundationApplied = keys.has(PROJECTS_FOUNDATION_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -328,7 +356,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     quotationContactApplied &&
     userPhoneApplied &&
     purchaseOrdersApplied &&
-    cataloguePictureApplied
+    cataloguePictureApplied &&
+    projectsFoundationApplied
   )
     return;
 
@@ -1191,6 +1220,131 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${CATALOGUE_PICTURE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── Projects layer ───────────────────────────────────────────────────────
+  // Inserts an intermediate "project" entity between client folders and
+  // the things filed under them (quotations, POs, BOQs, files). The user
+  // confirmed every existing folder should get an auto-created "Default
+  // Project" so legacy quotations never appear "unfiled" in the new UI.
+  //
+  // Critically: only the new `project_id` column is touched on existing
+  // quotations / purchase_orders. Every other column (items_json, ref,
+  // totals_json, status, …) is untouched, satisfying the user's
+  // explicit "no single quotation will be touched" requirement.
+  if (!projectsFoundationApplied) {
+    // 1. projects table
+    await q`
+      create table if not exists projects (
+        id          serial primary key,
+        folder_id   integer not null references client_folders(id) on delete cascade,
+        owner_id    integer references users(id) on delete set null,
+        name        text not null,
+        description text,
+        status      text not null default 'open',
+        created_at  timestamptz not null default now(),
+        updated_at  timestamptz not null default now(),
+        deleted_at  timestamptz
+      )
+    `;
+    await q`
+      create index if not exists projects_folder_idx on projects(folder_id, deleted_at)
+    `;
+    await q`
+      create index if not exists projects_owner_idx on projects(owner_id, deleted_at)
+    `;
+
+    // 2. nullable project_id on quotations + purchase_orders. Nullable so
+    //    legacy readers and any future ad-hoc quotation that isn't filed
+    //    under a project still work. ON DELETE SET NULL so deleting a
+    //    project doesn't cascade-lose the quotation; the row just goes
+    //    back to "unfiled" state.
+    await q`
+      alter table quotations
+      add column if not exists project_id integer references projects(id) on delete set null
+    `;
+    await q`
+      create index if not exists quotations_project_idx on quotations(project_id)
+    `;
+    await q`
+      alter table purchase_orders
+      add column if not exists project_id integer references projects(id) on delete set null
+    `;
+    await q`
+      create index if not exists purchase_orders_project_idx on purchase_orders(project_id)
+    `;
+
+    // 3. project_files table. The binary itself lives in Supabase Storage;
+    //    `storage_path` is the bucket-relative key the upload flow signs
+    //    against. `kind` partitions the Files panel into Quotation / PO /
+    //    BOQ / Other tabs without forcing four separate tables.
+    await q`
+      create table if not exists project_files (
+        id            serial primary key,
+        project_id    integer not null references projects(id) on delete cascade,
+        owner_id      integer references users(id) on delete set null,
+        kind          text not null default 'other',
+        filename      text not null,
+        mime          text not null default 'application/octet-stream',
+        size_bytes    bigint not null default 0,
+        storage_path  text not null,
+        created_at    timestamptz not null default now(),
+        deleted_at    timestamptz
+      )
+    `;
+    await q`
+      create index if not exists project_files_project_idx on project_files(project_id, deleted_at)
+    `;
+    await q`
+      create index if not exists project_files_kind_idx on project_files(project_id, kind, deleted_at)
+    `;
+
+    // 4. Backfill, in two clean passes. The migration is idempotent:
+    //    re-running the INSERT only creates projects for folders that
+    //    don't already have one (NOT EXISTS guard), and the UPDATEs
+    //    only touch rows whose project_id is currently NULL, so manual
+    //    re-assignments performed after this migration are never undone.
+    //    `updated_at` is intentionally NOT mentioned in either UPDATE
+    //    so the existing value is preserved on every row — the user
+    //    explicitly asked that no quotation be touched, and "the row
+    //    suddenly shows a fresh edit timestamp" would violate that.
+    await q`
+      insert into projects (folder_id, owner_id, name, description, status)
+      select cf.id, cf.owner_id, 'Default Project',
+             'Auto-created when projects were introduced — feel free to rename or split into more focused projects.',
+             'open'
+      from client_folders cf
+      where cf.deleted_at is null
+        and not exists (
+          select 1 from projects p
+          where p.folder_id = cf.id and p.deleted_at is null
+        )
+    `;
+    await q`
+      update quotations
+      set project_id = p.id
+      from projects p
+      where quotations.folder_id = p.folder_id
+        and quotations.project_id is null
+        and quotations.deleted_at is null
+        and p.deleted_at is null
+        and p.name = 'Default Project'
+    `;
+    await q`
+      update purchase_orders
+      set project_id = p.id
+      from projects p
+      where purchase_orders.folder_id = p.folder_id
+        and purchase_orders.project_id is null
+        and purchase_orders.deleted_at is null
+        and p.deleted_at is null
+        and p.name = 'Default Project'
+    `;
+
+    await q`
+      insert into migration_flags (key) values (${PROJECTS_FOUNDATION_FLAG})
       on conflict (key) do nothing
     `;
   }
