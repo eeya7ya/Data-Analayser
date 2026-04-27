@@ -15,6 +15,23 @@ interface UploadRow {
   currency: string;
   price_si: number;
   specifications: string;
+  picture_url?: string | null;
+}
+
+/**
+ * Mirrors the per-row PATCH endpoint's guard: only accept image data URLs
+ * and only up to ~280 KB (200 KB compressed payload + base64 overhead).
+ * Anything else is dropped silently so the row still upserts.
+ */
+const PICTURE_MAX_LENGTH = 280_000;
+function sanitizePictureUrl(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") return null;
+  const s = value.trim();
+  if (!s) return null;
+  if (!s.startsWith("data:image/")) return null;
+  if (s.length > PICTURE_MAX_LENGTH) return null;
+  return s;
 }
 
 /**
@@ -50,6 +67,7 @@ export async function POST(req: NextRequest) {
       currency: String(r.currency || "USD").trim(),
       price_si: typeof r.price_si === "number" ? r.price_si : parseFloat(String(r.price_si)) || 0,
       specifications: String(r.specifications || "").trim(),
+      picture_url: sanitizePictureUrl(r.picture_url),
     }));
 
     // Filter out rows without a model
@@ -90,6 +108,7 @@ export async function POST(req: NextRequest) {
           "currency",
           "price_si",
           "specifications",
+          "picture_url",
         )}
         on conflict (model) do update set
           vendor         = excluded.vendor,
@@ -101,6 +120,7 @@ export async function POST(req: NextRequest) {
           currency       = excluded.currency,
           price_si       = excluded.price_si,
           specifications = excluded.specifications,
+          picture_url    = coalesce(excluded.picture_url, products.picture_url),
           updated_at     = now()
       `;
       upserted += batch.length;
