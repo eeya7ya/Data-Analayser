@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { compressDataUrl } from "@/components/QuotationPreview";
+import { extractWorksheetImages } from "@/lib/xlsxImages";
 
 /**
  * `xlsx` is ~900 KB gzipped and is only needed if the user actually picks
@@ -17,6 +19,9 @@ function loadXlsx(): Promise<XlsxModule> {
   if (!xlsxPromise) xlsxPromise = import("xlsx");
   return xlsxPromise;
 }
+
+/** Matches the per-row PATCH endpoint's cap; gives base64 some headroom. */
+const PICTURE_MAX_BYTES = 200_000;
 
 /** Expected Excel columns (case-insensitive matching). */
 const EXPECTED_COLUMNS = [
@@ -56,6 +61,7 @@ interface ParsedRow {
   currency: string;
   price_si: number;
   specifications: string;
+  picture_url?: string;
 }
 
 function normalizeHeader(h: string): string {
@@ -73,11 +79,13 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; upserted?: number; duplicatesRemoved?: number; error?: string } | null>(null);
   const [headerMap, setHeaderMap] = useState<Record<string, string>>({});
+  const [pictureCount, setPictureCount] = useState(0);
 
   const parseFile = useCallback((file: File) => {
     setError(null);
     setResult(null);
     setFileName(file.name);
+    setPictureCount(0);
 
     // Kick off the xlsx dynamic import in parallel with the FileReader so
     // the two wait times overlap instead of stacking serially.
@@ -87,7 +95,8 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
     reader.onload = async (e) => {
       try {
         const XLSX = await xlsxReady;
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const buffer = e.target?.result as ArrayBuffer;
+        const data = new Uint8Array(buffer);
         const wb = XLSX.read(data, { type: "array" });
         const sheet = wb.Sheets[wb.SheetNames[0]];
         if (!sheet) {
@@ -95,14 +104,24 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
           return;
         }
 
-        const raw: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        // `blankrows: true` keeps blank rows as `{}` so each entry's array
+        // index lines up with its xlsx row (raw[N] = xlsx data row N + 1).
+        // Without this, blank rows are silently dropped and the drawing-row
+        // mapping for embedded pictures would slide out of sync. Empty
+        // rows are filtered later, after pictures are attached by index.
+        const raw: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, {
+          defval: "",
+          blankrows: true,
+        });
         if (raw.length === 0) {
           setError("The sheet is empty.");
           return;
         }
 
-        // Map headers
-        const originalHeaders = Object.keys(raw[0]);
+        // Map headers — pick the first non-empty row for key inference,
+        // since `blankrows: true` can hand us `{}` placeholders.
+        const firstReal = raw.find((r) => Object.keys(r).length > 0) || raw[0];
+        const originalHeaders = Object.keys(firstReal);
         const mapped: Record<string, string> = {};
         for (const h of originalHeaders) {
           mapped[h] = normalizeHeader(h);
@@ -116,6 +135,15 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
           setError(`Missing required columns: ${missing.join(", ")}. Found: ${originalHeaders.join(", ")}`);
           return;
         }
+
+        // Pull embedded pictures out of the .xlsx in parallel with the
+        // text parsing. Drawing rows are zero-indexed, header is on row 0,
+        // so data row index N in `raw` corresponds to drawing row N + 1.
+        // .slice() the buffer because XLSX.read may detach the original
+        // ArrayBuffer on some runtimes.
+        const imagesByDrawingRow = await extractWorksheetImages(
+          buffer.slice(0),
+        );
 
         // Parse rows
         const parsed: ParsedRow[] = raw.map((r) => {
@@ -139,6 +167,25 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
             specifications: get("specifications"),
           };
         });
+
+        // Attach + compress pictures by row index. Drop anything still
+        // over the size cap so the row uploads fine without it instead of
+        // the whole upload failing.
+        let attached = 0;
+        for (let i = 0; i < parsed.length; i++) {
+          const dataUrl = imagesByDrawingRow.get(i + 1);
+          if (!dataUrl) continue;
+          try {
+            const compressed = await compressDataUrl(dataUrl);
+            if (compressed.length <= PICTURE_MAX_BYTES) {
+              parsed[i].picture_url = compressed;
+              attached += 1;
+            }
+          } catch {
+            // ignore — the row still uploads without a picture
+          }
+        }
+        setPictureCount(attached);
 
         const valid = parsed.filter((r) => r.vendor && r.model);
         setRows(valid);
@@ -240,6 +287,11 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
             .filter(([orig, norm]) => orig.toLowerCase().replace(/\s/g, "_") !== norm)
             .map(([orig, norm]) => `"${orig}" → ${norm}`)
             .join(", ") || "All columns matched directly."}
+          {pictureCount > 0 && (
+            <span className="ml-2">
+              · <b>{pictureCount}</b> embedded picture{pictureCount === 1 ? "" : "s"} extracted
+            </span>
+          )}
         </div>
       )}
 
@@ -262,6 +314,9 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
             <table className="w-full text-xs border-collapse">
               <thead className="sticky top-0 bg-magic-soft/80 backdrop-blur">
                 <tr>
+                  <th className="px-3 py-2 text-left font-semibold text-magic-ink/60 whitespace-nowrap">
+                    picture
+                  </th>
                   {EXPECTED_COLUMNS.map((col) => (
                     <th
                       key={col}
@@ -275,6 +330,18 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
               <tbody>
                 {rows.slice(0, 100).map((r, i) => (
                   <tr key={i} className="border-t border-magic-border/50 hover:bg-magic-soft/30">
+                    <td className="px-3 py-1.5">
+                      {r.picture_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={r.picture_url}
+                          alt=""
+                          className="h-10 w-10 object-contain rounded border border-magic-border bg-white"
+                        />
+                      ) : (
+                        <span className="text-magic-ink/30">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-1.5 whitespace-nowrap">{r.vendor}</td>
                     <td className="px-3 py-1.5 whitespace-nowrap">{r.system}</td>
                     <td className="px-3 py-1.5 whitespace-nowrap">{r.category}</td>
