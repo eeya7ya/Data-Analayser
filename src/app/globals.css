@@ -415,11 +415,18 @@ body > * {
    * "middle page is empty except for one cell" symptom that prompted this
    * rule. Cells use top alignment so the row's other columns stay visually
    * aligned with the start of a long description rather than centring on
-   * its midpoint. */
-  .quotation-sheet table tr,
-  .quotation-sheet table tbody tr,
-  .quotation-sheet table thead tr,
-  .quotation-sheet table tfoot tr {
+   * its midpoint.
+   *
+   * Scoped to `.sheet-body-cell table` (the inner per-system item tables)
+   * so it does NOT apply to the outer `<table.sheet-layout>` wrapper —
+   * that one has a single tbody <tr> containing the whole page's content,
+   * and `break-inside: avoid` on it forces multi-page quotations onto one
+   * sheet, which Chrome/Edge handle by scaling the entire document down
+   * (the "tiny printout in a corner" regression on large quotations). */
+  .quotation-sheet .sheet-body-cell table tr,
+  .quotation-sheet .sheet-body-cell table tbody tr,
+  .quotation-sheet .sheet-body-cell table thead tr,
+  .quotation-sheet .sheet-body-cell table tfoot tr {
     break-inside: avoid;
     page-break-inside: avoid;
   }

@@ -34,6 +34,7 @@ import {
   getBrandVariant,
 } from "@/lib/brandVariants";
 import { computeQuotationTotals } from "@/lib/quotationTotals";
+import { buildPrintTitle, type PrintKind } from "@/lib/printFilename";
 
 export interface ExistingQuotation {
   id: number;
@@ -1279,9 +1280,15 @@ export default function Designer({
   // suppressed via a body class (`print-draft`) that the CSS
   // `@media print` block keys off. Useful for internal reviews where
   // the marketing-style front matter is just noise.
+  // Snapshot of the print kind for the about-to-fire useEffect. Captured at
+  // click time so the title set by buildPrintTitle() can't drift if the user
+  // mutates ref/project during the print dialog.
+  const pendingPrintKindRef = useRef<PrintKind>("normal");
+
   function printQuotation(draft = false) {
     if (typeof window === "undefined") return;
     if (draft) document.body.classList.add("print-draft");
+    pendingPrintKindRef.current = draft ? "draft" : "normal";
     setPrintMode(true);
   }
 
@@ -1296,6 +1303,7 @@ export default function Designer({
   function printBoq() {
     if (typeof window === "undefined") return;
     document.body.classList.add("print-draft");
+    pendingPrintKindRef.current = "boq";
     setBoqMode(true);
     setPrintMode(true);
   }
@@ -1550,8 +1558,18 @@ export default function Designer({
   useEffect(() => {
     if (!printMode) return;
     let cancelled = false;
+    // Title becomes the suggested PDF filename. Snapshotting from the click
+    // handler's ref (not state) avoids a re-fire if the user types into the
+    // ref/project inputs while the print dialog is open.
+    const previousTitle = document.title;
+    document.title = buildPrintTitle(
+      refCode,
+      projectName,
+      pendingPrintKindRef.current,
+    );
     const restore = () => {
       if (cancelled) return;
+      document.title = previousTitle;
       // Drop the draft-print marker so the next non-draft print doesn't
       // inherit it if the user chain-clicks Print Draft → Print / PDF.
       document.body.classList.remove("print-draft");
@@ -1559,6 +1577,7 @@ export default function Designer({
       // Clear the BoQ override the same way so Print/PDF immediately
       // after a BoQ print goes back to the commercial layout.
       setBoqMode(false);
+      pendingPrintKindRef.current = "normal";
     };
     window.addEventListener("afterprint", restore);
     const frame = window.requestAnimationFrame(() => {
@@ -1574,8 +1593,10 @@ export default function Designer({
       cancelled = true;
       window.cancelAnimationFrame(frame);
       window.removeEventListener("afterprint", restore);
+      document.title = previousTitle;
       document.body.classList.remove("print-draft");
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [printMode]);
 
   return (
