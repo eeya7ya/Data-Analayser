@@ -8,6 +8,7 @@ import QuotationPreview, {
 } from "./QuotationPreview";
 import { DEFAULT_TERMS } from "@/lib/quotationDraft";
 import type { AppSettings } from "@/lib/settings";
+import { buildPrintTitle } from "@/lib/printFilename";
 
 interface SavedConfig {
   showPictures?: boolean;
@@ -99,6 +100,10 @@ export default function QuotationViewer({
   // viewer goes back to the priced layout immediately.
   const [boqMode, setBoqMode] = useState(false);
   const pendingPrintRef = useRef<null | "boq">(null);
+  // Stashed by runPrintBoq() so the BoQ print effect (declared above the
+  // early returns, where `header` isn't in scope) can restore the original
+  // tab title after the print dialog closes.
+  const previousTitleRef = useRef<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -153,6 +158,10 @@ export default function QuotationViewer({
     let cancelled = false;
     const cleanup = () => {
       if (cancelled) return;
+      if (previousTitleRef.current !== null) {
+        document.title = previousTitleRef.current;
+        previousTitleRef.current = null;
+      }
       document.body.classList.remove("print-draft");
       setBoqMode(false);
       pendingPrintRef.current = null;
@@ -275,7 +284,16 @@ export default function QuotationViewer({
   // synchronously from window.print().
   function runPrint(draft: boolean) {
     if (draft) document.body.classList.add("print-draft");
+    // Set document.title so the browser's "Save as PDF" dialog suggests
+    // "<REF> - <Project>" instead of the page URL/tab title.
+    const previousTitle = document.title;
+    document.title = buildPrintTitle(
+      header.ref,
+      header.project_name,
+      draft ? "draft" : "normal",
+    );
     const cleanup = () => {
+      document.title = previousTitle;
       document.body.classList.remove("print-draft");
       window.removeEventListener("afterprint", cleanup);
     };
@@ -294,6 +312,8 @@ export default function QuotationViewer({
   function runPrintBoq() {
     pendingPrintRef.current = "boq";
     document.body.classList.add("print-draft");
+    previousTitleRef.current = document.title;
+    document.title = buildPrintTitle(header.ref, header.project_name, "boq");
     setBoqMode(true);
   }
 
