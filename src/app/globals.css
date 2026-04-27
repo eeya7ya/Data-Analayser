@@ -433,6 +433,15 @@ body > * {
   .quotation-sheet table td {
     vertical-align: top;
   }
+  /* Brand / Model cells stay centred when a sibling description cell
+   * grows tall, so they read as labels next to the description block
+   * rather than stuck at the top of an oversized row. Specificity
+   * (`td.cell-center`) wins over the generic `td { vertical-align: top }`
+   * rule above without needing !important. */
+  .quotation-sheet table td.cell-center {
+    text-align: center;
+    vertical-align: middle;
+  }
   /* Hide editable form chrome in print so inputs print as plain text. */
   .quotation-sheet input,
   .quotation-sheet textarea,

@@ -1830,7 +1830,7 @@ function SystemTable({
               rowIdx,
               globalIndex,
               hPlan,
-              "font-bold",
+              "font-bold cell-center",
               editable ? (
                 <input
                   className="w-full bg-transparent text-center"
@@ -1846,7 +1846,7 @@ function SystemTable({
               rowIdx,
               globalIndex,
               hPlan,
-              "font-semibold",
+              "font-semibold cell-center",
               editable ? (
                 <input
                   className="w-full bg-transparent text-center"
