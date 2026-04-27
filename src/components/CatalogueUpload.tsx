@@ -80,6 +80,7 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
   const [result, setResult] = useState<{ ok: boolean; upserted?: number; duplicatesRemoved?: number; error?: string } | null>(null);
   const [headerMap, setHeaderMap] = useState<Record<string, string>>({});
   const [pictureCount, setPictureCount] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
 
   const parseFile = useCallback((file: File) => {
     setError(null);
@@ -202,23 +203,73 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
   const upload = useCallback(async () => {
     if (rows.length === 0) return;
     setUploading(true);
+    setUploadProgress({ done: 0, total: rows.length });
     setResult(null);
     setError(null);
-    try {
-      const res = await fetch("/api/catalogue/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setResult({ ok: false, error: data.error || "Upload failed" });
-      } else {
-        setResult({ ok: true, upserted: data.upserted, duplicatesRemoved: data.duplicatesRemoved });
-        setRows([]);
-        setFileName("");
-        onDone?.();
+
+    // Vercel serverless functions cap request bodies at ~4.5 MB. With
+    // embedded pictures a single POST of 2000+ rows easily blows past
+    // that and the platform returns "Request Entity Too Large" (plain
+    // text), which the client then chokes on as invalid JSON. Pack rows
+    // into ≤BATCH_BYTES JSON chunks so each request stays comfortably
+    // under the cap, and POST them in sequence so a mid-upload failure
+    // tells us exactly how far we got.
+    const BATCH_BYTES = 3_000_000;
+    const batches: ParsedRow[][] = [];
+    let current: ParsedRow[] = [];
+    let currentBytes = 2; // "[]" framing
+    for (const r of rows) {
+      const rowBytes = JSON.stringify(r).length + 1; // +1 for the comma
+      // A single row can exceed the cap only if its picture is huge —
+      // shouldn't happen post-compress, but if it does, send it alone
+      // and let the server reject just that batch.
+      if (current.length > 0 && currentBytes + rowBytes > BATCH_BYTES) {
+        batches.push(current);
+        current = [];
+        currentBytes = 2;
       }
+      current.push(r);
+      currentBytes += rowBytes;
+    }
+    if (current.length > 0) batches.push(current);
+
+    try {
+      let upserted = 0;
+      let duplicatesRemoved = 0;
+      let processed = 0;
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        const res = await fetch("/api/catalogue/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: batch }),
+        });
+        // Read body as text first so a non-JSON error (HTML, "Request
+        // Entity Too Large", etc.) surfaces as a useful message instead
+        // of a JSON.parse exception.
+        const text = await res.text();
+        let data: { error?: string; upserted?: number; duplicatesRemoved?: number } = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          data = { error: text.slice(0, 200) || `HTTP ${res.status}` };
+        }
+        if (!res.ok) {
+          setResult({
+            ok: false,
+            error: `Batch ${i + 1}/${batches.length} failed: ${data.error || `HTTP ${res.status}`}. ${upserted} row(s) uploaded before the failure.`,
+          });
+          return;
+        }
+        upserted += data.upserted || 0;
+        duplicatesRemoved += data.duplicatesRemoved || 0;
+        processed += batch.length;
+        setUploadProgress({ done: processed, total: rows.length });
+      }
+      setResult({ ok: true, upserted, duplicatesRemoved });
+      setRows([]);
+      setFileName("");
+      onDone?.();
     } catch (err) {
       setResult({ ok: false, error: (err as Error).message });
     } finally {
@@ -307,7 +358,11 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
               disabled={uploading}
               className="rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
             >
-              {uploading ? "Uploading…" : `Upload ${rows.length} products`}
+              {uploading
+                ? uploadProgress
+                  ? `Uploading… ${uploadProgress.done}/${uploadProgress.total}`
+                  : "Uploading…"
+                : `Upload ${rows.length} products`}
             </button>
           </div>
           <div className="overflow-x-auto max-h-[40vh] overflow-y-auto rounded-lg border border-magic-border">
