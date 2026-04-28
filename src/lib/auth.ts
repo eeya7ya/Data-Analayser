@@ -140,10 +140,42 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     const token = jar.get(COOKIE)?.value;
     if (!token) return null;
     const { payload } = await jwtVerify(token, secret(), { algorithms: [ALG] });
+    const id = Number(payload.sub);
+    const username = String(payload.username);
+    const role = (payload.role as "admin" | "user") || "user";
+
+    // `display_name` and `phone` are mutable profile fields — an admin can
+    // edit them from the Users surface long after the user logged in. The
+    // JWT was minted with the values that existed at login, so reading them
+    // straight off the cookie surfaces a stale phone on every quotation
+    // header until the user logs out and back in. Look them up live so
+    // edits take effect on the next request.
+    try {
+      const q = sql();
+      const rows = (await q`
+        select display_name, phone
+        from users
+        where id = ${id}
+        limit 1
+      `) as Array<{ display_name: string | null; phone: string | null }>;
+      if (rows.length > 0) {
+        return {
+          id,
+          username,
+          role,
+          display_name: rows[0].display_name || "",
+          phone: rows[0].phone || "",
+        };
+      }
+    } catch {
+      // DB unreachable — fall through to JWT-embedded values so the user
+      // can keep working in degraded mode rather than being logged out.
+    }
+
     return {
-      id: Number(payload.sub),
-      username: String(payload.username),
-      role: (payload.role as "admin" | "user") || "user",
+      id,
+      username,
+      role,
       display_name: String(payload.display_name || ""),
       phone: String(payload.phone || ""),
     };
