@@ -61,6 +61,18 @@ export interface QuotationItem {
    * per-unit cost for reference.
    */
   optional?: boolean;
+  /**
+   * Row type. Default ("item") is a normal product row with the usual
+   * brand / model / quantity / price columns. "section" rows render as a
+   * full-width banner inside the system table whose only payload is
+   * `section_label` — they carry no number, no quantity, no price, are
+   * skipped by renumbering and totals, and reset every merge anchor.
+   * Used to visually divide a long page into sub-sections (e.g. an
+   * "Outdoor Cameras" / "Indoor Cameras" split inside a CCTV table).
+   */
+  kind?: "item" | "section";
+  /** Banner label shown when `kind === "section"`. */
+  section_label?: string;
 }
 
 export interface QuotationHeader {
@@ -210,7 +222,10 @@ function cellRawNumber(cell: Element): string | null {
  * Returns NaN when the input has no usable digits, leaving the choice
  * of fallback (0, 1, …) up to the caller.
  */
-function parseClipboardNumber(raw: string): number {
+function parseClipboardNumber(
+  raw: string,
+  opts?: { assumeDecimal?: boolean },
+): number {
   if (raw == null) return NaN;
   let s = String(raw).trim();
   if (!s) return NaN;
@@ -255,6 +270,11 @@ function parseClipboardNumber(raw: string): number {
   if (occurrences > 1) {
     // Multiple occurrences of the same separator -> all thousands.
     s = s.split(onlyChar).join("");
+  } else if (opts?.assumeDecimal) {
+    // Price-style field (JOD unit prices use 3-decimal fils): a lone
+    // separator is the decimal point regardless of tail length, so
+    // "175.250" -> 175.25 and "1.500" -> 1.5.
+    if (onlyChar === ",") s = s.replace(",", ".");
   } else if (tail.length === 3 && /^\d+$/.test(tail)) {
     // Single separator + 3-digit tail -> thousands ("1,234" -> 1234).
     s = s.split(onlyChar).join("");
@@ -401,9 +421,19 @@ async function readClipboardColumn(opts?: { numeric?: boolean }): Promise<string
  * system table as its own list, so the numbering needs to reset every
  * time a new system page starts.
  */
+/**
+ * True when a row is a section divider rather than a real product row.
+ * Section rows are skipped by numbering, totals and merge anchors — they
+ * exist purely to print a full-width banner inside a system table.
+ */
+export function isSectionRow(it: QuotationItem): boolean {
+  return it?.kind === "section";
+}
+
 function renumber(items: QuotationItem[]): QuotationItem[] {
   const perSystem = new Map<string, number>();
   return items.map((it) => {
+    if (isSectionRow(it)) return { ...it, no: 0 };
     const key = it.system || it.brand || "General";
     const next = (perSystem.get(key) ?? 0) + 1;
     perSystem.set(key, next);
@@ -493,6 +523,66 @@ export default function QuotationPreview({
         },
       ]),
     );
+  }
+
+  /**
+   * Append a section-divider row at the end of the given system group.
+   * Section rows are full-width banner labels used to break a long page
+   * into sub-sections (e.g. "Outdoor Cameras" / "Indoor Cameras"). They
+   * carry no number, no quantity and no price, and are skipped by every
+   * total / merge / renumber path. We append to the end of `items` —
+   * `groupBySystem` is order-preserving by system key, so the new row
+   * lands at the end of its system table for free.
+   */
+  function addSectionRowToSystem(system: string) {
+    if (!setItems) return;
+    setItems(
+      renumber([
+        ...items,
+        {
+          no: 0,
+          system,
+          brand: "",
+          model: "",
+          description: "",
+          quantity: 0,
+          unit_price: 0,
+          delivery: "",
+          extra: {},
+          kind: "section",
+          section_label: "",
+        },
+      ]),
+    );
+  }
+
+  /** Swap a section row with its previous (-1) or next (+1) sibling in
+   *  the same system group. Section rows have no printed `no`, so the
+   *  standard moveRowToNo input doesn't address them — these arrows are
+   *  their dedicated reorder control. */
+  function moveSectionRow(globalIndex: number, dir: -1 | 1) {
+    if (!setItems) return;
+    const cur = items[globalIndex];
+    if (!cur || !isSectionRow(cur)) return;
+    const curKey = cur.system || cur.brand || "General";
+    const groupIndices: number[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const key = it.system || it.brand || "General";
+      if (key === curKey) groupIndices.push(i);
+    }
+    const local = groupIndices.indexOf(globalIndex);
+    const localTarget = local + dir;
+    if (local < 0 || localTarget < 0 || localTarget >= groupIndices.length) {
+      return;
+    }
+    const next = items.slice();
+    const a = groupIndices[local];
+    const b = groupIndices[localTarget];
+    const tmp = next[a];
+    next[a] = next[b];
+    next[b] = tmp;
+    setItems(renumber(next));
   }
 
   /**
@@ -601,12 +691,18 @@ export default function QuotationPreview({
     if (!setItems) return;
     const cur = items[globalIndex];
     if (!cur) return;
+    if (isSectionRow(cur)) return; // sections move via their own arrows
     const curKey = cur.system || cur.brand || "General";
+    // Only item rows are addressable by `no` — section dividers are
+    // skipped from the index map so swapping past one moves both
+    // adjacent items past it together via the per-step swap loop below.
     const groupIndices: number[] = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       const key = it.system || it.brand || "General";
-      if (key === curKey) groupIndices.push(i);
+      if (key !== curKey) continue;
+      if (isSectionRow(it)) continue;
+      groupIndices.push(i);
     }
     if (groupIndices.length === 0) return;
     const localCur = groupIndices.indexOf(globalIndex);
@@ -825,7 +921,7 @@ export default function QuotationPreview({
         return { quantity: Number.isFinite(n) && n > 0 ? n : 1 };
       }
       if (colKey === "unit_price") {
-        const n = parseClipboardNumber(raw);
+        const n = parseClipboardNumber(raw, { assumeDecimal: true });
         return { unit_price: Number.isFinite(n) ? n : 0 };
       }
       if (colKey.startsWith("extra:")) {
@@ -1052,6 +1148,7 @@ export default function QuotationPreview({
             onUnmergeCell={unmergeCell}
             onToggleMergeLeft={toggleMergeLeft}
             onToggleOptional={toggleOptional}
+            onMoveSection={moveSectionRow}
             onRenameExtraColumn={renameExtraColumn}
             onRemoveExtraColumn={removeExtraColumn}
             onPasteColumn={pasteColumnFromClipboard}
@@ -1063,6 +1160,13 @@ export default function QuotationPreview({
                 className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
               >
                 + Add row to {group.system}
+              </button>
+              <button
+                onClick={() => addSectionRowToSystem(group.system)}
+                className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
+                title="Insert a full-width section divider (e.g. 'Outdoor Cameras') at the bottom of this page. The divider has no number or price."
+              >
+                + Section divider
               </button>
               <button
                 onClick={addManualItem}
@@ -1495,6 +1599,13 @@ function computeMergePlan(
     const sk = new Array<boolean>(rows.length).fill(false);
     let anchor = -1;
     for (let i = 0; i < rows.length; i++) {
+      // Section rows are full-width banners — they don't take part in
+      // any per-column merge chain, so they reset the anchor and must
+      // never be folded into a span themselves.
+      if (isSectionRow(rows[i].item)) {
+        anchor = -1;
+        continue;
+      }
       // First row can never merge up, and an orphan merge_up with no anchor
       // is treated as a normal cell rather than disappearing into nothing.
       const merged = i > 0 && !!rows[i].item.merge_up?.[col];
@@ -1574,6 +1685,7 @@ function SystemTable({
   onUnmergeCell,
   onToggleMergeLeft,
   onToggleOptional,
+  onMoveSection,
   onRenameExtraColumn,
   onRemoveExtraColumn,
   onPasteColumn,
@@ -1594,6 +1706,13 @@ function SystemTable({
   onUnmergeCell: (anchorGlobalIndex: number, col: MergeCol) => void;
   onToggleMergeLeft: (globalIndex: number, col: HMergeCol) => void;
   onToggleOptional: (globalIndex: number) => void;
+  /**
+   * Reorder a section row up (-1) or down (+1) within its system group
+   * by swapping it with the adjacent sibling. Section rows have no
+   * printed `no`, so they aren't addressable by the standard "jump to
+   * No" input — these arrows are their dedicated reorder UI.
+   */
+  onMoveSection: (globalIndex: number, dir: -1 | 1) => void;
   onRenameExtraColumn: (id: string, label: string) => void;
   onRemoveExtraColumn: (id: string) => void;
   /**
@@ -1614,9 +1733,11 @@ function SystemTable({
   // calculation can resolve merged unit-price cells via effectiveMergedValue.
   const groupItems = group.rows.map((r) => r.item);
   const subtotal = group.rows.reduce((acc, _, rowIdx) => {
-    // Optional rows are shown to the client for reference only, so they
+    // Section rows are full-width banners with no price/quantity, and
+    // optional rows are shown to the client for reference only — both
     // must stay out of the subtotal the same way they stay out of the
     // grand total in computeQuotationTotals.
+    if (isSectionRow(groupItems[rowIdx])) return acc;
     if (groupItems[rowIdx].optional) return acc;
     const qty = Number(groupItems[rowIdx].quantity) || 0;
     const price =
@@ -1803,14 +1924,75 @@ function SystemTable({
             </td>
           </tr>
         )}
-        {group.rows.map(({ item, globalIndex }, rowIdx) => {
+        {(() => {
+          // Bounds for the "jump to No" input. Section rows carry no=0
+          // (they're skipped by renumber), so derive the bounds from
+          // item rows only — otherwise typing "1" would snap to a
+          // section row's slot and break reordering.
+          const itemNos = group.rows
+            .filter((r) => !isSectionRow(r.item))
+            .map((r) => r.item.no);
+          const groupMinNo = itemNos.length ? itemNos[0] : 1;
+          const groupMaxNo = itemNos.length ? itemNos[itemNos.length - 1] : 1;
+          return group.rows.map(({ item, globalIndex }, rowIdx) => {
+          if (isSectionRow(item)) {
+            // Full-width banner divider. No number, no quantity, no
+            // price — pure visual sub-section break inside the system
+            // table. Editable: inline label input + small move/delete
+            // controls that vanish on print.
+            return (
+              <tr key={globalIndex} className="section-row">
+                <td
+                  colSpan={colCount}
+                  className="bg-magic-soft text-magic-red font-bold uppercase tracking-wide text-[12px] py-2 px-3 text-left"
+                >
+                  {editable ? (
+                    <div className="flex items-center gap-2">
+                      <span aria-hidden className="opacity-60">§</span>
+                      <input
+                        className="flex-1 bg-transparent font-bold uppercase tracking-wide text-magic-red placeholder:text-magic-red/40"
+                        value={item.section_label || ""}
+                        placeholder="Section title (e.g. Outdoor Cameras)"
+                        aria-label="Section title"
+                        onChange={(e) =>
+                          onUpdate(globalIndex, { section_label: e.target.value })
+                        }
+                      />
+                      <div className="no-print flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onMoveSection(globalIndex, -1)}
+                          title="Move section up"
+                          className="w-5 h-5 text-[10px] leading-none rounded border border-magic-border bg-white text-magic-ink/60 hover:bg-magic-soft"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onMoveSection(globalIndex, 1)}
+                          title="Move section down"
+                          className="w-5 h-5 text-[10px] leading-none rounded border border-magic-border bg-white text-magic-ink/60 hover:bg-magic-soft"
+                        >
+                          ▼
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onRemove(globalIndex)}
+                          title="Remove this section row"
+                          className="w-5 h-5 text-[11px] leading-none rounded text-red-500 hover:bg-magic-soft"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <span>{item.section_label || ""}</span>
+                  )}
+                </td>
+              </tr>
+            );
+          }
           const hPlan = computeHRowPlan(item, plan.skip, rowIdx);
-          // Bounds for the "jump to No" input are the first and last
-          // printed No values within this system group — typing a number
-          // outside this range simply snaps to the nearest in-group slot
-          // (see moveRowToNo).
-          const groupMinNo = group.rows[0].item.no;
-          const groupMaxNo = group.rows[group.rows.length - 1].item.no;
           return (
           <tr key={globalIndex}>
             <td>
@@ -2054,7 +2236,8 @@ function SystemTable({
             })}
           </tr>
           );
-        })}
+        });
+        })()}
         {!boqMode && (
           <tr className="totals-row">
             <td colSpan={colCount - 1}>{group.system} Subtotal</td>

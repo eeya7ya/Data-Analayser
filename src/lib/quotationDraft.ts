@@ -386,10 +386,18 @@ export function mergeQuotationItems(
 ): QuotationItem[] {
   const out = current.slice();
   for (const staged of incoming) {
+    // Section dividers have no model and represent a UI break, not a
+    // product — never dedupe them, just append.
+    if (staged.kind === "section") {
+      out.push({ ...staged });
+      continue;
+    }
     const sys = staged.system || staged.brand || "General";
     const key = `${sys}__${staged.model}`;
     const idx = out.findIndex(
-      (it) => `${it.system || it.brand || "General"}__${it.model}` === key,
+      (it) =>
+        it.kind !== "section" &&
+        `${it.system || it.brand || "General"}__${it.model}` === key,
     );
     if (idx >= 0 && staged.model) {
       out[idx] = {
@@ -403,6 +411,7 @@ export function mergeQuotationItems(
   }
   const perSystem = new Map<string, number>();
   return out.map((it) => {
+    if (it.kind === "section") return { ...it, no: 0 };
     const sys = it.system || it.brand || "General";
     const next = (perSystem.get(sys) ?? 0) + 1;
     perSystem.set(sys, next);
@@ -438,7 +447,7 @@ export function appendItem(newItem: QuotationItem): QuotationDraft {
       : newItem;
   const key = `${normalized.system}__${normalized.model}`;
   const idx = draft.items.findIndex(
-    (it) => `${it.system}__${it.model}` === key,
+    (it) => it.kind !== "section" && `${it.system}__${it.model}` === key,
   );
   if (idx >= 0) {
     draft.items[idx] = {
@@ -450,8 +459,10 @@ export function appendItem(newItem: QuotationItem): QuotationDraft {
   }
   // Renumber per-system group — each system's table counts independently
   // from 1, so appending a CCTV row doesn't bump the Sound rows' numbers.
+  // Section-divider rows are skipped (they print no number).
   const perSystem = new Map<string, number>();
   draft.items = draft.items.map((it) => {
+    if (it.kind === "section") return { ...it, no: 0 };
     const key = it.system || it.brand || "General";
     const next = (perSystem.get(key) ?? 0) + 1;
     perSystem.set(key, next);

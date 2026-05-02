@@ -189,6 +189,23 @@ body > * {
   color: var(--mt-red);
 }
 
+/* Section-divider rows: full-width banner labels inside a system table
+ * used to break a long page into sub-sections (e.g. "Outdoor Cameras"
+ * vs "Indoor Cameras"). Visually similar to .site-banner but rendered
+ * as a real <tr> so it stays inline with the surrounding rows.
+ * print-color-adjust forces the soft-tinted background to render on
+ * the printed PDF the same way .totals-row does. */
+.quotation-sheet .section-row td {
+  background: #f5f6fb;
+  color: var(--mt-red);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-top: 1px solid #cfbebc;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 .quotation-sheet .footer-address {
   background: var(--mt-header);
   color: var(--mt-red);
