@@ -1,4 +1,5 @@
 import type { QuotationItem } from "@/components/QuotationPreview";
+import { isSectionRow } from "@/components/QuotationPreview";
 
 /**
  * Columns whose values are read through the merge chain. Must stay in
@@ -30,7 +31,10 @@ export function effectiveMergedValue<C extends MergeResolvedCol>(
   col: C,
 ): QuotationItem[C] {
   let i = rowIdx;
-  while (i > 0 && rows[i].merge_up?.[col]) i--;
+  // Walk back through merge_up flags, but stop at section rows — they
+  // visually break the table into sub-sections, so a numeric/text cell
+  // must never resolve to an anchor on the far side of a section banner.
+  while (i > 0 && rows[i].merge_up?.[col] && !isSectionRow(rows[i - 1])) i--;
   return rows[i][col];
 }
 
@@ -56,6 +60,7 @@ function groupBySystem(items: QuotationItem[]): QuotationItem[][] {
  * 0 here and drop out of every downstream total.
  */
 export function effectiveRowTotal(rows: QuotationItem[], rowIdx: number): number {
+  if (isSectionRow(rows[rowIdx])) return 0;
   if (rows[rowIdx].optional) return 0;
   const qty = Number(rows[rowIdx].quantity) || 0;
   const price = Number(effectiveMergedValue(rows, rowIdx, "unit_price")) || 0;
