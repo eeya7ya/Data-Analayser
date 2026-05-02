@@ -210,7 +210,10 @@ function cellRawNumber(cell: Element): string | null {
  * Returns NaN when the input has no usable digits, leaving the choice
  * of fallback (0, 1, …) up to the caller.
  */
-function parseClipboardNumber(raw: string): number {
+function parseClipboardNumber(
+  raw: string,
+  opts?: { assumeDecimal?: boolean },
+): number {
   if (raw == null) return NaN;
   let s = String(raw).trim();
   if (!s) return NaN;
@@ -255,6 +258,11 @@ function parseClipboardNumber(raw: string): number {
   if (occurrences > 1) {
     // Multiple occurrences of the same separator -> all thousands.
     s = s.split(onlyChar).join("");
+  } else if (opts?.assumeDecimal) {
+    // Price-style field (JOD unit prices use 3-decimal fils): a lone
+    // separator is the decimal point regardless of tail length, so
+    // "175.250" -> 175.25 and "1.500" -> 1.5.
+    if (onlyChar === ",") s = s.replace(",", ".");
   } else if (tail.length === 3 && /^\d+$/.test(tail)) {
     // Single separator + 3-digit tail -> thousands ("1,234" -> 1234).
     s = s.split(onlyChar).join("");
@@ -825,7 +833,7 @@ export default function QuotationPreview({
         return { quantity: Number.isFinite(n) && n > 0 ? n : 1 };
       }
       if (colKey === "unit_price") {
-        const n = parseClipboardNumber(raw);
+        const n = parseClipboardNumber(raw, { assumeDecimal: true });
         return { unit_price: Number.isFinite(n) ? n : 0 };
       }
       if (colKey.startsWith("extra:")) {
