@@ -1123,7 +1123,6 @@ export default function QuotationPreview({
           logoUrl={resolvedLogoUrl}
           clientLocked={clientLocked}
           footerText={resolvedFooterText}
-          pageLabel={`Page ${pageIdx + 1} of ${systemPages.length + 1}`}
           isLast={false}
         >
           <SystemBanner
@@ -1201,7 +1200,6 @@ export default function QuotationPreview({
           logoUrl={resolvedLogoUrl}
           clientLocked={clientLocked}
           footerText={resolvedFooterText}
-          pageLabel={`Page ${systemPages.length + 1} of ${systemPages.length + 1}`}
           isLast
           hideInfoHeader
         >
@@ -1280,7 +1278,6 @@ function QuotationPage({
   setHeader,
   editable = false,
   logoUrl,
-  pageLabel,
   isLast,
   hideInfoHeader,
   clientLocked = false,
@@ -1291,7 +1288,6 @@ function QuotationPage({
   setHeader?: (patch: Partial<QuotationHeader>) => void;
   editable?: boolean;
   logoUrl?: string;
-  pageLabel?: string;
   isLast?: boolean;
   /** When true, skip the project/client/engineer info grid on this page. */
   hideInfoHeader?: boolean;
@@ -1325,55 +1321,53 @@ function QuotationPage({
   }, [resolvedLogo]);
   // Rendering the sheet as a <table> with <thead>/<tfoot> lets print
   // engines repeat the brand strip and footer at the top/bottom of every
-  // physical page that the system table overflows onto. Without this,
-  // long CCTV tables continued to subsequent A4 pages without any logo
-  // at the top — which is what the user was seeing on printouts.
-  const headerCell = (
-    <>
-      {/* Top brand strip */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          {!logoBroken ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoSrc}
-              alt="Magic Tech"
-              className="h-14 w-auto object-contain"
-              onError={() => {
-                const alt = swapLogoExt(logoSrc);
-                if (alt && alt !== logoSrc) {
-                  setLogoSrc(alt);
-                } else {
-                  setLogoBroken(true);
-                }
-              }}
-            />
-          ) : (
-            <div>
-              <div className="text-xs text-magic-ink/60">سحر التقنية</div>
-              <div className="flex items-center gap-1">
-                <span className="text-2xl font-black text-magic-red">Magic</span>
-                <span className="text-2xl font-black text-magic-ink">Tech</span>
-              </div>
+  // physical page that the system table overflows onto. The brand strip
+  // is intentionally kept small — bigger running headers (e.g. embedding
+  // the full project info grid) get clipped by Chrome on overflow pages,
+  // which is what produced the partial header / missing logo regression.
+  const brandStrip = (
+    <div className="flex items-start justify-between mb-3">
+      <div className="flex items-center gap-3">
+        {!logoBroken ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoSrc}
+            alt="Magic Tech"
+            className="h-14 w-auto object-contain"
+            onError={() => {
+              const alt = swapLogoExt(logoSrc);
+              if (alt && alt !== logoSrc) {
+                setLogoSrc(alt);
+              } else {
+                setLogoBroken(true);
+              }
+            }}
+          />
+        ) : (
+          <div>
+            <div className="text-xs text-magic-ink/60">سحر التقنية</div>
+            <div className="flex items-center gap-1">
+              <span className="text-2xl font-black text-magic-red">Magic</span>
+              <span className="text-2xl font-black text-magic-ink">Tech</span>
             </div>
-          )}
-        </div>
-        <div className="text-right">
-          <div className="text-3xl font-black">
-            <span className="text-magic-ink">Sales </span>
-            <span className="text-magic-red">Quotation</span>
           </div>
-          {pageLabel && (
-            <div className="text-[9px] text-magic-ink/50 mt-1">{pageLabel}</div>
-          )}
+        )}
+      </div>
+      <div className="text-right">
+        <div className="text-3xl font-black">
+          <span className="text-magic-ink">Sales </span>
+          <span className="text-magic-red">Quotation</span>
         </div>
       </div>
+    </div>
+  );
 
-      {/* Info header — left column pinned to the left edge, right column pinned
-       * to the right edge. Each column is a 2-col mini-grid so labels and
-       * values line up cleanly instead of floating against the edge. */}
-      {!hideInfoHeader && (
-        <div className="flex justify-between items-start gap-4 mb-3 text-[10.5px]">
+  // Project / client / engineer grid. Lives inside the body cell so it
+  // appears once at the top of the first physical page of each system
+  // group rather than being repeated (and clipped) on every overflow
+  // page by the running <thead>.
+  const infoHeader = !hideInfoHeader && (
+    <div className="flex justify-between items-start gap-4 mb-3 text-[10.5px]">
           <div className="inline-grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
             <div className="col-span-2 font-bold">
               <HeaderField
@@ -1457,9 +1451,7 @@ function QuotationPage({
               />
             </div>
           </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 
   return (
@@ -1469,12 +1461,15 @@ function QuotationPage({
       <table className="sheet-layout">
         <thead>
           <tr>
-            <td>{headerCell}</td>
+            <td>{brandStrip}</td>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td className="sheet-body-cell">{children}</td>
+            <td className="sheet-body-cell">
+              {infoHeader}
+              {children}
+            </td>
           </tr>
         </tbody>
         <tfoot>
