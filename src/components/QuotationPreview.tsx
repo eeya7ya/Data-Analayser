@@ -1454,8 +1454,13 @@ function QuotationPage({
     </div>
   );
 
+  // Page-frame table: <thead> = running brand strip (repeats at the top of
+  // every physical page in print), <tbody> = page body, <tfoot> = running
+  // address footer (repeats at the bottom of every physical page in print).
+  // The outer `.quotation-sheet` is plain block in print so this table
+  // fragments cleanly across pages — see `@media print` in globals.css.
   return (
-    <div
+    <section
       className={`quotation-sheet text-[11px] ${isLast ? "" : "page-break-after"}`}
     >
       <table className="sheet-layout">
@@ -1475,9 +1480,6 @@ function QuotationPage({
         <tfoot>
           <tr>
             <td>
-              {/* Footer: admin-editable company address. Placed inside
-                  <tfoot> so print engines repeat it at the bottom of every
-                  physical page the sheet overflows onto. */}
               <div className="footer-address whitespace-pre-wrap">
                 {footerText && footerText.trim().length > 0
                   ? footerText
@@ -1487,7 +1489,7 @@ function QuotationPage({
           </tr>
         </tfoot>
       </table>
-    </div>
+    </section>
   );
 }
 
