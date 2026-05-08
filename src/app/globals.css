@@ -479,14 +479,19 @@ body > * {
     resize: none;
   }
   @page {
+    /* Locked to A4 because the inner table columns, the brand strip width,
+     * and the full-bleed cover/about artwork are all sized in millimetres
+     * against a 210mm sheet. Letting the browser pick `size: auto` made
+     * Chrome choose a page narrower than the declared column widths, which
+     * clipped the right edge of the table (and the "Sales Quotation"
+     * banner) and pushed the cover image's bottom row of brand logos onto
+     * a second sliver page. The running <thead> (logo strip) and <tfoot>
+     * (address bar) already repeat on every physical page via
+     * table-header-group / table-footer-group, so per-page repetition is
+     * preserved without needing to vary the page size. The margin is
+     * reserved on every physical page so the repeating header/footer
+     * always land inside the printable area. */
     size: A4;
-    /* Reserved on every physical page so the running <thead> (logo strip)
-     * and <tfoot> (address) repeated by `display: table-header-group` /
-     * `display: table-footer-group` always land inside the printable area,
-     * even on the overflow pages a long system table produces. The values
-     * mirror the sheet's previous internal padding (14mm top, 12mm sides,
-     * 18mm bottom) so the printed layout stays unchanged for single-page
-     * quotations. */
     margin: 14mm 12mm 18mm 12mm;
   }
   /* Cover and about-us sheets opt into a zero-margin named page so the

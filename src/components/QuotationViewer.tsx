@@ -8,7 +8,7 @@ import QuotationPreview, {
 } from "./QuotationPreview";
 import { DEFAULT_TERMS } from "@/lib/quotationDraft";
 import type { AppSettings } from "@/lib/settings";
-import { buildPrintTitle } from "@/lib/printFilename";
+import { runQuotationPrint } from "@/lib/printQuotation";
 
 interface SavedConfig {
   showPictures?: boolean;
@@ -97,13 +97,13 @@ export default function QuotationViewer({
   // BoQ toggle — flipped on just before opening the print dialog so the
   // preview re-renders without the Unit Price / Total Price columns and
   // the Final Totals page. Cleared on `afterprint` so the on-screen
-  // viewer goes back to the priced layout immediately.
+  // viewer goes back to the priced layout immediately. The `pendingBoqRef`
+  // (header context captured at click time) is consumed by the effect
+  // below once React commits the BoQ-flipped DOM.
   const [boqMode, setBoqMode] = useState(false);
-  const pendingPrintRef = useRef<null | "boq">(null);
-  // Stashed by runPrintBoq() so the BoQ print effect (declared above the
-  // early returns, where `header` isn't in scope) can restore the original
-  // tab title after the print dialog closes.
-  const previousTitleRef = useRef<string | null>(null);
+  const pendingBoqRef = useRef<{ ref: string; projectName: string } | null>(
+    null,
+  );
 
   const load = useCallback(() => {
     setLoading(true);
@@ -141,45 +141,27 @@ export default function QuotationViewer({
     return cancel;
   }, [load]);
 
-  // Once BoQ mode is committed to the DOM (next animation frame), fire
-  // the browser print dialog. On `afterprint` (and as a safety net on
-  // Chrome, which returns synchronously from `window.print()`) we flip
-  // BoQ off so the on-screen viewer goes back to the priced layout.
+  // Once BoQ mode is committed to the DOM, hand off to the shared print
+  // helper — same code path the Designer's Print buttons and this viewer's
+  // Print / Print Draft buttons use, so the running page header (logo)
+  // and footer (address bar) repeat consistently no matter which button
+  // was pressed.
   //
-  // Placed up here — above the loading / error / empty early returns —
-  // so the hook count is stable across every render. Moving it below
-  // the early returns broke the Rules of Hooks: the first render
-  // (loading=true) called fewer hooks than later renders, and React
-  // threw "Rendered more hooks than during the previous render" the
-  // moment the fetch resolved, crashing the viewer with a client-side
-  // exception on every quotation.
+  // Placed up here — above the loading / error / empty early returns — so
+  // the hook count is stable across every render (Rules of Hooks).
   useEffect(() => {
-    if (!boqMode || pendingPrintRef.current !== "boq") return;
-    let cancelled = false;
-    const cleanup = () => {
-      if (cancelled) return;
-      if (previousTitleRef.current !== null) {
-        document.title = previousTitleRef.current;
-        previousTitleRef.current = null;
-      }
-      document.body.classList.remove("print-draft");
-      setBoqMode(false);
-      pendingPrintRef.current = null;
-      window.removeEventListener("afterprint", cleanup);
-    };
-    window.addEventListener("afterprint", cleanup);
-    const frame = window.requestAnimationFrame(() => {
-      try {
-        window.print();
-      } finally {
-        cleanup();
-      }
+    if (!boqMode) return;
+    const pending = pendingBoqRef.current;
+    if (!pending) return;
+    runQuotationPrint({
+      ref: pending.ref,
+      projectName: pending.projectName,
+      kind: "boq",
+      afterPrint: () => {
+        setBoqMode(false);
+        pendingBoqRef.current = null;
+      },
     });
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("afterprint", cleanup);
-    };
   }, [boqMode]);
 
   if (loading) {
@@ -277,43 +259,23 @@ export default function QuotationViewer({
     scope_intro: config.scopeIntro || "",
   };
 
-  // Trigger a browser print, optionally tagging <body> with `print-draft`
-  // so the @media print CSS hides the full-bleed cover / about-us sheets.
-  // The class is cleared on `afterprint` (works on every browser) and as
-  // a safety net on the next animation frame for Chrome, which returns
-  // synchronously from window.print().
+  // All three print buttons (Print / PDF, Print Draft, Print BOQ) funnel
+  // through `runQuotationPrint` so the printed page header (logo strip)
+  // and footer (address bar) repeat identically regardless of the button
+  // pressed or the page size selected in the browser print dialog.
   function runPrint(draft: boolean) {
-    if (draft) document.body.classList.add("print-draft");
-    // Set document.title so the browser's "Save as PDF" dialog suggests
-    // "<REF> - <Project>" instead of the page URL/tab title.
-    const previousTitle = document.title;
-    document.title = buildPrintTitle(
-      header.ref,
-      header.project_name,
-      draft ? "draft" : "normal",
-    );
-    const cleanup = () => {
-      document.title = previousTitle;
-      document.body.classList.remove("print-draft");
-      window.removeEventListener("afterprint", cleanup);
-    };
-    window.addEventListener("afterprint", cleanup);
-    window.print();
-    requestAnimationFrame(cleanup);
+    runQuotationPrint({
+      ref: header.ref,
+      projectName: header.project_name,
+      kind: draft ? "draft" : "normal",
+    });
   }
 
-  /**
-   * Print the saved quotation as a Bill of Quantities. Flips `boqMode`
-   * on so the preview re-renders without pricing, then waits one frame
-   * for React to commit the DOM before opening the browser print dialog.
-   * Without the frame wait, `window.print()` captures the priced layout
-   * that was on screen a tick earlier.
-   */
   function runPrintBoq() {
-    pendingPrintRef.current = "boq";
-    document.body.classList.add("print-draft");
-    previousTitleRef.current = document.title;
-    document.title = buildPrintTitle(header.ref, header.project_name, "boq");
+    pendingBoqRef.current = {
+      ref: header.ref,
+      projectName: header.project_name,
+    };
     setBoqMode(true);
   }
 
