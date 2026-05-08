@@ -328,11 +328,17 @@ body > * {
    * Designer's `flex flex-row gap-4 items-start` + `flex-1 min-w-0` chain
    * around <QuotationPreview/> can't shrink the printed sheet below its
    * declared width. Before this reset the printed designer view came out
-   * narrower than the @page area because the flex item shrank to fit. */
+   * narrower than the @page area because the flex item shrank to fit.
+   *
+   * Exclude `.no-print` (and its descendants) — this selector is more
+   * specific than `.no-print` itself, so without the explicit `:not()` the
+   * `display: block !important` here OVERRIDES `.no-print { display: none
+   * !important }` and the editor toolbars / action buttons / form fields
+   * leak into the printed output. */
   .print-main
     *:not(.quotation-doc):not(.quotation-doc *):not(.quotation-sheet):not(
       .quotation-sheet *
-    ) {
+    ):not(.no-print):not(.no-print *) {
     display: block !important;
     flex: none !important;
     flex-grow: 0 !important;
