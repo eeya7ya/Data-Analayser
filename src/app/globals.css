@@ -71,6 +71,27 @@ body > * {
 }
 
 /* Printable quotation styling — matches the Magic Tech sales quotation look. */
+/* ---------------------------------------------------------------------------
+ * PAGE-FRAME ARCHITECTURE
+ * ---------------------------------------------------------------------------
+ * Each printed page is a single `.quotation-sheet` that owns ONE table
+ * (`table.sheet-layout`). That table carries:
+ *   - <thead>  → brand strip (logo + "Sales Quotation"). Reserved as a
+ *                running header via `display: table-header-group`, so
+ *                Chrome / Edge repeat it at the top of every physical
+ *                page the table fragments onto.
+ *   - <tbody>  → page body (info grid, system banner, items table, …).
+ *   - <tfoot>  → address footer. Reserved as a running footer via
+ *                `display: table-footer-group`, so it repeats at the
+ *                bottom of every physical page.
+ *
+ * The previous implementation made `.quotation-sheet` a flex column with
+ * `flex: 1` / `height: 100%` on the table & its body cell. That flex layout
+ * prevented Chrome from fragmenting the outer table across pages, so the
+ * footer rendered on page 1 only. The current rules deliberately keep the
+ * printable layout as plain block + table flow so fragmentation is reliable.
+ * ------------------------------------------------------------------------- */
+
 /* Multi-page quotation document: stack individual A4 sheets vertically. */
 .quotation-doc {
   display: flex;
@@ -87,20 +108,15 @@ body > * {
   color: var(--mt-ink);
   margin: 0 auto;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  box-sizing: border-box;
 }
 
-/* Outer sheet layout table. Wraps every regular (non full-bleed) sheet in a
- * <thead>/<tbody>/<tfoot> so print engines automatically repeat the Magic
- * Tech logo strip and address footer at the top/bottom of every physical
- * page a long system table overflows onto. Borderless and transparent so
- * it stays visually indistinguishable from the previous flex-column layout
- * on screen — only the printed output benefits from the header/footer
- * repetition. */
+/* Outer page-frame table. One per sheet. <thead> is the running header,
+ * <tfoot> is the running footer. Both auto-repeat across page fragments
+ * in print. Borderless and transparent so it disappears visually. */
 .quotation-sheet > table.sheet-layout {
   width: 100%;
-  flex: 1;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -115,16 +131,9 @@ body > * {
   vertical-align: top;
 }
 
-.quotation-sheet > table.sheet-layout > tbody > tr > td.sheet-body-cell {
-  height: 100%;
-  vertical-align: top;
-}
-
-/* Full-bleed static A4 page — used for the fixed cover and about-us
- * pages that bracket every printed quotation. No padding so the supplied
- * artwork fills the sheet edge to edge. These sheets are hidden in the
- * on-screen designer/viewer so the user only sees them on the actual
- * printed output (they re-appear in @media print below). */
+/* Full-bleed static A4 page — used for the cover and about-us pages that
+ * bracket every printed quotation. No padding so the supplied artwork fills
+ * the sheet edge to edge. Hidden on-screen (re-appear in @media print). */
 .quotation-sheet.full-bleed {
   display: none;
   padding: 0;
@@ -138,10 +147,7 @@ body > * {
   object-fit: cover;
 }
 
-/* Footer styling is defined below — the `margin-top: auto` there pushes
- * the footer to the bottom of every flex-column sheet. */
-
-/* Force a hard page break after every sheet except the last one. */
+/* Hard page break after every sheet except the last one. */
 .quotation-sheet.page-break-after {
   page-break-after: always;
   break-after: page;
@@ -213,10 +219,6 @@ body > * {
   padding: 8px;
   font-weight: 600;
   border: 1px solid #cfbebc;
-  /* Inside the sheet-layout <tfoot>, the table flow already parks the footer
-   * at the bottom. The `margin-top: auto` kept as a safety net for any
-   * future caller that renders the footer outside a table layout. */
-  margin-top: auto;
   font-size: 10.5px;
   line-height: 1.4;
 }
@@ -224,13 +226,8 @@ body > * {
 /* On-screen only: pin the address footer to the very bottom of each A4
  * sheet so it behaves like a reserved footer area and doesn't drift
  * upward when the sheet's body content is short. The print stylesheet
- * is intentionally left untouched — printing still relies on the
- * <tfoot> flow so the footer repeats at the bottom of every physical
- * page that a long system table overflows onto. */
+ * lets the <tfoot> flow naturally so it repeats on every page. */
 @media screen {
-  .quotation-sheet {
-    position: relative;
-  }
   .quotation-sheet .footer-address {
     position: absolute;
     left: 12mm;
@@ -288,45 +285,32 @@ body > * {
 }
 
 @media print {
+  /* ---- 1. Page geometry ----------------------------------------------------
+   * The physical safe area is reserved on EVERY page via @page margins (not
+   * via padding on .quotation-sheet) so the running header/footer always land
+   * inside the printable area, even on continuation pages produced when a
+   * long items table fragments across multiple sheets. */
+  @page {
+    size: A4;
+    margin: 14mm 12mm 18mm 12mm;
+  }
+  /* Full-bleed pages (cover / about-us) opt into a zero-margin named page
+   * via `page: full-bleed` on the sheet, so the artwork covers all 210x297mm. */
+  @page full-bleed {
+    size: A4;
+    margin: 0;
+  }
+
+  /* ---- 2. Strip app chrome ------------------------------------------------ */
   html,
   body {
     background: #ffffff !important;
     margin: 0;
     padding: 0;
   }
-  /* Kill the decorative grid overlay so the printed quotation is pristine. */
-  body::before {
-    display: none !important;
-  }
-  .no-print {
-    display: none !important;
-  }
-  /* `table-layout: fixed` makes the printed column widths match the
-   * <th style={width}> values exactly instead of the browser re-flowing
-   * them to accommodate wide content. Without this, long descriptions in
-   * the first few rows could stretch the table past the 100% container
-   * width, which the printer then clipped on the right edge (the user
-   * reported "table side is cut off" in the printed PDF). Scoped to
-   * @media print so the on-screen editable table can still expand to fit
-   * its inline action-button toolbar. */
-  .quotation-sheet table {
-    table-layout: fixed;
-    box-sizing: border-box;
-  }
-  .quotation-sheet th,
-  .quotation-sheet td {
-    /* Keep long tokens (model codes, URLs, brand names) from forcing a
-     * cell wider than its declared width and overflowing the sheet. */
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    box-sizing: border-box;
-  }
-  /* Strip the app chrome (page background, header spacing, main padding)
-   * in print mode so the quotation sheet sits directly against the @page
-   * edge. Without this override, the Next.js page wrapper introduces a
-   * blank first page (from the navigation header + "Editing quotation"
-   * banner) and shifts the sheet off-center because `<main>` carries a
-   * `max-w-*` + `p-6` from the on-screen layout. */
+  body::before { display: none !important; }
+  .no-print { display: none !important; }
+
   .print-root {
     background: #ffffff !important;
     min-height: 0 !important;
@@ -339,11 +323,7 @@ body > * {
     margin: 0 !important;
     padding: 0 !important;
   }
-  /* Strip every wrapper between `.print-main` and `.quotation-doc` (the
-   * Designer nests the preview inside a card → row → flex-1 chain). The
-   * :not() guards leave `.quotation-doc` and every sheet inside it
-   * untouched so the explicit print geometry below owns the printed sheet
-   * layout. */
+  /* Neutralise every wrapper between `.print-main` and `.quotation-doc`. */
   .print-main
     *:not(.quotation-doc):not(.quotation-doc *):not(.quotation-sheet):not(
       .quotation-sheet *
@@ -358,111 +338,101 @@ body > * {
     width: auto !important;
     max-width: none !important;
   }
+
+  /* ---- 3. Document container ---------------------------------------------- */
   .quotation-doc {
-    gap: 0;
     display: block;
+    gap: 0;
     margin: 0;
     width: auto;
   }
-  /* The safe area lives on `@page { margin }` (see below) so it's reserved on
-   * EVERY physical page — including the overflow pages produced when a long
-   * system table fragments across multiple sheets. Putting the safe area as
-   * `padding` on `.quotation-sheet` only worked for the first page: browsers
-   * apply `padding-top` / `padding-bottom` of a fragmented box exclusively at
-   * the start / end of the box, not at every page boundary the box crosses,
-   * so the repeated <thead> logo strip and <tfoot> address rendered flush
-   * against the paper edge on page 2+ and got clipped by the printer's
-   * hardware non-printable border. Letting `@page` own the margin guarantees
-   * the same safe area on every page and keeps the running header/footer
-   * pinned at a consistent position. */
+
+  /* ---- 4. Page sheet ------------------------------------------------------
+   * Plain block layout — NO flex, NO forced height. The page-frame table
+   * fragments naturally so its <thead> / <tfoot> repeat on every physical
+   * page. The safe area is owned by @page margins, so the sheet itself
+   * carries zero padding in print. */
   .quotation-sheet {
+    display: block !important;
     box-shadow: none;
     margin: 0;
     width: 100%;
     min-height: 0;
     padding: 0;
     box-sizing: border-box;
-  }
-  /* Full-bleed cover/about sheets still want edge-to-edge artwork. They opt
-   * into a named `@page full-bleed` rule (declared below) that drops the
-   * margin to 0 just for those sheets, so the printable area matches the
-   * full 210 × 297 mm and the supplied cover/about artwork fills the paper. */
-  .quotation-sheet.full-bleed {
-    display: block;
-    padding: 0;
-    page: full-bleed;
-  }
-  /* "Print Draft" — the Designer/Viewer toggles `body.print-draft` just
-   * before opening the browser print dialog so internal review prints
-   * skip the marketing cover and about-us sheets while keeping the
-   * actual quotation pages identical to a normal print. The class is
-   * cleared on `afterprint` so the next normal Print/PDF is unaffected. */
-  body.print-draft .quotation-sheet.full-bleed {
-    display: none !important;
+    background: #ffffff;
   }
   .quotation-sheet.page-break-after {
     page-break-after: always;
     break-after: page;
   }
-  /* Print-only: make sure browsers repeat the sheet-layout <thead> (logo +
-   * info grid) and <tfoot> (footer address) at the top/bottom of every
-   * physical page that the system table overflows onto. Chrome already
-   * uses table-header-group for <thead> by default, but being explicit
-   * avoids surprises on Firefox / Safari where the default on <tfoot>
-   * has historically varied. */
+
+  /* Cover / about sheets — full-bleed artwork on a zero-margin page. */
+  .quotation-sheet.full-bleed {
+    display: block;
+    padding: 0;
+    page: full-bleed;
+  }
+  /* Draft / BoQ prints suppress the marketing cover and about-us sheets. */
+  body.print-draft .quotation-sheet.full-bleed {
+    display: none !important;
+  }
+
+  /* ---- 5. Page-frame table — running header / footer ----------------------
+   * The outer .sheet-layout table is the spine of every printed page. Its
+   * <thead> carries the brand strip and is repeated at the top of every
+   * physical page; its <tfoot> carries the address bar and is repeated at
+   * the bottom of every physical page. */
+  .quotation-sheet > table.sheet-layout {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
   .quotation-sheet > table.sheet-layout > thead {
     display: table-header-group;
   }
   .quotation-sheet > table.sheet-layout > tfoot {
     display: table-footer-group;
   }
-  /* Inner item tables (one per system group) carry the column-headers row
-   * (No / Brand / Model / Description / …) inside their own <thead>. Make
-   * those repeat at the top of every physical page when the table flows
-   * onto multiple sheets, so a continuation page still shows the column
-   * labels above the rows. */
+
+  /* ---- 6. Inner items table (per system) ---------------------------------
+   * Repeats its own column-headers <thead> (No / Brand / Model / …) on
+   * continuation pages. */
+  .quotation-sheet .sheet-body-cell table {
+    table-layout: fixed;
+    box-sizing: border-box;
+  }
   .quotation-sheet .sheet-body-cell table thead {
     display: table-header-group;
   }
   .quotation-sheet .sheet-body-cell table tfoot {
     display: table-footer-group;
   }
-  /* Keep an item row atomic: when a row would straddle a page break, push
-   * the whole row onto the next page instead of splitting it. Without this
-   * the description cell wraps onto the next page on its own and the
-   * sibling cells (Brand / Model / Quantity / Unit Price …) print empty
-   * because their content already rendered on the prior page — the exact
-   * "middle page is empty except for one cell" symptom that prompted this
-   * rule. Cells use top alignment so the row's other columns stay visually
-   * aligned with the start of a long description rather than centring on
-   * its midpoint.
-   *
-   * Scoped to `.sheet-body-cell table` (the inner per-system item tables)
-   * so it does NOT apply to the outer `<table.sheet-layout>` wrapper —
-   * that one has a single tbody <tr> containing the whole page's content,
-   * and `break-inside: avoid` on it forces multi-page quotations onto one
-   * sheet, which Chrome/Edge handle by scaling the entire document down
-   * (the "tiny printout in a corner" regression on large quotations). */
-  .quotation-sheet .sheet-body-cell table tr,
-  .quotation-sheet .sheet-body-cell table tbody tr,
-  .quotation-sheet .sheet-body-cell table thead tr,
-  .quotation-sheet .sheet-body-cell table tfoot tr {
+  /* Keep each items-table row atomic so a tall description doesn't strand
+   * its sibling cells on the previous page. Scoped to the inner table only,
+   * so it doesn't pin the outer page-frame table's single tbody row and
+   * defeat fragmentation. */
+  .quotation-sheet .sheet-body-cell table tr {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  /* ---- 7. Cells ----------------------------------------------------------- */
+  .quotation-sheet th,
+  .quotation-sheet td {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    box-sizing: border-box;
   }
   .quotation-sheet table td {
     vertical-align: top;
   }
-  /* Brand / Model cells stay centred when a sibling description cell
-   * grows tall, so they read as labels next to the description block
-   * rather than stuck at the top of an oversized row. Specificity
-   * (`td.cell-center`) wins over the generic `td { vertical-align: top }`
-   * rule above without needing !important. */
   .quotation-sheet table td.cell-center {
     text-align: center;
     vertical-align: middle;
   }
-  /* Hide editable form chrome in print so inputs print as plain text. */
+
+  /* ---- 8. Inputs print as plain text -------------------------------------- */
   .quotation-sheet input,
   .quotation-sheet textarea,
   .quotation-sheet select {
@@ -477,28 +447,5 @@ body > * {
     color: inherit;
     font: inherit;
     resize: none;
-  }
-  @page {
-    /* Locked to A4 because the inner table columns, the brand strip width,
-     * and the full-bleed cover/about artwork are all sized in millimetres
-     * against a 210mm sheet. Letting the browser pick `size: auto` made
-     * Chrome choose a page narrower than the declared column widths, which
-     * clipped the right edge of the table (and the "Sales Quotation"
-     * banner) and pushed the cover image's bottom row of brand logos onto
-     * a second sliver page. The running <thead> (logo strip) and <tfoot>
-     * (address bar) already repeat on every physical page via
-     * table-header-group / table-footer-group, so per-page repetition is
-     * preserved without needing to vary the page size. The margin is
-     * reserved on every physical page so the repeating header/footer
-     * always land inside the printable area. */
-    size: A4;
-    margin: 14mm 12mm 18mm 12mm;
-  }
-  /* Cover and about-us sheets opt into a zero-margin named page so the
-   * supplied artwork bleeds edge-to-edge. Triggered by the `page:` property
-   * on `.quotation-sheet.full-bleed` above. */
-  @page full-bleed {
-    size: A4;
-    margin: 0;
   }
 }
