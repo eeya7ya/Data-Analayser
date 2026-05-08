@@ -385,20 +385,23 @@ body > * {
   }
 
   /* Cover / about sheets — full-bleed artwork on a zero-margin page. The
-   * sheet itself takes the full printable area (which `@page full-bleed`
-   * blows out to 210x297mm by setting margin: 0) and the image inside
-   * fills the sheet via `width: 100%; height: 100%`, so the artwork
-   * always covers whatever Chrome actually prints, regardless of the
-   * user's print-dialog "Margins" setting. */
+   * sheet is sized to a literal A4 (210x297mm) because Chrome's `100vh`
+   * in @media print does NOT reliably resolve to one printable page; with
+   * `100vh` the cover image fell back to its intrinsic aspect ratio and
+   * left a big blank gutter at the bottom of the page. Locking the sheet
+   * to 210x297mm and letting the image `object-fit: cover` fill it gives
+   * the same "covers the whole page" result every time. */
   .quotation-sheet.full-bleed {
     display: block;
     padding: 0;
     page: full-bleed;
-    width: 100%;
-    height: 100vh;
-    min-height: 100vh;
+    width: 210mm;
+    height: 297mm;
+    min-height: 0;
+    overflow: hidden;
   }
   .quotation-sheet.full-bleed img {
+    display: block !important;
     width: 100% !important;
     height: 100% !important;
     object-fit: cover;
