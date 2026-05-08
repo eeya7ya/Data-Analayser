@@ -323,11 +323,22 @@ body > * {
     margin: 0 !important;
     padding: 0 !important;
   }
-  /* Neutralise every wrapper between `.print-main` and `.quotation-doc`. */
+  /* Neutralise every wrapper between `.print-main` and `.quotation-doc`.
+   * Critical: also force `display: block` and clear flex/grid sizing so the
+   * Designer's `flex flex-row gap-4 items-start` + `flex-1 min-w-0` chain
+   * around <QuotationPreview/> can't shrink the printed sheet below its
+   * declared width. Before this reset the printed designer view came out
+   * narrower than the @page area because the flex item shrank to fit. */
   .print-main
     *:not(.quotation-doc):not(.quotation-doc *):not(.quotation-sheet):not(
       .quotation-sheet *
     ) {
+    display: block !important;
+    flex: none !important;
+    flex-grow: 0 !important;
+    flex-shrink: 0 !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
@@ -337,6 +348,9 @@ body > * {
     gap: 0 !important;
     width: auto !important;
     max-width: none !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+    position: static !important;
   }
 
   /* ---- 3. Document container ---------------------------------------------- */
@@ -348,30 +362,46 @@ body > * {
   }
 
   /* ---- 4. Page sheet ------------------------------------------------------
-   * Plain block layout — NO flex, NO forced height. The page-frame table
-   * fragments naturally so its <thead> / <tfoot> repeat on every physical
-   * page. The safe area is owned by @page margins, so the sheet itself
-   * carries zero padding in print. */
+   * Plain block layout in print — NO flex chrome from the screen view, NO
+   * fixed `width: 210mm` (the @page area already defines width via its
+   * margins). `min-height: 100vh` forces every sheet to occupy at least
+   * one printable page so the running footer below pins to the bottom of
+   * page 1 even when the items table is short. The safe area is owned by
+   * @page margins, so the sheet itself carries zero padding. */
   .quotation-sheet {
     display: block !important;
     box-shadow: none;
     margin: 0;
     width: 100%;
-    min-height: 0;
+    min-height: 100vh;
     padding: 0;
     box-sizing: border-box;
     background: #ffffff;
+    position: static;
   }
   .quotation-sheet.page-break-after {
     page-break-after: always;
     break-after: page;
   }
 
-  /* Cover / about sheets — full-bleed artwork on a zero-margin page. */
+  /* Cover / about sheets — full-bleed artwork on a zero-margin page. The
+   * sheet itself takes the full printable area (which `@page full-bleed`
+   * blows out to 210x297mm by setting margin: 0) and the image inside
+   * fills the sheet via `width: 100%; height: 100%`, so the artwork
+   * always covers whatever Chrome actually prints, regardless of the
+   * user's print-dialog "Margins" setting. */
   .quotation-sheet.full-bleed {
     display: block;
     padding: 0;
     page: full-bleed;
+    width: 100%;
+    height: 100vh;
+    min-height: 100vh;
+  }
+  .quotation-sheet.full-bleed img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover;
   }
   /* Draft / BoQ prints suppress the marketing cover and about-us sheets. */
   body.print-draft .quotation-sheet.full-bleed {
@@ -382,9 +412,20 @@ body > * {
    * The outer .sheet-layout table is the spine of every printed page. Its
    * <thead> carries the brand strip and is repeated at the top of every
    * physical page; its <tfoot> carries the address bar and is repeated at
-   * the bottom of every physical page. */
+   * the bottom of every physical page.
+   *
+   * The table's `height: 100%` (parent `.quotation-sheet` is at least
+   * `100vh` tall in print) makes the table fill the full printable area
+   * even when the items table is short — without this the natural-flow
+   * <tfoot> would render right under the items rather than at the bottom
+   * of the page. The single tbody row has `height: 100%` so it eats every
+   * leftover pixel of vertical space, pushing the <tfoot> down. When the
+   * items table overflows the page, the body row grows past 100% and the
+   * outer table fragments cleanly across pages, with thead/tfoot
+   * automatically repeating on each fragment. */
   .quotation-sheet > table.sheet-layout {
     width: 100%;
+    height: 100%;
     border-collapse: collapse;
     table-layout: fixed;
   }
@@ -393,6 +434,13 @@ body > * {
   }
   .quotation-sheet > table.sheet-layout > tfoot {
     display: table-footer-group;
+  }
+  .quotation-sheet > table.sheet-layout > tbody > tr {
+    height: 100%;
+  }
+  .quotation-sheet > table.sheet-layout > tbody > tr > td.sheet-body-cell {
+    vertical-align: top;
+    height: 100%;
   }
 
   /* ---- 6. Inner items table (per system) ---------------------------------
