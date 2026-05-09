@@ -379,7 +379,12 @@ body > * {
     box-shadow: none;
     margin: 0;
     width: 100%;
-    min-height: 100vh;
+    /* Use the actual A4 printable height (297mm − 14mm top − 18mm bottom)
+     * instead of `100vh`. Chrome's print engine resolves `100vh` slightly
+     * larger than the @page safe area, so the last sheet would overflow by
+     * a fraction of a pixel and emit a trailing blank page. A fixed mm
+     * value matches the @page geometry exactly. */
+    min-height: 265mm;
     padding: 0;
     box-sizing: border-box;
     background: #ffffff;
@@ -388,6 +393,18 @@ body > * {
   .quotation-sheet.page-break-after {
     page-break-after: always;
     break-after: page;
+  }
+  /* The last sheet has no trailing page break, so any min-height rounding
+   * error would become a real blank page. Drop the min-height entirely on
+   * the final sheet — its content (Final Totals + Terms) ends naturally
+   * and the running footer still pins to the bottom of the page via the
+   * @page bottom margin. */
+  .quotation-sheet:last-child {
+    min-height: 0;
+  }
+  .quotation-sheet:last-child > table.sheet-layout,
+  .quotation-sheet:last-child > table.sheet-layout > tbody > tr {
+    height: auto;
   }
 
   /* Cover / about sheets — full-bleed artwork on a zero-margin page. The
