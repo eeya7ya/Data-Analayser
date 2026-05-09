@@ -1741,14 +1741,19 @@ function SystemTable({
       Number(effectiveMergedValue(groupItems, rowIdx, "unit_price")) || 0;
     return acc + qty * price;
   }, 0);
-  // When manual columns are present, shrink the description column a bit so
-  // everything still fits on A4 without horizontal overflow. In BoQ mode
-  // we also have 22% extra space freed up by the removed Unit Price +
-  // Total Price columns — redirect it into the description so the scope
-  // reads comfortably instead of leaving a narrow, lopsided table.
-  const extraShare = Math.min(extraColumns.length * 7, 21); // max 21%
-  const baseDescWidth = showPictures ? 28 : 36;
-  const descWidth = baseDescWidth - extraShare + (boqMode ? 22 : 0);
+  // Column width budget — every visible column gets a hard percentage and
+  // the whole row MUST sum to exactly 100 so `table-layout: fixed` lays
+  // the table out flush with the page edges. Description absorbs whatever
+  // the optional/manual columns don't take, so the table always fits on A4
+  // without horizontal overflow regardless of which columns are showing.
+  const fixedSum =
+    4 + 10 + 12 + 6 + 8 // No + Brand + Model + Quantity + Delivery
+    + (showPictures ? 10 : 0) // Picture
+    + (boqMode ? 0 : 22); // Unit Price (10) + Total Price (12)
+  const extraTotalWidth = Math.min(extraColumns.length * 7, 21);
+  const extraShare =
+    extraColumns.length > 0 ? extraTotalWidth / extraColumns.length : 0;
+  const descWidth = 100 - fixedSum - extraTotalWidth;
 
   const plan = computeMergePlan(group.rows);
 
@@ -1887,7 +1892,7 @@ function SystemTable({
           )}
           {!boqMode && <th style={{ width: "12%" }}>Total Price</th>}
           {extraColumns.map((col) => (
-            <th key={col.id} style={{ width: `${extraShare / Math.max(extraColumns.length, 1)}%` }}>
+            <th key={col.id} style={{ width: `${extraShare}%` }}>
               {editable ? (
                 <div className="flex items-center justify-center gap-1">
                   <input
