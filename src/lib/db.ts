@@ -241,6 +241,24 @@ const CATALOGUE_PICTURE_FLAG = "catalogue_picture_v1_2026_04";
  */
 const PROJECTS_FOUNDATION_FLAG = "projects_foundation_v1_2026_04";
 
+/**
+ * V2.0 module RBAC + Phase 1 schema. Strictly additive — nothing is dropped,
+ * renamed, or hard-deleted. Re-runs the idempotent Default-Project backfill
+ * to catch any client_folders / quotations created after the original
+ * projects_foundation flag fired (25 folders + 29 quotations on live as of
+ * 2026-05-14). Non-admin users are NOT auto-granted module roles; they
+ * surface in an admin "needs role assignment" queue and keep their current
+ * legacy `users.role` access in the meantime.
+ */
+const MODULE_RBAC_V1_FLAG = "crm_v2_module_rbac_v1_2026_05";
+
+/**
+ * V2.0 Phase 2 — soft-revoke for user_module_roles. We never DELETE a role
+ * grant; revocation flips `revoked_at` so the audit trail of "who had what
+ * when" is permanent. Active grants are filtered with `revoked_at IS NULL`.
+ */
+const MODULE_RBAC_REVOKE_FLAG = "crm_v2_module_rbac_revoke_v1_2026_05";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -274,7 +292,8 @@ export async function resetSchemaCache(): Promise<void> {
       ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
       ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
       ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
-      ${PROJECTS_FOUNDATION_FLAG}
+      ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
+      ${MODULE_RBAC_REVOKE_FLAG}
     )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
@@ -307,6 +326,8 @@ async function _ensureSchemaOnce(): Promise<void> {
   let purchaseOrdersApplied = false;
   let cataloguePictureApplied = false;
   let projectsFoundationApplied = false;
+  let moduleRbacApplied = false;
+  let moduleRbacRevokeApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -316,7 +337,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
         ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
         ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
-      ${PROJECTS_FOUNDATION_FLAG}
+        ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
+        ${MODULE_RBAC_REVOKE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -336,6 +358,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     purchaseOrdersApplied = keys.has(PURCHASE_ORDERS_FLAG);
     cataloguePictureApplied = keys.has(CATALOGUE_PICTURE_FLAG);
     projectsFoundationApplied = keys.has(PROJECTS_FOUNDATION_FLAG);
+    moduleRbacApplied = keys.has(MODULE_RBAC_V1_FLAG);
+    moduleRbacRevokeApplied = keys.has(MODULE_RBAC_REVOKE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -357,7 +381,9 @@ async function _ensureSchemaOnce(): Promise<void> {
     userPhoneApplied &&
     purchaseOrdersApplied &&
     cataloguePictureApplied &&
-    projectsFoundationApplied
+    projectsFoundationApplied &&
+    moduleRbacApplied &&
+    moduleRbacRevokeApplied
   )
     return;
 
@@ -1345,6 +1371,312 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${PROJECTS_FOUNDATION_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!moduleRbacApplied) {
+    // V2.0 PHASE 1 — module RBAC + structural foundation.
+    //
+    // Every statement below is purely additive. No DROP / DELETE / hard
+    // UPDATE on user-owned data. Existing rows in client_folders, quotations,
+    // users, teams, etc. keep every value they currently hold; columns we
+    // add are nullable so legacy code paths never observe a change.
+    //
+    // The block also re-runs the idempotent Default-Project backfill so any
+    // folders / quotations created since 2026-04-26 (when the original
+    // projects_foundation migration ran) get re-parented. The original
+    // statements are NOT EXISTS / IS NULL guarded so re-running is a no-op
+    // for already-migrated rows.
+
+    // 1. Per-user, per-module role grants. A user may hold many (e.g.
+    //    sales + presales + engineer) and the composite PK prevents
+    //    duplicates without us needing a separate uniqueness check.
+    await q`
+      create table if not exists user_module_roles (
+        user_id    integer not null references users(id) on delete cascade,
+        module     text not null check (module in ('crm','projects','storage','admin')),
+        role       text not null,
+        granted_by integer references users(id) on delete set null,
+        created_at timestamptz not null default now(),
+        primary key (user_id, module, role)
+      )
+    `;
+    await q`
+      create index if not exists user_module_roles_module_idx
+        on user_module_roles(module, role)
+    `;
+
+    // 2. Teams gain a module and a manager. team_members.role already
+    //    exists, so the member-side schema is unchanged. deleted_at lets
+    //    admins archive a team without losing its history.
+    await q`
+      alter table teams
+        add column if not exists module text
+          check (module is null or module in ('crm','projects','storage'))
+    `;
+    await q`
+      alter table teams
+        add column if not exists manager_user_id integer references users(id) on delete set null
+    `;
+    await q`
+      alter table teams
+        add column if not exists deleted_at timestamptz
+    `;
+    await q`
+      create index if not exists teams_module_idx
+        on teams(module, deleted_at)
+    `;
+
+    // 3. client_folders: distinguish Company vs Individual and link to the
+    //    canonical companies row. `kind` stays NULL on existing rows —
+    //    those 58 folders surface in the admin Migration Quarantine UI
+    //    (Phase 3) for manual classification. We intentionally do NOT
+    //    default to 'company' to avoid auto-tagging individual clients
+    //    incorrectly.
+    await q`
+      alter table client_folders
+        add column if not exists kind text
+          check (kind is null or kind in ('company','individual'))
+    `;
+    await q`
+      alter table client_folders
+        add column if not exists company_id integer references companies(id) on delete set null
+    `;
+    await q`
+      create index if not exists client_folders_kind_idx
+        on client_folders(kind, deleted_at)
+    `;
+
+    // 4. Quotation dual approval. Sales-manager + Presales-manager must
+    //    both sign before a quotation becomes visible to the Projects
+    //    module. The existing `status` text column is untouched here;
+    //    Phase 2 will extend the allowed values once the approval UI
+    //    lands. Rejected quotations keep their row — `rejected_at` is
+    //    just a timestamp, the data is preserved for audit.
+    await q`
+      alter table quotations
+        add column if not exists sales_approved_by integer references users(id) on delete set null
+    `;
+    await q`
+      alter table quotations
+        add column if not exists sales_approved_at timestamptz
+    `;
+    await q`
+      alter table quotations
+        add column if not exists presales_approved_by integer references users(id) on delete set null
+    `;
+    await q`
+      alter table quotations
+        add column if not exists presales_approved_at timestamptz
+    `;
+    await q`
+      alter table quotations
+        add column if not exists approved_at timestamptz
+    `;
+    await q`
+      alter table quotations
+        add column if not exists accepted_at timestamptz
+    `;
+    await q`
+      alter table quotations
+        add column if not exists rejected_at timestamptz
+    `;
+    await q`
+      alter table quotations
+        add column if not exists rejected_by integer references users(id) on delete set null
+    `;
+    await q`
+      alter table quotations
+        add column if not exists rejected_reason text
+    `;
+    await q`
+      create index if not exists quotations_approval_idx
+        on quotations(approved_at, accepted_at, deleted_at)
+    `;
+
+    // 5. Projects-module assignment table. Maps a Projects-module user to
+    //    a project with a role and an "info window" (location + date
+    //    range + notes) that the project manager controls. Engineers
+    //    only see assignments they're part of; managers see everything
+    //    under their team.
+    await q`
+      create table if not exists project_assignments (
+        id          bigserial primary key,
+        project_id  integer not null references projects(id) on delete cascade,
+        user_id     integer not null references users(id) on delete cascade,
+        role        text not null check (role in ('technical','engineer','manager')),
+        assigned_by integer references users(id) on delete set null,
+        location    text,
+        start_date  date,
+        end_date    date,
+        notes       text,
+        created_at  timestamptz not null default now(),
+        deleted_at  timestamptz
+      )
+    `;
+    await q`
+      create index if not exists project_assignments_user_idx
+        on project_assignments(user_id, deleted_at)
+    `;
+    await q`
+      create index if not exists project_assignments_project_idx
+        on project_assignments(project_id, deleted_at)
+    `;
+
+    // 6. Storage module skeleton. Stock is keyed by (product_id,
+    //    location_id) so the same SKU can live in multiple warehouses.
+    //    Requests are issued by Projects-module users; storage manager
+    //    flips status from pending → approved/denied/fulfilled. Nothing
+    //    is ever deleted — denied requests stay queryable.
+    await q`
+      create table if not exists storage_locations (
+        id         serial primary key,
+        name       text unique not null,
+        address    text,
+        created_at timestamptz not null default now(),
+        deleted_at timestamptz
+      )
+    `;
+    await q`
+      create table if not exists storage_stock (
+        product_id  integer not null references products(id) on delete cascade,
+        location_id integer not null references storage_locations(id) on delete cascade,
+        on_hand     integer not null default 0 check (on_hand >= 0),
+        reserved    integer not null default 0 check (reserved >= 0),
+        updated_at  timestamptz not null default now(),
+        primary key (product_id, location_id)
+      )
+    `;
+    await q`
+      create table if not exists storage_requests (
+        id            bigserial primary key,
+        project_id    integer references projects(id) on delete set null,
+        product_id    integer references products(id) on delete set null,
+        location_id   integer references storage_locations(id) on delete set null,
+        quantity      integer not null check (quantity > 0),
+        requested_by  integer references users(id) on delete set null,
+        status        text not null default 'pending'
+          check (status in ('pending','approved','denied','fulfilled')),
+        handled_by    integer references users(id) on delete set null,
+        handled_at    timestamptz,
+        reason        text,
+        created_at    timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists storage_requests_status_idx
+        on storage_requests(status, created_at)
+    `;
+    await q`
+      create index if not exists storage_requests_project_idx
+        on storage_requests(project_id, status)
+    `;
+
+    // 7. Admin-curated dashboard announcements. Audience targeting is
+    //    array-based so a single post can target multiple modules / roles
+    //    without a join table. Pinned posts float to the top.
+    await q`
+      create table if not exists news_posts (
+        id               bigserial primary key,
+        title            text not null,
+        body             text not null,
+        audience_modules text[] not null default array['all']::text[],
+        audience_roles   text[] not null default array['all']::text[],
+        pinned           boolean not null default false,
+        created_by       integer references users(id) on delete set null,
+        created_at       timestamptz not null default now(),
+        expires_at       timestamptz,
+        deleted_at       timestamptz
+      )
+    `;
+    await q`
+      create index if not exists news_posts_active_idx
+        on news_posts(pinned desc, created_at desc)
+        where deleted_at is null
+    `;
+
+    // 8. Seed admin module roles ONLY for users already marked
+    //    `users.role = 'admin'`. Everyone else gets ZERO module grants
+    //    here — they keep their current legacy access via users.role
+    //    and surface in the admin "Pending role assignment" queue
+    //    (Phase 3 UI) so an admin can grant CRM / Projects / Storage
+    //    explicitly. This matches the user's "do not auto-assign,
+    //    route to a reassignment surface" rule.
+    await q`
+      insert into user_module_roles (user_id, module, role)
+      select id, 'admin', 'admin' from users where role = 'admin'
+      on conflict do nothing
+    `;
+
+    // 9. Catch-up Default-Project backfill. The original
+    //    projects_foundation flag fired on 2026-04-26; since then 25
+    //    folders and 29 quotations were created without a project_id.
+    //    Re-run the same idempotent INSERT/UPDATE so the upcoming
+    //    Phase 2 UI (which filters by project_id) sees every row.
+    //    Identical wording — NOT EXISTS / IS NULL — keeps this a no-op
+    //    for rows already migrated.
+    await q`
+      insert into projects (folder_id, owner_id, name, description, status)
+      select cf.id, cf.owner_id, 'Default Project',
+             'Auto-created when projects were introduced — feel free to rename or split into more focused projects.',
+             'open'
+      from client_folders cf
+      where cf.deleted_at is null
+        and not exists (
+          select 1 from projects p
+          where p.folder_id = cf.id and p.deleted_at is null
+        )
+    `;
+    await q`
+      update quotations
+      set project_id = p.id
+      from projects p
+      where quotations.folder_id = p.folder_id
+        and quotations.project_id is null
+        and quotations.deleted_at is null
+        and p.deleted_at is null
+        and p.name = 'Default Project'
+    `;
+    await q`
+      update purchase_orders
+      set project_id = p.id
+      from projects p
+      where purchase_orders.folder_id = p.folder_id
+        and purchase_orders.project_id is null
+        and purchase_orders.deleted_at is null
+        and p.deleted_at is null
+        and p.name = 'Default Project'
+    `;
+
+    await q`
+      insert into migration_flags (key) values (${MODULE_RBAC_V1_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!moduleRbacRevokeApplied) {
+    // Soft-revoke for user_module_roles. We never DELETE a grant: the
+    // PATCH endpoint sets revoked_at + revoked_by so "who had access
+    // when" is permanently auditable, and re-granting later is a fresh
+    // INSERT into the same composite key with revoked_at NULL. Active
+    // grants are filtered with `revoked_at is null` everywhere.
+    await q`
+      alter table user_module_roles
+        add column if not exists revoked_at timestamptz
+    `;
+    await q`
+      alter table user_module_roles
+        add column if not exists revoked_by integer references users(id) on delete set null
+    `;
+    await q`
+      create index if not exists user_module_roles_active_idx
+        on user_module_roles(user_id, module)
+        where revoked_at is null
+    `;
+
+    await q`
+      insert into migration_flags (key) values (${MODULE_RBAC_REVOKE_FLAG})
       on conflict (key) do nothing
     `;
   }

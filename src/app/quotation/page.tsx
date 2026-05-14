@@ -3,6 +3,7 @@ import { getSessionUser, type SessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import { getAppSettings } from "@/lib/settings";
 import TopBar from "@/components/TopBar";
+import NewsBar from "@/components/NewsBar";
 import QuotationViewer from "@/components/QuotationViewer";
 import FolderExportImport from "@/components/FolderExportImport";
 import QuotationsPageTabs from "@/components/QuotationsPageTabs";
@@ -188,6 +189,7 @@ export default async function QuotationPage({
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
       <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
+        <NewsBar />
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-magic-ink">
             Clients &amp; Quotations

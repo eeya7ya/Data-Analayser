@@ -7,8 +7,70 @@ import Image from "next/image";
 import type { SessionUser } from "@/lib/auth";
 import { loadEditingContext } from "@/lib/quotationDraft";
 
+interface ModuleRole {
+  module: string;
+  role: string;
+}
+
 export default function TopBar({ user }: { user: SessionUser }) {
   const router = useRouter();
+  // Module roles drive which nav entries appear. We fetch them client-
+  // side so a role grant takes effect on the next render without
+  // having to re-issue the JWT. While the fetch is in flight the
+  // legacy CRM links are visible to everyone (matching pre-V2.0
+  // behaviour) — denying them mid-flight would flash the nav.
+  const [moduleRoles, setModuleRoles] = useState<ModuleRole[] | null>(null);
+  const [approvalCount, setApprovalCount] = useState<number>(0);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/auth/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: { module_roles?: ModuleRole[] }) => {
+        if (!cancelled && Array.isArray(data.module_roles)) {
+          setModuleRoles(data.module_roles);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setModuleRoles([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  // Approval-inbox badge. Poll once on mount; the page reload that
+  // happens after approving/rejecting will refresh the count anyway.
+  // Non-managers get 0 from the endpoint so the badge stays hidden.
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/inbox/approvals/count", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: { total?: number }) => {
+        if (!cancelled && typeof data.total === "number") {
+          setApprovalCount(data.total);
+        }
+      })
+      .catch(() => {
+        // soft-fail: badge stays at 0
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const isAdmin = user.role === "admin";
+  // Pessimistic until roles arrive: only admins see the projects link
+  // before the fetch completes. For anyone else, a brief absence of
+  // the link is better than a brief flash of an entry we have to hide.
+  const hasProjectsAccess =
+    isAdmin || (moduleRoles?.some((r) => r.module === "projects") ?? false);
+  const hasStorageAccess =
+    isAdmin || (moduleRoles?.some((r) => r.module === "storage") ?? false);
+  const isApprovalManager =
+    isAdmin ||
+    (moduleRoles?.some(
+      (r) =>
+        r.module === "crm" &&
+        (r.role === "sales_manager" || r.role === "presales_manager"),
+    ) ?? false);
   // The Designer can only be entered with an editing context (either an
   // existing quotation id or a pre-selected client folder) — the route
   // itself gates direct access and redirects to /quotation. So here we
@@ -70,6 +132,21 @@ export default function TopBar({ user }: { user: SessionUser }) {
           <NavLink href="/catalog">Catalogue</NavLink>
           <NavLink href="/ai-designer">AI Designer</NavLink>
           <NavLink href="/purchase-orders">Purchase Orders</NavLink>
+          {hasProjectsAccess && <NavLink href="/projects">Projects</NavLink>}
+          {hasStorageAccess && <NavLink href="/storage">Storage</NavLink>}
+          {isApprovalManager && (
+            <NavLink href="/inbox/approvals">
+              Approvals
+              {approvalCount > 0 && (
+                <span
+                  aria-label={`${approvalCount} pending`}
+                  className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded-full bg-magic-red text-white text-[10px] font-bold px-1.5"
+                >
+                  {approvalCount > 99 ? "99+" : approvalCount}
+                </span>
+              )}
+            </NavLink>
+          )}
           {user.role === "admin" && <NavLink href="/admin">Admin</NavLink>}
           <span className="ml-3 hidden md:inline-flex items-center gap-1.5 rounded-full border border-magic-border/60 bg-white/60 px-3 py-1 text-[11px] font-medium text-magic-ink/70">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />

@@ -9,6 +9,7 @@ import QuotationPreview, {
 import { DEFAULT_TERMS } from "@/lib/quotationDraft";
 import type { AppSettings } from "@/lib/settings";
 import { runQuotationPrint } from "@/lib/printQuotation";
+import QuotationApprovalBar from "./QuotationApprovalBar";
 
 interface SavedConfig {
   showPictures?: boolean;
@@ -279,8 +280,21 @@ export default function QuotationViewer({
     setBoqMode(true);
   }
 
+  const approvalState = {
+    sales_approved_by: (row.sales_approved_by as number | null) ?? null,
+    sales_approved_at: (row.sales_approved_at as string | null) ?? null,
+    presales_approved_by: (row.presales_approved_by as number | null) ?? null,
+    presales_approved_at: (row.presales_approved_at as string | null) ?? null,
+    approved_at: (row.approved_at as string | null) ?? null,
+    accepted_at: (row.accepted_at as string | null) ?? null,
+    rejected_at: (row.rejected_at as string | null) ?? null,
+    rejected_by: (row.rejected_by as number | null) ?? null,
+    rejected_reason: (row.rejected_reason as string | null) ?? null,
+  };
+
   return (
     <div>
+      <QuotationApprovalBar quotationId={id} initial={approvalState} />
       <div className="no-print flex justify-end mb-3 gap-2">
         <button
           onClick={() => router.push(`/designer?id=${id}`)}
