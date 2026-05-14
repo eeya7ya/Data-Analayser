@@ -208,8 +208,8 @@ export async function GET() {
       ].join("\n"),
     );
 
-    const blob = await zip.generateAsync({
-      type: "uint8array",
+    const bytes = await zip.generateAsync({
+      type: "nodebuffer",
       compression: "DEFLATE",
       compressionOptions: { level: 6 },
     });
@@ -220,12 +220,13 @@ export async function GET() {
       .replace("Z", "Z");
     const filename = `magictech-backup-${stamp}.zip`;
 
-    return new NextResponse(blob, {
+    const body = new Blob([new Uint8Array(bytes)], { type: "application/zip" });
+    return new NextResponse(body, {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${filename}"`,
-        "Content-Length": String(blob.byteLength),
+        "Content-Length": String(bytes.byteLength),
         "Cache-Control": "no-store",
       },
     });
