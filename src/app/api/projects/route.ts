@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { requireModuleAllowLegacy } from "@/lib/modules";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,7 @@ type ProjectRow = {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
+    await requireModuleAllowLegacy(user, "crm");
     await ensureSchema();
     const { searchParams } = new URL(req.url);
     const idParam = searchParams.get("id");
@@ -121,6 +123,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
+    await requireModuleAllowLegacy(user, "crm");
     await ensureSchema();
     const body = (await req.json()) as {
       folder_id?: number;
@@ -176,6 +179,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireUser();
+    await requireModuleAllowLegacy(user, "crm");
     await ensureSchema();
     const { searchParams } = new URL(req.url);
     const id = Number(searchParams.get("id"));
@@ -248,6 +252,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireUser();
+    await requireModuleAllowLegacy(user, "crm");
     await ensureSchema();
     const { searchParams } = new URL(req.url);
     const id = Number(searchParams.get("id"));

@@ -105,6 +105,58 @@ export async function requireModule(
   throw new Error("FORBIDDEN");
 }
 
+/**
+ * Legacy-aware module gate used by routes that existed before V2.0.
+ *
+ * Resolution order:
+ *   1. Admin (users.role = 'admin') → always allowed.
+ *   2. User holds any active role in `module` → allowed.
+ *   3. User holds NO active module roles at all → allowed AND a
+ *      "legacy_bypass" audit entry is written so admins see who would
+ *      have been blocked. This is the transitional safety valve for
+ *      the 3 existing users who don't have module grants yet — the
+ *      moment an admin grants them ANY role (anywhere), this branch
+ *      stops firing and strict enforcement kicks in for them.
+ *   4. User holds module roles but none in `module` → FORBIDDEN.
+ *
+ * The audit log lets admins triage who to grant explicitly without
+ * breaking anyone's workflow during the transition.
+ */
+export async function requireModuleAllowLegacy(
+  user: SessionUser,
+  module: Module,
+): Promise<void> {
+  if (user.role === "admin") return;
+  if (await hasModule(user.id, module)) return;
+
+  const q = sql();
+  const anyRoles = (await q`
+    select 1 as ok from user_module_roles
+    where user_id = ${user.id} and revoked_at is null
+    limit 1
+  `) as Array<{ ok: number }>;
+
+  if (anyRoles.length === 0) {
+    // Legacy bypass. Log it so the admin can see who needs explicit grants.
+    // The activity_log INSERT is fire-and-forget for latency — we don't
+    // want a slow log write to block the request, but we do want every
+    // bypass recorded. Errors are swallowed because logging failure
+    // shouldn't deny the actual request.
+    try {
+      await q`
+        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        values (${user.id}, 'module_access', 0, 'legacy_bypass',
+                ${JSON.stringify({ module })}::jsonb)
+      `;
+    } catch {
+      // ignore — never block a request because audit logging failed
+    }
+    return;
+  }
+
+  throw new Error("FORBIDDEN");
+}
+
 /** Throw FORBIDDEN unless the user holds (module, role). Admin override applies. */
 export async function requireModuleRole(
   user: SessionUser,
