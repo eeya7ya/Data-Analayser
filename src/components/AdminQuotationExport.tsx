@@ -47,23 +47,13 @@ export default function AdminQuotationExport() {
       // bundle — they're only fetched on first click of this button.
       const [
         { default: JSZip },
-        jsPDFModule,
-        html2canvasModule,
+        { jsPDF },
+        { default: html2canvas },
       ] = await Promise.all([
         import("jszip"),
         import("jspdf"),
         import("html2canvas"),
       ]);
-      // jspdf and html2canvas both ship default + named exports; pick
-      // whichever is callable so the import shape is forgiving.
-      const jsPDF =
-        (jsPDFModule as unknown as { default?: typeof import("jspdf").jsPDF; jsPDF?: typeof import("jspdf").jsPDF })
-          .default ||
-        (jsPDFModule as unknown as { jsPDF: typeof import("jspdf").jsPDF }).jsPDF;
-      const html2canvas =
-        (html2canvasModule as unknown as { default?: typeof import("html2canvas") })
-          .default ||
-        (html2canvasModule as unknown as typeof import("html2canvas"));
 
       const listRes = await fetch("/api/quotations", { cache: "no-store" });
       if (!listRes.ok) {
