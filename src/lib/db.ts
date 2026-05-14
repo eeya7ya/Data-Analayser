@@ -252,6 +252,13 @@ const PROJECTS_FOUNDATION_FLAG = "projects_foundation_v1_2026_04";
  */
 const MODULE_RBAC_V1_FLAG = "crm_v2_module_rbac_v1_2026_05";
 
+/**
+ * V2.0 Phase 2 — soft-revoke for user_module_roles. We never DELETE a role
+ * grant; revocation flips `revoked_at` so the audit trail of "who had what
+ * when" is permanent. Active grants are filtered with `revoked_at IS NULL`.
+ */
+const MODULE_RBAC_REVOKE_FLAG = "crm_v2_module_rbac_revoke_v1_2026_05";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -285,7 +292,8 @@ export async function resetSchemaCache(): Promise<void> {
       ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
       ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
       ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
-      ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG}
+      ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
+      ${MODULE_RBAC_REVOKE_FLAG}
     )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
@@ -319,6 +327,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let cataloguePictureApplied = false;
   let projectsFoundationApplied = false;
   let moduleRbacApplied = false;
+  let moduleRbacRevokeApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -328,7 +337,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${CRM_TASKS_FLAG}, ${CRM_WORKFLOWS_FLAG}, ${CRM_TEAMS_FLAG},
         ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
         ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
-        ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG}
+        ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
+        ${MODULE_RBAC_REVOKE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -349,6 +359,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     cataloguePictureApplied = keys.has(CATALOGUE_PICTURE_FLAG);
     projectsFoundationApplied = keys.has(PROJECTS_FOUNDATION_FLAG);
     moduleRbacApplied = keys.has(MODULE_RBAC_V1_FLAG);
+    moduleRbacRevokeApplied = keys.has(MODULE_RBAC_REVOKE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -371,7 +382,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     purchaseOrdersApplied &&
     cataloguePictureApplied &&
     projectsFoundationApplied &&
-    moduleRbacApplied
+    moduleRbacApplied &&
+    moduleRbacRevokeApplied
   )
     return;
 
@@ -1639,6 +1651,32 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${MODULE_RBAC_V1_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!moduleRbacRevokeApplied) {
+    // Soft-revoke for user_module_roles. We never DELETE a grant: the
+    // PATCH endpoint sets revoked_at + revoked_by so "who had access
+    // when" is permanently auditable, and re-granting later is a fresh
+    // INSERT into the same composite key with revoked_at NULL. Active
+    // grants are filtered with `revoked_at is null` everywhere.
+    await q`
+      alter table user_module_roles
+        add column if not exists revoked_at timestamptz
+    `;
+    await q`
+      alter table user_module_roles
+        add column if not exists revoked_by integer references users(id) on delete set null
+    `;
+    await q`
+      create index if not exists user_module_roles_active_idx
+        on user_module_roles(user_id, module)
+        where revoked_at is null
+    `;
+
+    await q`
+      insert into migration_flags (key) values (${MODULE_RBAC_REVOKE_FLAG})
       on conflict (key) do nothing
     `;
   }
