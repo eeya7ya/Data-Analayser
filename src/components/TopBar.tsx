@@ -42,6 +42,15 @@ export default function TopBar({ user }: { user: SessionUser }) {
   // the link is better than a brief flash of an entry we have to hide.
   const hasProjectsAccess =
     isAdmin || (moduleRoles?.some((r) => r.module === "projects") ?? false);
+  const hasStorageAccess =
+    isAdmin || (moduleRoles?.some((r) => r.module === "storage") ?? false);
+  const isApprovalManager =
+    isAdmin ||
+    (moduleRoles?.some(
+      (r) =>
+        r.module === "crm" &&
+        (r.role === "sales_manager" || r.role === "presales_manager"),
+    ) ?? false);
   // The Designer can only be entered with an editing context (either an
   // existing quotation id or a pre-selected client folder) — the route
   // itself gates direct access and redirects to /quotation. So here we
@@ -104,6 +113,10 @@ export default function TopBar({ user }: { user: SessionUser }) {
           <NavLink href="/ai-designer">AI Designer</NavLink>
           <NavLink href="/purchase-orders">Purchase Orders</NavLink>
           {hasProjectsAccess && <NavLink href="/projects">Projects</NavLink>}
+          {hasStorageAccess && <NavLink href="/storage">Storage</NavLink>}
+          {isApprovalManager && (
+            <NavLink href="/inbox/approvals">Approvals</NavLink>
+          )}
           {user.role === "admin" && <NavLink href="/admin">Admin</NavLink>}
           <span className="ml-3 hidden md:inline-flex items-center gap-1.5 rounded-full border border-magic-border/60 bg-white/60 px-3 py-1 text-[11px] font-medium text-magic-ink/70">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
