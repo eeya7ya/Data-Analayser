@@ -4,9 +4,11 @@ import { useRef, useState } from "react";
 import UserManager from "./UserManager";
 import AdminSettings from "./AdminSettings";
 import AdminQuotationExport from "./AdminQuotationExport";
+import ModuleRolesPanel from "./ModuleRolesPanel";
+import FolderClassificationPanel from "./FolderClassificationPanel";
 import type { AppSettings } from "@/lib/settings";
 
-type Tab = "users" | "settings" | "database" | "export";
+type Tab = "users" | "modules" | "folders" | "settings" | "database" | "export";
 
 export default function AdminTabs({
   initialSettings,
@@ -20,6 +22,12 @@ export default function AdminTabs({
       <div className="flex items-center gap-2 border-b border-magic-border">
         <TabButton active={tab === "users"} onClick={() => setTab("users")}>
           Users
+        </TabButton>
+        <TabButton active={tab === "modules"} onClick={() => setTab("modules")}>
+          Modules
+        </TabButton>
+        <TabButton active={tab === "folders"} onClick={() => setTab("folders")}>
+          Folders
         </TabButton>
         <TabButton
           active={tab === "settings"}
@@ -45,6 +53,24 @@ export default function AdminTabs({
         <section>
           <h2 className="text-lg font-semibold text-magic-ink mb-3">Users</h2>
           <UserManager />
+        </section>
+      )}
+
+      {tab === "modules" && (
+        <section>
+          <h2 className="text-lg font-semibold text-magic-ink mb-3">
+            Module roles
+          </h2>
+          <ModuleRolesPanel />
+        </section>
+      )}
+
+      {tab === "folders" && (
+        <section>
+          <h2 className="text-lg font-semibold text-magic-ink mb-3">
+            Folder classification
+          </h2>
+          <FolderClassificationPanel />
         </section>
       )}
 
