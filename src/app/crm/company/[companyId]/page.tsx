@@ -168,7 +168,7 @@ export default async function CompanyDetailPage({
             initial={folderRows}
             newClientKind="company"
             companyId={companyId}
-            linkBase="/folder"
+            linkBase={`/crm/company/${companyId}/clients`}
             newLabel="+ New client"
             searchPlaceholder="Search client name, email, phone…"
             emptyHint="No clients yet. Use + New client to add the first contact at this company."

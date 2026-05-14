@@ -2,7 +2,7 @@ import ProjectQuotationViewerSection from "@/components/ProjectQuotationViewerSe
 
 export const dynamic = "force-dynamic";
 
-export default async function LegacyProjectQuotationViewer({
+export default async function IndividualProjectQuotationViewer({
   params,
 }: {
   params: Promise<{ projectId: string; qId: string }>;

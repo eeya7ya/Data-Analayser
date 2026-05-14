@@ -2,7 +2,7 @@ import ProjectBoqsTabSection from "@/components/ProjectBoqsTabSection";
 
 export const dynamic = "force-dynamic";
 
-export default async function LegacyProjectBoqsTab({
+export default async function CompanyProjectBoqsTab({
   params,
 }: {
   params: Promise<{ clientId: string; projectId: string }>;

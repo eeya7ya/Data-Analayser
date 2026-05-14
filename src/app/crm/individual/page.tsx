@@ -87,7 +87,7 @@ export default async function IndividualListPage() {
           initial={folderRows}
           newClientKind="individual"
           companyId={null}
-          linkBase="/folder"
+          linkBase="/crm/individual"
           newLabel="+ New individual"
           searchPlaceholder="Search name, email, phone…"
           emptyHint="No individual clients yet. Use + New individual to add the first one."
