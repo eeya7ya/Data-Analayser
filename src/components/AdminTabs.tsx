@@ -6,9 +6,17 @@ import AdminSettings from "./AdminSettings";
 import AdminQuotationExport from "./AdminQuotationExport";
 import ModuleRolesPanel from "./ModuleRolesPanel";
 import FolderClassificationPanel from "./FolderClassificationPanel";
+import NewsAdminPanel from "./NewsAdminPanel";
 import type { AppSettings } from "@/lib/settings";
 
-type Tab = "users" | "modules" | "folders" | "settings" | "database" | "export";
+type Tab =
+  | "users"
+  | "modules"
+  | "folders"
+  | "news"
+  | "settings"
+  | "database"
+  | "export";
 
 export default function AdminTabs({
   initialSettings,
@@ -28,6 +36,9 @@ export default function AdminTabs({
         </TabButton>
         <TabButton active={tab === "folders"} onClick={() => setTab("folders")}>
           Folders
+        </TabButton>
+        <TabButton active={tab === "news"} onClick={() => setTab("news")}>
+          News
         </TabButton>
         <TabButton
           active={tab === "settings"}
@@ -71,6 +82,15 @@ export default function AdminTabs({
             Folder classification
           </h2>
           <FolderClassificationPanel />
+        </section>
+      )}
+
+      {tab === "news" && (
+        <section>
+          <h2 className="text-lg font-semibold text-magic-ink mb-3">
+            Dashboard announcements
+          </h2>
+          <NewsAdminPanel />
         </section>
       )}
 

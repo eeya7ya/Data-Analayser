@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { hasModule, hasModuleRole } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 import ProjectAssignmentsPanel from "@/components/ProjectAssignmentsPanel";
+import RequestStockButton from "@/components/RequestStockButton";
 
 export const dynamic = "force-dynamic";
 
@@ -119,9 +120,12 @@ export default async function ProjectDetailPage({
           >
             ← All projects
           </Link>
-          <h1 className="text-2xl font-bold text-magic-ink mt-1">
-            {project.name}
-          </h1>
+          <div className="flex items-start justify-between gap-3 mt-1">
+            <h1 className="text-2xl font-bold text-magic-ink">
+              {project.name}
+            </h1>
+            <RequestStockButton projectId={id} />
+          </div>
           <div className="mt-1 text-sm text-magic-ink/60 flex flex-wrap items-center gap-2">
             <span>Status: {project.status}</span>
             {project.folder_name && (
