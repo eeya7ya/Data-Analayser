@@ -238,6 +238,26 @@ export default function Designer({
   // user's per-id edit draft before the next render fixed it up.
   const [hydrated, setHydrated] = useState(false);
 
+  // (see also the cleanup effect below: once `existing.id` changes away
+  // from the suppressed id, the snapshot guard is released so a later
+  // return to the parent quotation autosaves edits normally again).
+  //
+  // Records the parent-quotation id whose edit-draft autosave should be
+  // suppressed because a "Save as Draft" / "Save as Review" snapshot was
+  // taken from it. The autosave effect below checks this against
+  // `existing.id` and bails out, so the sequence
+  //   1. user edits parent  →  effect writes localStorage
+  //   2. user clicks "Save as Draft"  →  new snapshot POSTed
+  //   3. saveQuotation() calls clearEditDraft(parent.id)
+  //   4. setSaving(false) in `finally` triggers one more render
+  //   5. autosave effect would normally re-write the parent's slot
+  // can no longer leak the parent's UI changes back into its localStorage.
+  // Scoping by id (instead of a plain boolean) is important because the
+  // Designer doesn't unmount across the router.push to the new snapshot —
+  // the same component instance re-renders with `existing` pointing to
+  // the draft, and we WANT autosave to resume for that id.
+  const snapshotSavingForIdRef = useRef<number | null>(null);
+
   // Presales Engineer for this session — always anchored to the logged-in
   // user so an admin signed in after a sales engineer on the same browser
   // never inherits the previous person's name. Edit mode still lets saved
@@ -528,10 +548,19 @@ export default function Designer({
           mergedItems.push(staged);
         }
       }
-      const combined = mergedItems.map((it, i) => ({
-        ...it,
-        no: i + 1,
-      }));
+      // Per-system numbering matches QuotationPreview's `renumber()` so the
+      // initial load is consistent with what every later mutation produces
+      // (add / remove / reorder all run through renumber too). Without this
+      // the table briefly showed global running numbers on first paint and
+      // then "jumped" to per-system numbering on the next edit.
+      const perSystemCounter = new Map<string, number>();
+      const combined = mergedItems.map((it) => {
+        if (it.kind === "section") return { ...it, no: 0 };
+        const sys = it.system || it.brand || "General";
+        const next = (perSystemCounter.get(sys) ?? 0) + 1;
+        perSystemCounter.set(sys, next);
+        return { ...it, no: next };
+      });
       setItems(combined);
       if (stagedItems.length > 0) clearDraft();
 
@@ -926,6 +955,13 @@ export default function Designer({
   // cleared from saveQuotation() once the server confirms the PATCH.
   useEffect(() => {
     if (!hydrated || !editMode || !existing) return;
+    // Snapshot save in progress for THIS quotation — skip persisting the
+    // in-flight edits so they don't leak back into the parent quotation's
+    // localStorage slot after saveQuotation() has already cleared it. See
+    // `snapshotSavingForIdRef` for the full sequence this prevents. The
+    // check is scoped to existing.id so the new draft/review (which the
+    // router.push will swap us over to) gets normal autosave behaviour.
+    if (snapshotSavingForIdRef.current === existing.id) return;
     saveEditDraft(existing.id, {
       items,
       terms,
@@ -974,6 +1010,23 @@ export default function Designer({
     if (!hydrated) return;
     syncDraftTaxContext(taxInclusive, taxPercent);
   }, [hydrated, taxInclusive, taxPercent]);
+
+  // ── Release the snapshot-save autosave guard on navigation ──────────────
+  // After a "Save as Draft" / "Save as Review" succeeds, saveQuotation()
+  // pins `snapshotSavingForIdRef` to the parent's id and then router.pushes
+  // to the new snapshot. Once the Designer rerenders with the snapshot's
+  // `existing` (a different id), the guard has served its purpose; clear
+  // it so that later, if the user navigates back to the original parent,
+  // their fresh edits autosave normally instead of being silently dropped.
+  useEffect(() => {
+    if (!existing) return;
+    if (
+      snapshotSavingForIdRef.current != null &&
+      snapshotSavingForIdRef.current !== existing.id
+    ) {
+      snapshotSavingForIdRef.current = null;
+    }
+  }, [existing]);
 
   // ── Restore last-used saved quotation on fresh /designer load ─────────────
   // If the user landed on /designer with no ?id= query string but there's
@@ -1062,6 +1115,16 @@ export default function Designer({
     if (mode === "save" && !editMode && !folderId) {
       alert("Please select or create a client before saving the quotation.");
       return;
+    }
+    // Flip the autosave guard ON before any state mutation that triggers a
+    // re-render — once setSaving(true) below schedules its render, the
+    // per-id edit-draft effect will read this ref and bail out. Active
+    // saves are untouched (the guard only short-circuits the snapshot
+    // path) because the active path's in-flight values match what we're
+    // about to write to the DB anyway.
+    const isSnapshotSave = mode === "draft" || mode === "review";
+    if (isSnapshotSave && existing) {
+      snapshotSavingForIdRef.current = existing.id;
     }
     setSaving(true);
     setSaveStatus("");
@@ -1222,6 +1285,13 @@ export default function Designer({
       router.refresh();
       router.push(`/quotation?id=${data.quotation.id}`);
     } catch (err) {
+      // Snapshot save failed — release the autosave guard so the user's
+      // continuing edits start persisting to localStorage again. On the
+      // success branch we deliberately leave the ref pinned to the parent
+      // id because the router.push has already swapped `existing` over to
+      // the new snapshot, so the ref no longer matches and autosave is
+      // free to run for the new draft / review.
+      if (isSnapshotSave) snapshotSavingForIdRef.current = null;
       setSaveStatus(`Error: ${(err as Error).message}`);
       alert((err as Error).message);
     } finally {
