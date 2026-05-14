@@ -212,6 +212,18 @@ body > * {
   print-color-adjust: exact;
 }
 
+/* Drag-and-drop reorder feedback. The dragged row dims to ~40 % opacity
+ * so the user can tell which row left, and the row currently hovered
+ * over picks up a magic-red top border that doubles as the insertion
+ * indicator. The classes are only present while the gesture is in
+ * flight (runtime state), so printed output is never affected. */
+.quotation-sheet tr.qt-row-dragging > td {
+  opacity: 0.4;
+}
+.quotation-sheet tr.qt-row-drop-target > td {
+  box-shadow: inset 0 2px 0 0 var(--mt-red);
+}
+
 .quotation-sheet .footer-address {
   background: var(--mt-header);
   color: var(--mt-red);

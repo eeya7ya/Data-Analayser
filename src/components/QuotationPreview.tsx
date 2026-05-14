@@ -729,6 +729,32 @@ export default function QuotationPreview({
     setItems(renumber(next));
   }
 
+  /**
+   * Move a row to a new position in the same system group via drag-and-drop.
+   * `fromGlobal` and `toGlobal` are indices into the live `items` array.
+   * Cross-group drops are rejected here so the existing "never interleave
+   * systems" invariant — already enforced by moveRowToNo / moveSectionRow —
+   * stays intact when the dragged row would otherwise land on a sibling in
+   * another system's table.
+   */
+  function moveRowWithinGroup(fromGlobal: number, toGlobal: number) {
+    if (!setItems) return;
+    if (fromGlobal === toGlobal) return;
+    const fromItem = items[fromGlobal];
+    const toItem = items[toGlobal];
+    if (!fromItem || !toItem) return;
+    const fromKey = fromItem.system || fromItem.brand || "General";
+    const toKey = toItem.system || toItem.brand || "General";
+    if (fromKey !== toKey) return;
+    const next = items.slice();
+    const [moved] = next.splice(fromGlobal, 1);
+    // After splice the trailing indices shift back by one, so the target
+    // slot needs the same adjustment when dragging downward.
+    const insertAt = toGlobal > fromGlobal ? toGlobal - 1 : toGlobal;
+    next.splice(insertAt, 0, moved);
+    setItems(renumber(next));
+  }
+
   /** Duplicate a row, inserting the copy right after the original. */
   function duplicateRow(globalIndex: number) {
     if (!setItems) return;
@@ -1148,6 +1174,7 @@ export default function QuotationPreview({
             onToggleMergeLeft={toggleMergeLeft}
             onToggleOptional={toggleOptional}
             onMoveSection={moveSectionRow}
+            onMoveRow={moveRowWithinGroup}
             onRenameExtraColumn={renameExtraColumn}
             onRemoveExtraColumn={removeExtraColumn}
             onPasteColumn={pasteColumnFromClipboard}
@@ -1683,6 +1710,7 @@ function SystemTable({
   onToggleMergeLeft,
   onToggleOptional,
   onMoveSection,
+  onMoveRow,
   onRenameExtraColumn,
   onRemoveExtraColumn,
   onPasteColumn,
@@ -1710,6 +1738,12 @@ function SystemTable({
    * No" input — these arrows are their dedicated reorder UI.
    */
   onMoveSection: (globalIndex: number, dir: -1 | 1) => void;
+  /**
+   * Reorder a row inside its system group via drag-and-drop. Both indices
+   * are into the live `items` array; the parent rejects cross-group drops
+   * so the table can't accidentally interleave two systems.
+   */
+  onMoveRow: (fromGlobal: number, toGlobal: number) => void;
   onRenameExtraColumn: (id: string, label: string) => void;
   onRemoveExtraColumn: (id: string) => void;
   /**
@@ -1720,6 +1754,16 @@ function SystemTable({
    */
   onPasteColumn: (system: string, colKey: string) => Promise<void> | void;
 }) {
+  // ── Drag-and-drop reorder state ────────────────────────────────────
+  // `dragGlobalIndex` is the live items[] index of the row currently
+  // being dragged from its "≡" handle. `dropTargetIndex` is the row
+  // we're hovering over (also a live items[] index) so we can render a
+  // thin red insertion bar without re-painting the whole table on every
+  // mousemove. Both live inside SystemTable so each system page tracks
+  // its own drag independently; HTML5 drag events fire on the source's
+  // <tr> too, so this scope is sufficient.
+  const [dragGlobalIndex, setDragGlobalIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   // Base = No, Brand, Model, Description, [Picture], Quantity, Delivery,
   // Unit Price, Total Price — plus one cell per manual column. In BoQ
   // mode the two pricing columns (Unit Price, Total Price) drop out, so
@@ -1927,6 +1971,78 @@ function SystemTable({
           </tr>
         )}
         {(() => {
+          // ── Drag-and-drop helpers ────────────────────────────────────────
+          // The drag handle on each row's "No" cell uses these to set / clear
+          // drag state. Drop targets (the full <tr>) preventDefault on
+          // dragover so the browser allows a drop, then on drop the parent's
+          // `onMoveRow` shuffles items[] and renumbers in one go.
+          //
+          // We keep state scoped to this SystemTable, so a drag started in
+          // group A only highlights drop slots inside group A — there's no
+          // single global cross-group drag state. That mirrors the existing
+          // moveRowToNo contract which already refused cross-group jumps.
+          const onHandleDragStart =
+            (globalIndex: number) => (e: React.DragEvent<HTMLElement>) => {
+              if (!editable) return;
+              setDragGlobalIndex(globalIndex);
+              e.dataTransfer.effectAllowed = "move";
+              try {
+                // Some browsers refuse to fire dragover without payload.
+                e.dataTransfer.setData("text/plain", String(globalIndex));
+              } catch {
+                /* ignore — Safari quirks */
+              }
+              // Use the whole row as the ghost so the user sees what's
+              // being dragged instead of a tiny "≡" handle floating around.
+              const tr = (e.currentTarget as HTMLElement).closest("tr");
+              if (tr) {
+                try {
+                  e.dataTransfer.setDragImage(tr, 12, 12);
+                } catch {
+                  /* ignore — older Safari */
+                }
+              }
+            };
+          const onHandleDragEnd = () => {
+            setDragGlobalIndex(null);
+            setDropTargetIndex(null);
+          };
+          const onRowDragOver =
+            (globalIndex: number) => (e: React.DragEvent<HTMLTableRowElement>) => {
+              if (!editable || dragGlobalIndex == null) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              if (dropTargetIndex !== globalIndex) {
+                setDropTargetIndex(globalIndex);
+              }
+            };
+          const onRowDragLeave =
+            (globalIndex: number) => () => {
+              if (dropTargetIndex === globalIndex) setDropTargetIndex(null);
+            };
+          const onRowDrop =
+            (globalIndex: number) => (e: React.DragEvent<HTMLTableRowElement>) => {
+              if (!editable || dragGlobalIndex == null) return;
+              e.preventDefault();
+              const from = dragGlobalIndex;
+              setDragGlobalIndex(null);
+              setDropTargetIndex(null);
+              if (from === globalIndex) return;
+              onMoveRow(from, globalIndex);
+            };
+          const dragHandle = (globalIndex: number) =>
+            editable ? (
+              <span
+                draggable
+                onDragStart={onHandleDragStart(globalIndex)}
+                onDragEnd={onHandleDragEnd}
+                title="Drag to reorder this row within the same page"
+                aria-label="Drag to reorder row"
+                className="no-print inline-flex h-5 w-4 cursor-grab items-center justify-center select-none text-magic-ink/40 hover:text-magic-red active:cursor-grabbing"
+              >
+                ≡
+              </span>
+            ) : null;
           // Bounds for the "jump to No" input. Section rows carry no=0
           // (they're skipped by renumber), so derive the bounds from
           // item rows only — otherwise typing "1" would snap to a
@@ -1942,14 +2058,30 @@ function SystemTable({
             // price — pure visual sub-section break inside the system
             // table. Editable: inline label input + small move/delete
             // controls that vanish on print.
+            const isDropTarget =
+              editable &&
+              dragGlobalIndex != null &&
+              dropTargetIndex === globalIndex &&
+              dragGlobalIndex !== globalIndex;
+            const isBeingDragged =
+              editable && dragGlobalIndex === globalIndex;
             return (
-              <tr key={globalIndex} className="section-row">
+              <tr
+                key={globalIndex}
+                className={`section-row ${
+                  isDropTarget ? "qt-row-drop-target" : ""
+                } ${isBeingDragged ? "qt-row-dragging" : ""}`}
+                onDragOver={onRowDragOver(globalIndex)}
+                onDragLeave={onRowDragLeave(globalIndex)}
+                onDrop={onRowDrop(globalIndex)}
+              >
                 <td
                   colSpan={colCount}
                   className="bg-magic-soft text-magic-red font-bold uppercase tracking-wide text-[12px] py-2 px-3 text-left"
                 >
                   {editable ? (
                     <div className="flex items-center gap-2">
+                      {dragHandle(globalIndex)}
                       <span aria-hidden className="opacity-60">§</span>
                       <input
                         className="flex-1 bg-transparent font-bold uppercase tracking-wide text-magic-red placeholder:text-magic-red/40"
@@ -1995,16 +2127,34 @@ function SystemTable({
             );
           }
           const hPlan = computeHRowPlan(item, plan.skip, rowIdx);
+          const isDropTarget =
+            editable &&
+            dragGlobalIndex != null &&
+            dropTargetIndex === globalIndex &&
+            dragGlobalIndex !== globalIndex;
+          const isBeingDragged =
+            editable && dragGlobalIndex === globalIndex;
           return (
-          <tr key={globalIndex}>
+          <tr
+            key={globalIndex}
+            className={`${isDropTarget ? "qt-row-drop-target" : ""} ${
+              isBeingDragged ? "qt-row-dragging" : ""
+            }`.trim()}
+            onDragOver={onRowDragOver(globalIndex)}
+            onDragLeave={onRowDragLeave(globalIndex)}
+            onDrop={onRowDrop(globalIndex)}
+          >
             <td>
               {editable ? (
-                <RowNoJump
-                  value={item.no}
-                  min={groupMinNo}
-                  max={groupMaxNo}
-                  onJump={(n) => onJumpTo(globalIndex, n)}
-                />
+                <div className="flex items-center justify-center gap-1">
+                  {dragHandle(globalIndex)}
+                  <RowNoJump
+                    value={item.no}
+                    min={groupMinNo}
+                    max={groupMaxNo}
+                    onJump={(n) => onJumpTo(globalIndex, n)}
+                  />
+                </div>
               ) : (
                 <span>{item.no}</span>
               )}
