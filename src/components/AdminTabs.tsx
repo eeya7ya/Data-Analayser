@@ -3,9 +3,10 @@
 import { useState } from "react";
 import UserManager from "./UserManager";
 import AdminSettings from "./AdminSettings";
+import AdminQuotationExport from "./AdminQuotationExport";
 import type { AppSettings } from "@/lib/settings";
 
-type Tab = "users" | "settings" | "database";
+type Tab = "users" | "settings" | "database" | "export";
 
 export default function AdminTabs({
   initialSettings,
@@ -32,6 +33,12 @@ export default function AdminTabs({
         >
           Database
         </TabButton>
+        <TabButton
+          active={tab === "export"}
+          onClick={() => setTab("export")}
+        >
+          Export
+        </TabButton>
       </div>
 
       {tab === "users" && (
@@ -56,6 +63,15 @@ export default function AdminTabs({
             Database maintenance
           </h2>
           <DatabasePanel />
+        </section>
+      )}
+
+      {tab === "export" && (
+        <section>
+          <h2 className="text-lg font-semibold text-magic-ink mb-3">
+            Bulk export
+          </h2>
+          <AdminQuotationExport />
         </section>
       )}
     </div>
