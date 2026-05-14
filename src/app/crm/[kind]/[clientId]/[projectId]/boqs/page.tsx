@@ -2,42 +2,19 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
+import ProjectBoqsList, {
+  type ProjectFileRow,
+} from "@/components/ProjectBoqsList";
 
 export const dynamic = "force-dynamic";
 
 /**
  * BOQs / Files tab. Lists every project_files row scoped to this
- * project, grouped by `kind` (quotation / po / boq / other). Upload
- * still happens via the legacy folder view for now — the link below
- * sends you there. Nothing is deleted from this tab.
+ * project. Grouping and search live in the client component so the
+ * filter box on top of the page works without a round-trip per
+ * keystroke. Upload still happens via the legacy folder view —
+ * linked in the header.
  */
-
-interface FileRow {
-  id: number;
-  project_id: number;
-  kind: string;
-  filename: string;
-  mime: string;
-  size_bytes: number;
-  storage_path: string;
-  created_at: string;
-}
-
-const KIND_LABELS: Record<string, string> = {
-  boq: "BOQs",
-  quotation: "Quotation files",
-  po: "PO files",
-  other: "Other files",
-};
-
-function humanSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
-
 export default async function ProjectBoqsTabPage({
   params,
 }: {
@@ -57,21 +34,11 @@ export default async function ProjectBoqsTabPage({
       and deleted_at is null
     order by created_at desc
     limit 500
-  `) as FileRow[];
-
-  const groups = new Map<string, FileRow[]>();
-  // Surface BOQ first so the tab matches its name; then quotation, po, other.
-  for (const k of ["boq", "quotation", "po", "other"]) {
-    groups.set(k, []);
-  }
-  for (const f of rows) {
-    const k = KIND_LABELS[f.kind] ? f.kind : "other";
-    groups.get(k)?.push(f);
-  }
+  `) as ProjectFileRow[];
 
   return (
-    <section className="rounded-2xl border border-magic-border bg-white p-5 space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="rounded-2xl border border-magic-border bg-white p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div>
           <h2 className="text-lg font-semibold text-magic-ink">
             BOQs / Files
@@ -93,46 +60,7 @@ export default async function ProjectBoqsTabPage({
         </Link>
       </div>
 
-      {rows.length === 0 ? (
-        <p className="text-sm text-magic-ink/50 italic">
-          No files uploaded under this project yet. Use the legacy folder
-          view to attach BOQs / quotation PDFs / PO scans / other.
-        </p>
-      ) : (
-        Array.from(groups.entries())
-          .filter(([, list]) => list.length > 0)
-          .map(([kindKey, list]) => (
-            <div key={kindKey}>
-              <h3 className="text-sm font-semibold text-magic-ink mb-1.5">
-                {KIND_LABELS[kindKey] ?? kindKey}
-                <span className="ml-2 text-xs font-normal text-magic-ink/60">
-                  ({list.length})
-                </span>
-              </h3>
-              <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
-                {list.map((f) => (
-                  <li
-                    key={f.id}
-                    className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40"
-                  >
-                    <div className="min-w-0">
-                      <a
-                        href={`/api/project-files/${f.id}`}
-                        className="text-sm text-magic-red hover:underline truncate"
-                      >
-                        {f.filename}
-                      </a>
-                      <div className="text-xs text-magic-ink/50 mt-0.5">
-                        {f.mime} · {humanSize(Number(f.size_bytes))} ·
-                        uploaded {new Date(f.created_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
-      )}
+      <ProjectBoqsList rows={rows} />
     </section>
   );
 }
