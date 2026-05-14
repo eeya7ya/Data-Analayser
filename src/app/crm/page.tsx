@@ -30,16 +30,22 @@ export default async function CrmLandingPage() {
   const q = sql();
 
   type CountRow = {
-    company_folders: number;
+    company_entities: number;
+    company_clients: number;
     individual_folders: number;
     unclassified_folders: number;
     company_quotations: number;
     individual_quotations: number;
     unclassified_quotations: number;
   };
+  // Company count now reflects rows in the `companies` table — the
+  // top of the Company branch — rather than folders tagged company.
+  // We also surface client-folder counts so the user knows how many
+  // contacts sit beneath all those companies in aggregate.
   const countsRows = (await q`
     select
-      (select count(*) from client_folders where deleted_at is null and kind = 'company') as company_folders,
+      (select count(*) from companies where deleted_at is null) as company_entities,
+      (select count(*) from client_folders where deleted_at is null and kind = 'company') as company_clients,
       (select count(*) from client_folders where deleted_at is null and kind = 'individual') as individual_folders,
       (select count(*) from client_folders where deleted_at is null and kind is null) as unclassified_folders,
       (select count(*) from quotations qq
@@ -128,16 +134,18 @@ export default async function CrmLandingPage() {
           <KindCard
             href="/crm/company"
             title="Company"
-            count={counts.company_folders}
+            count={counts.company_entities}
+            clientLabel={`${counts.company_entities} ${counts.company_entities === 1 ? "company" : "companies"} · ${counts.company_clients} client folder${counts.company_clients === 1 ? "" : "s"}`}
             quotations={counts.company_quotations}
-            description="Business clients linked to a row in the companies directory."
+            description="Business clients. Each company holds one or more contacts, and each contact has projects + quotations."
           />
           <KindCard
             href="/crm/individual"
             title="Individual"
             count={counts.individual_folders}
+            clientLabel={`${counts.individual_folders} ${counts.individual_folders === 1 ? "client" : "clients"}`}
             quotations={counts.individual_quotations}
-            description="Personal / residential clients."
+            description="Personal / residential clients. Each row IS the client — no company layer."
           />
         </div>
 
@@ -187,13 +195,14 @@ export default async function CrmLandingPage() {
 function KindCard({
   href,
   title,
-  count,
+  clientLabel,
   quotations,
   description,
 }: {
   href: string;
   title: string;
   count: number;
+  clientLabel: string;
   quotations: number;
   description: string;
 }) {
@@ -204,9 +213,9 @@ function KindCard({
     >
       <h2 className="text-xl font-bold text-magic-ink">{title}</h2>
       <p className="text-sm text-magic-ink/60 mt-1">{description}</p>
-      <div className="mt-4 flex items-center gap-3 text-xs text-magic-ink/60">
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-magic-ink/60">
         <span className="inline-flex items-center rounded-full bg-magic-soft px-2 py-0.5 font-semibold">
-          {count} {count === 1 ? "client" : "clients"}
+          {clientLabel}
         </span>
         <span className="inline-flex items-center rounded-full bg-magic-soft px-2 py-0.5 font-semibold">
           {quotations} quotation{quotations === 1 ? "" : "s"}

@@ -1,0 +1,296 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+/**
+ * Companies list with client-side search + "+ New" modal. Server
+ * returns up to 500 rows for the user; we filter client-side which is
+ * fine at this scale (17 rows today, headroom to grow). Creating a
+ * new company shows it instantly because POST returns the new row
+ * and we splice it into local state.
+ */
+
+interface Company {
+  id: number;
+  name: string;
+  website: string | null;
+  industry: string | null;
+  size_bucket: string | null;
+  notes: string | null;
+  client_count: number;
+  quotation_count: number;
+  deleted_at: string | null;
+}
+
+export default function CompanyListClient({
+  initial,
+}: {
+  initial: Company[];
+}) {
+  const [items, setItems] = useState<Company[]>(initial);
+  const [query, setQuery] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [includeArchived, setIncludeArchived] = useState(false);
+
+  const refresh = useCallback(async (q?: string) => {
+    try {
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (includeArchived) params.set("include_archived", "1");
+      const res = await fetch(`/api/companies?${params}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { companies: Company[] };
+      setItems(data.companies);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }, [includeArchived]);
+
+  // Re-fetch when the archived toggle flips. Search runs client-side
+  // so we don't refetch on every keystroke.
+  useEffect(() => {
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [includeArchived]);
+
+  const visible = useMemo(() => {
+    const lc = query.trim().toLowerCase();
+    if (!lc) return items;
+    return items.filter((c) => {
+      const hay = [c.name, c.website, c.industry, c.notes]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(lc);
+    });
+  }, [items, query]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          placeholder="Search company name, website, industry…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="flex-1 min-w-0 rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
+        />
+        <label className="text-xs text-magic-ink/60 flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(e) => setIncludeArchived(e.target.checked)}
+          />
+          show archived
+        </label>
+        <button
+          onClick={() => setCreating(true)}
+          className="rounded-lg bg-magic-red text-white px-3 py-2 text-sm font-semibold hover:bg-magic-red/90 transition-colors"
+        >
+          + New company
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {error}
+        </p>
+      )}
+
+      {visible.length === 0 ? (
+        <div className="rounded-2xl border border-magic-border bg-white p-8 text-center">
+          <p className="text-sm text-magic-ink/60">
+            {query
+              ? `No companies match "${query}".`
+              : "No companies yet. Use + New company to add the first one."}
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {visible.map((c) => (
+            <li
+              key={c.id}
+              className={`rounded-xl border bg-white p-4 hover:shadow-md transition-shadow ${
+                c.deleted_at ? "border-magic-border/40 opacity-70" : "border-magic-border"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <Link
+                    href={`/crm/company/${c.id}`}
+                    className="font-semibold text-magic-ink hover:text-magic-red"
+                  >
+                    {c.name}
+                  </Link>
+                  {c.deleted_at && (
+                    <span className="ml-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">
+                      Archived
+                    </span>
+                  )}
+                  <div className="text-xs text-magic-ink/60 mt-0.5">
+                    {c.industry && <>{c.industry} · </>}
+                    {c.website && (
+                      <a
+                        href={
+                          c.website.startsWith("http")
+                            ? c.website
+                            : `https://${c.website}`
+                        }
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:text-magic-red"
+                      >
+                        {c.website}
+                      </a>
+                    )}
+                  </div>
+                  <div className="text-xs text-magic-ink/50 mt-1">
+                    {c.client_count} client{c.client_count === 1 ? "" : "s"} ·{" "}
+                    {c.quotation_count} quotation
+                    {c.quotation_count === 1 ? "" : "s"}
+                  </div>
+                </div>
+                <Link
+                  href={`/crm/company/${c.id}`}
+                  className="shrink-0 rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
+                >
+                  Open
+                </Link>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {creating && (
+        <NewCompanyModal
+          onClose={() => setCreating(false)}
+          onCreated={(c) => {
+            setItems((prev) => [c, ...prev]);
+            setCreating(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewCompanyModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (c: Company) => void;
+}) {
+  const [name, setName] = useState("");
+  const [website, setWebsite] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (!name.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/companies", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          website: website.trim() || null,
+          industry: industry.trim() || null,
+          notes: notes.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      onCreated(data.company);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-magic-ink/40 px-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-3"
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-magic-ink">New company</h3>
+          <button
+            onClick={onClose}
+            className="text-magic-ink/50 hover:text-magic-ink"
+          >
+            ×
+          </button>
+        </div>
+        <input
+          type="text"
+          placeholder="Company name (required)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={busy}
+          autoFocus
+          className="w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="text"
+            placeholder="Website"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+            disabled={busy}
+            className="rounded border border-magic-border bg-white px-3 py-2 text-sm"
+          />
+          <input
+            type="text"
+            placeholder="Industry"
+            value={industry}
+            onChange={(e) => setIndustry(e.target.value)}
+            disabled={busy}
+            className="rounded border border-magic-border bg-white px-3 py-2 text-sm"
+          />
+        </div>
+        <textarea
+          placeholder="Notes (optional)"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          disabled={busy}
+          rows={3}
+          className="w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
+        />
+        {error && (
+          <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
+            {error}
+          </p>
+        )}
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="rounded border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => void submit()}
+            disabled={busy || !name.trim()}
+            className="rounded bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+          >
+            {busy ? "Creating…" : "Create company"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

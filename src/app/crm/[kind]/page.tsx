@@ -64,6 +64,12 @@ export default async function CrmKindPage({
   ) {
     notFound();
   }
+  // Static routes /crm/company and /crm/individual normally win over
+  // this dynamic [kind] match, but if someone calls into this file
+  // directly (e.g. via a stale framework cache) we still redirect so
+  // the user never lands on the old "list folders by kind" UI.
+  if (kindParam === "company") redirect("/crm/company");
+  if (kindParam === "individual") redirect("/crm/individual");
   const kind = kindParam as Kind;
 
   const user = await getSessionUser();

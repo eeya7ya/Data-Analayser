@@ -2,6 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
+import ProjectQuotationsList, {
+  type ProjectQuotationRow,
+} from "@/components/ProjectQuotationsList";
 
 export const dynamic = "force-dynamic";
 
@@ -13,20 +16,6 @@ export const dynamic = "force-dynamic";
  * /crm-scoped viewer URL, falling back to the legacy /quotation
  * viewer if the user prefers that bookmark.
  */
-
-interface QuotationListRow {
-  id: number;
-  ref: string;
-  project_name: string;
-  client_name: string | null;
-  status: string;
-  sales_approved_at: string | null;
-  presales_approved_at: string | null;
-  approved_at: string | null;
-  rejected_at: string | null;
-  totals_json: Record<string, unknown> | null;
-  created_at: string;
-}
 
 export default async function ProjectQuotationsTabPage({
   params,
@@ -50,7 +39,7 @@ export default async function ProjectQuotationsTabPage({
       and deleted_at is null
     order by created_at desc
     limit 200
-  `) as QuotationListRow[];
+  `) as ProjectQuotationRow[];
 
   const base = `/crm/${kind}/${clientId}/${projectId}`;
 
@@ -91,63 +80,7 @@ export default async function ProjectQuotationsTabPage({
         </div>
       </div>
 
-      {rows.length === 0 ? (
-        <p className="text-sm text-magic-ink/50 italic">
-          No quotations filed under this project yet. Click <strong>+
-          Designer</strong> above to author the first one.
-        </p>
-      ) : (
-        <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
-          {rows.map((row) => (
-            <li
-              key={row.id}
-              className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40"
-            >
-              <div className="min-w-0">
-                <Link
-                  href={`${base}/quotations/${row.id}`}
-                  className="font-mono text-sm font-semibold text-magic-red hover:underline"
-                >
-                  {row.ref}
-                </Link>
-                <span className="ml-2 text-sm text-magic-ink/80 truncate">
-                  {row.project_name || "—"}
-                </span>
-                {row.client_name && (
-                  <span className="ml-2 text-xs text-magic-ink/50">
-                    · {row.client_name}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider">
-                <span className="text-magic-ink/50">{row.status}</span>
-                {row.approved_at ? (
-                  <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 px-1.5 py-0.5">
-                    approved
-                  </span>
-                ) : row.rejected_at ? (
-                  <span className="rounded-full bg-amber-50 text-amber-800 border border-amber-300 px-1.5 py-0.5">
-                    rejected
-                  </span>
-                ) : (
-                  <>
-                    {row.sales_approved_at && (
-                      <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 px-1.5 py-0.5">
-                        sales ✓
-                      </span>
-                    )}
-                    {row.presales_approved_at && (
-                      <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 px-1.5 py-0.5">
-                        presales ✓
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ProjectQuotationsList rows={rows} base={base} />
 
       {folderId > 0 && (
         <p className="mt-3 text-[10px] text-magic-ink/40">

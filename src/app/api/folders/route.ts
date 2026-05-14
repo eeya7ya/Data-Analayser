@@ -20,52 +20,67 @@ export const runtime = "nodejs";
  * hidden from GET here and surfaced via /api/trash for restoration.
  */
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
     await requireModuleAllowLegacy(user, "crm");
     await ensureSchema();
+    const { searchParams } = new URL(req.url);
+    const companyIdParam = searchParams.get("company_id");
+    const kindParam = searchParams.get("kind");
+    const companyId = companyIdParam ? Number(companyIdParam) : null;
+    const kind =
+      kindParam === "company" || kindParam === "individual" || kindParam === "unclassified"
+        ? kindParam
+        : null;
     const q = sql();
-    const rows =
-      user.role === "admin"
-        ? ((await q`
-            select f.id, f.name, f.owner_id, f.created_at, f.updated_at,
-                   f.client_email, f.client_phone, f.client_company,
-                   u.username as owner_username,
-                   u.display_name as owner_display_name
-            from client_folders f
-            left join users u on u.id = f.owner_id
-            where f.deleted_at is null
-            order by u.username nulls first, f.name asc
-          `) as Array<{
-            id: number;
-            name: string;
-            owner_id: number | null;
-            created_at: string;
-            updated_at: string;
-            client_email: string | null;
-            client_phone: string | null;
-            client_company: string | null;
-            owner_username: string | null;
-            owner_display_name: string | null;
-          }>)
-        : ((await q`
-            select id, name, owner_id, created_at, updated_at,
-                   client_email, client_phone, client_company
-            from client_folders
-            where owner_id = ${user.id}
-              and deleted_at is null
-            order by name asc
-          `) as Array<{
-            id: number;
-            name: string;
-            owner_id: number | null;
-            created_at: string;
-            updated_at: string;
-            client_email: string | null;
-            client_phone: string | null;
-            client_company: string | null;
-          }>);
+    const isAdmin = user.role === "admin";
+    const ownerFilter = isAdmin ? null : user.id;
+    const kindFilter = kind === "unclassified" ? null : kind;
+    const kindIsExplicit = kind !== null;
+    // Single query with filters and per-row counts. The counts use
+    // correlated subqueries so the planner can index-lookup each one
+    // — at 72 folders this is essentially free.
+    const rows = (await q`
+      select f.id, f.name, f.owner_id, f.created_at, f.updated_at,
+             f.client_email, f.client_phone, f.client_company,
+             f.kind, f.company_id,
+             u.username as owner_username,
+             u.display_name as owner_display_name,
+             (select count(*) from projects p
+                where p.folder_id = f.id and p.deleted_at is null) as project_count,
+             (select count(*) from quotations qq
+                where qq.folder_id = f.id and qq.deleted_at is null) as quotation_count,
+             (select max(qq.created_at) from quotations qq
+                where qq.folder_id = f.id and qq.deleted_at is null) as latest_quotation_at
+      from client_folders f
+      left join users u on u.id = f.owner_id
+      where f.deleted_at is null
+        and (${ownerFilter}::int is null or f.owner_id = ${ownerFilter})
+        and (${companyId}::int is null or f.company_id = ${companyId})
+        and (
+          ${!kindIsExplicit}::boolean
+          or f.kind is not distinct from ${kindFilter}
+        )
+      order by latest_quotation_at desc nulls last, f.name asc
+      limit 1000
+    `) as Array<{
+      id: number;
+      name: string;
+      owner_id: number | null;
+      created_at: string;
+      updated_at: string;
+      client_email: string | null;
+      client_phone: string | null;
+      client_company: string | null;
+      kind: string | null;
+      company_id: number | null;
+      owner_username: string | null;
+      owner_display_name: string | null;
+      project_count: number;
+      quotation_count: number;
+      latest_quotation_at: string | null;
+    }>;
     // Short cache window: folders are mutable user data and the UX tolerates
     // an occasional fresh round-trip better than a stale list. A longer cache
     // (30s previously) caused freshly-created client folders to appear
@@ -100,6 +115,8 @@ export async function POST(req: NextRequest) {
       client_email?: string | null;
       client_phone?: string | null;
       client_company?: string | null;
+      kind?: "company" | "individual" | null;
+      company_id?: number | null;
     };
     const name = body.name?.trim();
     if (!name) {
@@ -111,13 +128,40 @@ export async function POST(req: NextRequest) {
     const email = body.client_email?.trim() || null;
     const phone = body.client_phone?.trim() || null;
     const company = body.client_company?.trim() || null;
+    // `kind` and `company_id` are optional — pre-V2 callers (legacy
+    // /quotation Add-Client flow) don't pass them, so the folder lands
+    // unclassified and the user can classify it from the admin
+    // quarantine queue later. Individual-kind folders never carry a
+    // company_id even if one is sent.
+    const kind: "company" | "individual" | null =
+      body.kind === "company" || body.kind === "individual" ? body.kind : null;
+    const companyId =
+      kind === "individual"
+        ? null
+        : body.company_id !== undefined && body.company_id !== null
+          ? Number(body.company_id)
+          : null;
     const q = sql();
+    if (companyId !== null) {
+      const check = (await q`
+        select id from companies where id = ${companyId} and deleted_at is null
+      `) as Array<{ id: number }>;
+      if (check.length === 0) {
+        return NextResponse.json(
+          { error: "company not found" },
+          { status: 404 },
+        );
+      }
+    }
     const rows = (await q`
-      insert into client_folders (name, owner_id, client_email, client_phone, client_company)
-      values (${name}, ${user.id}, ${email}, ${phone}, ${company})
+      insert into client_folders (name, owner_id, client_email, client_phone,
+                                  client_company, kind, company_id)
+      values (${name}, ${user.id}, ${email}, ${phone}, ${company},
+              ${kind}, ${companyId})
       on conflict (owner_id, name) do nothing
       returning id, name, owner_id, created_at, updated_at,
-                client_email, client_phone, client_company
+                client_email, client_phone, client_company,
+                kind, company_id
     `) as Array<{
       id: number;
       name: string;
@@ -127,6 +171,8 @@ export async function POST(req: NextRequest) {
       client_email: string | null;
       client_phone: string | null;
       client_company: string | null;
+      kind: string | null;
+      company_id: number | null;
     }>;
     if (rows.length === 0) {
       return NextResponse.json(
@@ -139,6 +185,7 @@ export async function POST(req: NextRequest) {
     // without ever saving a quotation — picks up the new row.
     revalidatePath("/quotation");
     revalidatePath("/designer");
+    revalidatePath("/crm");
     return NextResponse.json({ folder: rows[0] });
   } catch (err) {
     const msg = (err as Error).message;
@@ -232,6 +279,7 @@ export async function PATCH(req: NextRequest) {
     }>;
     revalidatePath("/quotation");
     revalidatePath("/designer");
+    revalidatePath("/crm");
     return NextResponse.json({ folder: rows[0] });
   } catch (err) {
     const msg = (err as Error).message;
