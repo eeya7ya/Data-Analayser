@@ -4,11 +4,22 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 /**
- * TrashView — the "junction box" for soft-deleted client folders and
- * quotations. Items listed here never auto-purge; the only operations are
- * "Restore" (undo the delete) and "look at them". There is deliberately
- * NO permanent-delete button.
+ * TrashView — the "junction box" for soft-deleted client folders,
+ * quotations, and companies. Items listed here never auto-purge; the only
+ * operations are "Restore" (undo the delete) and "look at them". There is
+ * deliberately NO permanent-delete button.
  */
+
+interface TrashCompany {
+  id: number;
+  name: string;
+  website: string | null;
+  industry: string | null;
+  owner_id: number | null;
+  deleted_at: string;
+  owner_username?: string | null;
+  owner_display_name?: string | null;
+}
 
 interface TrashFolder {
   id: number;
@@ -46,6 +57,7 @@ function formatDateTime(dt: string) {
 export default function TrashView({ isAdmin }: { isAdmin: boolean }) {
   const [folders, setFolders] = useState<TrashFolder[]>([]);
   const [quotations, setQuotations] = useState<TrashQuotation[]>([]);
+  const [companies, setCompanies] = useState<TrashCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [restoringKind, setRestoringKind] = useState<string | null>(null);
@@ -62,6 +74,7 @@ export default function TrashView({ isAdmin }: { isAdmin: boolean }) {
       if (!res.ok) throw new Error(data.error || "Failed to load trash");
       setFolders(data.folders || []);
       setQuotations(data.quotations || []);
+      setCompanies(data.companies || []);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -73,7 +86,10 @@ export default function TrashView({ isAdmin }: { isAdmin: boolean }) {
     load();
   }, []);
 
-  async function restore(type: "folder" | "quotation", id: number) {
+  async function restore(
+    type: "folder" | "quotation" | "company",
+    id: number,
+  ) {
     const key = `${type}:${id}`;
     setRestoringKind(key);
     setError(null);
@@ -91,8 +107,10 @@ export default function TrashView({ isAdmin }: { isAdmin: boolean }) {
         // reload so the quotations list matches reality. (The ones that stay
         // in trash are orphans the user soloed earlier.)
         load();
-      } else {
+      } else if (type === "quotation") {
         setQuotations((prev) => prev.filter((q) => q.id !== id));
+      } else {
+        setCompanies((prev) => prev.filter((c) => c.id !== id));
       }
     } catch (err) {
       setError((err as Error).message);
@@ -125,6 +143,59 @@ export default function TrashView({ isAdmin }: { isAdmin: boolean }) {
           {error}
         </div>
       )}
+
+      {/* Companies section */}
+      <section>
+        <h2 className="text-sm font-semibold text-magic-ink/80 mb-2">
+          Companies ({companies.length})
+        </h2>
+        {companies.length === 0 ? (
+          <div className="rounded-2xl border border-magic-border bg-white p-4 text-sm text-magic-ink/40">
+            No companies in trash.
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-magic-border bg-white overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="text-magic-red text-xs uppercase bg-magic-soft/20">
+                <tr>
+                  <th className="p-3 text-left">Name</th>
+                  <th className="p-3 text-left">Industry</th>
+                  <th className="p-3 text-left">Website</th>
+                  <th className="p-3 text-left">Deleted</th>
+                  <th className="p-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {companies.map((c) => {
+                  const key = `company:${c.id}`;
+                  return (
+                    <tr
+                      key={c.id}
+                      className="border-t border-magic-border hover:bg-magic-soft/10"
+                    >
+                      <td className="p-3 font-semibold">{c.name}</td>
+                      <td className="p-3 text-magic-ink/70">{c.industry || "—"}</td>
+                      <td className="p-3 text-magic-ink/70">{c.website || "—"}</td>
+                      <td className="p-3 text-xs text-magic-ink/60">
+                        {formatDateTime(c.deleted_at)}
+                      </td>
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={() => restore("company", c.id)}
+                          disabled={restoringKind === key}
+                          className="text-xs font-medium text-green-700 hover:underline disabled:opacity-50"
+                        >
+                          {restoringKind === key ? "Restoring…" : "Restore"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {/* Clients / folders section */}
       <section>
