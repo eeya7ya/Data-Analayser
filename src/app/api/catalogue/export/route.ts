@@ -25,9 +25,14 @@ export async function GET() {
     await requireAdmin();
     await ensureSchema();
     const q = sql();
+    // picture_url comes back as a data URL (base64) for in-database
+    // pictures, or a hosted URL when the picture lives in object
+    // storage. The client decides whether to embed the image in the
+    // exported workbook (default) or skip pictures for a lightweight
+    // text-only export.
     const rows = (await q`
       select vendor, system, category, sub_category, fast_view, model,
-             description, currency, price_si, specifications
+             description, currency, price_si, specifications, picture_url
       from products
       order by vendor, system, category, model
     `) as Array<Record<string, unknown>>;
