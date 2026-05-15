@@ -80,6 +80,11 @@ export default function FolderProjectsClient({
   const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Search inside the project picker. The sidebar can get long once a
+  // client accumulates a year or two of projects, so a tiny filter box
+  // makes drill-down survivable. Filtering is client-side over name
+  // and description.
+  const [projectQuery, setProjectQuery] = useState("");
 
   const reloadProjects = useCallback(async () => {
     setLoadingProjects(true);
@@ -131,6 +136,15 @@ export default function FolderProjectsClient({
             {error}
           </div>
         )}
+        {projects.length > 4 && (
+          <input
+            type="search"
+            placeholder="Search projects…"
+            value={projectQuery}
+            onChange={(e) => setProjectQuery(e.target.value)}
+            className="mb-2 w-full rounded border border-magic-border bg-white px-2 py-1 text-xs"
+          />
+        )}
         {loadingProjects ? (
           <div className="text-xs text-magic-ink/50">Loading projects…</div>
         ) : projects.length === 0 ? (
@@ -138,32 +152,53 @@ export default function FolderProjectsClient({
             No projects yet for {folderName}. Create the first one.
           </div>
         ) : (
-          <ul className="flex flex-col gap-1">
-            {projects.map((p) => {
-              const isActive = p.id === activeProjectId;
+          (() => {
+            const lc = projectQuery.trim().toLowerCase();
+            const visible = lc
+              ? projects.filter((p) =>
+                  [p.name, p.description]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase()
+                    .includes(lc),
+                )
+              : projects;
+            if (visible.length === 0) {
               return (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    onClick={() => setActiveProjectId(p.id)}
-                    className={`w-full text-left rounded-md px-3 py-2 text-sm border transition-colors ${
-                      isActive
-                        ? "border-magic-red bg-magic-red/5 text-magic-ink"
-                        : "border-transparent hover:bg-magic-soft text-magic-ink/80"
-                    }`}
-                    title={p.description || undefined}
-                  >
-                    <div className="font-semibold truncate">{p.name}</div>
-                    {p.description && (
-                      <div className="text-[10px] text-magic-ink/50 truncate">
-                        {p.description}
-                      </div>
-                    )}
-                  </button>
-                </li>
+                <div className="text-xs text-magic-ink/50">
+                  No projects match &quot;{projectQuery}&quot;.
+                </div>
               );
-            })}
-          </ul>
+            }
+            return (
+              <ul className="flex flex-col gap-1">
+                {visible.map((p) => {
+                  const isActive = p.id === activeProjectId;
+                  return (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={() => setActiveProjectId(p.id)}
+                        className={`w-full text-left rounded-md px-3 py-2 text-sm border transition-colors ${
+                          isActive
+                            ? "border-magic-red bg-magic-red/5 text-magic-ink"
+                            : "border-transparent hover:bg-magic-soft text-magic-ink/80"
+                        }`}
+                        title={p.description || undefined}
+                      >
+                        <div className="font-semibold truncate">{p.name}</div>
+                        {p.description && (
+                          <div className="text-[10px] text-magic-ink/50 truncate">
+                            {p.description}
+                          </div>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            );
+          })()
         )}
       </aside>
 

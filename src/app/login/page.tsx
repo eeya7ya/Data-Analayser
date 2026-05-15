@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
   const user = await getSessionUser();
-  if (user) redirect("/quotation");
+  if (user) redirect("/");
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0b0f1a] text-white">
       {/* ── Animated ambient background ── */}
