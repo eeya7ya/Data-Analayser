@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
+import { ensureDefaultProject } from "@/lib/projects";
 import type { Sql } from "postgres";
 
 export const runtime = "nodejs";
@@ -712,6 +713,15 @@ export async function POST(req: NextRequest) {
       projectId = body.project_id;
     } else if (mode !== "active") {
       projectId = parentProjectId;
+    } else if (folderId !== null) {
+      // Active quotation with no explicit project: drop it onto the
+      // folder's Default Project so the project view never shows it as
+      // "Unfiled". Creates the Default Project on the fly if the folder
+      // doesn't have one yet (older folders that pre-date this rule).
+      projectId = await ensureDefaultProject({
+        folderId,
+        ownerId: user.id,
+      });
     }
 
     const rows = (await q`

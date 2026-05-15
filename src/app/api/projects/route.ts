@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
+import { ensureFolderProjectCoverage } from "@/lib/projects";
 
 export const runtime = "nodejs";
 
@@ -64,6 +65,21 @@ export async function GET(req: NextRequest) {
       const folderId = Number(folderIdParam);
       if (!Number.isFinite(folderId) || folderId <= 0) {
         return NextResponse.json({ projects: [] });
+      }
+      // Heal-on-read: if the folder has no live project, auto-create a
+      // Default Project and reattach any loose quotations / POs in the
+      // folder so the project view never shows an empty pane next to a
+      // folder that clearly has data filed under it.
+      const folderRows = (await q`
+        select owner_id from client_folders
+        where id = ${folderId} and deleted_at is null
+        limit 1
+      `) as Array<{ owner_id: number | null }>;
+      if (folderRows.length > 0) {
+        await ensureFolderProjectCoverage({
+          folderId,
+          ownerId: folderRows[0].owner_id ?? user.id,
+        });
       }
       // Owner-isolation pattern matches /api/folders. Admins see every
       // project under the folder regardless of owner.

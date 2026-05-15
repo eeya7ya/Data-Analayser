@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { ensureFolderProjectCoverage } from "@/lib/projects";
 
 /**
  * The CRM treats "a person at a company" and "a client folder under
@@ -42,7 +43,13 @@ export async function ensurePersonFolder(args: {
       and deleted_at is null
     limit 1
   `) as Array<{ id: number }>;
-  if (sameCompany.length > 0) return sameCompany[0].id;
+  if (sameCompany.length > 0) {
+    await ensureFolderProjectCoverage({
+      folderId: sameCompany[0].id,
+      ownerId,
+    });
+    return sameCompany[0].id;
+  }
 
   // Adopt an unfiled same-named folder so its projects and quotations
   // come along to the company instead of being orphaned. We deliberately
@@ -66,6 +73,10 @@ export async function ensurePersonFolder(args: {
           updated_at   = now()
       where id = ${adoptable[0].id}
     `;
+    await ensureFolderProjectCoverage({
+      folderId: adoptable[0].id,
+      ownerId,
+    });
     return adoptable[0].id;
   }
 
@@ -79,7 +90,13 @@ export async function ensurePersonFolder(args: {
       on conflict (owner_id, name) do nothing
       returning id
     `) as Array<{ id: number }>;
-    if (inserted.length > 0) return inserted[0].id;
+    if (inserted.length > 0) {
+      await ensureFolderProjectCoverage({
+        folderId: inserted[0].id,
+        ownerId,
+      });
+      return inserted[0].id;
+    }
   }
   return null;
 }
@@ -96,10 +113,13 @@ export async function syncCompanyPeopleAndFolders(args: {
 
   // Heal pre-existing duplicates created by the old ensurePersonFolder
   // before adoption was added. If a contact at this company points to an
-  // empty "X (2)" / "X (3)" folder while a same-owner unfiled folder
-  // named "X" exists (with the projects + quotations the user expects),
-  // swap the contact onto the original folder, attach the original to
-  // this company, and soft-delete the empty duplicate.
+  // "X (2)" / "X (3)" folder while a same-owner unfiled folder named
+  // "X" exists, move everything filed on the duplicate (projects,
+  // quotations, purchase orders) onto the original, swap the contact
+  // onto the original, attach the original to this company, and
+  // soft-delete the now-empty duplicate. Merging is unconditional —
+  // the "(N)" suffix pattern is only ever produced by the system, so
+  // there's nothing on the duplicate the user authored from scratch.
   const duplicateContacts = (await q`
     select c.id as contact_id, c.owner_id, c.folder_id,
            cf.name as folder_name
@@ -110,14 +130,6 @@ export async function syncCompanyPeopleAndFolders(args: {
       and cf.deleted_at is null
       and cf.name ~ ' \\(\\d+\\)$'
       and (${ownerFilter}::int is null or c.owner_id = ${ownerFilter})
-      and not exists (
-        select 1 from projects p
-        where p.folder_id = cf.id and p.deleted_at is null
-      )
-      and not exists (
-        select 1 from quotations qq
-        where qq.folder_id = cf.id and qq.deleted_at is null
-      )
   `) as Array<{
     contact_id: number;
     owner_id: number | null;
@@ -137,6 +149,25 @@ export async function syncCompanyPeopleAndFolders(args: {
       limit 1
     `) as Array<{ id: number }>;
     if (original.length === 0) continue;
+    // Reparent every child row in one pass so quotation.folder_id and
+    // its project.folder_id stay consistent — moving quotations without
+    // moving their projects would leave the project_id pointing into
+    // the trashed duplicate.
+    await q`
+      update projects
+      set folder_id = ${original[0].id}
+      where folder_id = ${dup.folder_id} and deleted_at is null
+    `;
+    await q`
+      update quotations
+      set folder_id = ${original[0].id}
+      where folder_id = ${dup.folder_id} and deleted_at is null
+    `;
+    await q`
+      update purchase_orders
+      set folder_id = ${original[0].id}
+      where folder_id = ${dup.folder_id} and deleted_at is null
+    `;
     await q`
       update client_folders
       set company_id = ${companyId},
@@ -155,6 +186,10 @@ export async function syncCompanyPeopleAndFolders(args: {
       set deleted_at = now(), updated_at = now()
       where id = ${dup.folder_id}
     `;
+    await ensureFolderProjectCoverage({
+      folderId: original[0].id,
+      ownerId: dup.owner_id,
+    });
   }
 
   // Contacts whose folder_id is null OR points at a missing/archived
