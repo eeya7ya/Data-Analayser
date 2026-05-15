@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 /**
  * Contacts panel for the company / folder pages. Lists named people
@@ -8,6 +9,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
  * archive. Archive is soft — the row stays in the database with
  * deleted_at set, and unarchive flips it back. Re-fetches via the
  * /api/contacts endpoint whenever the parent passes a new scope.
+ *
+ * When `linkBase` is provided, each row becomes a link to that
+ * person's project folder (e.g. /crm/company/123/clients/456),
+ * unifying the old "People" and "Clients at this company" lists into
+ * one drill-through entry point.
  */
 
 export interface ContactRow {
@@ -22,6 +28,8 @@ export interface ContactRow {
   title: string | null;
   notes: string | null;
   deleted_at: string | null;
+  project_count?: number;
+  quotation_count?: number;
 }
 
 function displayName(c: ContactRow): string {
@@ -33,12 +41,19 @@ export default function ContactsPanel({
   initial,
   companyId,
   folderId,
+  linkBase,
 }: {
   initial: ContactRow[];
   /** Pass when the panel sits inside a Company page. */
   companyId: number | null;
   /** Pass when the panel sits inside a Client (folder) page. */
   folderId: number | null;
+  /**
+   * If set, each contact row turns into a link to
+   * `${linkBase}/${folder_id}` so the company-level "People" list also
+   * drills into each person's project folder.
+   */
+  linkBase?: string;
 }) {
   const [items, setItems] = useState<ContactRow[]>(initial);
   const [query, setQuery] = useState("");
@@ -163,7 +178,16 @@ export default function ContactsPanel({
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-semibold text-magic-ink">
-                    {displayName(c)}
+                    {linkBase && c.folder_id ? (
+                      <Link
+                        href={`${linkBase}/${c.folder_id}`}
+                        className="hover:text-magic-red"
+                      >
+                        {displayName(c)}
+                      </Link>
+                    ) : (
+                      <span>{displayName(c)}</span>
+                    )}
                     {c.title && (
                       <span className="ml-2 text-xs text-magic-ink/50 font-normal">
                         · {c.title}
@@ -180,13 +204,29 @@ export default function ContactsPanel({
                     {c.email && c.phone && <> · </>}
                     {c.phone && <>{c.phone}</>}
                   </div>
+                  {linkBase && (c.project_count !== undefined || c.quotation_count !== undefined) && (
+                    <div className="text-xs text-magic-ink/50 mt-1">
+                      {(c.project_count ?? 0)} project
+                      {(c.project_count ?? 0) === 1 ? "" : "s"} ·{" "}
+                      {(c.quotation_count ?? 0)} quotation
+                      {(c.quotation_count ?? 0) === 1 ? "" : "s"}
+                    </div>
+                  )}
                   {c.notes && (
                     <p className="text-xs text-magic-ink/70 mt-1 whitespace-pre-line line-clamp-2">
                       {c.notes}
                     </p>
                   )}
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {linkBase && c.folder_id && (
+                    <Link
+                      href={`${linkBase}/${c.folder_id}`}
+                      className="px-2 py-1 text-xs font-semibold rounded border border-magic-border text-magic-ink/70 hover:bg-magic-soft transition-colors"
+                    >
+                      Open
+                    </Link>
+                  )}
                   <button
                     onClick={() => setEditing(c)}
                     disabled={busy}

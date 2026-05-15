@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
+import { ensurePersonFolder } from "@/lib/crmPeople";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +41,25 @@ interface ContactRow {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+}
+
+// People-at-company rows now also carry their linked project folder's
+// stats so the unified list can show counts and link straight to the
+// folder page without a second fetch.
+interface ContactRowWithCounts extends ContactRow {
+  project_count: number;
+  quotation_count: number;
+}
+
+function contactDisplayName(c: {
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  id: number;
+}): string {
+  const name = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
+  return name || c.email || c.phone || `Contact #${c.id}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -84,27 +104,31 @@ export async function GET(req: NextRequest) {
     const activeOnly = includeArchived ? null : true;
 
     const rows = (await q`
-      select id, owner_id, folder_id, company_id,
-             first_name, last_name, email, phone, title, notes,
-             created_at, updated_at, deleted_at
-      from contacts
-      where (${activeOnly}::boolean is null or (deleted_at is null) = ${activeOnly})
-        and (${ownerFilter}::int is null or owner_id = ${ownerFilter})
-        and (${companyId}::int is null or company_id = ${companyId})
-        and (${folderId}::int is null or folder_id = ${folderId})
+      select c.id, c.owner_id, c.folder_id, c.company_id,
+             c.first_name, c.last_name, c.email, c.phone, c.title, c.notes,
+             c.created_at, c.updated_at, c.deleted_at,
+             coalesce((select count(*) from projects p
+                where p.folder_id = c.folder_id and p.deleted_at is null), 0)::int as project_count,
+             coalesce((select count(*) from quotations qq
+                where qq.folder_id = c.folder_id and qq.deleted_at is null), 0)::int as quotation_count
+      from contacts c
+      where (${activeOnly}::boolean is null or (c.deleted_at is null) = ${activeOnly})
+        and (${ownerFilter}::int is null or c.owner_id = ${ownerFilter})
+        and (${companyId}::int is null or c.company_id = ${companyId})
+        and (${folderId}::int is null or c.folder_id = ${folderId})
         and (
           ${search} = ''
-          or coalesce(first_name, '') ilike ${"%" + search + "%"}
-          or coalesce(last_name, '')  ilike ${"%" + search + "%"}
-          or coalesce(email, '')      ilike ${"%" + search + "%"}
-          or coalesce(phone, '')      ilike ${"%" + search + "%"}
-          or coalesce(title, '')      ilike ${"%" + search + "%"}
-          or coalesce(notes, '')      ilike ${"%" + search + "%"}
+          or coalesce(c.first_name, '') ilike ${"%" + search + "%"}
+          or coalesce(c.last_name, '')  ilike ${"%" + search + "%"}
+          or coalesce(c.email, '')      ilike ${"%" + search + "%"}
+          or coalesce(c.phone, '')      ilike ${"%" + search + "%"}
+          or coalesce(c.title, '')      ilike ${"%" + search + "%"}
+          or coalesce(c.notes, '')      ilike ${"%" + search + "%"}
         )
-      order by (deleted_at is not null),
-               coalesce(last_name, ''), coalesce(first_name, '')
+      order by (c.deleted_at is not null),
+               coalesce(c.last_name, ''), coalesce(c.first_name, '')
       limit 500
-    `) as ContactRow[];
+    `) as ContactRowWithCounts[];
 
     return NextResponse.json({ contacts: rows });
   } catch (err) {
@@ -166,13 +190,16 @@ export async function POST(req: Request) {
       }
     }
 
+    const email = body.email?.trim() || null;
+    const phone = body.phone?.trim() || null;
+
     const inserted = (await q`
       insert into contacts (owner_id, company_id, folder_id,
                             first_name, last_name, email, phone, title, notes)
       values (${user.id}, ${companyId}, ${folderId},
               ${firstName}, ${lastName},
-              ${body.email?.trim() || null},
-              ${body.phone?.trim() || null},
+              ${email},
+              ${phone},
               ${body.title?.trim() || null},
               ${body.notes?.trim() || null})
       returning id, owner_id, folder_id, company_id,
@@ -180,18 +207,38 @@ export async function POST(req: Request) {
                 created_at, updated_at, deleted_at
     `) as ContactRow[];
 
+    let row = inserted[0];
+
+    // When a contact is created at a company without an explicit
+    // folder, auto-spawn the project folder for that person so
+    // clicking them on the company page lands on their projects
+    // immediately — no separate "+ New client" step required.
+    if (companyId !== null && row.folder_id === null) {
+      const newFolderId = await ensurePersonFolder({
+        ownerId: user.id,
+        companyId,
+        baseName: contactDisplayName(row),
+        email,
+        phone,
+      });
+      if (newFolderId !== null) {
+        await q`update contacts set folder_id = ${newFolderId} where id = ${row.id}`;
+        row = { ...row, folder_id: newFolderId };
+      }
+    }
+
     await q`
       insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
-      values (${user.id}, 'contact', ${inserted[0].id}, 'create',
+      values (${user.id}, 'contact', ${row.id}, 'create',
               ${JSON.stringify({
                 company_id: companyId,
-                folder_id: folderId,
+                folder_id: row.folder_id,
                 first_name: firstName,
                 last_name: lastName,
               })}::jsonb)
     `;
 
-    return NextResponse.json({ contact: inserted[0] });
+    return NextResponse.json({ contact: row });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "UNKNOWN";
     const status = msg === "UNAUTHENTICATED" ? 401 : msg === "FORBIDDEN" ? 403 : 500;
@@ -242,13 +289,55 @@ export async function PATCH(req: NextRequest) {
       const v = body.last_name === null ? null : String(body.last_name).trim() || null;
       await q`update contacts set last_name = ${v} where id = ${id}`;
     }
+    // When either name part changes, rebuild the linked folder's name
+    // from the post-update contact so the two stay in lockstep.
+    if (body.first_name !== undefined || body.last_name !== undefined) {
+      const synced = (await q`
+        select c.folder_id, c.first_name, c.last_name, c.email, c.phone, c.id
+        from contacts c
+        where c.id = ${id}
+      `) as Array<{
+        folder_id: number | null;
+        first_name: string | null;
+        last_name: string | null;
+        email: string | null;
+        phone: string | null;
+        id: number;
+      }>;
+      const c0 = synced[0];
+      if (c0 && c0.folder_id !== null) {
+        const newName = contactDisplayName(c0);
+        await q`
+          update client_folders
+          set name = ${newName}, updated_at = now()
+          where id = ${c0.folder_id} and deleted_at is null
+        `.catch(() => {
+          // The (owner_id, name) uniqueness constraint can reject a
+          // rename if another folder owned by the same user already
+          // has that name — leave the existing folder name in place
+          // rather than failing the whole edit.
+        });
+      }
+    }
     if (body.email !== undefined) {
       const v = body.email === null ? null : String(body.email).trim() || null;
       await q`update contacts set email = ${v} where id = ${id}`;
+      await q`
+        update client_folders
+        set client_email = ${v}, updated_at = now()
+        where id = (select folder_id from contacts where id = ${id})
+          and deleted_at is null
+      `;
     }
     if (body.phone !== undefined) {
       const v = body.phone === null ? null : String(body.phone).trim() || null;
       await q`update contacts set phone = ${v} where id = ${id}`;
+      await q`
+        update client_folders
+        set client_phone = ${v}, updated_at = now()
+        where id = (select folder_id from contacts where id = ${id})
+          and deleted_at is null
+      `;
     }
     if (body.title !== undefined) {
       const v = body.title === null ? null : String(body.title).trim() || null;
@@ -267,10 +356,18 @@ export async function PATCH(req: NextRequest) {
       await q`update contacts set folder_id = ${v} where id = ${id}`;
     }
     if (body.archived !== undefined) {
+      const ts = body.archived ? new Date().toISOString() : null;
       await q`
         update contacts
-        set deleted_at = ${body.archived ? new Date().toISOString() : null}
+        set deleted_at = ${ts}
         where id = ${id}
+      `;
+      // Cascade the archive state to the linked project folder so a
+      // person and their projects share one lifecycle.
+      await q`
+        update client_folders
+        set deleted_at = ${ts}, updated_at = now()
+        where id = (select folder_id from contacts where id = ${id})
       `;
     }
     await q`update contacts set updated_at = now() where id = ${id}`;
