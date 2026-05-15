@@ -23,7 +23,6 @@ import {
   syncDraftTaxContext,
   mergeQuotationItems,
   PRICING_FACTORS,
-  PRICING_LABELS,
   type PricingCategory,
 } from "@/lib/quotationDraft";
 import QuickCatalogPicker from "./QuickCatalogPicker";
@@ -632,11 +631,14 @@ export default function Designer({
           existing.config_json?.designEng ||
           defaultDesignEng,
       );
-      setPricingCategoryState(
-        editDraft?.pricingCategory || existing.config_json?.pricingCategory || "si",
-      );
       {
-        const restoredManual =
+        // The UI now only exposes "si" (SI base × 1) and "manual" (SI
+        // base × user factor). Legacy quotations saved as "dpp" /
+        // "end_user" still load lossless: convert them to manual and
+        // carry the matching factor so prices stay identical.
+        const rawCat: PricingCategory =
+          editDraft?.pricingCategory || existing.config_json?.pricingCategory || "si";
+        const restoredManualRaw =
           editDraft && typeof editDraft.manualFactor === "number" && Number.isFinite(editDraft.manualFactor) && editDraft.manualFactor > 0
             ? editDraft.manualFactor
             : typeof existing.config_json?.manualFactor === "number" &&
@@ -644,8 +646,16 @@ export default function Designer({
                 existing.config_json.manualFactor > 0
               ? existing.config_json.manualFactor
               : 1;
-        setManualFactor(restoredManual);
-        setManualFactorText(String(restoredManual));
+        if (rawCat === "dpp" || rawCat === "end_user") {
+          setPricingCategoryState("manual");
+          const legacyFactor = PRICING_FACTORS[rawCat];
+          setManualFactor(legacyFactor);
+          setManualFactorText(String(legacyFactor));
+        } else {
+          setPricingCategoryState(rawCat);
+          setManualFactor(restoredManualRaw);
+          setManualFactorText(String(restoredManualRaw));
+        }
       }
       setIncludeTax(
         editDraft ? editDraft.includeTax !== false : existing.config_json?.includeTax !== false,
@@ -729,18 +739,28 @@ export default function Designer({
     // resurface the previous user's name; the helper already scrubs that
     // field, this line is defence in depth.
     setDesignEngState(defaultDesignEng);
-    setPricingCategoryState(d.pricingCategory || "si");
+    {
+      const rawCat: PricingCategory = d.pricingCategory || "si";
+      const restoredManualRaw =
+        typeof d.manualFactor === "number" && Number.isFinite(d.manualFactor) && d.manualFactor > 0
+          ? d.manualFactor
+          : 1;
+      if (rawCat === "dpp" || rawCat === "end_user") {
+        setPricingCategoryState("manual");
+        const legacyFactor = PRICING_FACTORS[rawCat];
+        setManualFactor(legacyFactor);
+        setManualFactorText(String(legacyFactor));
+      } else {
+        setPricingCategoryState(rawCat);
+        setManualFactor(restoredManualRaw);
+        setManualFactorText(String(restoredManualRaw));
+      }
+    }
     setIncludeTax(d.includeTax !== false);
     setTaxInclusive(Boolean(d.taxInclusive));
     setBrandVariantId(
       getBrandVariant(d.brandVariantId || DEFAULT_BRAND_VARIANT_ID).id,
     );
-    const restoredManual =
-      typeof d.manualFactor === "number" && Number.isFinite(d.manualFactor) && d.manualFactor > 0
-        ? d.manualFactor
-        : 1;
-    setManualFactor(restoredManual);
-    setManualFactorText(String(restoredManual));
     // Restore the previously picked client folder so a full-page refresh
     // no longer drops the user back into the "pick a client" hero. The
     // actual select dropdown is still wired up normally, so changing
@@ -1643,71 +1663,63 @@ export default function Designer({
       {showDesignUI && (
       <div className="no-print rounded-2xl border border-magic-border bg-white p-4">
         <div className="flex flex-wrap items-end gap-4">
-          {/* Pricing category */}
+          {/* Pricing — default is SI (unit = SI base × 1). Toggle
+              "Manual pricing" to apply a custom factor across every row. */}
           <div className="flex-1 min-w-[200px]">
             <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
-              Pricing category
+              Pricing
             </label>
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(PRICING_LABELS) as PricingCategory[]).map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setPricingCategory(cat)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    pricingCategory === cat
-                      ? "bg-magic-red text-white"
-                      : "border border-magic-border text-magic-ink/70 hover:bg-magic-soft"
-                  }`}
-                >
-                  {PRICING_LABELS[cat]}
-                  {cat !== "manual" && (
-                    <span className="ml-1 text-[10px] opacity-70">
-                      ×{PRICING_FACTORS[cat as Exclude<PricingCategory, "manual">]}
-                    </span>
-                  )}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setPricingCategory(pricingCategory === "manual" ? "si" : "manual")
+                }
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  pricingCategory === "manual"
+                    ? "bg-magic-red text-white"
+                    : "border border-magic-border text-magic-ink/70 hover:bg-magic-soft"
+                }`}
+                title="Toggle to multiply every row's SI base price by a custom factor"
+              >
+                Manual pricing
+              </button>
+              {pricingCategory === "manual" && (
+                <>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={manualFactorText}
+                    onChange={(e) => setManualFactorText(e.target.value)}
+                    onBlur={() => {
+                      const n = Number(manualFactorText);
+                      if (Number.isFinite(n) && n > 0) {
+                        applyManualFactor(n);
+                      } else {
+                        setManualFactorText(String(manualFactor));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    className="w-20 rounded-md border border-magic-border px-2 py-1 text-sm"
+                    title="Multiplier applied to each row's SI base price (e.g. 1.5 = +50%, 0.98 = −2%)"
+                    aria-label="Manual pricing factor"
+                  />
+                  <span className="text-[10px] text-magic-ink/60">
+                    × SI base
+                  </span>
+                </>
+              )}
             </div>
             {pricingCategory !== "manual" && (
               <p className="mt-1 text-[10px] text-magic-ink/50">
-                All prices = SI base × {PRICING_FACTORS[pricingCategory as Exclude<PricingCategory, "manual">]}
+                Prices use the SI base.
               </p>
-            )}
-            {pricingCategory === "manual" && (
-              <div className="mt-1 flex items-center gap-2">
-                <label className="text-[10px] font-semibold uppercase text-magic-ink/60">
-                  Factor
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={manualFactorText}
-                  onChange={(e) => setManualFactorText(e.target.value)}
-                  onBlur={() => {
-                    const n = Number(manualFactorText);
-                    if (Number.isFinite(n) && n > 0) {
-                      applyManualFactor(n);
-                    } else {
-                      // Revert the input text if the user typed nonsense
-                      // — the committed factor stays at whatever was last
-                      // successfully applied.
-                      setManualFactorText(String(manualFactor));
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      (e.target as HTMLInputElement).blur();
-                    }
-                  }}
-                  className="w-20 rounded-md border border-magic-border px-2 py-1 text-sm"
-                  title="Multiplier applied to each row's SI base price (e.g. 1.5 = +50%, 0.98 = −2%)"
-                />
-                <span className="text-[10px] text-magic-ink/50">
-                  Unit price = SI base × {Number.isFinite(manualFactor) && manualFactor > 0 ? manualFactor : 1}
-                </span>
-              </div>
             )}
           </div>
 

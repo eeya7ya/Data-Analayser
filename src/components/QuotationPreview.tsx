@@ -2043,15 +2043,6 @@ function SystemTable({
                 ≡
               </span>
             ) : null;
-          // Bounds for the "jump to No" input. Section rows carry no=0
-          // (they're skipped by renumber), so derive the bounds from
-          // item rows only — otherwise typing "1" would snap to a
-          // section row's slot and break reordering.
-          const itemNos = group.rows
-            .filter((r) => !isSectionRow(r.item))
-            .map((r) => r.item.no);
-          const groupMinNo = itemNos.length ? itemNos[0] : 1;
-          const groupMaxNo = itemNos.length ? itemNos[itemNos.length - 1] : 1;
           return group.rows.map(({ item, globalIndex }, rowIdx) => {
           if (isSectionRow(item)) {
             // Full-width banner divider. No number, no quantity, no
@@ -2148,12 +2139,9 @@ function SystemTable({
               {editable ? (
                 <div className="flex items-center justify-center gap-1">
                   {dragHandle(globalIndex)}
-                  <RowNoJump
-                    value={item.no}
-                    min={groupMinNo}
-                    max={groupMaxNo}
-                    onJump={(n) => onJumpTo(globalIndex, n)}
-                  />
+                  <span className="text-[11px] font-semibold text-magic-ink">
+                    {item.no}
+                  </span>
                 </div>
               ) : (
                 <span>{item.no}</span>
