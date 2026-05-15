@@ -80,14 +80,15 @@ export async function GET(req: NextRequest) {
 
     const companyId = companyIdParam ? Number(companyIdParam) : null;
     const folderId = folderIdParam ? Number(folderIdParam) : null;
-    const archivedFilter = includeArchived ? null : false;
+    // true → only deleted_at IS NULL rows; null → no archived filter.
+    const activeOnly = includeArchived ? null : true;
 
     const rows = (await q`
       select id, owner_id, folder_id, company_id,
              first_name, last_name, email, phone, title, notes,
              created_at, updated_at, deleted_at
       from contacts
-      where (${archivedFilter}::boolean is null or (deleted_at is null) = ${archivedFilter})
+      where (${activeOnly}::boolean is null or (deleted_at is null) = ${activeOnly})
         and (${ownerFilter}::int is null or owner_id = ${ownerFilter})
         and (${companyId}::int is null or company_id = ${companyId})
         and (${folderId}::int is null or folder_id = ${folderId})
