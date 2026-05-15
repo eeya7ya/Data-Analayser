@@ -35,13 +35,11 @@ export default function CompanyListClient({
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
   const [busy, setBusy] = useState(false);
-  const [includeArchived, setIncludeArchived] = useState(false);
 
   const refresh = useCallback(async (q?: string) => {
     try {
       const params = new URLSearchParams();
       if (q) params.set("q", q);
-      if (includeArchived) params.set("include_archived", "1");
       const res = await fetch(`/api/companies?${params}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { companies: Company[] };
@@ -49,20 +47,16 @@ export default function CompanyListClient({
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [includeArchived]);
+  }, []);
 
-  // Re-fetch when the archived toggle flips. Search runs client-side
-  // so we don't refetch on every keystroke.
   useEffect(() => {
     void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [includeArchived]);
+  }, [refresh]);
 
-  async function archive(id: number, next: boolean) {
+  async function softDelete(id: number) {
     if (
-      next &&
       !window.confirm(
-        "Archive this company? Soft — the row stays and you can un-archive any time.",
+        "Delete this company? It moves to Trash and can be restored from there.",
       )
     )
       return;
@@ -71,11 +65,11 @@ export default function CompanyListClient({
       const res = await fetch(`/api/companies?id=${id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ archived: next }),
+        body: JSON.stringify({ archived: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      await refresh();
+      setItems((prev) => prev.filter((c) => c.id !== id));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -105,14 +99,12 @@ export default function CompanyListClient({
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1 min-w-0 rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
         />
-        <label className="text-xs text-magic-ink/60 flex items-center gap-1.5">
-          <input
-            type="checkbox"
-            checked={includeArchived}
-            onChange={(e) => setIncludeArchived(e.target.checked)}
-          />
-          show archived
-        </label>
+        <Link
+          href="/quotation?tab=trash"
+          className="rounded-lg border border-magic-border px-3 py-2 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
+        >
+          Trash
+        </Link>
         <button
           onClick={() => setCreating(true)}
           className="rounded-lg bg-magic-red text-white px-3 py-2 text-sm font-semibold hover:bg-magic-red/90 transition-colors"
@@ -140,9 +132,7 @@ export default function CompanyListClient({
           {visible.map((c) => (
             <li
               key={c.id}
-              className={`rounded-xl border bg-white p-4 hover:shadow-md transition-shadow ${
-                c.deleted_at ? "border-magic-border/40 opacity-70" : "border-magic-border"
-              }`}
+              className="rounded-xl border border-magic-border bg-white p-4 hover:shadow-md transition-shadow"
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
@@ -152,11 +142,6 @@ export default function CompanyListClient({
                   >
                     {c.name}
                   </Link>
-                  {c.deleted_at && (
-                    <span className="ml-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">
-                      Archived
-                    </span>
-                  )}
                   <div className="text-xs text-magic-ink/60 mt-0.5">
                     {c.industry && <>{c.industry} · </>}
                     {c.website && (
@@ -195,11 +180,11 @@ export default function CompanyListClient({
                     Edit
                   </button>
                   <button
-                    onClick={() => void archive(c.id, !c.deleted_at)}
+                    onClick={() => void softDelete(c.id)}
                     disabled={busy}
-                    className="px-2 py-1.5 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 disabled:opacity-50 transition-colors"
+                    className="px-2 py-1.5 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-red-50 hover:text-red-700 hover:border-red-300 disabled:opacity-50 transition-colors"
                   >
-                    {c.deleted_at ? "Unarchive" : "Archive"}
+                    Delete
                   </button>
                 </div>
               </div>

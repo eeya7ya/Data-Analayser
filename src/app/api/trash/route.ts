@@ -5,20 +5,20 @@ import { requireUser } from "@/lib/auth";
 export const runtime = "nodejs";
 
 /**
- * Trash bin ("junction box") for client folders and quotations.
+ * Trash bin ("junction box") for client folders, quotations, and companies.
  *
- * GET  → lists soft-deleted folders and quotations owned by the caller
- *        (admins see everything). Nothing is ever auto-purged from here.
- * POST → restores a trashed folder or quotation by clearing `deleted_at`.
- *        For folders the restore can optionally cascade to the quotations
- *        that were trashed together with the folder (detected by matching
- *        their `deleted_at` to the folder's within a small window — folders
- *        soft-delete their children in the same transaction so the
- *        timestamps line up).
+ * GET  → lists soft-deleted folders, quotations, and companies owned by
+ *        the caller (admins see everything). Nothing is ever auto-purged.
+ * POST → restores a trashed folder, quotation, or company by clearing
+ *        `deleted_at`. For folders the restore can optionally cascade to
+ *        the quotations that were trashed together with the folder
+ *        (detected by matching their `deleted_at` to the folder's within
+ *        a small window — folders soft-delete their children in the same
+ *        transaction so the timestamps line up).
  */
 
 interface RestoreBody {
-  type: "folder" | "quotation";
+  type: "folder" | "quotation" | "company";
   id: number;
   cascade?: boolean;
 }
@@ -69,7 +69,27 @@ export async function GET() {
             order by deleted_at desc
           `) as Array<Record<string, unknown>>);
 
-    return NextResponse.json({ folders, quotations });
+    const companies =
+      user.role === "admin"
+        ? ((await q`
+            select c.id, c.name, c.website, c.industry, c.owner_id,
+                   c.created_at, c.updated_at, c.deleted_at,
+                   u.username as owner_username,
+                   u.display_name as owner_display_name
+            from companies c
+            left join users u on u.id = c.owner_id
+            where c.deleted_at is not null
+            order by c.deleted_at desc
+          `) as Array<Record<string, unknown>>)
+        : ((await q`
+            select id, name, website, industry, owner_id,
+                   created_at, updated_at, deleted_at
+            from companies
+            where owner_id = ${user.id} and deleted_at is not null
+            order by deleted_at desc
+          `) as Array<Record<string, unknown>>);
+
+    return NextResponse.json({ folders, quotations, companies });
   } catch (err) {
     const msg = (err as Error).message;
     return NextResponse.json(
@@ -177,6 +197,27 @@ export async function POST(req: NextRequest) {
         set deleted_at = null,
             folder_id  = ${newFolderId},
             updated_at = now()
+        where id = ${body.id}
+      `;
+      return NextResponse.json({ ok: true });
+    }
+
+    if (body.type === "company") {
+      const rows = (await q`
+        select id, owner_id, name
+        from companies
+        where id = ${body.id} and deleted_at is not null
+        limit 1
+      `) as Array<{ id: number; owner_id: number | null; name: string }>;
+      if (rows.length === 0) {
+        return NextResponse.json({ error: "company not in trash" }, { status: 404 });
+      }
+      if (user.role !== "admin" && rows[0].owner_id !== user.id) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+      await q`
+        update companies
+        set deleted_at = null, updated_at = now()
         where id = ${body.id}
       `;
       return NextResponse.json({ ok: true });
