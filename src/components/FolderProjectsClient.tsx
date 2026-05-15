@@ -170,19 +170,59 @@ export default function FolderProjectsClient({
   const activeProject =
     projects.find((p) => p.id === activeProjectId) || null;
 
+  // On screens narrower than lg the project sidebar collapses by
+  // default so the actual project content gets the screen real estate.
+  // The header doubles as a toggle on mobile and a static label on
+  // desktop where the sidebar is always visible.
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   return (
     <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
       <aside className="rounded-2xl border border-magic-border bg-white p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-sm text-magic-ink">Projects</h2>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => setMobileSidebarOpen((v) => !v)}
+            aria-expanded={mobileSidebarOpen}
+            className="flex min-w-0 items-center gap-2 text-left lg:cursor-default"
+          >
+            <h2 className="font-semibold text-sm text-magic-ink">
+              Projects
+              <span className="ml-1 text-magic-ink/40 lg:hidden">
+                ({projects.length})
+              </span>
+            </h2>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`h-4 w-4 text-magic-ink/50 transition-transform lg:hidden ${
+                mobileSidebarOpen ? "rotate-180" : ""
+              }`}
+              aria-hidden
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            {!mobileSidebarOpen && activeProject && (
+              <span className="ml-1 truncate text-xs text-magic-ink/60 lg:hidden">
+                · {activeProject.name}
+              </span>
+            )}
+          </button>
           <NewProjectButton
             folderId={folderId}
             onCreated={(p) => {
               setProjects((prev) => [...prev, p]);
               setActiveProjectId(p.id);
+              setMobileSidebarOpen(false);
             }}
           />
         </div>
+        <div className={mobileSidebarOpen ? "block" : "hidden lg:block"}>
         {error && (
           <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             {error}
@@ -237,7 +277,10 @@ export default function FolderProjectsClient({
                     <li key={p.id}>
                       <button
                         type="button"
-                        onClick={() => setActiveProjectId(p.id)}
+                        onClick={() => {
+                          setActiveProjectId(p.id);
+                          setMobileSidebarOpen(false);
+                        }}
                         onDragOver={(e) => {
                           if (!canAcceptDrop) return;
                           e.preventDefault();
@@ -280,6 +323,7 @@ export default function FolderProjectsClient({
             );
           })()
         )}
+        </div>
       </aside>
 
       <section className="min-w-0">
@@ -448,7 +492,7 @@ function ProjectPanel({
         onProjectUpdate={onProjectUpdate}
         onProjectDelete={onProjectDelete}
       />
-      <div className="border-b border-magic-border px-4 flex gap-1">
+      <div className="border-b border-magic-border px-2 sm:px-4 flex gap-1 overflow-x-auto">
         {(
           [
             ["quotations", "Quotations"],
@@ -463,7 +507,7 @@ function ProjectPanel({
               key={key}
               type="button"
               onClick={() => setTab(key)}
-              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+              className={`whitespace-nowrap px-3 sm:px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
                 isActive
                   ? "border-magic-red text-magic-red"
                   : "border-transparent text-magic-ink/60 hover:text-magic-ink"
