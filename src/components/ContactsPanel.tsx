@@ -6,9 +6,9 @@ import Link from "next/link";
 /**
  * Contacts panel for the company / folder pages. Lists named people
  * with inline search, "+ New contact" form, and per-row edit /
- * archive. Archive is soft — the row stays in the database with
- * deleted_at set, and unarchive flips it back. Re-fetches via the
- * /api/contacts endpoint whenever the parent passes a new scope.
+ * delete. Delete is soft — the row gets `deleted_at` set and the
+ * linked project folder is cascade-soft-deleted alongside it, so the
+ * pair surfaces in the Trash bin where they can be restored together.
  *
  * When `linkBase` is provided, each row becomes a link to that
  * person's project folder (e.g. /crm/company/123/clients/456),
@@ -59,7 +59,6 @@ export default function ContactsPanel({
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<ContactRow | null>(null);
-  const [includeArchived, setIncludeArchived] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,7 +67,6 @@ export default function ContactsPanel({
       const params = new URLSearchParams();
       if (companyId !== null) params.set("company_id", String(companyId));
       if (folderId !== null) params.set("folder_id", String(folderId));
-      if (includeArchived) params.set("include_archived", "1");
       const res = await fetch(`/api/contacts?${params}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { contacts?: ContactRow[] };
@@ -76,7 +74,7 @@ export default function ContactsPanel({
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [companyId, folderId, includeArchived]);
+  }, [companyId, folderId]);
 
   useEffect(() => {
     void refresh();
@@ -101,11 +99,10 @@ export default function ContactsPanel({
     });
   }, [items, query]);
 
-  async function archive(id: number, next: boolean) {
+  async function softDelete(id: number) {
     if (
-      next &&
       !window.confirm(
-        "Archive this contact? Soft — the row stays in the database and you can un-archive any time.",
+        "Delete this contact? The contact and its projects move to Trash and can be restored from there.",
       )
     )
       return;
@@ -114,13 +111,13 @@ export default function ContactsPanel({
       const res = await fetch(`/api/contacts?id=${id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ archived: next }),
+        body: JSON.stringify({ archived: true }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
       }
-      await refresh();
+      setItems((prev) => prev.filter((c) => c.id !== id));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -138,14 +135,12 @@ export default function ContactsPanel({
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1 min-w-0 rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
         />
-        <label className="text-xs text-magic-ink/60 flex items-center gap-1.5">
-          <input
-            type="checkbox"
-            checked={includeArchived}
-            onChange={(e) => setIncludeArchived(e.target.checked)}
-          />
-          show archived
-        </label>
+        <Link
+          href="/quotation?tab=trash"
+          className="rounded-lg border border-magic-border px-3 py-2 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
+        >
+          Trash
+        </Link>
         <button
           onClick={() => setCreating(true)}
           className="rounded-lg bg-magic-red text-white px-3 py-2 text-sm font-semibold hover:bg-magic-red/90 transition-colors"
@@ -171,9 +166,7 @@ export default function ContactsPanel({
           {visible.map((c) => (
             <li
               key={c.id}
-              className={`rounded-xl border bg-white p-3 ${
-                c.deleted_at ? "border-magic-border/40 opacity-70" : "border-magic-border"
-              }`}
+              className="rounded-xl border border-magic-border bg-white p-3"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -191,11 +184,6 @@ export default function ContactsPanel({
                     {c.title && (
                       <span className="ml-2 text-xs text-magic-ink/50 font-normal">
                         · {c.title}
-                      </span>
-                    )}
-                    {c.deleted_at && (
-                      <span className="ml-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">
-                        Archived
                       </span>
                     )}
                   </div>
@@ -235,11 +223,11 @@ export default function ContactsPanel({
                     Edit
                   </button>
                   <button
-                    onClick={() => void archive(c.id, !c.deleted_at)}
+                    onClick={() => void softDelete(c.id)}
                     disabled={busy}
-                    className="px-2 py-1 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 disabled:opacity-50 transition-colors"
+                    className="px-2 py-1 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-red-50 hover:text-red-700 hover:border-red-300 disabled:opacity-50 transition-colors"
                   >
-                    {c.deleted_at ? "Unarchive" : "Archive"}
+                    Delete
                   </button>
                 </div>
               </div>
