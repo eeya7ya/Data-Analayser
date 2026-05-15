@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 import { getSessionUser } from "@/lib/auth";
 import LoginForm from "@/components/LoginForm";
+import LoginBackgroundVideo from "@/components/LoginBackgroundVideo";
 
 export const dynamic = "force-dynamic";
 
@@ -10,66 +11,79 @@ export default async function LoginPage() {
   if (user) redirect("/");
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0b0f1a] text-white">
-      {/* ── Looping video background ── */}
-      <video
-        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        aria-hidden
-      >
-        <source src="/login-bg.mp4" type="video/mp4" />
-      </video>
-      {/* Tint + grid overlay so the form stays readable on any frame */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0b0f1a]/70 via-[#0b0f1a]/55 to-[#0b0f1a]/85" />
+      <LoginBackgroundVideo src="/login-bg.mp4" />
+
+      {/* Tint + soft radial vignette so type stays readable on any frame */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0b0f1a]/65 via-[#0b0f1a]/40 to-[#0b0f1a]/85" />
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(60% 60% at 30% 50%, rgba(226,35,26,0.10), transparent 70%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.05]"
         style={{
           backgroundImage:
             "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
           backgroundSize: "44px 44px",
           maskImage:
-            "radial-gradient(ellipse at center, black 40%, transparent 75%)",
+            "radial-gradient(ellipse at center, black 35%, transparent 80%)",
           WebkitMaskImage:
-            "radial-gradient(ellipse at center, black 40%, transparent 75%)",
+            "radial-gradient(ellipse at center, black 35%, transparent 80%)",
         }}
       />
 
-      {/* ── Centered card ── */}
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10">
-        <section className="w-full max-w-[420px]">
-          <div className="relative">
-            <div
-              aria-hidden
-              className="absolute -inset-[1px] rounded-3xl bg-gradient-to-br from-white/30 via-white/10 to-transparent"
-            />
-            <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl sm:p-9">
-              <div className="mb-7 flex flex-col items-center text-center">
-                <Image
-                  src="/logo.png"
-                  alt="MagicTech"
-                  width={680}
-                  height={200}
-                  priority
-                  className="h-auto w-[240px] object-contain drop-shadow-[0_10px_30px_rgba(226,35,26,0.35)] sm:w-[280px]"
-                />
-                <p className="mt-3 text-sm font-semibold uppercase tracking-[0.25em] text-white/70">
-                  CRM System
+      {/* ── Split layout: brand LHS, sign-in RHS ── */}
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl items-center px-6 py-10 lg:px-10">
+        <div className="grid w-full items-center gap-10 lg:grid-cols-2 lg:gap-16">
+          {/* LHS — Logo + CRM System */}
+          <aside className="flex flex-col items-center text-center lg:items-start lg:text-left">
+            <div className="w-[260px] sm:w-[320px] lg:w-[400px] xl:w-[440px]">
+              <Image
+                src="/logo.png"
+                alt="MagicTech"
+                width={680}
+                height={200}
+                priority
+                className="h-auto w-full object-contain drop-shadow-[0_12px_40px_rgba(226,35,26,0.45)]"
+              />
+            </div>
+            <div className="mt-5 flex items-center gap-3">
+              <span className="h-px w-10 bg-gradient-to-r from-transparent via-[#E2231A]/70 to-[#E2231A]" />
+              <p className="text-sm font-semibold uppercase tracking-[0.35em] text-white/80">
+                CRM System
+              </p>
+              <span className="h-px w-10 bg-gradient-to-l from-transparent via-[#E2231A]/70 to-[#E2231A] lg:hidden" />
+            </div>
+            <p className="mt-6 max-w-md text-sm leading-relaxed text-white/55">
+              Sign in to access your workspace.
+            </p>
+          </aside>
+
+          {/* RHS — Sign-in (frameless, just the form on the canvas) */}
+          <section className="flex justify-center lg:justify-end">
+            <div className="w-full max-w-[400px]">
+              <div className="mb-8 text-center lg:text-left">
+                <h2 className="text-3xl font-bold tracking-tight text-white">
+                  Welcome back
+                </h2>
+                <p className="mt-2 text-sm text-white/55">
+                  Sign in to your MagicTech workspace
                 </p>
               </div>
 
               <LoginForm />
 
-              <div className="mt-6 flex items-center justify-center gap-3 text-[11px] text-white/40">
-                <span className="h-px w-8 bg-white/15" />
-                <span>SECURE LOGIN</span>
-                <span className="h-px w-8 bg-white/15" />
+              <div className="mt-8 flex items-center gap-3 text-[10px] uppercase tracking-[0.3em] text-white/35">
+                <span className="h-px flex-1 bg-white/10" />
+                <span>Secure Login</span>
+                <span className="h-px flex-1 bg-white/10" />
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
     </main>
   );
