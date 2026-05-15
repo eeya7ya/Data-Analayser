@@ -294,6 +294,75 @@ body > * {
     outline: none;
     z-index: 10;
   }
+
+  /* Hover-expand for the short-text cells (brand / model / delivery /
+   * quantity / unit_price / extras). Mirrors `description-input` so the
+   * whole row's content is discoverable just by passing the mouse over
+   * a cell — a stop-gap when a value overflows the narrow column. The
+   * wrapping <td> declares `position: relative`, so the absolutely
+   * positioned focused state anchors to its own cell and never shifts
+   * the table's column widths.
+   *
+   * Works the same on a merged cell: the rule is on the input/textarea
+   * itself, and the merged <td> still acts as the relative anchor, so
+   * the popout is sized against the merged span. */
+  input.cell-input,
+  textarea.cell-input {
+    width: 100%;
+    background: transparent;
+    border-radius: 4px;
+    transition:
+      min-height 180ms ease,
+      background-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+  input.cell-input {
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  textarea.cell-input {
+    field-sizing: content;
+    min-height: 1.5em;
+    line-height: 1.35;
+    resize: none;
+  }
+  input.cell-input:hover:not(:focus),
+  textarea.cell-input:hover:not(:focus) {
+    background: rgba(255, 255, 255, 0.6);
+  }
+  input.cell-input:hover:not(:focus) {
+    position: absolute;
+    top: 4px;
+    left: -2em;
+    width: calc(100% + 4em);
+    padding: 4px 6px;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.18);
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    z-index: 5;
+  }
+  input.cell-input:focus,
+  textarea.cell-input:focus {
+    position: absolute;
+    top: 4px;
+    left: -4em;
+    width: calc(100% + 8em);
+    min-height: 3em;
+    padding: 6px 8px;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.28);
+    outline: none;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    z-index: 10;
+  }
+  textarea.cell-input:focus {
+    min-height: 8em;
+  }
 }
 
 @media print {
