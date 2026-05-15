@@ -7,6 +7,7 @@ import ClientListClient, {
   type ClientFolderRow,
 } from "@/components/ClientListClient";
 import ContactsPanel, { type ContactRow } from "@/components/ContactsPanel";
+import { EditCompanyButton } from "@/components/EditCompanyDialog";
 
 export const dynamic = "force-dynamic";
 
@@ -134,14 +135,26 @@ export default async function CompanyDetailPage({
               Companies
             </Link>
           </div>
-          <h1 className="text-2xl font-bold text-magic-ink mt-1">
-            {company.name}
-            {company.deleted_at && (
-              <span className="ml-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800 align-middle">
-                Archived
-              </span>
-            )}
-          </h1>
+          <div className="mt-1 flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-magic-ink">
+              {company.name}
+              {company.deleted_at && (
+                <span className="ml-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800 align-middle">
+                  Archived
+                </span>
+              )}
+            </h1>
+            <EditCompanyButton
+              company={{
+                id: company.id,
+                name: company.name,
+                website: company.website,
+                industry: company.industry,
+                size_bucket: company.size_bucket,
+                notes: company.notes,
+              }}
+            />
+          </div>
           <div className="mt-1 text-xs text-magic-ink/60 flex flex-wrap gap-x-4 gap-y-1">
             {company.industry && <span>{company.industry}</span>}
             {company.website && (

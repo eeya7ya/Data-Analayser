@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { EditCompanyDialog } from "@/components/EditCompanyDialog";
 
 /**
  * Companies list with client-side search + "+ New" modal. Server
@@ -32,6 +33,8 @@ export default function CompanyListClient({
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Company | null>(null);
+  const [busy, setBusy] = useState(false);
   const [includeArchived, setIncludeArchived] = useState(false);
 
   const refresh = useCallback(async (q?: string) => {
@@ -54,6 +57,31 @@ export default function CompanyListClient({
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [includeArchived]);
+
+  async function archive(id: number, next: boolean) {
+    if (
+      next &&
+      !window.confirm(
+        "Archive this company? Soft — the row stays and you can un-archive any time.",
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/companies?id=${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ archived: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      await refresh();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const visible = useMemo(() => {
     const lc = query.trim().toLowerCase();
@@ -152,12 +180,28 @@ export default function CompanyListClient({
                     {c.quotation_count === 1 ? "" : "s"}
                   </div>
                 </div>
-                <Link
-                  href={`/crm/company/${c.id}`}
-                  className="shrink-0 rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
-                >
-                  Open
-                </Link>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Link
+                    href={`/crm/company/${c.id}`}
+                    className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
+                  >
+                    Open
+                  </Link>
+                  <button
+                    onClick={() => setEditing(c)}
+                    disabled={busy}
+                    className="px-2 py-1.5 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50 transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => void archive(c.id, !c.deleted_at)}
+                    disabled={busy}
+                    className="px-2 py-1.5 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 disabled:opacity-50 transition-colors"
+                  >
+                    {c.deleted_at ? "Unarchive" : "Archive"}
+                  </button>
+                </div>
               </div>
             </li>
           ))}
@@ -170,6 +214,17 @@ export default function CompanyListClient({
           onCreated={(c) => {
             setItems((prev) => [c, ...prev]);
             setCreating(false);
+          }}
+        />
+      )}
+
+      {editing && (
+        <EditCompanyDialog
+          initial={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(c) => {
+            setItems((prev) => prev.map((it) => (it.id === c.id ? { ...it, ...c } : it)));
+            setEditing(null);
           }}
         />
       )}
