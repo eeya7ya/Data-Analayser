@@ -53,7 +53,8 @@ export default async function FolderPage({
   }
   const q = sql();
   const folderRows = (await q`
-    select id, name, owner_id, client_email, client_phone, client_company
+    select id, name, owner_id, kind, company_id,
+           client_email, client_phone, client_company
     from client_folders
     where id = ${folderId} and deleted_at is null
     limit 1
@@ -61,6 +62,8 @@ export default async function FolderPage({
     id: number;
     name: string;
     owner_id: number | null;
+    kind: "company" | "individual" | null;
+    company_id: number | null;
     client_email: string | null;
     client_phone: string | null;
     client_company: string | null;
@@ -73,10 +76,10 @@ export default async function FolderPage({
         <main className="max-w-5xl mx-auto p-6">
           <p className="text-sm text-magic-ink/70">Client folder not found.</p>
           <Link
-            href="/quotation"
+            href="/crm"
             className="text-magic-red underline text-sm mt-2 inline-block"
           >
-            ← Back to clients
+            ← Back to CRM
           </Link>
         </main>
       </div>
@@ -95,6 +98,19 @@ export default async function FolderPage({
     );
   }
 
+  // Whenever the folder has a clean home in the new CRM tree, bounce
+  // there so the user lands on the canonical URL with the right
+  // breadcrumbs instead of getting parked on the legacy /folder route.
+  // The one case we leave on /folder/[id] is "kind=company but not yet
+  // attached to a companies row" — there's no canonical CRM URL for
+  // that state until an admin links it.
+  if (folder.kind === "company" && folder.company_id) {
+    redirect(`/crm/company/${folder.company_id}/clients/${folderId}`);
+  }
+  if (folder.kind !== "company") {
+    redirect(`/crm/individual/${folderId}`);
+  }
+
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
@@ -102,10 +118,10 @@ export default async function FolderPage({
         <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
           <div>
             <Link
-              href="/quotation"
+              href="/crm"
               className="text-xs text-magic-ink/60 hover:text-magic-red"
             >
-              ← All clients
+              ← Back to CRM
             </Link>
             <h1 className="mt-1 text-2xl font-bold text-magic-ink">
               {folder.name}
