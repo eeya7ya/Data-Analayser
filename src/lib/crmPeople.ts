@@ -54,10 +54,11 @@ export async function ensurePersonFolder(args: {
 
 export async function syncCompanyPeopleAndFolders(args: {
   companyId: number;
+  companyName: string;
   userId: number;
   isAdmin: boolean;
 }): Promise<void> {
-  const { companyId, userId, isAdmin } = args;
+  const { companyId, companyName, userId, isAdmin } = args;
   const q = sql();
   const ownerFilter = isAdmin ? null : userId;
 
@@ -133,5 +134,34 @@ export async function syncCompanyPeopleAndFolders(args: {
               ${firstName}, ${lastName},
               ${ofRow.client_email}, ${ofRow.client_phone})
     `;
+  }
+
+  // Belt-and-braces: a company should never be empty. If there's no
+  // active person at this company after reconciliation, mint a default
+  // contact named after the company itself so any new quotation
+  // started here has somewhere to land.
+  const liveCount = (await q`
+    select count(*)::int as n from contacts
+    where company_id = ${companyId}
+      and deleted_at is null
+      and (${ownerFilter}::int is null or owner_id = ${ownerFilter})
+  `) as Array<{ n: number }>;
+  if ((liveCount[0]?.n ?? 0) === 0) {
+    const defaultName = companyName.trim() || `Company #${companyId}`;
+    const folderId = await ensurePersonFolder({
+      ownerId: userId,
+      companyId,
+      baseName: defaultName,
+      email: null,
+      phone: null,
+    });
+    if (folderId !== null) {
+      await q`
+        insert into contacts (owner_id, company_id, folder_id,
+                              first_name, last_name, title)
+        values (${userId}, ${companyId}, ${folderId},
+                ${defaultName}, null, 'Default client')
+      `;
+    }
   }
 }
