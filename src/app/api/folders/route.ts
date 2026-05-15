@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
              f.kind, f.company_id,
              u.username as owner_username,
              u.display_name as owner_display_name,
+             c.name as company_name,
              (select count(*) from projects p
                 where p.folder_id = f.id and p.deleted_at is null) as project_count,
              (select count(*) from quotations qq
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
                 where qq.folder_id = f.id and qq.deleted_at is null) as latest_quotation_at
       from client_folders f
       left join users u on u.id = f.owner_id
+      left join companies c on c.id = f.company_id and c.deleted_at is null
       where f.deleted_at is null
         and (${ownerFilter}::int is null or f.owner_id = ${ownerFilter})
         and (${companyId}::int is null or f.company_id = ${companyId})
@@ -81,6 +83,7 @@ export async function GET(req: NextRequest) {
       project_count: number;
       quotation_count: number;
       latest_quotation_at: string | null;
+      company_name: string | null;
     }>;
     // Short cache window: folders are mutable user data and the UX tolerates
     // an occasional fresh round-trip better than a stale list. A longer cache

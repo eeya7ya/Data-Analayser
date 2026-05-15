@@ -83,6 +83,7 @@ interface ClientFolder {
   client_email?: string | null;
   client_phone?: string | null;
   client_company?: string | null;
+  company_name?: string | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -829,13 +830,24 @@ export default function Designer({
     }
   }, [editMode, initialFolderId, folders]);
 
-  // When the user picks a client folder, snap the client header fields to
-  // the folder's CRM data. This is the mechanism that implements
-  // "select a folder, only type the project name" — the inputs become
-  // read-only via `clientLocked` and their values are sourced from here.
+  // When the user picks a client folder, snap the header fields to the
+  // CRM data behind that folder. Layout per user spec:
+  //   • Project header  ← folder.name (the folder *is* a project bucket)
+  //   • Client header   ← linked Company name, falling back to the free-
+  //                       text client_company, and only as a last resort
+  //                       the folder name (legacy data where folder=client)
+  //   • Email / Phone   ← the folder's saved contact details
+  // Project name auto-fills only when blank so a name the user typed
+  // (or one restored from a saved quotation) is never clobbered.
   useEffect(() => {
     if (!selectedFolder) return;
-    setClientName(selectedFolder.name || "");
+    const folderName = selectedFolder.name || "";
+    const realClient =
+      selectedFolder.company_name ||
+      selectedFolder.client_company ||
+      folderName;
+    setProjectName((prev) => prev || folderName);
+    setClientName(realClient);
     setClientEmail(selectedFolder.client_email || "");
     setClientPhone(selectedFolder.client_phone || "");
   }, [selectedFolder]);
