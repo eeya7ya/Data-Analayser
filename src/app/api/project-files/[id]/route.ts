@@ -81,6 +81,70 @@ export async function GET(
   }
 }
 
+/**
+ * PATCH /api/project-files/[id]
+ *
+ * Body: { project_id: number }
+ *
+ * Re-files a file under a different project. Used by the drag-and-drop
+ * "move between projects" affordance on the folder dashboard. Ownership
+ * is enforced on both ends — the caller must own the file and the target
+ * project — so a user can never plant a file under someone else's
+ * project. Admins skip the ownership check.
+ */
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  try {
+    const user = await requireUser();
+    await ensureSchema();
+    const { id: idParam } = await ctx.params;
+    const id = Number(idParam);
+    if (!Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: "invalid id" }, { status: 400 });
+    }
+    const body = (await req.json()) as { project_id?: number };
+    const targetProjectId = Number(body?.project_id);
+    if (!Number.isFinite(targetProjectId) || targetProjectId <= 0) {
+      return NextResponse.json(
+        { error: "project_id required" },
+        { status: 400 },
+      );
+    }
+    const q = sql();
+    const file = await loadFileForUser(q, id, user);
+    if (!file) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    const projectRows = (await q`
+      select owner_id from projects
+      where id = ${targetProjectId} and deleted_at is null
+      limit 1
+    `) as Array<{ owner_id: number | null }>;
+    if (projectRows.length === 0) {
+      return NextResponse.json(
+        { error: "project not found" },
+        { status: 404 },
+      );
+    }
+    if (user.role !== "admin" && projectRows[0].owner_id !== user.id) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    await q`
+      update project_files
+      set project_id = ${targetProjectId}
+      where id = ${id}
+    `;
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json(
+      { error: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}
+
 export async function DELETE(
   _req: NextRequest,
   ctx: { params: Promise<{ id: string }> },

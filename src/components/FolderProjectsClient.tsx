@@ -45,6 +45,14 @@ interface FileRow {
 
 type FileKind = "quotation" | "po" | "boq" | "other";
 
+type DragKind = "quotation" | "po" | "file";
+
+interface DragInfo {
+  kind: DragKind;
+  id: number;
+  sourceProjectId: number;
+}
+
 const KIND_LABELS: Record<FileKind, string> = {
   quotation: "Quotation files",
   po: "PO files",
@@ -85,6 +93,57 @@ export default function FolderProjectsClient({
   // makes drill-down survivable. Filtering is client-side over name
   // and description.
   const [projectQuery, setProjectQuery] = useState("");
+
+  // Drag-and-drop state for moving items between projects. `dragInfo`
+  // identifies what's being dragged (a quotation, PO, or file) and its
+  // origin project; `dropTargetId` drives the hover highlight on the
+  // sidebar button. `refreshKey` bumps after a successful move so the
+  // active tab re-fetches its list.
+  const [dragInfo, setDragInfo] = useState<DragInfo | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<number | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleDropOnProject = useCallback(
+    async (targetProjectId: number) => {
+      const di = dragInfo;
+      setDragInfo(null);
+      setDropTargetId(null);
+      if (!di || di.sourceProjectId === targetProjectId) return;
+      try {
+        let res: Response;
+        if (di.kind === "quotation") {
+          res = await fetch(`/api/quotations?id=${di.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ project_id: targetProjectId }),
+          });
+        } else if (di.kind === "po") {
+          res = await fetch(`/api/purchase-orders?id=${di.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ project_id: targetProjectId }),
+          });
+        } else {
+          res = await fetch(`/api/project-files/${di.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ project_id: targetProjectId }),
+          });
+        }
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          alert(data.error || `HTTP ${res.status}`);
+          return;
+        }
+        setRefreshKey((k) => k + 1);
+      } catch (err) {
+        alert((err as Error).message);
+      }
+    },
+    [dragInfo],
+  );
 
   const reloadProjects = useCallback(async () => {
     setLoadingProjects(true);
@@ -174,15 +233,43 @@ export default function FolderProjectsClient({
               <ul className="flex flex-col gap-1">
                 {visible.map((p) => {
                   const isActive = p.id === activeProjectId;
+                  const isDropTarget = dropTargetId === p.id;
+                  // Only treat the button as a valid drop target when
+                  // something is actually being dragged and the source
+                  // project differs from this row. Dropping on the same
+                  // project is a no-op so we don't even highlight.
+                  const canAcceptDrop =
+                    dragInfo !== null && dragInfo.sourceProjectId !== p.id;
                   return (
                     <li key={p.id}>
                       <button
                         type="button"
                         onClick={() => setActiveProjectId(p.id)}
+                        onDragOver={(e) => {
+                          if (!canAcceptDrop) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          if (dropTargetId !== p.id) setDropTargetId(p.id);
+                        }}
+                        onDragEnter={(e) => {
+                          if (!canAcceptDrop) return;
+                          e.preventDefault();
+                          setDropTargetId(p.id);
+                        }}
+                        onDragLeave={() => {
+                          if (dropTargetId === p.id) setDropTargetId(null);
+                        }}
+                        onDrop={(e) => {
+                          if (!canAcceptDrop) return;
+                          e.preventDefault();
+                          void handleDropOnProject(p.id);
+                        }}
                         className={`w-full text-left rounded-md px-3 py-2 text-sm border transition-colors ${
-                          isActive
-                            ? "border-magic-red bg-magic-red/5 text-magic-ink"
-                            : "border-transparent hover:bg-magic-soft text-magic-ink/80"
+                          isDropTarget
+                            ? "border-magic-red bg-magic-red/10 text-magic-ink ring-2 ring-magic-red/30"
+                            : isActive
+                              ? "border-magic-red bg-magic-red/5 text-magic-ink"
+                              : "border-transparent hover:bg-magic-soft text-magic-ink/80"
                         }`}
                         title={p.description || undefined}
                       >
@@ -206,6 +293,14 @@ export default function FolderProjectsClient({
         {activeProject ? (
           <ProjectPanel
             project={activeProject}
+            refreshKey={refreshKey}
+            onDragStart={(kind, id) =>
+              setDragInfo({ kind, id, sourceProjectId: activeProject.id })
+            }
+            onDragEnd={() => {
+              setDragInfo(null);
+              setDropTargetId(null);
+            }}
             onProjectUpdate={(updated) => {
               setProjects((prev) =>
                 prev.map((p) => (p.id === updated.id ? updated : p)),
@@ -337,10 +432,16 @@ function NewProjectButton({
 
 function ProjectPanel({
   project,
+  refreshKey,
+  onDragStart,
+  onDragEnd,
   onProjectUpdate,
   onProjectDelete,
 }: {
   project: Project;
+  refreshKey: number;
+  onDragStart: (kind: DragKind, id: number) => void;
+  onDragEnd: () => void;
   onProjectUpdate: (p: Project) => void;
   onProjectDelete: (id: number) => void;
 }) {
@@ -378,9 +479,30 @@ function ProjectPanel({
         })}
       </div>
       <div className="p-4">
-        {tab === "quotations" && <QuotationsTab project={project} />}
-        {tab === "pos" && <PosTab project={project} />}
-        {tab === "files" && <FilesTab project={project} />}
+        {tab === "quotations" && (
+          <QuotationsTab
+            project={project}
+            refreshKey={refreshKey}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+          />
+        )}
+        {tab === "pos" && (
+          <PosTab
+            project={project}
+            refreshKey={refreshKey}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+          />
+        )}
+        {tab === "files" && (
+          <FilesTab
+            project={project}
+            refreshKey={refreshKey}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+          />
+        )}
       </div>
     </div>
   );
@@ -528,7 +650,17 @@ function ProjectHeader({
   );
 }
 
-function QuotationsTab({ project }: { project: Project }) {
+function QuotationsTab({
+  project,
+  refreshKey,
+  onDragStart,
+  onDragEnd,
+}: {
+  project: Project;
+  refreshKey: number;
+  onDragStart: (kind: DragKind, id: number) => void;
+  onDragEnd: () => void;
+}) {
   const [items, setItems] = useState<QuotationRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -552,7 +684,7 @@ function QuotationsTab({ project }: { project: Project }) {
     return () => {
       cancelled = true;
     };
-  }, [project.id]);
+  }, [project.id, refreshKey]);
 
   if (error) {
     return (
@@ -588,12 +720,21 @@ function QuotationsTab({ project }: { project: Project }) {
           {items.map((row) => (
             <li
               key={row.id}
-              className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", String(row.id));
+                onDragStart("quotation", row.id);
+              }}
+              onDragEnd={onDragEnd}
+              className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40 cursor-grab active:cursor-grabbing"
+              title="Drag onto a project in the sidebar to move this quotation"
             >
               <div className="min-w-0">
                 <Link
                   href={`/quotation?id=${row.id}`}
                   className="font-mono text-sm text-magic-red hover:underline"
+                  draggable={false}
                 >
                   {row.ref}
                 </Link>
@@ -612,7 +753,17 @@ function QuotationsTab({ project }: { project: Project }) {
   );
 }
 
-function PosTab({ project }: { project: Project }) {
+function PosTab({
+  project,
+  refreshKey,
+  onDragStart,
+  onDragEnd,
+}: {
+  project: Project;
+  refreshKey: number;
+  onDragStart: (kind: DragKind, id: number) => void;
+  onDragEnd: () => void;
+}) {
   const [items, setItems] = useState<PoRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -636,7 +787,7 @@ function PosTab({ project }: { project: Project }) {
     return () => {
       cancelled = true;
     };
-  }, [project.id]);
+  }, [project.id, refreshKey]);
 
   if (error) {
     return (
@@ -670,7 +821,15 @@ function PosTab({ project }: { project: Project }) {
           {items.map((row) => (
             <li
               key={row.id}
-              className="px-3 py-2 flex items-center justify-between gap-3"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", String(row.id));
+                onDragStart("po", row.id);
+              }}
+              onDragEnd={onDragEnd}
+              className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40 cursor-grab active:cursor-grabbing"
+              title="Drag onto a project in the sidebar to move this PO"
             >
               <div className="min-w-0">
                 <span className="font-mono text-sm">{row.po_number}</span>
@@ -689,7 +848,17 @@ function PosTab({ project }: { project: Project }) {
   );
 }
 
-function FilesTab({ project }: { project: Project }) {
+function FilesTab({
+  project,
+  refreshKey,
+  onDragStart,
+  onDragEnd,
+}: {
+  project: Project;
+  refreshKey: number;
+  onDragStart: (kind: DragKind, id: number) => void;
+  onDragEnd: () => void;
+}) {
   const [files, setFiles] = useState<FileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -715,7 +884,7 @@ function FilesTab({ project }: { project: Project }) {
 
   useEffect(() => {
     void reload();
-  }, [reload]);
+  }, [reload, refreshKey]);
 
   const grouped = useMemo(() => {
     const buckets: Record<FileKind, FileRow[]> = {
@@ -784,6 +953,8 @@ function FilesTab({ project }: { project: Project }) {
               <FileRowItem
                 key={f.id}
                 file={f}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
                 onDeleted={(id) =>
                   setFiles((prev) => prev.filter((row) => row.id !== id))
                 }
@@ -919,9 +1090,13 @@ function FileUploader({
 
 function FileRowItem({
   file,
+  onDragStart,
+  onDragEnd,
   onDeleted,
 }: {
   file: FileRow;
+  onDragStart: (kind: DragKind, id: number) => void;
+  onDragEnd: () => void;
   onDeleted: (id: number) => void;
 }) {
   const [busy, setBusy] = useState<"view" | "download" | "delete" | null>(null);
@@ -972,7 +1147,17 @@ function FileRowItem({
   }, [file.id, file.filename, onDeleted]);
 
   return (
-    <li className="px-3 py-2 flex items-center justify-between gap-3">
+    <li
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", String(file.id));
+        onDragStart("file", file.id);
+      }}
+      onDragEnd={onDragEnd}
+      className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40 cursor-grab active:cursor-grabbing"
+      title="Drag onto a project in the sidebar to move this file"
+    >
       <div className="min-w-0">
         <div className="text-sm text-magic-ink truncate">{file.filename}</div>
         <div className="text-[10px] text-magic-ink/50">
