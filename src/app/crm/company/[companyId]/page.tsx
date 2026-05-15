@@ -2,24 +2,23 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
+import { syncCompanyPeopleAndFolders } from "@/lib/crmPeople";
 import TopBar from "@/components/TopBar";
-import ClientListClient, {
-  type ClientFolderRow,
-} from "@/components/ClientListClient";
 import ContactsPanel, { type ContactRow } from "@/components/ContactsPanel";
 import { EditCompanyButton } from "@/components/EditCompanyDialog";
 
 export const dynamic = "force-dynamic";
 
 /**
- * /crm/company/[companyId] — one company entity with its list of
- * client folders. The folder rows link onward to the existing
- * /folder/[id] page so the project / quotation drill-down keeps
- * working untouched — we add the company breadcrumb without
- * duplicating the folder-detail UI.
+ * /crm/company/[companyId] — one company entity with its unified
+ * "People at this company" list. Each person is both a contact and a
+ * client: their row links to the existing client-folder drill-down at
+ * /crm/company/[companyId]/clients/[folderId], so projects + quotations
+ * surface one click away.
  *
- * "+ New client" creates a folder pre-linked to this company via
- * /api/folders { kind: 'company', company_id }.
+ * Legacy data — bare contacts and bare "+ New client" folders — is
+ * reconciled by syncCompanyPeopleAndFolders so nothing disappears
+ * after the merge.
  */
 
 interface CompanyRow {
@@ -91,31 +90,27 @@ export default async function CompanyDetailPage({
     );
   }
 
+  // Reconcile contacts ↔ folders so the unified "People at this
+  // company" list shows every person and every legacy client folder.
+  await syncCompanyPeopleAndFolders({
+    companyId,
+    userId: user.id,
+    isAdmin,
+  });
+
   const contactRows = (await q`
-    select id, owner_id, folder_id, company_id,
-           first_name, last_name, email, phone, title, notes, deleted_at
-    from contacts
-    where company_id = ${companyId} and deleted_at is null
-    order by coalesce(last_name, ''), coalesce(first_name, '')
+    select c.id, c.owner_id, c.folder_id, c.company_id,
+           c.first_name, c.last_name, c.email, c.phone, c.title, c.notes,
+           c.deleted_at,
+           coalesce((select count(*) from projects p
+              where p.folder_id = c.folder_id and p.deleted_at is null), 0)::int as project_count,
+           coalesce((select count(*) from quotations qq
+              where qq.folder_id = c.folder_id and qq.deleted_at is null), 0)::int as quotation_count
+    from contacts c
+    where c.company_id = ${companyId} and c.deleted_at is null
+    order by coalesce(c.last_name, ''), coalesce(c.first_name, '')
     limit 200
   `) as ContactRow[];
-
-  const folderRows = (await q`
-    select cf.id, cf.name, cf.kind, cf.company_id,
-           cf.client_email, cf.client_phone, cf.client_company,
-           u.username as owner_username,
-           (select count(*) from projects p
-              where p.folder_id = cf.id and p.deleted_at is null) as project_count,
-           (select count(*) from quotations qq
-              where qq.folder_id = cf.id and qq.deleted_at is null) as quotation_count,
-           (select max(qq.created_at) from quotations qq
-              where qq.folder_id = cf.id and qq.deleted_at is null) as latest_quotation_at
-    from client_folders cf
-    left join users u on u.id = cf.owner_id
-    where cf.company_id = ${companyId}
-      and cf.deleted_at is null
-    order by latest_quotation_at desc nulls last, cf.name
-  `) as ClientFolderRow[];
 
   return (
     <div className="min-h-screen bg-magic-soft/40">
@@ -187,28 +182,15 @@ export default async function CompanyDetailPage({
               ({contactRows.length})
             </span>
           </h2>
+          <p className="text-xs text-magic-ink/50 -mt-2 mb-3">
+            Each person is a client — click the name to open their projects
+            and quotations.
+          </p>
           <ContactsPanel
             initial={contactRows}
             companyId={companyId}
             folderId={null}
-          />
-        </section>
-
-        <section>
-          <h2 className="text-lg font-semibold text-magic-ink mb-3">
-            Clients at this company
-            <span className="ml-2 text-xs font-normal text-magic-ink/60">
-              ({folderRows.length})
-            </span>
-          </h2>
-          <ClientListClient
-            initial={folderRows}
-            newClientKind="company"
-            companyId={companyId}
             linkBase={`/crm/company/${companyId}/clients`}
-            newLabel="+ New client"
-            searchPlaceholder="Search client name, email, phone…"
-            emptyHint="No clients yet. Use + New client to add the first contact at this company."
           />
         </section>
       </main>
