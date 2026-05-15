@@ -10,24 +10,32 @@ export default async function LoginPage() {
   if (user) redirect("/");
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0b0f1a] text-white">
-      {/* ── Animated ambient background ── */}
-      <div className="pointer-events-none absolute inset-0">
-        <div
-          className="absolute inset-0 opacity-[0.08]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
-            backgroundSize: "44px 44px",
-            maskImage:
-              "radial-gradient(ellipse at center, black 40%, transparent 75%)",
-            WebkitMaskImage:
-              "radial-gradient(ellipse at center, black 40%, transparent 75%)",
-          }}
-        />
-        <div className="absolute -top-40 -left-40 h-[540px] w-[540px] rounded-full bg-[#E2231A] opacity-40 blur-[120px]" />
-        <div className="absolute top-1/3 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-[#7c3aed] opacity-25 blur-[130px]" />
-        <div className="absolute -bottom-52 right-10 h-[520px] w-[520px] rounded-full bg-[#06b6d4] opacity-25 blur-[140px]" />
-      </div>
+      {/* ── Looping video background ── */}
+      <video
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        aria-hidden
+      >
+        <source src="/login-bg.mp4" type="video/mp4" />
+      </video>
+      {/* Tint + grid overlay so the form stays readable on any frame */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0b0f1a]/70 via-[#0b0f1a]/55 to-[#0b0f1a]/85" />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
+          backgroundSize: "44px 44px",
+          maskImage:
+            "radial-gradient(ellipse at center, black 40%, transparent 75%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse at center, black 40%, transparent 75%)",
+        }}
+      />
 
       {/* ── Centered split content ── */}
       <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl items-center justify-center px-6 py-10">

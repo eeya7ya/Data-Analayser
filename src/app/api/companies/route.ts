@@ -83,7 +83,12 @@ export async function GET(req: NextRequest) {
     // notes; we use the existing search_tsv generated column when no
     // explicit ILIKE filter would help. Keeping it simple here — the
     // 17-row dataset doesn't need plan optimisation.
-    const archivedFilter = includeArchived ? null : false;
+    // activeOnly = true means "deleted_at IS NULL"; null means "no filter
+    // — include archived rows too". Earlier this was a boolean named
+    // archivedFilter compared against (deleted_at IS NULL); the polarity
+    // was inverted so the default request only returned archived rows,
+    // which wiped the SSR-rendered list on client re-fetch.
+    const activeOnly = includeArchived ? null : true;
     const ownerFilter = isAdmin ? null : user.id;
     const rows = (await q`
       select c.id, c.name, c.website, c.industry, c.size_bucket, c.notes,
@@ -98,7 +103,7 @@ export async function GET(req: NextRequest) {
              c.deleted_at
       from companies c
       left join users u on u.id = c.owner_id
-      where (${archivedFilter}::boolean is null or (c.deleted_at is null) = ${archivedFilter})
+      where (${activeOnly}::boolean is null or (c.deleted_at is null) = ${activeOnly})
         and (${ownerFilter}::int is null or c.owner_id = ${ownerFilter})
         and (
           ${search} = ''
