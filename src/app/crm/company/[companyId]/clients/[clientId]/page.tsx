@@ -6,6 +6,7 @@ import TopBar from "@/components/TopBar";
 import ClientProjectsList, {
   type ClientProjectRow,
 } from "@/components/ClientProjectsList";
+import { EditFolderButton } from "@/components/EditFolderDialog";
 
 export const dynamic = "force-dynamic";
 
@@ -117,9 +118,20 @@ export default async function CompanyClientFolderPage({
               {folder.company_name ?? `company #${companyId}`}
             </Link>
           </div>
-          <h1 className="mt-1 text-2xl font-bold text-magic-ink">
-            {folder.name}
-          </h1>
+          <div className="mt-1 flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-magic-ink">
+              {folder.name}
+            </h1>
+            <EditFolderButton
+              folder={{
+                id: folder.id,
+                name: folder.name,
+                client_email: folder.client_email,
+                client_phone: folder.client_phone,
+                client_company: folder.client_company,
+              }}
+            />
+          </div>
           <div className="mt-1 text-xs text-magic-ink/60 flex flex-wrap gap-x-4 gap-y-1">
             {folder.client_email && <span>{folder.client_email}</span>}
             {folder.client_phone && <span>{folder.client_phone}</span>}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { EditFolderDialog } from "@/components/EditFolderDialog";
 
 /**
  * Reusable client (folder) list with search + "+ New client".
@@ -53,6 +54,8 @@ export default function ClientListClient({
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<ClientFolderRow | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -93,6 +96,28 @@ export default function ClientListClient({
     // navigates back to the page after creating elsewhere.
     void refresh();
   }, [refresh]);
+
+  async function archive(id: number) {
+    if (
+      !window.confirm(
+        "Archive this client? It moves to Trash and can be restored from there.",
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/folders?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      setItems((prev) => prev.filter((f) => f.id !== id));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -157,12 +182,28 @@ export default function ClientListClient({
                     )}
                   </div>
                 </div>
-                <Link
-                  href={`${linkBase}/${f.id}`}
-                  className="shrink-0 rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
-                >
-                  Open
-                </Link>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Link
+                    href={`${linkBase}/${f.id}`}
+                    className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
+                  >
+                    Open
+                  </Link>
+                  <button
+                    onClick={() => setEditing(f)}
+                    disabled={busy}
+                    className="px-2 py-1.5 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50 transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => void archive(f.id)}
+                    disabled={busy}
+                    className="px-2 py-1.5 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 disabled:opacity-50 transition-colors"
+                  >
+                    Archive
+                  </button>
+                </div>
               </div>
             </li>
           ))}
@@ -177,6 +218,19 @@ export default function ClientListClient({
           onCreated={(row) => {
             setItems((prev) => [row, ...prev]);
             setCreating(false);
+          }}
+        />
+      )}
+
+      {editing && (
+        <EditFolderDialog
+          initial={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(row) => {
+            setItems((prev) =>
+              prev.map((f) => (f.id === row.id ? { ...f, ...row } : f)),
+            );
+            setEditing(null);
           }}
         />
       )}
