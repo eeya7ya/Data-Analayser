@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 import { getSessionUser } from "@/lib/auth";
 import LoginForm from "@/components/LoginForm";
+import LoginBackgroundVideo from "@/components/LoginBackgroundVideo";
 
 export const dynamic = "force-dynamic";
 
@@ -10,149 +11,80 @@ export default async function LoginPage() {
   if (user) redirect("/");
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0b0f1a] text-white">
-      {/* ── Looping video background ── */}
-      <video
-        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        aria-hidden
-      >
-        <source src="/login-bg.mp4" type="video/mp4" />
-      </video>
-      {/* Tint + grid overlay so the form stays readable on any frame */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0b0f1a]/70 via-[#0b0f1a]/55 to-[#0b0f1a]/85" />
+      <LoginBackgroundVideo src="/login-bg.mp4" />
+
+      {/* Tint + soft radial vignette so type stays readable on any frame */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0b0f1a]/65 via-[#0b0f1a]/40 to-[#0b0f1a]/85" />
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(60% 60% at 30% 50%, rgba(226,35,26,0.10), transparent 70%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.05]"
         style={{
           backgroundImage:
             "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
           backgroundSize: "44px 44px",
           maskImage:
-            "radial-gradient(ellipse at center, black 40%, transparent 75%)",
+            "radial-gradient(ellipse at center, black 35%, transparent 80%)",
           WebkitMaskImage:
-            "radial-gradient(ellipse at center, black 40%, transparent 75%)",
+            "radial-gradient(ellipse at center, black 35%, transparent 80%)",
         }}
       />
 
-      {/* ── Centered split content ── */}
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl items-center justify-center px-6 py-10">
-        <div className="grid w-full items-center gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 xl:gap-14">
-          {/* Left: hero */}
-          <aside className="flex flex-col justify-center text-center lg:text-left">
-            <div className="mx-auto mb-8 w-[260px] sm:w-[300px] lg:mx-0 lg:w-[340px]">
-              {/* Logo displays directly on the dark canvas — no white plate,
-                  no ring, no backdrop. A subtle drop-shadow gives the
-                  transparent-PNG lift so it still reads against the blobs. */}
+      {/* ── Split layout: brand LHS, sign-in RHS ── */}
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl items-center px-6 py-10 lg:px-10">
+        <div className="grid w-full items-center gap-10 lg:grid-cols-2 lg:gap-16">
+          {/* LHS — Logo + CRM System */}
+          <aside className="flex flex-col items-center text-center lg:items-start lg:text-left">
+            <div className="w-[260px] sm:w-[320px] lg:w-[400px] xl:w-[440px]">
               <Image
                 src="/logo.png"
                 alt="MagicTech"
                 width={680}
                 height={200}
                 priority
-                className="h-auto w-full object-contain drop-shadow-[0_10px_30px_rgba(226,35,26,0.35)]"
+                className="h-auto w-full object-contain drop-shadow-[0_12px_40px_rgba(226,35,26,0.45)]"
               />
             </div>
-
-            <h1 className="text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl xl:text-6xl">
-              Design winning
-              <br />
-              <span className="bg-gradient-to-r from-[#ff4d44] via-[#ff8a7a] to-[#ffd5ce] bg-clip-text text-transparent">
-                quotations
-              </span>{" "}
-              in minutes.
-            </h1>
-            <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-white/70 lg:mx-0">
-              One intelligent workspace to browse the live catalogue, assemble
-              projects with AI, and deliver branded quotations your clients
-              will love.
-            </p>
-
-            <ul className="mx-auto mt-7 grid max-w-md gap-3 text-sm text-white/80 lg:mx-0">
-              <FeatureRow text="Live product catalogue from Supabase" />
-              <FeatureRow text="AI-powered bill of quantities" />
-              <FeatureRow text="Per-user folders and team collaboration" />
-              <FeatureRow text="Beautiful, print-ready quotation PDFs" />
-            </ul>
-
-            <p className="mt-10 hidden text-xs text-white/40 lg:block">
-              &copy; {new Date().getFullYear()} MagicTech — All rights
-              reserved.
+            <div className="mt-5 flex items-center gap-3">
+              <span className="h-px w-10 bg-gradient-to-r from-transparent via-[#E2231A]/70 to-[#E2231A]" />
+              <p className="text-sm font-semibold uppercase tracking-[0.35em] text-white/80">
+                CRM System
+              </p>
+              <span className="h-px w-10 bg-gradient-to-l from-transparent via-[#E2231A]/70 to-[#E2231A] lg:hidden" />
+            </div>
+            <p className="mt-6 max-w-md text-sm leading-relaxed text-white/55">
+              Sign in to access your workspace.
             </p>
           </aside>
 
-          {/* Right: login card (hugs hero text on lg+) */}
-          <section className="flex items-center justify-center lg:justify-start">
-            <div className="w-full max-w-[380px]">
-              <div className="relative">
-                <div
-                  aria-hidden
-                  className="absolute -inset-[1px] rounded-3xl bg-gradient-to-br from-white/30 via-white/10 to-transparent"
-                />
-                <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl sm:p-8">
-                  <div className="mb-6 text-center">
-                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#E2231A] to-[#7c1d18] shadow-lg shadow-[#E2231A]/30 ring-1 ring-white/20">
-                      <svg
-                        className="h-7 w-7 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2.2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 11c1.657 0 3-1.343 3-3S13.657 5 12 5 9 6.343 9 8s1.343 3 3 3zm0 2c-2.67 0-8 1.337-8 4v2h16v-2c0-2.663-5.33-4-8-4z"
-                        />
-                      </svg>
-                    </div>
-                    <h2 className="text-2xl font-bold text-white">
-                      Welcome back
-                    </h2>
-                    <p className="mt-1 text-sm text-white/60">
-                      Sign in to your MagicTech workspace
-                    </p>
-                  </div>
-
-                  <LoginForm />
-
-                  <div className="mt-6 flex items-center justify-center gap-3 text-[11px] text-white/40">
-                    <span className="h-px w-8 bg-white/15" />
-                    <span>SECURE LOGIN</span>
-                    <span className="h-px w-8 bg-white/15" />
-                  </div>
-                </div>
+          {/* RHS — Sign-in (frameless, just the form on the canvas) */}
+          <section className="flex justify-center lg:justify-end">
+            <div className="w-full max-w-[400px]">
+              <div className="mb-8 text-center lg:text-left">
+                <h2 className="text-3xl font-bold tracking-tight text-white">
+                  Welcome back
+                </h2>
+                <p className="mt-2 text-sm text-white/55">
+                  Sign in to your MagicTech workspace
+                </p>
               </div>
 
-              <p className="mt-6 text-center text-xs text-white/40 lg:hidden">
-                &copy; {new Date().getFullYear()} MagicTech. All rights
-                reserved.
-              </p>
+              <LoginForm />
+
+              <div className="mt-8 flex items-center gap-3 text-[10px] uppercase tracking-[0.3em] text-white/35">
+                <span className="h-px flex-1 bg-white/10" />
+                <span>Secure Login</span>
+                <span className="h-px flex-1 bg-white/10" />
+              </div>
             </div>
           </section>
         </div>
       </div>
     </main>
-  );
-}
-
-function FeatureRow({ text }: { text: string }) {
-  return (
-    <li className="flex items-center gap-3">
-      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-[#E2231A] to-[#7c1d18] ring-1 ring-white/20">
-        <svg
-          className="h-3.5 w-3.5 text-white"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={3}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
-      </span>
-      <span>{text}</span>
-    </li>
   );
 }
