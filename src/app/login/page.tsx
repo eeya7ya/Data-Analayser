@@ -37,122 +37,40 @@ export default async function LoginPage() {
         }}
       />
 
-      {/* ── Centered split content ── */}
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl items-center justify-center px-6 py-10">
-        <div className="grid w-full items-center gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 xl:gap-14">
-          {/* Left: hero */}
-          <aside className="flex flex-col justify-center text-center lg:text-left">
-            <div className="mx-auto mb-8 w-[260px] sm:w-[300px] lg:mx-0 lg:w-[340px]">
-              {/* Logo displays directly on the dark canvas — no white plate,
-                  no ring, no backdrop. A subtle drop-shadow gives the
-                  transparent-PNG lift so it still reads against the blobs. */}
-              <Image
-                src="/logo.png"
-                alt="MagicTech"
-                width={680}
-                height={200}
-                priority
-                className="h-auto w-full object-contain drop-shadow-[0_10px_30px_rgba(226,35,26,0.35)]"
-              />
-            </div>
-
-            <h1 className="text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl xl:text-6xl">
-              Design winning
-              <br />
-              <span className="bg-gradient-to-r from-[#ff4d44] via-[#ff8a7a] to-[#ffd5ce] bg-clip-text text-transparent">
-                quotations
-              </span>{" "}
-              in minutes.
-            </h1>
-            <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-white/70 lg:mx-0">
-              One intelligent workspace to browse the live catalogue, assemble
-              projects with AI, and deliver branded quotations your clients
-              will love.
-            </p>
-
-            <ul className="mx-auto mt-7 grid max-w-md gap-3 text-sm text-white/80 lg:mx-0">
-              <FeatureRow text="Live product catalogue from Supabase" />
-              <FeatureRow text="AI-powered bill of quantities" />
-              <FeatureRow text="Per-user folders and team collaboration" />
-              <FeatureRow text="Beautiful, print-ready quotation PDFs" />
-            </ul>
-
-            <p className="mt-10 hidden text-xs text-white/40 lg:block">
-              &copy; {new Date().getFullYear()} MagicTech — All rights
-              reserved.
-            </p>
-          </aside>
-
-          {/* Right: login card (hugs hero text on lg+) */}
-          <section className="flex items-center justify-center lg:justify-start">
-            <div className="w-full max-w-[380px]">
-              <div className="relative">
-                <div
-                  aria-hidden
-                  className="absolute -inset-[1px] rounded-3xl bg-gradient-to-br from-white/30 via-white/10 to-transparent"
+      {/* ── Centered card ── */}
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10">
+        <section className="w-full max-w-[420px]">
+          <div className="relative">
+            <div
+              aria-hidden
+              className="absolute -inset-[1px] rounded-3xl bg-gradient-to-br from-white/30 via-white/10 to-transparent"
+            />
+            <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl sm:p-9">
+              <div className="mb-7 flex flex-col items-center text-center">
+                <Image
+                  src="/logo.png"
+                  alt="MagicTech"
+                  width={680}
+                  height={200}
+                  priority
+                  className="h-auto w-[240px] object-contain drop-shadow-[0_10px_30px_rgba(226,35,26,0.35)] sm:w-[280px]"
                 />
-                <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl sm:p-8">
-                  <div className="mb-6 text-center">
-                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#E2231A] to-[#7c1d18] shadow-lg shadow-[#E2231A]/30 ring-1 ring-white/20">
-                      <svg
-                        className="h-7 w-7 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2.2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 11c1.657 0 3-1.343 3-3S13.657 5 12 5 9 6.343 9 8s1.343 3 3 3zm0 2c-2.67 0-8 1.337-8 4v2h16v-2c0-2.663-5.33-4-8-4z"
-                        />
-                      </svg>
-                    </div>
-                    <h2 className="text-2xl font-bold text-white">
-                      Welcome back
-                    </h2>
-                    <p className="mt-1 text-sm text-white/60">
-                      Sign in to your MagicTech workspace
-                    </p>
-                  </div>
-
-                  <LoginForm />
-
-                  <div className="mt-6 flex items-center justify-center gap-3 text-[11px] text-white/40">
-                    <span className="h-px w-8 bg-white/15" />
-                    <span>SECURE LOGIN</span>
-                    <span className="h-px w-8 bg-white/15" />
-                  </div>
-                </div>
+                <p className="mt-3 text-sm font-semibold uppercase tracking-[0.25em] text-white/70">
+                  CRM System
+                </p>
               </div>
 
-              <p className="mt-6 text-center text-xs text-white/40 lg:hidden">
-                &copy; {new Date().getFullYear()} MagicTech. All rights
-                reserved.
-              </p>
+              <LoginForm />
+
+              <div className="mt-6 flex items-center justify-center gap-3 text-[11px] text-white/40">
+                <span className="h-px w-8 bg-white/15" />
+                <span>SECURE LOGIN</span>
+                <span className="h-px w-8 bg-white/15" />
+              </div>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
     </main>
-  );
-}
-
-function FeatureRow({ text }: { text: string }) {
-  return (
-    <li className="flex items-center gap-3">
-      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-[#E2231A] to-[#7c1d18] ring-1 ring-white/20">
-        <svg
-          className="h-3.5 w-3.5 text-white"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={3}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
-      </span>
-      <span>{text}</span>
-    </li>
   );
 }
