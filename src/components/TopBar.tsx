@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -290,11 +290,33 @@ function NavLink({
  */
 function LegacyMenu({ approvalCount }: { approvalCount: number }) {
   const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  // The menu opens on click, so close on click-outside or Esc — not on
+  // mouseleave. The 4px mt-1 gap between the button and the panel
+  // means a mouseleave handler dismissed the menu the moment the
+  // cursor moved between them, which is what the user was seeing.
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
-    <div
-      className="relative"
-      onMouseLeave={() => setOpen(false)}
-    >
+    <div ref={wrapRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
         className="relative rounded-lg px-3 py-1.5 text-sm font-medium text-magic-ink/60 hover:bg-magic-soft hover:text-magic-ink transition-all"

@@ -38,15 +38,35 @@ export default async function CompanyListPage() {
 
   const isAdmin = user.role === "admin";
   const q = sql();
+  // Counts must also follow `contacts.company_id → contacts.folder_id`,
+  // not just `client_folders.company_id`. Post-refactor a person can be
+  // linked to a company through the contacts table while their folder
+  // still has company_id = NULL until syncCompanyPeopleAndFolders heals
+  // it on first detail-page visit. Counting via both keeps the list
+  // honest before that lazy heal runs.
   const rows = isAdmin
     ? ((await q`
         select c.id, c.name, c.website, c.industry, c.size_bucket, c.notes,
-               (select count(*) from client_folders cf
-                  where cf.company_id = c.id and cf.deleted_at is null) as client_count,
+               (select count(*) from (
+                  select cf.id from client_folders cf
+                    where cf.company_id = c.id and cf.deleted_at is null
+                  union
+                  select ct.folder_id as id from contacts ct
+                    where ct.company_id = c.id and ct.deleted_at is null
+                      and ct.folder_id is not null
+                      and exists (select 1 from client_folders cf2
+                                  where cf2.id = ct.folder_id
+                                    and cf2.deleted_at is null)
+               ) as client_ids) as client_count,
                (select count(*) from quotations qq
-                  join client_folders cf on cf.id = qq.folder_id
-                  where cf.company_id = c.id and qq.deleted_at is null
-                    and cf.deleted_at is null) as quotation_count,
+                  where qq.deleted_at is null and qq.folder_id in (
+                    select cf.id from client_folders cf
+                      where cf.company_id = c.id and cf.deleted_at is null
+                    union
+                    select ct.folder_id from contacts ct
+                      where ct.company_id = c.id and ct.deleted_at is null
+                        and ct.folder_id is not null
+                  )) as quotation_count,
                c.deleted_at
         from companies c
         where c.deleted_at is null
@@ -54,12 +74,26 @@ export default async function CompanyListPage() {
       `) as CompanyListRow[])
     : ((await q`
         select c.id, c.name, c.website, c.industry, c.size_bucket, c.notes,
-               (select count(*) from client_folders cf
-                  where cf.company_id = c.id and cf.deleted_at is null) as client_count,
+               (select count(*) from (
+                  select cf.id from client_folders cf
+                    where cf.company_id = c.id and cf.deleted_at is null
+                  union
+                  select ct.folder_id as id from contacts ct
+                    where ct.company_id = c.id and ct.deleted_at is null
+                      and ct.folder_id is not null
+                      and exists (select 1 from client_folders cf2
+                                  where cf2.id = ct.folder_id
+                                    and cf2.deleted_at is null)
+               ) as client_ids) as client_count,
                (select count(*) from quotations qq
-                  join client_folders cf on cf.id = qq.folder_id
-                  where cf.company_id = c.id and qq.deleted_at is null
-                    and cf.deleted_at is null) as quotation_count,
+                  where qq.deleted_at is null and qq.folder_id in (
+                    select cf.id from client_folders cf
+                      where cf.company_id = c.id and cf.deleted_at is null
+                    union
+                    select ct.folder_id from contacts ct
+                      where ct.company_id = c.id and ct.deleted_at is null
+                        and ct.folder_id is not null
+                  )) as quotation_count,
                c.deleted_at
         from companies c
         where c.deleted_at is null and c.owner_id = ${user.id}

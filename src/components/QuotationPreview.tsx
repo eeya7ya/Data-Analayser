@@ -157,6 +157,75 @@ function money(n: number): string {
   return `JOD ${n.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 }
 
+/**
+ * Render a unit-price / row-total cell. A zero (or anything that
+ * rounds to zero) is shown as "Free" in muted italics rather than a
+ * blank — common ask from sales to flag complimentary line items
+ * explicitly on the printed sheet.
+ */
+function renderPriceCell(n: number): React.ReactNode {
+  const v = Number(n) || 0;
+  if (v > 0) return money(v);
+  return <span className="italic text-magic-ink/70">Free</span>;
+}
+
+/**
+ * Lightweight inline formatting for cell text. Lets users mark up a
+ * value without a full rich-text editor:
+ *   **bold**         → bold weight
+ *   ==highlight==    → yellow background mark
+ *   [red]text[/red]  → coloured text (red / blue / green / orange)
+ * Markers are plain in the editable input so editing stays simple;
+ * the parser kicks in only on the non-editable / printed view so the
+ * PDF reflects the styling.
+ */
+const RICH_COLOR_MAP: Record<string, string> = {
+  red: "#c1272d",
+  blue: "#1d4ed8",
+  green: "#15803d",
+  orange: "#c2410c",
+};
+function renderRichCell(text: string | null | undefined): React.ReactNode {
+  if (!text) return text ?? "";
+  // Tokenise once. The regex is intentionally simple — we don't try to
+  // be a markdown engine, just enough to cover bold / mark / colour.
+  const pattern =
+    /(\*\*[^*\n]+\*\*|==[^=\n]+==|\[(?:red|blue|green|orange)\][^[\n]+\[\/(?:red|blue|green|orange)\])/g;
+  const parts = text.split(pattern);
+  if (parts.length === 1) return text;
+  const nodes: React.ReactNode[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (!part) continue;
+    if (part.startsWith("**") && part.endsWith("**")) {
+      nodes.push(<strong key={i}>{part.slice(2, -2)}</strong>);
+    } else if (part.startsWith("==") && part.endsWith("==")) {
+      nodes.push(
+        <mark
+          key={i}
+          style={{ background: "#fff3a3", color: "inherit", padding: "0 2px" }}
+        >
+          {part.slice(2, -2)}
+        </mark>,
+      );
+    } else {
+      const m = part.match(
+        /^\[(red|blue|green|orange)\]([\s\S]+)\[\/(red|blue|green|orange)\]$/,
+      );
+      if (m && m[1] === m[3]) {
+        nodes.push(
+          <span key={i} style={{ color: RICH_COLOR_MAP[m[1]] }}>
+            {m[2]}
+          </span>,
+        );
+      } else {
+        nodes.push(part);
+      }
+    }
+  }
+  return <>{nodes}</>;
+}
+
 // ─── Excel-aware clipboard readers ──────────────────────────────────────────
 // Used by the "Paste column" button in every editable table header. We try
 // the HTML clipboard payload first because when Excel (or Google Sheets)
@@ -2155,12 +2224,12 @@ function SystemTable({
               "font-bold cell-center",
               editable ? (
                 <input
-                  className="w-full bg-transparent text-center"
+                  className="cell-input text-center"
                   value={item.brand}
                   onChange={(e) => onUpdate(globalIndex, { brand: e.target.value })}
                 />
               ) : (
-                item.brand
+                renderRichCell(item.brand)
               ),
             )}
             {mergeableCell(
@@ -2171,12 +2240,12 @@ function SystemTable({
               "font-semibold cell-center",
               editable ? (
                 <input
-                  className="w-full bg-transparent text-center"
+                  className="cell-input text-center"
                   value={item.model}
                   onChange={(e) => onUpdate(globalIndex, { model: e.target.value })}
                 />
               ) : (
-                item.model
+                renderRichCell(item.model)
               ),
             )}
             {mergeableCell(
@@ -2191,6 +2260,7 @@ function SystemTable({
                   className="description-input w-full bg-transparent text-[10.5px]"
                   value={item.description}
                   placeholder="Add a short description for this item…"
+                  title="Formatting (renders on the printed sheet):  **bold**   ==highlight==   [red]text[/red] (also blue / green / orange)"
                   onChange={(e) =>
                     onUpdate(globalIndex, { description: e.target.value })
                   }
@@ -2198,9 +2268,11 @@ function SystemTable({
               ) : (
                 <div className="whitespace-pre-wrap text-left">
                   {item.description && item.description.trim()
-                    ? item.description
-                    : `${item.brand || ""} ${item.model || ""}`.trim() ||
-                      "—"}
+                    ? renderRichCell(item.description)
+                    : renderRichCell(
+                        `${item.brand || ""} ${item.model || ""}`.trim() ||
+                          "—",
+                      )}
                 </div>
               ),
             )}
@@ -2213,11 +2285,11 @@ function SystemTable({
                 />
               </td>
             )}
-            <td>
+            <td className="relative">
               {editable ? (
                 <input
                   type="number"
-                  className="w-full bg-transparent text-center"
+                  className="cell-input text-center"
                   value={item.quantity}
                   onChange={(e) =>
                     onUpdate(globalIndex, { quantity: Number(e.target.value) })
@@ -2235,12 +2307,12 @@ function SystemTable({
               "",
               editable ? (
                 <input
-                  className="w-full bg-transparent text-center"
+                  className="cell-input text-center"
                   value={item.delivery}
                   onChange={(e) => onUpdate(globalIndex, { delivery: e.target.value })}
                 />
               ) : (
-                item.delivery
+                renderRichCell(item.delivery)
               ),
             )}
             {!boqMode &&
@@ -2253,14 +2325,14 @@ function SystemTable({
                 editable ? (
                   <input
                     type="number"
-                    className="w-full bg-transparent text-center"
+                    className="cell-input text-center"
                     value={item.unit_price}
                     onChange={(e) =>
                       onUpdate(globalIndex, { unit_price: Number(e.target.value) })
                     }
                   />
                 ) : (
-                  Number(item.unit_price) ? money(item.unit_price) : ""
+                  renderPriceCell(item.unit_price)
                 ),
               )}
             {!boqMode && (
@@ -2273,7 +2345,7 @@ function SystemTable({
                   (Number(
                     effectiveMergedValue(groupItems, rowIdx, "unit_price"),
                   ) || 0);
-                return rowTotal ? money(rowTotal) : "";
+                return renderPriceCell(rowTotal);
               })()}
               {editable && (
                 <div className="no-print mt-1 flex items-center justify-center gap-1">
@@ -2357,10 +2429,10 @@ function SystemTable({
             {extraColumns.map((col) => {
               const cellValue = item.extra?.[col.id] || "";
               return (
-                <td key={col.id} className="align-top">
+                <td key={col.id} className="align-top relative">
                   {editable ? (
                     <input
-                      className="w-full bg-transparent text-center"
+                      className="cell-input text-center"
                       value={cellValue}
                       onChange={(e) =>
                         onUpdate(globalIndex, {
@@ -2368,8 +2440,10 @@ function SystemTable({
                         })
                       }
                     />
+                  ) : cellValue ? (
+                    renderRichCell(cellValue)
                   ) : (
-                    cellValue || "—"
+                    "—"
                   )}
                 </td>
               );

@@ -233,6 +233,27 @@ export async function syncCompanyPeopleAndFolders(args: {
     }
   }
 
+  // Heal the folder `kind` / `company_id` for every contact at this
+  // company. The contact's company_id is the canonical truth — if the
+  // person is listed at a company, their folder must be kind='company'
+  // with the matching company_id, otherwise it leaks into
+  // /crm/individual or stays stranded under "unfiled" while still
+  // surfacing under the company page (the cross-contamination the user
+  // was seeing).
+  await q`
+    update client_folders cf
+    set kind       = 'company',
+        company_id = ${companyId},
+        updated_at = now()
+    from contacts ct
+    where ct.folder_id = cf.id
+      and ct.company_id = ${companyId}
+      and ct.deleted_at is null
+      and cf.deleted_at is null
+      and (cf.kind is distinct from 'company' or cf.company_id is distinct from ${companyId})
+      and (${ownerFilter}::int is null or ct.owner_id = ${ownerFilter})
+  `;
+
   // Folders at this company with no live contact pointing at them —
   // mint a placeholder contact so the merged "People" list surfaces
   // every legacy "+ New client" row too.
