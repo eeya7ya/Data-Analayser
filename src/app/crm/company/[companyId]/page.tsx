@@ -6,6 +6,7 @@ import TopBar from "@/components/TopBar";
 import ClientListClient, {
   type ClientFolderRow,
 } from "@/components/ClientListClient";
+import ContactsPanel, { type ContactRow } from "@/components/ContactsPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -89,6 +90,15 @@ export default async function CompanyDetailPage({
     );
   }
 
+  const contactRows = (await q`
+    select id, owner_id, folder_id, company_id,
+           first_name, last_name, email, phone, title, notes, deleted_at
+    from contacts
+    where company_id = ${companyId} and deleted_at is null
+    order by coalesce(last_name, ''), coalesce(first_name, '')
+    limit 200
+  `) as ContactRow[];
+
   const folderRows = (await q`
     select cf.id, cf.name, cf.kind, cf.company_id,
            cf.client_email, cf.client_phone, cf.client_company,
@@ -156,6 +166,20 @@ export default async function CompanyDetailPage({
             </p>
           )}
         </div>
+
+        <section>
+          <h2 className="text-lg font-semibold text-magic-ink mb-3">
+            People at this company
+            <span className="ml-2 text-xs font-normal text-magic-ink/60">
+              ({contactRows.length})
+            </span>
+          </h2>
+          <ContactsPanel
+            initial={contactRows}
+            companyId={companyId}
+            folderId={null}
+          />
+        </section>
 
         <section>
           <h2 className="text-lg font-semibold text-magic-ink mb-3">
