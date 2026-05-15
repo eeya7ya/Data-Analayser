@@ -5,6 +5,7 @@ import {
   computeQuotationTotals,
   effectiveMergedValue,
 } from "@/lib/quotationTotals";
+import { FormattedCellInput } from "@/components/FormattedCellInput";
 import {
   getBrandVariant,
   type BrandVariant,
@@ -2223,10 +2224,10 @@ function SystemTable({
               hPlan,
               "font-bold cell-center",
               editable ? (
-                <input
-                  className="cell-input text-center"
+                <FormattedCellInput
                   value={item.brand}
-                  onChange={(e) => onUpdate(globalIndex, { brand: e.target.value })}
+                  onChange={(v) => onUpdate(globalIndex, { brand: v })}
+                  inputClassName="cell-input text-center"
                 />
               ) : (
                 renderRichCell(item.brand)
@@ -2239,10 +2240,10 @@ function SystemTable({
               hPlan,
               "font-semibold cell-center",
               editable ? (
-                <input
-                  className="cell-input text-center"
+                <FormattedCellInput
                   value={item.model}
-                  onChange={(e) => onUpdate(globalIndex, { model: e.target.value })}
+                  onChange={(v) => onUpdate(globalIndex, { model: v })}
+                  inputClassName="cell-input text-center"
                 />
               ) : (
                 renderRichCell(item.model)
@@ -2255,15 +2256,16 @@ function SystemTable({
               hPlan,
               "text-left align-top",
               editable ? (
-                <textarea
+                <FormattedCellInput
+                  as="textarea"
                   rows={3}
-                  className="description-input w-full bg-transparent text-[10.5px]"
                   value={item.description}
-                  placeholder="Add a short description for this item…"
-                  title="Formatting (renders on the printed sheet):  **bold**   ==highlight==   [red]text[/red] (also blue / green / orange)"
-                  onChange={(e) =>
-                    onUpdate(globalIndex, { description: e.target.value })
+                  onChange={(v) =>
+                    onUpdate(globalIndex, { description: v })
                   }
+                  placeholder="Add a short description for this item…"
+                  title="Select text and click B / highlight / colour on the floating toolbar — or type **bold**, ==highlight==, [red]text[/red]."
+                  inputClassName="description-input w-full bg-transparent text-[10.5px]"
                 />
               ) : (
                 <div className="whitespace-pre-wrap text-left">
@@ -2306,10 +2308,10 @@ function SystemTable({
               hPlan,
               "",
               editable ? (
-                <input
-                  className="cell-input text-center"
+                <FormattedCellInput
                   value={item.delivery}
-                  onChange={(e) => onUpdate(globalIndex, { delivery: e.target.value })}
+                  onChange={(v) => onUpdate(globalIndex, { delivery: v })}
+                  inputClassName="cell-input text-center"
                 />
               ) : (
                 renderRichCell(item.delivery)
@@ -2431,14 +2433,14 @@ function SystemTable({
               return (
                 <td key={col.id} className="align-top relative">
                   {editable ? (
-                    <input
-                      className="cell-input text-center"
+                    <FormattedCellInput
                       value={cellValue}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         onUpdate(globalIndex, {
-                          extra: { ...(item.extra || {}), [col.id]: e.target.value },
+                          extra: { ...(item.extra || {}), [col.id]: v },
                         })
                       }
+                      inputClassName="cell-input text-center"
                     />
                   ) : cellValue ? (
                     renderRichCell(cellValue)
