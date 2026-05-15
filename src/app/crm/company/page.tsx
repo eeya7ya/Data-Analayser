@@ -100,14 +100,9 @@ export default async function CompanyListPage() {
         order by c.name
       `) as CompanyListRow[]);
 
-  // Folders that say kind=company but have no company_id are leftovers
-  // from the V2 migration. They need to be attached to a Company. We
-  // count them here so admin can act if anything's stuck.
-  const orphans = (await q`
-    select count(*) as n from client_folders
-    where deleted_at is null and kind = 'company' and company_id is null
-  `) as Array<{ n: number }>;
-  const unattachedFolderCount = Number(orphans[0]?.n ?? 0);
+  // The unattached-company-folder count moved to the TopBar
+  // notification bell; the inline amber banner that used to live here
+  // was crowding the list above the actual companies.
 
   return (
     <div className="min-h-screen bg-magic-soft/40">
@@ -129,38 +124,6 @@ export default async function CompanyListPage() {
             people at the company) and then projects under each client.
           </p>
         </div>
-
-        {unattachedFolderCount > 0 && (
-          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-            <h2 className="text-sm font-semibold text-amber-800">
-              {unattachedFolderCount} client folder
-              {unattachedFolderCount === 1 ? "" : "s"} marked company but not
-              attached to one
-            </h2>
-            <p className="text-xs text-amber-700/80 mt-1">
-              These folders aren&apos;t lost — they keep working, they just
-              don&apos;t show up under any company yet. Attach them by
-              opening the folder and picking a company, or run a bulk pass
-              in Admin → Folders.
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Link
-                href="/crm/unclassified"
-                className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
-              >
-                Open unattached folders
-              </Link>
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
-                >
-                  Admin → Folders quarantine
-                </Link>
-              )}
-            </div>
-          </section>
-        )}
 
         <CompanyListClient initial={rows} />
       </main>

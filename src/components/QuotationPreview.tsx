@@ -5,6 +5,7 @@ import {
   computeQuotationTotals,
   effectiveMergedValue,
 } from "@/lib/quotationTotals";
+import { FormattedCellInput } from "@/components/FormattedCellInput";
 import {
   getBrandVariant,
   type BrandVariant,
@@ -956,6 +957,33 @@ export default function QuotationPreview({
     setItems(next);
   }
 
+  // Bulk "undo" for the cell-merging affordances. Pre-existed only as a
+  // per-cell ⇩ / ← toggle, which is fine for a one-off mistake but
+  // tedious once a few rows have been collapsed together. `keepSystem`
+  // narrows the wipe to a single page; passing null clears every merge
+  // flag on every row. The merge_up / merge_left objects are dropped
+  // entirely rather than blanked so JSON round-trips stay clean.
+  function unmergeAllRows(keepSystem: string | null) {
+    if (!setItems) return;
+    let changed = false;
+    const next = items.map((it) => {
+      if (keepSystem !== null) {
+        const key = it.system || it.brand || "General";
+        if (key !== keepSystem) return it;
+      }
+      const hasUp =
+        it.merge_up && Object.keys(it.merge_up).length > 0;
+      const hasLeft =
+        it.merge_left && Object.keys(it.merge_left).length > 0;
+      if (!hasUp && !hasLeft) return it;
+      changed = true;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { merge_up: _u, merge_left: _l, ...rest } = it;
+      return rest as QuotationItem;
+    });
+    if (changed) setItems(next);
+  }
+
   // Flips the `optional` flag on a row. Optional rows keep their stored
   // unit price visible but render "Optional" in the Total Price cell and
   // contribute 0 to the subtotal / tax / grand total — useful for
@@ -1197,6 +1225,13 @@ export default function QuotationPreview({
               >
                 + Add manual column
               </button>
+              <button
+                onClick={() => unmergeAllRows(null)}
+                className="rounded-md border border-magic-border px-3 py-1.5 text-[11px] hover:bg-magic-soft"
+                title="Undo every cell merge across every page"
+              >
+                ↺ Unmerge all cells
+              </button>
               {extraColumns.length > 0 && (
                 <span className="text-[10px] text-magic-ink/50">
                   {extraColumns.length} manual column
@@ -1269,6 +1304,13 @@ export default function QuotationPreview({
                 title="Add a blank row to any page (existing or brand new)"
               >
                 + Add manual item
+              </button>
+              <button
+                onClick={() => unmergeAllRows(group.system)}
+                className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
+                title="Undo every cell merge on this page"
+              >
+                ↺ Unmerge cells
               </button>
               {/* Only show the "add column" button on the first group so the
                * user isn't tempted to add the same column multiple times —
@@ -2223,10 +2265,10 @@ function SystemTable({
               hPlan,
               "font-bold cell-center",
               editable ? (
-                <input
-                  className="cell-input text-center"
+                <FormattedCellInput
                   value={item.brand}
-                  onChange={(e) => onUpdate(globalIndex, { brand: e.target.value })}
+                  onChange={(v) => onUpdate(globalIndex, { brand: v })}
+                  inputClassName="cell-input text-center"
                 />
               ) : (
                 renderRichCell(item.brand)
@@ -2239,10 +2281,10 @@ function SystemTable({
               hPlan,
               "font-semibold cell-center",
               editable ? (
-                <input
-                  className="cell-input text-center"
+                <FormattedCellInput
                   value={item.model}
-                  onChange={(e) => onUpdate(globalIndex, { model: e.target.value })}
+                  onChange={(v) => onUpdate(globalIndex, { model: v })}
+                  inputClassName="cell-input text-center"
                 />
               ) : (
                 renderRichCell(item.model)
@@ -2255,15 +2297,16 @@ function SystemTable({
               hPlan,
               "text-left align-top",
               editable ? (
-                <textarea
+                <FormattedCellInput
+                  as="textarea"
                   rows={3}
-                  className="description-input w-full bg-transparent text-[10.5px]"
                   value={item.description}
-                  placeholder="Add a short description for this item…"
-                  title="Formatting (renders on the printed sheet):  **bold**   ==highlight==   [red]text[/red] (also blue / green / orange)"
-                  onChange={(e) =>
-                    onUpdate(globalIndex, { description: e.target.value })
+                  onChange={(v) =>
+                    onUpdate(globalIndex, { description: v })
                   }
+                  placeholder="Add a short description for this item…"
+                  title="Select text and click B / highlight / colour on the floating toolbar — or type **bold**, ==highlight==, [red]text[/red]."
+                  inputClassName="description-input w-full bg-transparent text-[10.5px]"
                 />
               ) : (
                 <div className="whitespace-pre-wrap text-left">
@@ -2306,10 +2349,10 @@ function SystemTable({
               hPlan,
               "",
               editable ? (
-                <input
-                  className="cell-input text-center"
+                <FormattedCellInput
                   value={item.delivery}
-                  onChange={(e) => onUpdate(globalIndex, { delivery: e.target.value })}
+                  onChange={(v) => onUpdate(globalIndex, { delivery: v })}
+                  inputClassName="cell-input text-center"
                 />
               ) : (
                 renderRichCell(item.delivery)
@@ -2431,14 +2474,14 @@ function SystemTable({
               return (
                 <td key={col.id} className="align-top relative">
                   {editable ? (
-                    <input
-                      className="cell-input text-center"
+                    <FormattedCellInput
                       value={cellValue}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         onUpdate(globalIndex, {
-                          extra: { ...(item.extra || {}), [col.id]: e.target.value },
+                          extra: { ...(item.extra || {}), [col.id]: v },
                         })
                       }
+                      inputClassName="cell-input text-center"
                     />
                   ) : cellValue ? (
                     renderRichCell(cellValue)
