@@ -25,6 +25,10 @@ export default async function IndividualListPage() {
   const isAdmin = user.role === "admin";
   const q = sql();
 
+  // An individual is a folder with kind='individual' AND no link to a
+  // company. Either column tying it to a company (`cf.company_id`, or a
+  // contact's `contacts.company_id`) means the row belongs under
+  // /crm/company/<id> and must not leak in here.
   const folderRows = isAdmin
     ? ((await q`
         select cf.id, cf.name, cf.kind, cf.company_id,
@@ -40,6 +44,13 @@ export default async function IndividualListPage() {
         left join users u on u.id = cf.owner_id
         where cf.deleted_at is null
           and cf.kind = 'individual'
+          and cf.company_id is null
+          and not exists (
+            select 1 from contacts ct
+            where ct.folder_id = cf.id
+              and ct.company_id is not null
+              and ct.deleted_at is null
+          )
         order by latest_quotation_at desc nulls last, cf.name
       `) as ClientFolderRow[])
     : ((await q`
@@ -56,7 +67,14 @@ export default async function IndividualListPage() {
         left join users u on u.id = cf.owner_id
         where cf.deleted_at is null
           and cf.kind = 'individual'
+          and cf.company_id is null
           and cf.owner_id = ${user.id}
+          and not exists (
+            select 1 from contacts ct
+            where ct.folder_id = cf.id
+              and ct.company_id is not null
+              and ct.deleted_at is null
+          )
         order by latest_quotation_at desc nulls last, cf.name
       `) as ClientFolderRow[]);
 

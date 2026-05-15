@@ -119,6 +119,8 @@ export default async function CompanyClientFolderPage({
                 client_email: folder.client_email,
                 client_phone: folder.client_phone,
                 client_company: folder.client_company,
+                kind: folder.kind,
+                company_id: folder.company_id,
               }}
             />
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export interface EditableFolder {
@@ -9,7 +9,16 @@ export interface EditableFolder {
   client_email: string | null;
   client_phone: string | null;
   client_company: string | null;
+  kind?: "company" | "individual" | null;
+  company_id?: number | null;
 }
+
+interface CompanyOption {
+  id: number;
+  name: string;
+}
+
+type KindChoice = "individual" | "company";
 
 export function EditFolderDialog({
   initial,
@@ -24,26 +33,79 @@ export function EditFolderDialog({
   const [email, setEmail] = useState(initial.client_email ?? "");
   const [phone, setPhone] = useState(initial.client_phone ?? "");
   const [company, setCompany] = useState(initial.client_company ?? "");
+  // Reassign state. Default to whatever the folder is today; if the
+  // folder is unclassified (kind = null) we present it as Individual
+  // so the user always has a concrete choice and can switch over.
+  const initialKind: KindChoice = initial.kind === "company" ? "company" : "individual";
+  const [kind, setKind] = useState<KindChoice>(initialKind);
+  const [companyId, setCompanyId] = useState<number | null>(
+    initial.company_id ?? null,
+  );
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pull the companies list lazily once the user actually wants to
+  // assign one — keeps the dialog snappy for plain renames.
+  useEffect(() => {
+    if (kind !== "company" || companies.length > 0 || companiesLoading) return;
+    let cancelled = false;
+    setCompaniesLoading(true);
+    fetch("/api/companies", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: { companies?: CompanyOption[] }) => {
+        if (cancelled) return;
+        const list = Array.isArray(data.companies) ? data.companies : [];
+        setCompanies(list);
+        if (companyId === null && list.length > 0) {
+          setCompanyId(list[0].id);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load companies");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCompaniesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, companies.length, companiesLoading, companyId]);
+
+  const kindChanged = kind !== initialKind;
+  const companyChanged =
+    kind === "company" && companyId !== (initial.company_id ?? null);
+  const reassigning = kindChanged || companyChanged;
 
   async function submit() {
     if (!name.trim()) {
       setError("Name is required.");
       return;
     }
+    if (kind === "company" && companyId === null) {
+      setError("Pick a company, or switch type to Individual.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
+      const body: Record<string, unknown> = {
+        name: name.trim(),
+        client_email: email.trim() || null,
+        client_phone: phone.trim() || null,
+        client_company: company.trim() || null,
+      };
+      if (reassigning) {
+        body.kind = kind;
+        body.company_id = kind === "company" ? companyId : null;
+      }
       const res = await fetch(`/api/folders?id=${initial.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          client_email: email.trim() || null,
-          client_phone: phone.trim() || null,
-          client_company: company.trim() || null,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -53,6 +115,8 @@ export function EditFolderDialog({
         client_email: data.folder.client_email,
         client_phone: data.folder.client_phone,
         client_company: data.folder.client_company,
+        kind: data.folder.kind,
+        company_id: data.folder.company_id,
       });
     } catch (err) {
       setError((err as Error).message);
@@ -112,6 +176,63 @@ export function EditFolderDialog({
           disabled={busy}
           className="w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
         />
+
+        <div className="pt-2 border-t border-magic-border/60 space-y-2">
+          <p className="text-xs font-semibold text-magic-ink/70">Type</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setKind("individual")}
+              disabled={busy}
+              className={`flex-1 rounded border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                kind === "individual"
+                  ? "border-magic-red bg-magic-red/5 text-magic-red"
+                  : "border-magic-border text-magic-ink/70 hover:bg-magic-soft"
+              }`}
+            >
+              Individual
+            </button>
+            <button
+              type="button"
+              onClick={() => setKind("company")}
+              disabled={busy}
+              className={`flex-1 rounded border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                kind === "company"
+                  ? "border-magic-red bg-magic-red/5 text-magic-red"
+                  : "border-magic-border text-magic-ink/70 hover:bg-magic-soft"
+              }`}
+            >
+              Company
+            </button>
+          </div>
+          {kind === "company" && (
+            <select
+              value={companyId ?? ""}
+              onChange={(e) =>
+                setCompanyId(e.target.value ? Number(e.target.value) : null)
+              }
+              disabled={busy || companiesLoading}
+              className="w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                {companiesLoading ? "Loading…" : "Pick a company"}
+              </option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {reassigning && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              {kind === "individual"
+                ? "Switching to Individual will detach this client from any company."
+                : "Switching to Company will move this client (and their projects) under the chosen company."}
+            </p>
+          )}
+        </div>
+
         {error && (
           <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
             {error}

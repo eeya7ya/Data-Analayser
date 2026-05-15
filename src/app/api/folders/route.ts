@@ -219,11 +219,14 @@ export async function PATCH(req: NextRequest) {
       client_email?: string | null;
       client_phone?: string | null;
       client_company?: string | null;
+      kind?: "company" | "individual" | null;
+      company_id?: number | null;
     };
     const q = sql();
     // Verify ownership (admins can edit any folder).
     const owned = (await q`
-      select id, owner_id, name, client_email, client_phone, client_company
+      select id, owner_id, name, client_email, client_phone, client_company,
+             kind, company_id
       from client_folders
       where id = ${id} and deleted_at is null
       limit 1
@@ -234,6 +237,8 @@ export async function PATCH(req: NextRequest) {
       client_email: string | null;
       client_phone: string | null;
       client_company: string | null;
+      kind: "company" | "individual" | null;
+      company_id: number | null;
     }>;
     if (owned.length === 0) {
       return NextResponse.json({ error: "Folder not found" }, { status: 404 });
@@ -265,16 +270,81 @@ export async function PATCH(req: NextRequest) {
         ? (body.client_company?.trim() || null)
         : owned[0].client_company;
 
+    // Reassign company ↔ individual. Validating up front so a bad
+    // request never half-applies (rename + bad kind would otherwise
+    // commit the rename then fail).
+    const kindProvided = body.kind !== undefined;
+    const companyIdProvided = body.company_id !== undefined;
+    if (
+      kindProvided &&
+      body.kind !== null &&
+      body.kind !== "company" &&
+      body.kind !== "individual"
+    ) {
+      return NextResponse.json({ error: "invalid kind" }, { status: 400 });
+    }
+    let nextKind: "company" | "individual" | null = owned[0].kind;
+    let nextCompanyId: number | null = owned[0].company_id;
+    if (kindProvided || companyIdProvided) {
+      nextKind = kindProvided ? (body.kind ?? null) : owned[0].kind;
+      if (nextKind === "individual") {
+        nextCompanyId = null;
+      } else if (nextKind === "company") {
+        const incomingCompanyId = companyIdProvided
+          ? body.company_id
+          : owned[0].company_id;
+        if (incomingCompanyId === null || incomingCompanyId === undefined) {
+          return NextResponse.json(
+            { error: "company_id is required when kind=company" },
+            { status: 400 },
+          );
+        }
+        nextCompanyId = Number(incomingCompanyId);
+        if (!Number.isFinite(nextCompanyId) || nextCompanyId <= 0) {
+          return NextResponse.json(
+            { error: "invalid company_id" },
+            { status: 400 },
+          );
+        }
+        const check = (await q`
+          select id, owner_id from companies
+          where id = ${nextCompanyId} and deleted_at is null
+        `) as Array<{ id: number; owner_id: number | null }>;
+        if (check.length === 0) {
+          return NextResponse.json(
+            { error: "company not found" },
+            { status: 404 },
+          );
+        }
+        if (
+          user.role !== "admin" &&
+          check[0].owner_id !== null &&
+          check[0].owner_id !== user.id
+        ) {
+          return NextResponse.json(
+            { error: "Forbidden on target company" },
+            { status: 403 },
+          );
+        }
+      } else {
+        // null kind → unclassified, drop the company link too.
+        nextCompanyId = null;
+      }
+    }
+
     const rows = (await q`
       update client_folders
       set name = ${name},
           client_email = ${email},
           client_phone = ${phone},
           client_company = ${company},
+          kind = ${nextKind},
+          company_id = ${nextCompanyId},
           updated_at = now()
       where id = ${id}
       returning id, name, owner_id, created_at, updated_at,
-                client_email, client_phone, client_company
+                client_email, client_phone, client_company,
+                kind, company_id
     `) as Array<{
       id: number;
       name: string;
@@ -284,7 +354,37 @@ export async function PATCH(req: NextRequest) {
       client_email: string | null;
       client_phone: string | null;
       client_company: string | null;
+      kind: "company" | "individual" | null;
+      company_id: number | null;
     }>;
+
+    // Keep contacts pointing at this folder consistent with the new
+    // classification. Moving to Individual detaches every contact from
+    // its company so the person stops surfacing under it; moving to
+    // Company rewrites them to the chosen company so they re-appear in
+    // the right place.
+    if (kindProvided || companyIdProvided) {
+      if (nextKind === "individual" || nextKind === null) {
+        await q`
+          update contacts
+          set company_id = null,
+              updated_at = now()
+          where folder_id = ${id}
+            and deleted_at is null
+            and company_id is not null
+        `;
+      } else if (nextKind === "company" && nextCompanyId !== null) {
+        await q`
+          update contacts
+          set company_id = ${nextCompanyId},
+              updated_at = now()
+          where folder_id = ${id}
+            and deleted_at is null
+            and company_id is distinct from ${nextCompanyId}
+        `;
+      }
+    }
+
     revalidatePath("/quotation");
     revalidatePath("/designer");
     revalidatePath("/crm");
