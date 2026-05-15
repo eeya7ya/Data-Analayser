@@ -53,13 +53,6 @@ interface DragInfo {
   sourceProjectId: number;
 }
 
-const KIND_LABELS: Record<FileKind, string> = {
-  quotation: "Quotation files",
-  po: "PO files",
-  boq: "BOQ files",
-  other: "Other files",
-};
-
 function formatBytes(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "0 B";
   if (n < 1024) return `${n} B`;
@@ -445,7 +438,9 @@ function ProjectPanel({
   onProjectUpdate: (p: Project) => void;
   onProjectDelete: (id: number) => void;
 }) {
-  const [tab, setTab] = useState<"quotations" | "pos" | "files">("quotations");
+  const [tab, setTab] = useState<"quotations" | "pos" | "boq" | "files">(
+    "quotations",
+  );
   return (
     <div className="rounded-2xl border border-magic-border bg-white">
       <ProjectHeader
@@ -458,6 +453,7 @@ function ProjectPanel({
           [
             ["quotations", "Quotations"],
             ["pos", "Purchase Orders"],
+            ["boq", "BOQ"],
             ["files", "Files"],
           ] as const
         ).map(([key, label]) => {
@@ -495,12 +491,22 @@ function ProjectPanel({
             onDragEnd={onDragEnd}
           />
         )}
+        {tab === "boq" && (
+          <FilesTab
+            project={project}
+            refreshKey={refreshKey}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            variant="boq"
+          />
+        )}
         {tab === "files" && (
           <FilesTab
             project={project}
             refreshKey={refreshKey}
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
+            variant="media"
           />
         )}
       </div>
@@ -848,21 +854,32 @@ function PosTab({
   );
 }
 
+/**
+ * One component renders both the "BOQ" and the general "Files" tab.
+ *
+ *   - variant="boq"   → shows files saved with kind='boq'; uploads land
+ *                       with kind='boq' so they stay in the BOQ tab.
+ *   - variant="media" → shows everything else (DWGs, images, videos,
+ *                       PDFs, archives, plus any legacy kind='quotation'
+ *                       or kind='po' uploads). New uploads land with
+ *                       kind='other' which keeps them in this tab.
+ */
 function FilesTab({
   project,
   refreshKey,
   onDragStart,
   onDragEnd,
+  variant,
 }: {
   project: Project;
   refreshKey: number;
   onDragStart: (kind: DragKind, id: number) => void;
   onDragEnd: () => void;
+  variant: "boq" | "media";
 }) {
   const [files, setFiles] = useState<FileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeKind, setActiveKind] = useState<FileKind>("quotation");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -886,51 +903,26 @@ function FilesTab({
     void reload();
   }, [reload, refreshKey]);
 
-  const grouped = useMemo(() => {
-    const buckets: Record<FileKind, FileRow[]> = {
-      quotation: [],
-      po: [],
-      boq: [],
-      other: [],
-    };
-    for (const f of files) {
-      const k: FileKind =
-        f.kind === "quotation" || f.kind === "po" || f.kind === "boq"
-          ? f.kind
-          : "other";
-      buckets[k].push(f);
-    }
-    return buckets;
-  }, [files]);
+  const visible = useMemo(
+    () =>
+      variant === "boq"
+        ? files.filter((f) => f.kind === "boq")
+        : files.filter((f) => f.kind !== "boq"),
+    [files, variant],
+  );
+
+  const uploadKind: FileKind = variant === "boq" ? "boq" : "other";
+  const emptyLabel =
+    variant === "boq"
+      ? "No BOQ files yet."
+      : "No project files yet. Drop in DWGs, images, videos, PDFs — anything related to the project.";
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        {(Object.keys(KIND_LABELS) as FileKind[]).map((k) => {
-          const isActive = activeKind === k;
-          return (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setActiveKind(k)}
-              className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                isActive
-                  ? "border-magic-red bg-magic-red text-white"
-                  : "border-magic-border text-magic-ink/70 hover:bg-magic-soft"
-              }`}
-            >
-              {KIND_LABELS[k]}
-              <span className="ml-2 text-[10px] opacity-80">
-                {grouped[k].length}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
       <FileUploader
         projectId={project.id}
-        kind={activeKind}
+        kind={uploadKind}
+        variant={variant}
         onUploaded={reload}
       />
 
@@ -943,13 +935,11 @@ function FilesTab({
       <div className="mt-4">
         {loading ? (
           <div className="text-xs text-magic-ink/50">Loading files…</div>
-        ) : grouped[activeKind].length === 0 ? (
-          <div className="text-xs text-magic-ink/50">
-            No {KIND_LABELS[activeKind].toLowerCase()} yet.
-          </div>
+        ) : visible.length === 0 ? (
+          <div className="text-xs text-magic-ink/50">{emptyLabel}</div>
         ) : (
           <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
-            {grouped[activeKind].map((f) => (
+            {visible.map((f) => (
               <FileRowItem
                 key={f.id}
                 file={f}
@@ -970,10 +960,12 @@ function FilesTab({
 function FileUploader({
   projectId,
   kind,
+  variant,
   onUploaded,
 }: {
   projectId: number;
   kind: FileKind;
+  variant: "boq" | "media";
   onUploaded: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -1056,11 +1048,18 @@ function FileUploader({
     [projectId, kind, onUploaded],
   );
 
+  const buttonLabel =
+    variant === "boq" ? "Upload BOQ file" : "Upload project file";
+  const limitsHint =
+    variant === "boq"
+      ? "PDF / spreadsheet up to 25 MB · image up to 15 MB · DWG up to 50 MB"
+      : "DWG up to 50 MB · video up to 200 MB · image up to 15 MB · PDF up to 25 MB · other up to 50 MB";
+
   return (
     <div className="rounded-lg border border-dashed border-magic-border bg-magic-soft/30 p-4">
       <div className="flex flex-wrap items-center gap-3">
         <label className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold cursor-pointer hover:bg-red-700">
-          {busy ? "Uploading…" : `Upload ${KIND_LABELS[kind]}`}
+          {busy ? "Uploading…" : buttonLabel}
           <input
             type="file"
             className="hidden"
@@ -1072,9 +1071,7 @@ function FileUploader({
             }}
           />
         </label>
-        <span className="text-[11px] text-magic-ink/60">
-          PDF up to 5 MB · spreadsheet up to 10 MB · image up to 2 MB
-        </span>
+        <span className="text-[11px] text-magic-ink/60">{limitsHint}</span>
         {progressLabel && (
           <span className="text-[11px] text-magic-ink/70">{progressLabel}</span>
         )}

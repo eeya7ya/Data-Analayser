@@ -3,9 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
-import ClientProjectsList, {
-  type ClientProjectRow,
-} from "@/components/ClientProjectsList";
+import FolderProjectsClient from "@/components/FolderProjectsClient";
 import { EditFolderButton } from "@/components/EditFolderDialog";
 
 export const dynamic = "force-dynamic";
@@ -85,19 +83,11 @@ export default async function CompanyClientFolderPage({
     );
   }
 
-  const projects = (await q`
-    select id, folder_id, name, description, status, created_at, updated_at
-    from projects
-    where folder_id = ${folderId} and deleted_at is null
-    order by updated_at desc, name
-    limit 200
-  `) as ClientProjectRow[];
-
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
-      <main className="max-w-5xl mx-auto px-6 py-6 lg:px-10 space-y-5">
-        <div>
+      <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
+        <div className="mb-4">
           <div className="text-xs text-magic-ink/50">
             <Link href="/" className="hover:text-magic-red">
               Dashboard
@@ -135,28 +125,10 @@ export default async function CompanyClientFolderPage({
           <div className="mt-1 text-xs text-magic-ink/60 flex flex-wrap gap-x-4 gap-y-1">
             {folder.client_email && <span>{folder.client_email}</span>}
             {folder.client_phone && <span>{folder.client_phone}</span>}
-            <Link
-              href={`/folder/${folderId}`}
-              className="hover:text-magic-red"
-            >
-              Open legacy folder view →
-            </Link>
           </div>
         </div>
 
-        <section>
-          <h2 className="text-lg font-semibold text-magic-ink mb-3">
-            Projects under this client
-            <span className="ml-2 text-xs font-normal text-magic-ink/60">
-              ({projects.length})
-            </span>
-          </h2>
-          <ClientProjectsList
-            folderId={folderId}
-            initial={projects}
-            linkBase={`/crm/company/${companyId}/clients/${folderId}`}
-          />
-        </section>
+        <FolderProjectsClient folderId={folder.id} folderName={folder.name} />
       </main>
     </div>
   );

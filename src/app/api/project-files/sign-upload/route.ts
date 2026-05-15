@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const cap = maxBytesForMime(mime);
+    const cap = maxBytesForMime(mime, filename);
     if (size > cap) {
       return NextResponse.json(
         {
