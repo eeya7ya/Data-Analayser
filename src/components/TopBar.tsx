@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import type { SessionUser } from "@/lib/auth";
+import NotificationsBell from "@/components/NotificationsBell";
 
 interface ModuleRole {
   module: string;
@@ -113,6 +114,11 @@ export default function TopBar({ user }: { user: SessionUser }) {
 
           {/* Legacy URLs — every page from the pre-V2 nav is still here. */}
           <LegacyMenu approvalCount={approvalCount} />
+
+          {/* Consolidated alarm tray. Pulls pending approvals + unattached
+              folders + unclassified-folder warnings into one bell so the
+              CRM pages don't have to render big inline banners. */}
+          <NotificationsBell />
 
           <span className="ml-3 hidden lg:inline-flex items-center gap-1.5 rounded-full border border-magic-border/60 bg-white/60 px-3 py-1 text-[11px] font-medium text-magic-ink/70">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
