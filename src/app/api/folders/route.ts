@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
+import { ensureDefaultProject } from "@/lib/projects";
 
 export const runtime = "nodejs";
 
@@ -180,6 +181,13 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
+    // Spin up the folder's Default Project up-front so any quotation
+    // created from this client (even the very first one) lands on a
+    // real project instead of "Unfiled".
+    await ensureDefaultProject({
+      folderId: rows[0].id,
+      ownerId: rows[0].owner_id ?? user.id,
+    });
     // Invalidate the Next.js Router Cache for pages that render the folder
     // list, so navigating back to /quotation after creating a client — even
     // without ever saving a quotation — picks up the new row.

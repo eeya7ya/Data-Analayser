@@ -1083,7 +1083,7 @@ export default function QuotationListClient({
                   disabled={deletingId === g.folderId}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 bg-white text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
                 >
-                  {deletingId === g.folderId ? "Moving…" : "Trash"}
+                  {deletingId === g.folderId ? "Deleting…" : "Delete"}
                 </button>
               </div>
             )}
@@ -1292,7 +1292,7 @@ export default function QuotationListClient({
                             title="Move to trash"
                             className="text-xs text-red-500 hover:underline disabled:opacity-50"
                           >
-                            {deletingQuotationId === r.id ? "Moving…" : "Trash"}
+                            {deletingQuotationId === r.id ? "Deleting…" : "Delete"}
                           </button>
                         </div>
                       </td>
