@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
 import FolderProjectsClient from "@/components/FolderProjectsClient";
+import BackButton from "@/components/BackButton";
 
 /**
  * Per-client (folder) page that exposes the new Project layer added by
@@ -117,12 +118,7 @@ export default async function FolderPage({
       <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
         <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <Link
-              href="/crm"
-              className="text-xs text-magic-ink/60 hover:text-magic-red"
-            >
-              ← Back to CRM
-            </Link>
+            <BackButton fallbackHref="/crm" fallbackLabel="Back" />
             <h1 className="mt-1 text-2xl font-bold text-magic-ink">
               {folder.name}
             </h1>
