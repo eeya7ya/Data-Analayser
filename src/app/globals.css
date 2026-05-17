@@ -363,6 +363,85 @@ body > * {
   textarea.cell-input:focus {
     min-height: 8em;
   }
+
+  /* The FormattedCellInput component switched from <textarea>/<input>
+   * to a contenteditable <div> so the user sees real bold / colour /
+   * highlight inside the editor instead of raw **markers**. The CSS
+   * for description-input / cell-input above targets the legacy tags;
+   * the rules below mirror them for the new <div> so the popout,
+   * hover-expand, and focus styling are byte-identical to before. */
+  div.description-input,
+  div.cell-input {
+    display: block;
+    outline: none;
+    white-space: pre-wrap;
+    word-break: break-word;
+    cursor: text;
+  }
+  div.description-input:empty::before,
+  div.cell-input:empty::before {
+    content: attr(data-placeholder);
+    color: rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+  }
+  div.description-input {
+    field-sizing: content;
+    min-height: 4em;
+    line-height: 1.35;
+    border-radius: 4px;
+    transition:
+      min-height 180ms ease,
+      background-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+  div.description-input:hover:not(:focus) {
+    min-height: 8em;
+    background: rgba(255, 255, 255, 0.6);
+  }
+  div.description-input:focus {
+    position: absolute;
+    top: 4px;
+    left: -8em;
+    width: calc(100% + 16em);
+    min-height: 14em;
+    padding: 6px 8px;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.28);
+    z-index: 10;
+  }
+  div.cell-input {
+    width: 100%;
+    background: transparent;
+    border-radius: 4px;
+    min-height: 1.5em;
+    line-height: 1.35;
+    transition:
+      min-height 180ms ease,
+      background-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+  div.cell-input:hover:not(:focus) {
+    background: rgba(255, 255, 255, 0.6);
+    position: absolute;
+    top: 4px;
+    left: -2em;
+    width: calc(100% + 4em);
+    padding: 4px 6px;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.18);
+    z-index: 5;
+  }
+  div.cell-input:focus {
+    position: absolute;
+    top: 4px;
+    left: -4em;
+    width: calc(100% + 8em);
+    min-height: 3em;
+    padding: 6px 8px;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.28);
+    z-index: 10;
+  }
 }
 
 @media print {
