@@ -295,7 +295,7 @@ export default function QuotationViewer({
   return (
     <div>
       <QuotationApprovalBar quotationId={id} initial={approvalState} />
-      <div className="no-print flex justify-end mb-3 gap-2">
+      <div className="no-print flex flex-wrap justify-end mb-3 gap-2">
         <button
           onClick={() => router.push(`/designer?id=${id}`)}
           className="rounded-md border border-magic-border px-4 py-2 text-sm font-semibold hover:bg-magic-soft"
@@ -332,28 +332,37 @@ export default function QuotationViewer({
           Print BOQ
         </button>
       </div>
-      <QuotationPreview
-        header={header}
-        items={items}
-        editable={false}
-        showPictures={Boolean(config.showPictures)}
-        terms={
-          // Whatever the author persisted wins — even if it happens to
-          // equal the hardcoded default list verbatim. The previous
-          // "yield to admin-edited presets when terms match built-ins"
-          // heuristic was clever but silently erased user edits when the
-          // admin later tweaked defaults, which the user reported as
-          // "my terms never save".
-          Array.isArray(config.terms) && config.terms.length > 0
-            ? config.terms
-            : [...fallbackTerms]
-        }
-        includeTax={config.includeTax !== false}
-        taxInclusive={Boolean(config.taxInclusive)}
-        footerText={appSettings.footerText}
-        brandVariantId={config.brandVariantId}
-        boqMode={boqMode}
-      />
+      {/* The QuotationPreview is hard-coded to A4 width (210mm) so the
+          printed page matches the production template exactly. On
+          narrower screens that overflows the parent card and pushes
+          everything sideways; the no-print wrapper here keeps the
+          fixed-width sheet inside a horizontally scrollable box so
+          the surrounding chrome stays put. Print CSS bypasses .no-print
+          ancestors entirely, so paper output is unaffected. */}
+      <div className="no-print overflow-x-auto">
+        <QuotationPreview
+          header={header}
+          items={items}
+          editable={false}
+          showPictures={Boolean(config.showPictures)}
+          terms={
+            // Whatever the author persisted wins — even if it happens to
+            // equal the hardcoded default list verbatim. The previous
+            // "yield to admin-edited presets when terms match built-ins"
+            // heuristic was clever but silently erased user edits when the
+            // admin later tweaked defaults, which the user reported as
+            // "my terms never save".
+            Array.isArray(config.terms) && config.terms.length > 0
+              ? config.terms
+              : [...fallbackTerms]
+          }
+          includeTax={config.includeTax !== false}
+          taxInclusive={Boolean(config.taxInclusive)}
+          footerText={appSettings.footerText}
+          brandVariantId={config.brandVariantId}
+          boqMode={boqMode}
+        />
+      </div>
     </div>
   );
 }
