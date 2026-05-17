@@ -1,19 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 /**
- * Unified search on /crm. Pulls companies (top-level business
- * entities) and client folders (individuals + company contacts) in
- * parallel on first mount, then filters client-side as the user
- * types. At current scale (~17 companies, ~70 folders) loading once
- * and filtering in memory is cheaper than round-tripping per keystroke.
+ * Unified search on /crm. Hits /api/crm/search which scans companies,
+ * client folders, projects, quotations (by REF), and purchase orders
+ * (by PO number) in one round-trip. Debounced 250ms so each keystroke
+ * doesn't fire its own request.
  *
- * Results are split into two sections — Companies and Clients — and
- * each row links to the right CRM detail page. A company-kind client
- * routes through its parent company URL so the breadcrumb stays
- * consistent with the rest of the CRM drill-down.
+ * Result rows carry enough context to build the right CRM drill-down
+ * URL: a quotation under a company contact links through
+ * /crm/company/<companyId>/clients/<folderId>/<projectId>/quotations/<qId>,
+ * while individual-folder quotations skip the company layer.
  */
 
 interface CompanyHit {
@@ -21,9 +20,6 @@ interface CompanyHit {
   name: string;
   website: string | null;
   industry: string | null;
-  notes: string | null;
-  client_count: number;
-  quotation_count: number;
 }
 
 interface FolderHit {
@@ -31,96 +27,146 @@ interface FolderHit {
   name: string;
   kind: "company" | "individual" | null;
   company_id: number | null;
-  company_name?: string | null;
+  company_name: string | null;
   client_email: string | null;
   client_phone: string | null;
-  client_company: string | null;
-  project_count: number;
-  quotation_count: number;
+}
+
+interface ProjectHit {
+  id: number;
+  name: string;
+  description: string | null;
+  folder_id: number;
+  folder_name: string | null;
+  folder_kind: "company" | "individual" | null;
+  company_id: number | null;
+  company_name: string | null;
+}
+
+interface QuotationHit {
+  id: number;
+  ref: string;
+  client_name: string | null;
+  project_name: string | null;
+  status: string | null;
+  folder_id: number | null;
+  project_id: number | null;
+  folder_kind: "company" | "individual" | null;
+  company_id: number | null;
+  company_name: string | null;
+}
+
+interface PoHit {
+  id: number;
+  po_number: string;
+  supplier: string | null;
+  client_name: string | null;
+  project_name: string | null;
+  status: string | null;
+  folder_id: number | null;
+  project_id: number | null;
+  folder_kind: "company" | "individual" | null;
+  company_id: number | null;
+  company_name: string | null;
+}
+
+interface SearchResults {
+  companies: CompanyHit[];
+  folders: FolderHit[];
+  projects: ProjectHit[];
+  quotations: QuotationHit[];
+  purchaseOrders: PoHit[];
+}
+
+const EMPTY: SearchResults = {
+  companies: [],
+  folders: [],
+  projects: [],
+  quotations: [],
+  purchaseOrders: [],
+};
+
+function folderBase(
+  kind: "company" | "individual" | null,
+  companyId: number | null,
+  folderId: number,
+): string | null {
+  if (kind === "company" && companyId) {
+    return `/crm/company/${companyId}/clients/${folderId}`;
+  }
+  if (kind === "individual") {
+    return `/crm/individual/${folderId}`;
+  }
+  return null;
 }
 
 export default function CrmSearch() {
   const [query, setQuery] = useState("");
-  const [companies, setCompanies] = useState<CompanyHit[]>([]);
-  const [folders, setFolders] = useState<FolderHit[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [results, setResults] = useState<SearchResults>(EMPTY);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setResults(EMPTY);
+      setError(null);
+      setLoading(false);
+      abortRef.current?.abort();
+      return;
+    }
+
+    const ctrl = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = ctrl;
+    setLoading(true);
+
+    const handle = window.setTimeout(async () => {
       try {
-        const [cRes, fRes] = await Promise.all([
-          fetch("/api/companies", { cache: "no-store" }),
-          fetch("/api/folders", { cache: "no-store" }),
-        ]);
-        if (!cRes.ok) throw new Error(`companies HTTP ${cRes.status}`);
-        if (!fRes.ok) throw new Error(`folders HTTP ${fRes.status}`);
-        const cData = (await cRes.json()) as { companies?: CompanyHit[] };
-        const fData = (await fRes.json()) as { folders?: FolderHit[] };
-        if (cancelled) return;
-        setCompanies(Array.isArray(cData.companies) ? cData.companies : []);
-        setFolders(Array.isArray(fData.folders) ? fData.folders : []);
+        const res = await fetch(
+          `/api/crm/search?q=${encodeURIComponent(trimmed)}`,
+          { cache: "no-store", signal: ctrl.signal },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as Partial<SearchResults>;
+        if (ctrl.signal.aborted) return;
+        setResults({
+          companies: data.companies ?? [],
+          folders: data.folders ?? [],
+          projects: data.projects ?? [],
+          quotations: data.quotations ?? [],
+          purchaseOrders: data.purchaseOrders ?? [],
+        });
+        setError(null);
       } catch (err) {
-        if (!cancelled) setError((err as Error).message);
+        if ((err as Error).name === "AbortError") return;
+        setError((err as Error).message);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!ctrl.signal.aborted) setLoading(false);
       }
-    })();
+    }, 250);
+
     return () => {
-      cancelled = true;
+      window.clearTimeout(handle);
+      ctrl.abort();
     };
-  }, []);
+  }, [query]);
 
-  const lc = query.trim().toLowerCase();
-  const hasQuery = lc.length > 0;
-
-  const companyHits = useMemo(() => {
-    if (!hasQuery) return [];
-    return companies.filter((c) => {
-      const hay = [c.name, c.website, c.industry, c.notes]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(lc);
-    });
-  }, [companies, lc, hasQuery]);
-
-  const folderHits = useMemo(() => {
-    if (!hasQuery) return [];
-    return folders.filter((f) => {
-      const hay = [
-        f.name,
-        f.client_email,
-        f.client_phone,
-        f.client_company,
-        f.company_name,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(lc);
-    });
-  }, [folders, lc, hasQuery]);
-
-  const totalHits = companyHits.length + folderHits.length;
-
-  function folderHref(f: FolderHit): string {
-    if (f.kind === "company" && f.company_id) {
-      return `/crm/company/${f.company_id}/clients/${f.id}`;
-    }
-    if (f.kind === "individual") {
-      return `/crm/individual/${f.id}`;
-    }
-    return `/crm/${f.kind ?? "individual"}/${f.id}`;
-  }
+  const hasQuery = query.trim().length > 0;
+  const total =
+    results.companies.length +
+    results.folders.length +
+    results.projects.length +
+    results.quotations.length +
+    results.purchaseOrders.length;
 
   return (
     <div className="space-y-3">
       <div className="relative">
         <input
           type="search"
-          placeholder="Search companies and clients by name, email, phone, website…"
+          placeholder="Search companies, clients, projects, quotation REF, PO number…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="w-full rounded-lg border border-magic-border bg-white px-3 py-2.5 text-sm focus:outline-none focus:border-magic-red"
@@ -146,91 +192,277 @@ export default function CrmSearch() {
       {hasQuery && (
         <div className="rounded-2xl border border-magic-border bg-white p-4 space-y-4">
           {loading ? (
-            <p className="text-sm text-magic-ink/60">Loading…</p>
-          ) : totalHits === 0 ? (
+            <p className="text-sm text-magic-ink/60">Searching…</p>
+          ) : total === 0 ? (
             <p className="text-sm text-magic-ink/60">
               No matches for &ldquo;{query}&rdquo;.
             </p>
           ) : (
             <>
               <div className="text-xs text-magic-ink/50">
-                {totalHits} match{totalHits === 1 ? "" : "es"} for &ldquo;{query}
-                &rdquo;
+                {total} match{total === 1 ? "" : "es"} for &ldquo;{query}&rdquo;
               </div>
 
-              {companyHits.length > 0 && (
-                <section className="space-y-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-magic-ink/60">
-                    Companies ({companyHits.length})
-                  </h3>
-                  <ul className="space-y-1.5">
-                    {companyHits.map((c) => (
-                      <li key={`c-${c.id}`}>
-                        <Link
-                          href={`/crm/company/${c.id}`}
-                          className="block rounded-lg border border-magic-border px-3 py-2 hover:border-magic-red hover:bg-magic-soft/40 transition-colors"
-                        >
-                          <div className="font-semibold text-sm text-magic-ink">
-                            {c.name}
-                          </div>
-                          <div className="text-xs text-magic-ink/60 mt-0.5">
-                            {c.industry && <>{c.industry} · </>}
-                            {c.website && <>{c.website} · </>}
-                            {c.client_count} client
-                            {c.client_count === 1 ? "" : "s"} ·{" "}
-                            {c.quotation_count} quotation
-                            {c.quotation_count === 1 ? "" : "s"}
-                          </div>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-
-              {folderHits.length > 0 && (
-                <section className="space-y-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-magic-ink/60">
-                    Clients ({folderHits.length})
-                  </h3>
-                  <ul className="space-y-1.5">
-                    {folderHits.map((f) => (
-                      <li key={`f-${f.id}`}>
-                        <Link
-                          href={folderHref(f)}
-                          className="block rounded-lg border border-magic-border px-3 py-2 hover:border-magic-red hover:bg-magic-soft/40 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm text-magic-ink">
-                              {f.name}
-                            </span>
-                            <span className="text-[10px] uppercase tracking-wide rounded-full bg-magic-soft px-2 py-0.5 text-magic-ink/60">
-                              {f.kind === "company"
-                                ? "Company contact"
-                                : f.kind === "individual"
-                                  ? "Individual"
-                                  : "Unclassified"}
-                            </span>
-                          </div>
-                          <div className="text-xs text-magic-ink/60 mt-0.5">
-                            {f.company_name && <>@ {f.company_name} · </>}
-                            {f.client_email && <>{f.client_email} · </>}
-                            {f.client_phone && <>{f.client_phone} · </>}
-                            {f.project_count} project
-                            {f.project_count === 1 ? "" : "s"} ·{" "}
-                            {f.quotation_count} quotation
-                            {f.quotation_count === 1 ? "" : "s"}
-                          </div>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
+              <CompaniesSection items={results.companies} />
+              <ClientsSection items={results.folders} />
+              <ProjectsSection items={results.projects} />
+              <QuotationsSection items={results.quotations} />
+              <PurchaseOrdersSection items={results.purchaseOrders} />
             </>
           )}
         </div>
       )}
     </div>
+  );
+}
+
+function SectionHeader({ label, count }: { label: string; count: number }) {
+  return (
+    <h3 className="text-xs font-semibold uppercase tracking-wide text-magic-ink/60">
+      {label} ({count})
+    </h3>
+  );
+}
+
+function Kind({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-[10px] uppercase tracking-wide rounded-full bg-magic-soft px-2 py-0.5 text-magic-ink/60">
+      {children}
+    </span>
+  );
+}
+
+function CompaniesSection({ items }: { items: CompanyHit[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <SectionHeader label="Companies" count={items.length} />
+      <ul className="space-y-1.5">
+        {items.map((c) => (
+          <li key={`co-${c.id}`}>
+            <Link
+              href={`/crm/company/${c.id}`}
+              className="block rounded-lg border border-magic-border px-3 py-2 hover:border-magic-red hover:bg-magic-soft/40 transition-colors"
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-sm text-magic-ink">
+                  {c.name}
+                </span>
+                <Kind>Company</Kind>
+              </div>
+              {(c.industry || c.website) && (
+                <div className="text-xs text-magic-ink/60 mt-0.5">
+                  {c.industry && <>{c.industry}</>}
+                  {c.industry && c.website && <> · </>}
+                  {c.website && <>{c.website}</>}
+                </div>
+              )}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ClientsSection({ items }: { items: FolderHit[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <SectionHeader label="Clients" count={items.length} />
+      <ul className="space-y-1.5">
+        {items.map((f) => {
+          const base =
+            folderBase(f.kind, f.company_id, f.id) ??
+            `/crm/${f.kind ?? "individual"}/${f.id}`;
+          return (
+            <li key={`cl-${f.id}`}>
+              <Link
+                href={base}
+                className="block rounded-lg border border-magic-border px-3 py-2 hover:border-magic-red hover:bg-magic-soft/40 transition-colors"
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-sm text-magic-ink">
+                    {f.name}
+                  </span>
+                  <Kind>
+                    {f.kind === "company"
+                      ? "Company contact"
+                      : f.kind === "individual"
+                        ? "Individual"
+                        : "Unclassified"}
+                  </Kind>
+                </div>
+                <div className="text-xs text-magic-ink/60 mt-0.5">
+                  {f.company_name && <>@ {f.company_name} · </>}
+                  {f.client_email && <>{f.client_email} · </>}
+                  {f.client_phone && <>{f.client_phone}</>}
+                </div>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function ProjectsSection({ items }: { items: ProjectHit[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <SectionHeader label="Projects" count={items.length} />
+      <ul className="space-y-1.5">
+        {items.map((p) => {
+          const base = folderBase(p.folder_kind, p.company_id, p.folder_id);
+          const href = base ? `${base}/${p.id}` : `/crm`;
+          return (
+            <li key={`pr-${p.id}`}>
+              <Link
+                href={href}
+                className="block rounded-lg border border-magic-border px-3 py-2 hover:border-magic-red hover:bg-magic-soft/40 transition-colors"
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-sm text-magic-ink">
+                    {p.name}
+                  </span>
+                  <Kind>Project</Kind>
+                </div>
+                <div className="text-xs text-magic-ink/60 mt-0.5">
+                  {p.company_name && <>{p.company_name} · </>}
+                  {p.folder_name && <>{p.folder_name}</>}
+                </div>
+                {p.description && (
+                  <div className="text-xs text-magic-ink/50 mt-0.5 line-clamp-1">
+                    {p.description}
+                  </div>
+                )}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function QuotationsSection({ items }: { items: QuotationHit[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <SectionHeader label="Quotations" count={items.length} />
+      <ul className="space-y-1.5">
+        {items.map((qq) => {
+          const base =
+            qq.folder_id != null
+              ? folderBase(qq.folder_kind, qq.company_id, qq.folder_id)
+              : null;
+          const href =
+            base && qq.project_id
+              ? `${base}/${qq.project_id}/quotations/${qq.id}`
+              : null;
+          const Wrapper = href
+            ? ({ children }: { children: React.ReactNode }) => (
+                <Link
+                  href={href}
+                  className="block rounded-lg border border-magic-border px-3 py-2 hover:border-magic-red hover:bg-magic-soft/40 transition-colors"
+                >
+                  {children}
+                </Link>
+              )
+            : ({ children }: { children: React.ReactNode }) => (
+                <div className="block rounded-lg border border-magic-border px-3 py-2 opacity-70">
+                  {children}
+                </div>
+              );
+          return (
+            <li key={`qq-${qq.id}`}>
+              <Wrapper>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono font-semibold text-sm text-magic-ink">
+                    {qq.ref}
+                  </span>
+                  <Kind>Quotation</Kind>
+                  {qq.status && (
+                    <span className="text-[10px] uppercase tracking-wide text-magic-ink/50">
+                      {qq.status}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-magic-ink/60 mt-0.5">
+                  {qq.client_name && <>{qq.client_name} · </>}
+                  {qq.project_name && <>{qq.project_name}</>}
+                </div>
+                {qq.company_name && (
+                  <div className="text-xs text-magic-ink/50 mt-0.5">
+                    @ {qq.company_name}
+                  </div>
+                )}
+              </Wrapper>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function PurchaseOrdersSection({ items }: { items: PoHit[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <SectionHeader label="Purchase orders" count={items.length} />
+      <ul className="space-y-1.5">
+        {items.map((po) => {
+          const base =
+            po.folder_id != null
+              ? folderBase(po.folder_kind, po.company_id, po.folder_id)
+              : null;
+          const href =
+            base && po.project_id ? `${base}/${po.project_id}/pos` : null;
+          const Wrapper = href
+            ? ({ children }: { children: React.ReactNode }) => (
+                <Link
+                  href={href}
+                  className="block rounded-lg border border-magic-border px-3 py-2 hover:border-magic-red hover:bg-magic-soft/40 transition-colors"
+                >
+                  {children}
+                </Link>
+              )
+            : ({ children }: { children: React.ReactNode }) => (
+                <div className="block rounded-lg border border-magic-border px-3 py-2 opacity-70">
+                  {children}
+                </div>
+              );
+          return (
+            <li key={`po-${po.id}`}>
+              <Wrapper>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono font-semibold text-sm text-magic-ink">
+                    {po.po_number}
+                  </span>
+                  <Kind>PO</Kind>
+                  {po.status && (
+                    <span className="text-[10px] uppercase tracking-wide text-magic-ink/50">
+                      {po.status}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-magic-ink/60 mt-0.5">
+                  {po.supplier && <>{po.supplier} · </>}
+                  {po.client_name && <>{po.client_name} · </>}
+                  {po.project_name && <>{po.project_name}</>}
+                </div>
+                {po.company_name && (
+                  <div className="text-xs text-magic-ink/50 mt-0.5">
+                    @ {po.company_name}
+                  </div>
+                )}
+              </Wrapper>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
