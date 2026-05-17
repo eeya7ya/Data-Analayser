@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
+import CrmSearch from "@/components/CrmSearch";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,8 @@ export default async function CrmLandingPage() {
         {/* Pending approvals now live in the TopBar notification bell so
             the page doesn't repeat the same alert. The list of refs that
             used to render below the banner moved to /inbox/approvals. */}
+
+        <CrmSearch />
 
         <div className="grid gap-4 md:grid-cols-2">
           <KindCard
