@@ -49,12 +49,35 @@ export function FormattedCellInput(props: {
   } = props;
   const ref = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const [focused, setFocused] = useState(false);
+  // Remember the last selection range the user made inside the input.
+  // We can't rely on reading it off `ref.current` at toolbar-click time:
+  // even with mousedown preventDefault, some browsers (notably mobile
+  // Safari) still drop the selection when another element receives a
+  // mouse event, which used to make the marker insert at value.length
+  // — the visible "nothing happened" bug.
+  const selectionRef = useRef<{ start: number; end: number }>({
+    start: 0,
+    end: 0,
+  });
+
+  function rememberSelection() {
+    const el = ref.current;
+    if (!el) return;
+    selectionRef.current = {
+      start: el.selectionStart ?? 0,
+      end: el.selectionEnd ?? 0,
+    };
+  }
 
   function applyMarker(prefix: string, suffix: string) {
     const el = ref.current;
     if (!el) return;
-    const start = el.selectionStart ?? value.length;
-    const end = el.selectionEnd ?? value.length;
+    // Prefer the remembered selection over re-reading it now — the
+    // mousedown handler on the toolbar buttons keeps focus on the
+    // input in most browsers, but the underlying selection range can
+    // still get cleared between mousedown and click on some engines.
+    const start = selectionRef.current.start;
+    const end = selectionRef.current.end;
     const selected = value.slice(start, end);
     const inner = selected || "text";
     const before = value.slice(0, start);
@@ -64,30 +87,52 @@ export function FormattedCellInput(props: {
     // Re-select the inner text so consecutive clicks (e.g. bold then
     // colour) chain naturally and an empty selection lands the cursor
     // on the placeholder word ready to be typed over.
+    const innerStart = before.length + prefix.length;
+    const innerEnd = innerStart + inner.length;
+    selectionRef.current = { start: innerStart, end: innerEnd };
     requestAnimationFrame(() => {
       if (!ref.current) return;
       ref.current.focus();
-      const innerStart = before.length + prefix.length;
-      ref.current.setSelectionRange(innerStart, innerStart + inner.length);
+      ref.current.setSelectionRange(innerStart, innerEnd);
     });
   }
 
-  // The pop-out cell (cell-input on focus) is absolutely positioned
-  // relative to the surrounding <td>. The toolbar lives *inside* this
-  // wrapper at z-20 so it sits above the cell pop-out (z-10) and
-  // doesn't get clipped by the column's narrow width.
+  // We keep the toolbar visible across very short blur/focus blips
+  // (clicking a toolbar button can briefly steal focus on some
+  // engines). The timeout ID lets `onFocus` cancel a pending hide so
+  // the toolbar doesn't flicker out and back in — which used to drag
+  // the absolutely-positioned `description-input` cell back to its
+  // inline size for a frame, producing the "row rapidly goes up and
+  // down" bug.
+  const blurTimer = useRef<number | null>(null);
   const sharedHandlers = {
-    onFocus: () => setFocused(true),
-    // Delay the unfocus so a click on the toolbar (which momentarily
-    // takes focus away) doesn't dismiss it before the click handler
-    // runs. onMouseDown on the toolbar also calls preventDefault to
-    // keep focus on the input, but the safety-net timeout makes the
-    // UX feel reliable across browsers.
-    onBlur: () => window.setTimeout(() => setFocused(false), 150),
+    onFocus: () => {
+      if (blurTimer.current != null) {
+        window.clearTimeout(blurTimer.current);
+        blurTimer.current = null;
+      }
+      setFocused(true);
+    },
+    onBlur: () => {
+      if (blurTimer.current != null) window.clearTimeout(blurTimer.current);
+      blurTimer.current = window.setTimeout(() => {
+        blurTimer.current = null;
+        setFocused(false);
+      }, 200);
+    },
+    onSelect: rememberSelection,
+    onKeyUp: rememberSelection,
+    onMouseUp: rememberSelection,
   };
 
   return (
-    <>
+    // Wrap input + toolbar in a position:relative shell so the toolbar
+    // anchors to *this* component, not to whatever ancestor happens to
+    // be position:relative. Without this the toolbar latches onto the
+    // surrounding <td>, which is fine until the description textarea
+    // pops out to absolute on focus — at that point the toolbar floats
+    // off above the wrong slot and the cell appears to jump.
+    <span className="relative block">
       {as === "textarea" ? (
         <textarea
           ref={(el) => {
@@ -116,7 +161,10 @@ export function FormattedCellInput(props: {
       )}
       {focused && (
         <div
-          className="no-print absolute -top-7 left-0 z-20 flex items-center gap-0.5 rounded-md border border-magic-border bg-white px-1 py-0.5 shadow-sm"
+          className="no-print absolute -top-7 left-0 z-20 flex items-center gap-1 rounded-md border border-magic-border bg-white px-1 py-0.5 shadow-sm"
+          // Belt-and-braces: the wrapper preventDefault catches clicks
+          // that land between buttons, each button also calls
+          // preventDefault on its own mousedown.
           onMouseDown={(e) => e.preventDefault()}
         >
           <ToolbarButton
@@ -155,9 +203,19 @@ export function FormattedCellInput(props: {
             onClick={() => applyMarker("[orange]", "[/orange]")}
             extraStyle={{ color: "#c2410c" }}
           />
+          {/* Inline preview of the rich-rendered value so the user
+              gets immediate visual confirmation that B / colour
+              actually applied — the editable cell itself can only
+              show the raw `**text**` markers, which used to look
+              like the formatting had silently failed. */}
+          {hasRichMarkers(value) && (
+            <span className="ml-1 max-w-[18rem] truncate border-l border-magic-border pl-1 text-[10.5px] leading-none">
+              {renderRich(value)}
+            </span>
+          )}
         </div>
       )}
-    </>
+    </span>
   );
 }
 
@@ -171,6 +229,12 @@ function ToolbarButton(props: {
   return (
     <button
       type="button"
+      // mousedown preventDefault stops the browser from shifting focus
+      // off the input to this button. Without it the input briefly
+      // blurs, the description-input cell collapses out of its focused
+      // absolute layout, then snaps back when requestAnimationFrame
+      // refocuses — the visible "rapid up and down" jitter.
+      onMouseDown={(e) => e.preventDefault()}
       onClick={props.onClick}
       title={props.title}
       className={`h-5 min-w-[1.25rem] px-1 rounded text-[11px] leading-none hover:bg-magic-soft transition-colors ${props.extraClass ?? ""}`}
@@ -179,4 +243,58 @@ function ToolbarButton(props: {
       {props.label}
     </button>
   );
+}
+
+// ── Lightweight inline renderer for the toolbar preview ──────────────
+// Mirrors the heavier `renderRichCell` in QuotationPreview but inlined
+// here so this component stays standalone. Same marker grammar:
+// **bold**, ==highlight==, [red|blue|green|orange]…[/red|…].
+const PREVIEW_COLOR: Record<string, string> = {
+  red: "#c1272d",
+  blue: "#1d4ed8",
+  green: "#15803d",
+  orange: "#c2410c",
+};
+const RICH_PATTERN =
+  /(\*\*[^*\n]+\*\*|==[^=\n]+==|\[(?:red|blue|green|orange)\][^[\n]+\[\/(?:red|blue|green|orange)\])/g;
+
+function hasRichMarkers(text: string): boolean {
+  if (!text) return false;
+  RICH_PATTERN.lastIndex = 0;
+  return RICH_PATTERN.test(text);
+}
+
+function renderRich(text: string): React.ReactNode {
+  const parts = text.split(RICH_PATTERN);
+  const nodes: React.ReactNode[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (!part) continue;
+    if (part.startsWith("**") && part.endsWith("**")) {
+      nodes.push(<strong key={i}>{part.slice(2, -2)}</strong>);
+    } else if (part.startsWith("==") && part.endsWith("==")) {
+      nodes.push(
+        <mark
+          key={i}
+          style={{ background: "#fff3a3", color: "inherit", padding: "0 2px" }}
+        >
+          {part.slice(2, -2)}
+        </mark>,
+      );
+    } else {
+      const m = part.match(
+        /^\[(red|blue|green|orange)\]([\s\S]+)\[\/(red|blue|green|orange)\]$/,
+      );
+      if (m && m[1] === m[3]) {
+        nodes.push(
+          <span key={i} style={{ color: PREVIEW_COLOR[m[1]] }}>
+            {m[2]}
+          </span>,
+        );
+      } else {
+        nodes.push(part);
+      }
+    }
+  }
+  return <>{nodes}</>;
 }
