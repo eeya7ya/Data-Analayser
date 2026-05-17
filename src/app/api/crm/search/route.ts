@@ -159,7 +159,12 @@ export async function GET(req: NextRequest) {
 
       q`
         select qq.id, qq.ref, qq.client_name, qq.project_name, qq.status,
-               qq.folder_id, qq.project_id,
+               qq.folder_id,
+               coalesce(
+                 qq.project_id,
+                 (select min(p.id) from projects p
+                   where p.folder_id = qq.folder_id and p.deleted_at is null)
+               ) as project_id,
                cf.kind as folder_kind,
                cf.company_id,
                c.name as company_name
@@ -179,7 +184,12 @@ export async function GET(req: NextRequest) {
 
       q`
         select po.id, po.po_number, po.supplier, po.client_name, po.project_name, po.status,
-               po.folder_id, po.project_id,
+               po.folder_id,
+               coalesce(
+                 po.project_id,
+                 (select min(p.id) from projects p
+                   where p.folder_id = po.folder_id and p.deleted_at is null)
+               ) as project_id,
                cf.kind as folder_kind,
                cf.company_id,
                c.name as company_name
