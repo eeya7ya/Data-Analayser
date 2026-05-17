@@ -90,14 +90,34 @@ function folderBase(
   kind: "company" | "individual" | null,
   companyId: number | null,
   folderId: number,
-): string | null {
+): string {
   if (kind === "company" && companyId) {
     return `/crm/company/${companyId}/clients/${folderId}`;
   }
   if (kind === "individual") {
     return `/crm/individual/${folderId}`;
   }
-  return null;
+  // Unclassified / orphaned company folder — fall through to the
+  // generic [kind] catch-all, which redirects to the correct kind URL
+  // once it resolves the folder.
+  const fallbackKind = kind ?? "unclassified";
+  return `/crm/${fallbackKind}/${folderId}`;
+}
+
+function quotationHref(qq: QuotationHit): string {
+  if (qq.folder_id == null) return "/crm";
+  const base = folderBase(qq.folder_kind, qq.company_id, qq.folder_id);
+  if (qq.project_id) return `${base}/${qq.project_id}/quotations/${qq.id}`;
+  // Project couldn't be resolved (legacy row + no default project yet).
+  // Land on the client page; the user can drill the last step manually.
+  return base;
+}
+
+function poHref(po: PoHit): string {
+  if (po.folder_id == null) return "/crm";
+  const base = folderBase(po.folder_kind, po.company_id, po.folder_id);
+  if (po.project_id) return `${base}/${po.project_id}/pos`;
+  return base;
 }
 
 export default function CrmSearch() {
@@ -272,9 +292,7 @@ function ClientsSection({ items }: { items: FolderHit[] }) {
       <SectionHeader label="Clients" count={items.length} />
       <ul className="space-y-1.5">
         {items.map((f) => {
-          const base =
-            folderBase(f.kind, f.company_id, f.id) ??
-            `/crm/${f.kind ?? "individual"}/${f.id}`;
+          const base = folderBase(f.kind, f.company_id, f.id);
           return (
             <li key={`cl-${f.id}`}>
               <Link
@@ -315,7 +333,7 @@ function ProjectsSection({ items }: { items: ProjectHit[] }) {
       <ul className="space-y-1.5">
         {items.map((p) => {
           const base = folderBase(p.folder_kind, p.company_id, p.folder_id);
-          const href = base ? `${base}/${p.id}` : `/crm`;
+          const href = `${base}/${p.id}`;
           return (
             <li key={`pr-${p.id}`}>
               <Link
@@ -352,56 +370,35 @@ function QuotationsSection({ items }: { items: QuotationHit[] }) {
     <section className="space-y-2">
       <SectionHeader label="Quotations" count={items.length} />
       <ul className="space-y-1.5">
-        {items.map((qq) => {
-          const base =
-            qq.folder_id != null
-              ? folderBase(qq.folder_kind, qq.company_id, qq.folder_id)
-              : null;
-          const href =
-            base && qq.project_id
-              ? `${base}/${qq.project_id}/quotations/${qq.id}`
-              : null;
-          const Wrapper = href
-            ? ({ children }: { children: React.ReactNode }) => (
-                <Link
-                  href={href}
-                  className="block rounded-lg border border-magic-border px-3 py-2 hover:border-magic-red hover:bg-magic-soft/40 transition-colors"
-                >
-                  {children}
-                </Link>
-              )
-            : ({ children }: { children: React.ReactNode }) => (
-                <div className="block rounded-lg border border-magic-border px-3 py-2 opacity-70">
-                  {children}
-                </div>
-              );
-          return (
-            <li key={`qq-${qq.id}`}>
-              <Wrapper>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono font-semibold text-sm text-magic-ink">
-                    {qq.ref}
+        {items.map((qq) => (
+          <li key={`qq-${qq.id}`}>
+            <Link
+              href={quotationHref(qq)}
+              className="block rounded-lg border border-magic-border px-3 py-2 hover:border-magic-red hover:bg-magic-soft/40 transition-colors"
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono font-semibold text-sm text-magic-ink">
+                  {qq.ref}
+                </span>
+                <Kind>Quotation</Kind>
+                {qq.status && (
+                  <span className="text-[10px] uppercase tracking-wide text-magic-ink/50">
+                    {qq.status}
                   </span>
-                  <Kind>Quotation</Kind>
-                  {qq.status && (
-                    <span className="text-[10px] uppercase tracking-wide text-magic-ink/50">
-                      {qq.status}
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs text-magic-ink/60 mt-0.5">
-                  {qq.client_name && <>{qq.client_name} · </>}
-                  {qq.project_name && <>{qq.project_name}</>}
-                </div>
-                {qq.company_name && (
-                  <div className="text-xs text-magic-ink/50 mt-0.5">
-                    @ {qq.company_name}
-                  </div>
                 )}
-              </Wrapper>
-            </li>
-          );
-        })}
+              </div>
+              <div className="text-xs text-magic-ink/60 mt-0.5">
+                {qq.client_name && <>{qq.client_name} · </>}
+                {qq.project_name && <>{qq.project_name}</>}
+              </div>
+              {qq.company_name && (
+                <div className="text-xs text-magic-ink/50 mt-0.5">
+                  @ {qq.company_name}
+                </div>
+              )}
+            </Link>
+          </li>
+        ))}
       </ul>
     </section>
   );
@@ -413,55 +410,36 @@ function PurchaseOrdersSection({ items }: { items: PoHit[] }) {
     <section className="space-y-2">
       <SectionHeader label="Purchase orders" count={items.length} />
       <ul className="space-y-1.5">
-        {items.map((po) => {
-          const base =
-            po.folder_id != null
-              ? folderBase(po.folder_kind, po.company_id, po.folder_id)
-              : null;
-          const href =
-            base && po.project_id ? `${base}/${po.project_id}/pos` : null;
-          const Wrapper = href
-            ? ({ children }: { children: React.ReactNode }) => (
-                <Link
-                  href={href}
-                  className="block rounded-lg border border-magic-border px-3 py-2 hover:border-magic-red hover:bg-magic-soft/40 transition-colors"
-                >
-                  {children}
-                </Link>
-              )
-            : ({ children }: { children: React.ReactNode }) => (
-                <div className="block rounded-lg border border-magic-border px-3 py-2 opacity-70">
-                  {children}
-                </div>
-              );
-          return (
-            <li key={`po-${po.id}`}>
-              <Wrapper>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono font-semibold text-sm text-magic-ink">
-                    {po.po_number}
+        {items.map((po) => (
+          <li key={`po-${po.id}`}>
+            <Link
+              href={poHref(po)}
+              className="block rounded-lg border border-magic-border px-3 py-2 hover:border-magic-red hover:bg-magic-soft/40 transition-colors"
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono font-semibold text-sm text-magic-ink">
+                  {po.po_number}
+                </span>
+                <Kind>PO</Kind>
+                {po.status && (
+                  <span className="text-[10px] uppercase tracking-wide text-magic-ink/50">
+                    {po.status}
                   </span>
-                  <Kind>PO</Kind>
-                  {po.status && (
-                    <span className="text-[10px] uppercase tracking-wide text-magic-ink/50">
-                      {po.status}
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs text-magic-ink/60 mt-0.5">
-                  {po.supplier && <>{po.supplier} · </>}
-                  {po.client_name && <>{po.client_name} · </>}
-                  {po.project_name && <>{po.project_name}</>}
-                </div>
-                {po.company_name && (
-                  <div className="text-xs text-magic-ink/50 mt-0.5">
-                    @ {po.company_name}
-                  </div>
                 )}
-              </Wrapper>
-            </li>
-          );
-        })}
+              </div>
+              <div className="text-xs text-magic-ink/60 mt-0.5">
+                {po.supplier && <>{po.supplier} · </>}
+                {po.client_name && <>{po.client_name} · </>}
+                {po.project_name && <>{po.project_name}</>}
+              </div>
+              {po.company_name && (
+                <div className="text-xs text-magic-ink/50 mt-0.5">
+                  @ {po.company_name}
+                </div>
+              )}
+            </Link>
+          </li>
+        ))}
       </ul>
     </section>
   );
