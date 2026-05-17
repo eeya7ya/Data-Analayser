@@ -125,6 +125,8 @@ export function FormattedCellInput(props: {
     onMouseUp: rememberSelection,
   };
 
+  const showPreview = focused && hasRichMarkers(value);
+
   return (
     // Wrap input + toolbar in a position:relative shell so the toolbar
     // anchors to *this* component, not to whatever ancestor happens to
@@ -203,16 +205,22 @@ export function FormattedCellInput(props: {
             onClick={() => applyMarker("[orange]", "[/orange]")}
             extraStyle={{ color: "#c2410c" }}
           />
-          {/* Inline preview of the rich-rendered value so the user
-              gets immediate visual confirmation that B / colour
-              actually applied — the editable cell itself can only
-              show the raw `**text**` markers, which used to look
-              like the formatting had silently failed. */}
-          {hasRichMarkers(value) && (
-            <span className="ml-1 max-w-[18rem] truncate border-l border-magic-border pl-1 text-[10.5px] leading-none">
-              {renderRich(value)}
-            </span>
-          )}
+        </div>
+      )}
+      {showPreview && (
+        // Full-width rendered preview right below the input. The
+        // textarea can only display raw `**text**` markers; without a
+        // visible rendered preview users assumed the bold/colour
+        // buttons silently did nothing. Mousedown preventDefault keeps
+        // the input focused if the user taps the preview area.
+        <div
+          className="no-print mt-1 rounded-md border border-magic-border bg-magic-soft/30 px-2 py-1.5 text-[10.5px] leading-snug whitespace-pre-wrap break-words"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <span className="mr-1 text-[9px] uppercase tracking-wide text-magic-ink/40">
+            Preview
+          </span>
+          {renderRich(value)}
         </div>
       )}
     </span>
