@@ -1,22 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * An editable cell with a floating mini-toolbar (B / highlight / red /
- * blue / green / orange) that lets the user style the selected text
- * without typing the marker syntax by hand. The markers themselves
- * remain in the underlying string — same lightweight format used by
- * `renderRichCell` on the non-edit / printed view — so saving,
- * pasting, and round-tripping stay plain text.
+ * Rich cell editor with WYSIWYG formatting. The B / highlight / colour
+ * buttons apply real inline styling inside a contenteditable element
+ * — what you see is what gets printed. Persistence still uses the
+ * lightweight marker format (`**bold**`, `==highlight==`,
+ * `[red]…[/red]`) so the rest of the app (renderRichCell in
+ * QuotationPreview, the print pipeline, search indexers) keeps
+ * working unchanged.
  *
- * Usage:
- *   <FormattedCellInput
- *     value={item.brand}
- *     onChange={(v) => onUpdate(i, { brand: v })}
- *     inputClassName="cell-input text-center"
- *   />
- *
+ * Usage matches the previous textarea/input version:
  *   <FormattedCellInput
  *     as="textarea"
  *     rows={3}
@@ -24,11 +19,16 @@ import { useRef, useState } from "react";
  *     onChange={(v) => onUpdate(i, { description: v })}
  *     inputClassName="description-input w-full bg-transparent text-[10.5px]"
  *   />
- *
- * Number columns (quantity / unit price) intentionally stay as plain
- * <input type="number">, because mixing marker syntax into a number
- * field would corrupt the value on every keystroke.
  */
+
+const RICH_COLOR_MAP: Record<string, string> = {
+  red: "#c1272d",
+  blue: "#1d4ed8",
+  green: "#15803d",
+  orange: "#c2410c",
+};
+const HIGHLIGHT_BG = "#fff3a3";
+
 export function FormattedCellInput(props: {
   value: string;
   onChange: (next: string) => void;
@@ -47,234 +47,162 @@ export function FormattedCellInput(props: {
     placeholder,
     title,
   } = props;
-  const ref = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+
+  const editorRef = useRef<HTMLDivElement | null>(null);
   const [focused, setFocused] = useState(false);
-  // Remember the last selection range the user made inside the input.
-  // We can't rely on reading it off `ref.current` at toolbar-click time:
-  // even with mousedown preventDefault, some browsers (notably mobile
-  // Safari) still drop the selection when another element receives a
-  // mouse event, which used to make the marker insert at value.length
-  // — the visible "nothing happened" bug.
-  const selectionRef = useRef<{ start: number; end: number }>({
-    start: 0,
-    end: 0,
-  });
-
-  function rememberSelection() {
-    const el = ref.current;
-    if (!el) return;
-    selectionRef.current = {
-      start: el.selectionStart ?? 0,
-      end: el.selectionEnd ?? 0,
-    };
-  }
-
-  function applyMarker(prefix: string, suffix: string) {
-    const el = ref.current;
-    if (!el) return;
-    // Prefer the remembered selection over re-reading it now — the
-    // mousedown handler on the toolbar buttons keeps focus on the
-    // input in most browsers, but the underlying selection range can
-    // still get cleared between mousedown and click on some engines.
-    const start = selectionRef.current.start;
-    const end = selectionRef.current.end;
-
-    // ── Toggle case A: the selection is already wrapped by the same
-    //    prefix/suffix immediately adjacent. Tapping B (or red, etc.)
-    //    a second time should REMOVE the wrap, not stack another one.
-    //    Without this, re-tapping bold on the inner text after wrap
-    //    produces `****throughput****` and the user thinks it's broken.
-    const adjacentBefore = value.slice(
-      Math.max(0, start - prefix.length),
-      start,
-    );
-    const adjacentAfter = value.slice(end, end + suffix.length);
-    if (adjacentBefore === prefix && adjacentAfter === suffix) {
-      const newStart = start - prefix.length;
-      const next =
-        value.slice(0, newStart) +
-        value.slice(start, end) +
-        value.slice(end + suffix.length);
-      onChange(next);
-      const newEnd = newStart + (end - start);
-      selectionRef.current = { start: newStart, end: newEnd };
-      requestAnimationFrame(() => {
-        if (!ref.current) return;
-        ref.current.focus();
-        ref.current.setSelectionRange(newStart, newEnd);
-      });
-      return;
-    }
-
-    // ── Toggle case B: the selection INCLUDES the prefix/suffix
-    //    (user dragged across the markers to "select the whole bold
-    //    bit" before tapping B again). Strip the markers from both
-    //    ends in that case too.
-    const selectedText = value.slice(start, end);
-    if (
-      selectedText.startsWith(prefix) &&
-      selectedText.endsWith(suffix) &&
-      selectedText.length >= prefix.length + suffix.length
-    ) {
-      const stripped = selectedText.slice(
-        prefix.length,
-        selectedText.length - suffix.length,
-      );
-      const next = value.slice(0, start) + stripped + value.slice(end);
-      onChange(next);
-      const newEnd = start + stripped.length;
-      selectionRef.current = { start, end: newEnd };
-      requestAnimationFrame(() => {
-        if (!ref.current) return;
-        ref.current.focus();
-        ref.current.setSelectionRange(start, newEnd);
-      });
-      return;
-    }
-
-    // ── Default: wrap the selection in the marker pair.
-    const inner = selectedText || "text";
-    const before = value.slice(0, start);
-    const after = value.slice(end);
-    const next = before + prefix + inner + suffix + after;
-    onChange(next);
-    // Re-select the inner text so consecutive clicks (e.g. bold then
-    // colour) chain naturally and an empty selection lands the cursor
-    // on the placeholder word ready to be typed over.
-    const innerStart = before.length + prefix.length;
-    const innerEnd = innerStart + inner.length;
-    selectionRef.current = { start: innerStart, end: innerEnd };
-    requestAnimationFrame(() => {
-      if (!ref.current) return;
-      ref.current.focus();
-      ref.current.setSelectionRange(innerStart, innerEnd);
-    });
-  }
-
-  // We keep the toolbar visible across very short blur/focus blips
-  // (clicking a toolbar button can briefly steal focus on some
-  // engines). The timeout ID lets `onFocus` cancel a pending hide so
-  // the toolbar doesn't flicker out and back in — which used to drag
-  // the absolutely-positioned `description-input` cell back to its
-  // inline size for a frame, producing the "row rapidly goes up and
-  // down" bug.
   const blurTimer = useRef<number | null>(null);
-  const sharedHandlers = {
-    onFocus: () => {
-      if (blurTimer.current != null) {
-        window.clearTimeout(blurTimer.current);
-        blurTimer.current = null;
-      }
-      setFocused(true);
-    },
-    onBlur: () => {
-      if (blurTimer.current != null) window.clearTimeout(blurTimer.current);
-      blurTimer.current = window.setTimeout(() => {
-        blurTimer.current = null;
-        setFocused(false);
-      }, 200);
-    },
-    onSelect: rememberSelection,
-    onKeyUp: rememberSelection,
-    onMouseUp: rememberSelection,
-  };
+  // The last value WE pushed to onChange. Used to avoid clobbering the
+  // contenteditable on every re-render (which would jump the caret).
+  const lastEmittedRef = useRef<string>(value);
 
-  const showPreview = focused && hasRichMarkers(value);
+  // Render the initial HTML once. Subsequent value changes only refresh
+  // the DOM if the value came from outside (e.g. another component
+  // resetting it) — otherwise the user's caret would jump every keystroke.
+  // useState's lazy initializer guarantees this runs once on first render
+  // and doesn't trip the exhaustive-deps lint that a useMemo([]) would.
+  const [initialHtml] = useState(() => markersToHtml(value));
+
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    if (value === lastEmittedRef.current) return;
+    // External update — repaint. Skip if the user is actively typing
+    // (focused) to avoid stomping their caret mid-edit.
+    if (document.activeElement === el) return;
+    el.innerHTML = markersToHtml(value);
+    lastEmittedRef.current = value;
+  }, [value]);
+
+  function emit() {
+    const el = editorRef.current;
+    if (!el) return;
+    const markers = htmlToMarkers(el);
+    lastEmittedRef.current = markers;
+    onChange(markers);
+  }
+
+  function applyFormat(kind: "bold" | "highlight" | "red" | "blue" | "green" | "orange") {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    // execCommand is "deprecated" but every browser still ships it and
+    // it's the most reliable cross-engine way to mutate a contenteditable
+    // selection while preserving the caret. Safari/iOS in particular
+    // gets cursor positioning wrong if we replace ranges manually.
+    if (kind === "bold") {
+      document.execCommand("bold");
+    } else if (kind === "highlight") {
+      // hiliteColor needs styleWithCSS for inline-style output instead
+      // of deprecated <font> elements.
+      document.execCommand("styleWithCSS", false, "true");
+      document.execCommand("hiliteColor", false, HIGHLIGHT_BG);
+    } else {
+      document.execCommand("styleWithCSS", false, "true");
+      document.execCommand("foreColor", false, RICH_COLOR_MAP[kind]);
+    }
+    emit();
+  }
+
+  const isTextarea = as === "textarea";
+  // Tailwind classes the caller passes in (e.g. `description-input`,
+  // `cell-input`). We forward them so the existing CSS popout / hover
+  // behaviour keeps working — the contenteditable inherits the same
+  // box-sizing, padding, and on-focus absolute positioning as the old
+  // textarea/input did.
+  const baseClass = inputClassName ?? "";
+  // Min-height for textarea-flavour so an empty editor still has a
+  // clickable surface area roughly matching the previous `rows={3}`.
+  const minHeight = isTextarea ? `${(rows ?? 3) * 1.35}em` : undefined;
 
   return (
-    // Wrap input + toolbar in a position:relative shell so the toolbar
-    // anchors to *this* component, not to whatever ancestor happens to
-    // be position:relative. Without this the toolbar latches onto the
-    // surrounding <td>, which is fine until the description textarea
-    // pops out to absolute on focus — at that point the toolbar floats
-    // off above the wrong slot and the cell appears to jump.
     <span className="relative block">
-      {as === "textarea" ? (
-        <textarea
-          ref={(el) => {
-            ref.current = el;
-          }}
-          rows={rows ?? 3}
-          value={value}
-          placeholder={placeholder}
-          title={title}
-          className={inputClassName}
-          onChange={(e) => onChange(e.target.value)}
-          {...sharedHandlers}
-        />
-      ) : (
-        <input
-          ref={(el) => {
-            ref.current = el;
-          }}
-          value={value}
-          placeholder={placeholder}
-          title={title}
-          className={inputClassName}
-          onChange={(e) => onChange(e.target.value)}
-          {...sharedHandlers}
-        />
-      )}
+      <div
+        ref={(el) => {
+          editorRef.current = el;
+        }}
+        contentEditable
+        suppressContentEditableWarning
+        role="textbox"
+        aria-multiline={isTextarea}
+        aria-label={placeholder}
+        title={title}
+        className={`${baseClass} formatted-cell-editor ${isTextarea ? "is-textarea" : "is-input"}`}
+        style={minHeight ? { minHeight } : undefined}
+        data-placeholder={placeholder ?? ""}
+        onInput={emit}
+        onBlur={() => {
+          if (blurTimer.current != null) window.clearTimeout(blurTimer.current);
+          blurTimer.current = window.setTimeout(() => {
+            blurTimer.current = null;
+            setFocused(false);
+          }, 200);
+          // Final sync on blur in case onInput missed anything (e.g.
+          // a paste that came in just before).
+          emit();
+        }}
+        onFocus={() => {
+          if (blurTimer.current != null) {
+            window.clearTimeout(blurTimer.current);
+            blurTimer.current = null;
+          }
+          setFocused(true);
+        }}
+        onPaste={(e) => {
+          // Force plain text on paste so a rich-formatted clipboard
+          // payload from somewhere else doesn't smuggle in stray HTML
+          // that our serializer can't represent as markers.
+          e.preventDefault();
+          const text = e.clipboardData.getData("text/plain");
+          document.execCommand("insertText", false, text);
+        }}
+        dangerouslySetInnerHTML={{ __html: initialHtml }}
+      />
       {focused && (
         <div
           className="no-print absolute -top-7 left-0 z-20 flex items-center gap-1 rounded-md border border-magic-border bg-white px-1 py-0.5 shadow-sm"
-          // Belt-and-braces: the wrapper preventDefault catches clicks
-          // that land between buttons, each button also calls
-          // preventDefault on its own mousedown.
+          // Belt-and-braces preventDefault so a click in the toolbar
+          // gap doesn't blur the editor and lose the selection.
           onMouseDown={(e) => e.preventDefault()}
         >
           <ToolbarButton
             label="B"
-            title="Bold (wraps selection in **…**)"
-            onClick={() => applyMarker("**", "**")}
+            title="Bold"
+            onClick={() => applyFormat("bold")}
             extraClass="font-bold"
           />
           <ToolbarButton
             label="M"
-            title="Highlight (wraps selection in ==…==)"
-            onClick={() => applyMarker("==", "==")}
-            extraStyle={{ background: "#fff3a3" }}
+            title="Highlight"
+            onClick={() => applyFormat("highlight")}
+            extraStyle={{ background: HIGHLIGHT_BG }}
           />
           <ToolbarButton
             label="A"
             title="Red"
-            onClick={() => applyMarker("[red]", "[/red]")}
-            extraStyle={{ color: "#c1272d" }}
+            onClick={() => applyFormat("red")}
+            extraStyle={{ color: RICH_COLOR_MAP.red }}
           />
           <ToolbarButton
             label="A"
             title="Blue"
-            onClick={() => applyMarker("[blue]", "[/blue]")}
-            extraStyle={{ color: "#1d4ed8" }}
+            onClick={() => applyFormat("blue")}
+            extraStyle={{ color: RICH_COLOR_MAP.blue }}
           />
           <ToolbarButton
             label="A"
             title="Green"
-            onClick={() => applyMarker("[green]", "[/green]")}
-            extraStyle={{ color: "#15803d" }}
+            onClick={() => applyFormat("green")}
+            extraStyle={{ color: RICH_COLOR_MAP.green }}
           />
           <ToolbarButton
             label="A"
             title="Orange"
-            onClick={() => applyMarker("[orange]", "[/orange]")}
-            extraStyle={{ color: "#c2410c" }}
+            onClick={() => applyFormat("orange")}
+            extraStyle={{ color: RICH_COLOR_MAP.orange }}
           />
-        </div>
-      )}
-      {showPreview && (
-        // Full-width rendered preview right below the input. The
-        // textarea can only display raw `**text**` markers; without a
-        // visible rendered preview users assumed the bold/colour
-        // buttons silently did nothing. Mousedown preventDefault keeps
-        // the input focused if the user taps the preview area.
-        <div
-          className="no-print mt-1 rounded-md border border-magic-border bg-magic-soft/30 px-2 py-1.5 text-[10.5px] leading-snug whitespace-pre-wrap break-words"
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          <span className="mr-1 text-[9px] uppercase tracking-wide text-magic-ink/40">
-            Preview
-          </span>
-          {renderRich(value)}
         </div>
       )}
     </span>
@@ -291,11 +219,6 @@ function ToolbarButton(props: {
   return (
     <button
       type="button"
-      // mousedown preventDefault stops the browser from shifting focus
-      // off the input to this button. Without it the input briefly
-      // blurs, the description-input cell collapses out of its focused
-      // absolute layout, then snaps back when requestAnimationFrame
-      // refocuses — the visible "rapid up and down" jitter.
       onMouseDown={(e) => e.preventDefault()}
       onClick={props.onClick}
       title={props.title}
@@ -307,56 +230,137 @@ function ToolbarButton(props: {
   );
 }
 
-// ── Lightweight inline renderer for the toolbar preview ──────────────
-// Mirrors the heavier `renderRichCell` in QuotationPreview but inlined
-// here so this component stays standalone. Same marker grammar:
-// **bold**, ==highlight==, [red|blue|green|orange]…[/red|…].
-const PREVIEW_COLOR: Record<string, string> = {
-  red: "#c1272d",
-  blue: "#1d4ed8",
-  green: "#15803d",
-  orange: "#c2410c",
-};
-const RICH_PATTERN =
-  /(\*\*[^*\n]+\*\*|==[^=\n]+==|\[(?:red|blue|green|orange)\][^[\n]+\[\/(?:red|blue|green|orange)\])/g;
+// ─── Marker ↔ HTML conversion ──────────────────────────────────────────
+// The persisted format is plain text with simple markers
+// (`**bold**`, `==highlight==`, `[red]…[/red]`). Inside the editor we
+// expand those to real HTML so the user sees real formatting. On every
+// keystroke we walk the DOM back into the marker format and emit it.
 
-function hasRichMarkers(text: string): boolean {
-  if (!text) return false;
-  RICH_PATTERN.lastIndex = 0;
-  return RICH_PATTERN.test(text);
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
-function renderRich(text: string): React.ReactNode {
-  const parts = text.split(RICH_PATTERN);
-  const nodes: React.ReactNode[] = [];
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    if (!part) continue;
-    if (part.startsWith("**") && part.endsWith("**")) {
-      nodes.push(<strong key={i}>{part.slice(2, -2)}</strong>);
-    } else if (part.startsWith("==") && part.endsWith("==")) {
-      nodes.push(
-        <mark
-          key={i}
-          style={{ background: "#fff3a3", color: "inherit", padding: "0 2px" }}
-        >
-          {part.slice(2, -2)}
-        </mark>,
-      );
-    } else {
-      const m = part.match(
-        /^\[(red|blue|green|orange)\]([\s\S]+)\[\/(red|blue|green|orange)\]$/,
-      );
-      if (m && m[1] === m[3]) {
-        nodes.push(
-          <span key={i} style={{ color: PREVIEW_COLOR[m[1]] }}>
-            {m[2]}
-          </span>,
-        );
-      } else {
-        nodes.push(part);
-      }
-    }
+function markersToHtml(text: string): string {
+  if (!text) return "";
+  let html = escapeHtml(text);
+  // Bold first so it can sit outside / around colour spans naturally.
+  html = html.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(
+    /==([^=\n]+)==/g,
+    `<mark style="background:${HIGHLIGHT_BG};color:inherit;padding:0 2px">$1</mark>`,
+  );
+  for (const name of Object.keys(RICH_COLOR_MAP) as Array<keyof typeof RICH_COLOR_MAP>) {
+    const re = new RegExp(`\\[${name}\\]([\\s\\S]+?)\\[/${name}\\]`, "g");
+    html = html.replace(re, `<span style="color:${RICH_COLOR_MAP[name]}">$1</span>`);
   }
-  return <>{nodes}</>;
+  // Preserve user line breaks.
+  html = html.replace(/\n/g, "<br>");
+  return html;
+}
+
+function htmlToMarkers(root: HTMLElement): string {
+  // Walk top-level so we can detect inline-to-block transitions and
+  // inject a separator \n (otherwise typing "foo" then Enter then "bar"
+  // would serialize as "foobar" because the "bar" lives in a fresh
+  // <div> with no inherent boundary to the preceding text node).
+  let out = "";
+  for (const child of Array.from(root.childNodes)) {
+    if (isBlockElement(child) && out.length > 0 && !out.endsWith("\n")) {
+      out += "\n";
+    }
+    out += walkNode(child);
+  }
+  // Trim a trailing newline that browsers sometimes leave behind from
+  // the closing <div> of the last line. Leading newlines are user
+  // intent — leave them alone.
+  return out.replace(/\n+$/g, "");
+}
+
+function isBlockElement(node: Node): boolean {
+  if (node.nodeType !== Node.ELEMENT_NODE) return false;
+  const tag = (node as Element).tagName.toLowerCase();
+  return tag === "div" || tag === "p";
+}
+
+function walkNode(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent ?? "";
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return "";
+  const el = node as HTMLElement;
+  const tag = el.tagName.toLowerCase();
+
+  if (tag === "br") return "\n";
+
+  // Block elements that contain *only* a <br> are contenteditable's
+  // structural filler for an empty line — the div boundary itself is
+  // the line break, so don't double-count by recursing into the <br>.
+  if (
+    (tag === "div" || tag === "p") &&
+    el.childNodes.length === 1 &&
+    el.firstChild?.nodeType === Node.ELEMENT_NODE &&
+    (el.firstChild as Element).tagName.toLowerCase() === "br"
+  ) {
+    return "\n";
+  }
+
+  const inner = walkChildren(el);
+
+  if (tag === "strong" || tag === "b") {
+    return inner ? `**${inner}**` : "";
+  }
+  if (tag === "em" || tag === "i") {
+    // We don't have an italic marker — fall through to inner so the
+    // user's text isn't lost if they pasted italics from somewhere.
+    return inner;
+  }
+  if (tag === "mark") {
+    return inner ? `==${inner}==` : "";
+  }
+  if (tag === "span" || tag === "font") {
+    // Some browsers emit deprecated <font color="…"> from execCommand
+    // before we set styleWithCSS; handle both attribute and inline-style.
+    const color = el.style?.color || el.getAttribute("color") || "";
+    const bg = el.style?.backgroundColor || el.getAttribute("bgcolor") || "";
+    const named = colorToName(color);
+    if (named) return inner ? `[${named}]${inner}[/${named}]` : "";
+    if (bg && isHighlightBg(bg)) return inner ? `==${inner}==` : "";
+    return inner;
+  }
+  if (tag === "div" || tag === "p") {
+    return inner + "\n";
+  }
+  return inner;
+}
+
+function walkChildren(node: Node): string {
+  let out = "";
+  for (const child of Array.from(node.childNodes)) {
+    out += walkNode(child);
+  }
+  return out;
+}
+
+function colorToName(c: string): string | null {
+  if (!c) return null;
+  const norm = c.replace(/\s/g, "").toLowerCase();
+  // Match exact hex and rgb() forms of the four supported colours.
+  if (norm === "#c1272d" || norm === "rgb(193,39,45)") return "red";
+  if (norm === "#1d4ed8" || norm === "rgb(29,78,216)") return "blue";
+  if (norm === "#15803d" || norm === "rgb(21,128,61)") return "green";
+  if (norm === "#c2410c" || norm === "rgb(194,65,12)") return "orange";
+  return null;
+}
+
+function isHighlightBg(c: string): boolean {
+  const norm = c.replace(/\s/g, "").toLowerCase();
+  return (
+    norm === HIGHLIGHT_BG.toLowerCase() ||
+    norm === "rgb(255,243,163)" ||
+    /yellow/.test(norm)
+  );
 }
