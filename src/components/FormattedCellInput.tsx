@@ -78,8 +78,62 @@ export function FormattedCellInput(props: {
     // still get cleared between mousedown and click on some engines.
     const start = selectionRef.current.start;
     const end = selectionRef.current.end;
-    const selected = value.slice(start, end);
-    const inner = selected || "text";
+
+    // ── Toggle case A: the selection is already wrapped by the same
+    //    prefix/suffix immediately adjacent. Tapping B (or red, etc.)
+    //    a second time should REMOVE the wrap, not stack another one.
+    //    Without this, re-tapping bold on the inner text after wrap
+    //    produces `****throughput****` and the user thinks it's broken.
+    const adjacentBefore = value.slice(
+      Math.max(0, start - prefix.length),
+      start,
+    );
+    const adjacentAfter = value.slice(end, end + suffix.length);
+    if (adjacentBefore === prefix && adjacentAfter === suffix) {
+      const newStart = start - prefix.length;
+      const next =
+        value.slice(0, newStart) +
+        value.slice(start, end) +
+        value.slice(end + suffix.length);
+      onChange(next);
+      const newEnd = newStart + (end - start);
+      selectionRef.current = { start: newStart, end: newEnd };
+      requestAnimationFrame(() => {
+        if (!ref.current) return;
+        ref.current.focus();
+        ref.current.setSelectionRange(newStart, newEnd);
+      });
+      return;
+    }
+
+    // ── Toggle case B: the selection INCLUDES the prefix/suffix
+    //    (user dragged across the markers to "select the whole bold
+    //    bit" before tapping B again). Strip the markers from both
+    //    ends in that case too.
+    const selectedText = value.slice(start, end);
+    if (
+      selectedText.startsWith(prefix) &&
+      selectedText.endsWith(suffix) &&
+      selectedText.length >= prefix.length + suffix.length
+    ) {
+      const stripped = selectedText.slice(
+        prefix.length,
+        selectedText.length - suffix.length,
+      );
+      const next = value.slice(0, start) + stripped + value.slice(end);
+      onChange(next);
+      const newEnd = start + stripped.length;
+      selectionRef.current = { start, end: newEnd };
+      requestAnimationFrame(() => {
+        if (!ref.current) return;
+        ref.current.focus();
+        ref.current.setSelectionRange(start, newEnd);
+      });
+      return;
+    }
+
+    // ── Default: wrap the selection in the marker pair.
+    const inner = selectedText || "text";
     const before = value.slice(0, start);
     const after = value.slice(end);
     const next = before + prefix + inner + suffix + after;
