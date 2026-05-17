@@ -259,6 +259,33 @@ const MODULE_RBAC_V1_FLAG = "crm_v2_module_rbac_v1_2026_05";
  */
 const MODULE_RBAC_REVOKE_FLAG = "crm_v2_module_rbac_revoke_v1_2026_05";
 
+/**
+ * Lead lifecycle workflow. End-to-end pipeline that sits BEFORE the
+ * existing quotation/folder/project surfaces:
+ *
+ *   new  → assigned  → in_progress  → quotation_sent
+ *        → won → boq_in_progress → sent_to_execution → completed
+ *        → lost (terminal)
+ *
+ * Anybody with a CRM role (sales / sales_manager / presales /
+ * presales_manager) can OPEN a lead. The presales_manager triages the
+ * queue and routes each lead to a specific presales user. That presales
+ * user attaches a company / client folder / contact / quotation as the
+ * deal develops, then submits the quotation back to sales. Sales marks
+ * Won or Lost. On Win, the presales user uploads the BOQ, and the
+ * presales_manager picks which projects-module user receives it for
+ * execution.
+ *
+ * `lead_messages` is the local "email" channel — every transition drops
+ * a row here addressed to the next responsible user, and a paired
+ * `notifications` row pings the TopBar bell. The table carries the
+ * `external_message_id` / `delivered_at` columns so a real SMTP / API
+ * provider (Resend / SendGrid) can be wired in later without another
+ * migration; the same `users.email` column ships now for the same
+ * reason.
+ */
+const LEAD_LIFECYCLE_FLAG = "lead_lifecycle_v1_2026_05";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -293,7 +320,7 @@ export async function resetSchemaCache(): Promise<void> {
       ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
       ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
       ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
-      ${MODULE_RBAC_REVOKE_FLAG}
+      ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG}
     )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
@@ -328,6 +355,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let projectsFoundationApplied = false;
   let moduleRbacApplied = false;
   let moduleRbacRevokeApplied = false;
+  let leadLifecycleApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -338,7 +366,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
         ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
         ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
-        ${MODULE_RBAC_REVOKE_FLAG}
+        ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -360,6 +388,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     projectsFoundationApplied = keys.has(PROJECTS_FOUNDATION_FLAG);
     moduleRbacApplied = keys.has(MODULE_RBAC_V1_FLAG);
     moduleRbacRevokeApplied = keys.has(MODULE_RBAC_REVOKE_FLAG);
+    leadLifecycleApplied = keys.has(LEAD_LIFECYCLE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -383,7 +412,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     cataloguePictureApplied &&
     projectsFoundationApplied &&
     moduleRbacApplied &&
-    moduleRbacRevokeApplied
+    moduleRbacRevokeApplied &&
+    leadLifecycleApplied
   )
     return;
 
@@ -1677,6 +1707,146 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${MODULE_RBAC_REVOKE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!leadLifecycleApplied) {
+    // Lead lifecycle workflow tables. Strictly additive — nothing existing
+    // is touched. Soft-delete (`deleted_at`) on the leads row and FK
+    // ON DELETE SET NULL on every link so the lead survives even if its
+    // linked company / folder / contact / quotation / file is later
+    // archived. The status text column doubles as the workflow stage:
+    //
+    //   new                — opened by a sales / presales user. Presales
+    //                        manager queue.
+    //   assigned           — presales manager handed off to a specific
+    //                        presales user.
+    //   in_progress        — presales user has begun attaching company /
+    //                        client / contact. Updated freely until
+    //                        quotation_sent.
+    //   quotation_sent     — presales user pushed the quotation to sales.
+    //                        Sales decision queue.
+    //   won                — sales accepted. Back to presales for BOQ.
+    //   lost               — sales rejected. Terminal.
+    //   boq_in_progress    — presales user attaching BOQ file. Optional
+    //                        intermediate stage if the BOQ is uploaded
+    //                        before being routed to execution.
+    //   sent_to_execution  — presales manager handed off to a specific
+    //                        projects-module user.
+    //   completed          — project execution finished.
+    //
+    // The status column is plain text (no CHECK constraint) on purpose so
+    // adding a new stage later doesn't require an ALTER. Range is enforced
+    // in the API layer (`/lib/leads.ts`).
+    await q`
+      create table if not exists leads (
+        id                       serial primary key,
+        ref                      text unique not null,
+        title                    text not null,
+        description              text,
+        source                   text,
+        priority                 text not null default 'normal',
+        status                   text not null default 'new',
+
+        created_by               integer references users(id) on delete set null,
+        requested_timeline_at    date,
+
+        presales_manager_id      integer references users(id) on delete set null,
+        assigned_to_id           integer references users(id) on delete set null,
+        assigned_at              timestamptz,
+
+        company_id               integer references companies(id) on delete set null,
+        folder_id                integer references client_folders(id) on delete set null,
+        contact_id               integer references contacts(id) on delete set null,
+
+        quotation_id             integer references quotations(id) on delete set null,
+        quotation_sent_at        timestamptz,
+        quotation_email_subject  text,
+        quotation_email_body     text,
+
+        outcome                  text,
+        outcome_by               integer references users(id) on delete set null,
+        outcome_at               timestamptz,
+        outcome_reason           text,
+
+        boq_file_id              integer references project_files(id) on delete set null,
+        boq_uploaded_at          timestamptz,
+
+        execution_assignee_id    integer references users(id) on delete set null,
+        sent_to_execution_at     timestamptz,
+        project_id               integer references projects(id) on delete set null,
+
+        completed_at             timestamptz,
+        deleted_at               timestamptz,
+        created_at               timestamptz not null default now(),
+        updated_at               timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists leads_status_idx           on leads(status, deleted_at)`;
+    await q`create index if not exists leads_created_by_idx       on leads(created_by, deleted_at)`;
+    await q`create index if not exists leads_assigned_to_idx      on leads(assigned_to_id, status, deleted_at)`;
+    await q`create index if not exists leads_outcome_idx          on leads(outcome, outcome_at)`;
+    await q`create index if not exists leads_execution_idx        on leads(execution_assignee_id, deleted_at)`;
+    await q`create index if not exists leads_company_idx          on leads(company_id)`;
+    await q`create index if not exists leads_folder_idx           on leads(folder_id)`;
+    await q`create index if not exists leads_quotation_idx        on leads(quotation_id)`;
+
+    // Per-lead audit trail / timeline. Every transition writes one row so
+    // the Lead Detail page can render the full history without re-deriving
+    // it from disparate sources. `verb` is the canonical event name
+    // (created, assigned, status_changed, note, quotation_sent, …),
+    // `message` is a human-readable line, and `meta_json` carries any
+    // structured payload (eg. the new status, the recipient user).
+    await q`
+      create table if not exists lead_events (
+        id          bigserial primary key,
+        lead_id     integer not null references leads(id) on delete cascade,
+        actor_id    integer references users(id) on delete set null,
+        verb        text not null,
+        message     text,
+        meta_json   jsonb not null default '{}'::jsonb,
+        created_at  timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists lead_events_lead_idx
+            on lead_events(lead_id, created_at desc)`;
+
+    // Email-styled in-app messages. Today these only render in the
+    // /leads/inbox surface and the TopBar bell; tomorrow a real
+    // SMTP / API integration can populate `external_message_id` and
+    // `delivered_at` without another migration. The matching
+    // `users.email` column ships now so the eventual wire-up has
+    // an address to send to. `kind` is the trigger that produced the
+    // message (lead_assigned, quotation_sent_to_sales, …) so the inbox
+    // can group / colour / filter.
+    await q`
+      create table if not exists lead_messages (
+        id                   bigserial primary key,
+        lead_id              integer references leads(id) on delete cascade,
+        sender_id            integer references users(id) on delete set null,
+        recipient_id         integer not null references users(id) on delete cascade,
+        kind                 text not null default 'general',
+        subject              text not null,
+        body                 text not null,
+        read_at              timestamptz,
+        external_message_id  text,
+        delivered_at         timestamptz,
+        created_at           timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists lead_messages_recipient_idx
+            on lead_messages(recipient_id, read_at, created_at desc)`;
+    await q`create index if not exists lead_messages_lead_idx
+            on lead_messages(lead_id, created_at desc)`;
+
+    // Address for the future email integration. NULL means "no email on
+    // file yet" — the lead workflow degrades to in-app inbox only for
+    // that user, exactly the same way every other user is handled today.
+    await q`alter table users add column if not exists email text`;
+
+    await q`
+      insert into migration_flags (key) values (${LEAD_LIFECYCLE_FLAG})
       on conflict (key) do nothing
     `;
   }

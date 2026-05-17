@@ -26,6 +26,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
   const router = useRouter();
   const [moduleRoles, setModuleRoles] = useState<ModuleRole[] | null>(null);
   const [approvalCount, setApprovalCount] = useState<number>(0);
+  const [leadInboxCount, setLeadInboxCount] = useState<number>(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +52,26 @@ export default function TopBar({ user }: { user: SessionUser }) {
       .then((data: { total?: number }) => {
         if (!cancelled && typeof data.total === "number") {
           setApprovalCount(data.total);
+        }
+      })
+      .catch(() => {
+        // soft-fail
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Unread lead-inbox messages — drives a small badge next to the Leads tab.
+  // Soft-fails when the API isn't available so we never make the nav itself
+  // depend on a successful lifecycle round-trip.
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/leads/inbox/count", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: { unread?: number }) => {
+        if (!cancelled && typeof data.unread === "number") {
+          setLeadInboxCount(data.unread);
         }
       })
       .catch(() => {
@@ -109,6 +130,11 @@ export default function TopBar({ user }: { user: SessionUser }) {
         <nav className="hidden md:flex items-center gap-1 text-sm">
           <NavLink href="/">Dashboard</NavLink>
           {hasCrmAccess && <NavLink href="/crm">CRM</NavLink>}
+          {hasCrmAccess && (
+            <NavLink href="/leads" badge={leadInboxCount}>
+              Leads
+            </NavLink>
+          )}
           {hasStorageAccess && <NavLink href="/storage">Storage</NavLink>}
           {isAdmin && <NavLink href="/admin">Admin</NavLink>}
 
@@ -185,6 +211,16 @@ export default function TopBar({ user }: { user: SessionUser }) {
             {hasCrmAccess && (
               <MobileNavLink href="/crm" onClick={closeMobile}>
                 CRM
+              </MobileNavLink>
+            )}
+            {hasCrmAccess && (
+              <MobileNavLink href="/leads" onClick={closeMobile}>
+                Leads
+                {leadInboxCount > 0 && (
+                  <span className="ml-2 inline-flex items-center rounded-full bg-magic-red/15 text-magic-red px-1.5 py-0.5 text-[10px] font-semibold">
+                    {leadInboxCount}
+                  </span>
+                )}
               </MobileNavLink>
             )}
             {hasStorageAccess && (
@@ -274,9 +310,11 @@ function MobileNavLink({
 function NavLink({
   href,
   children,
+  badge,
 }: {
   href: string;
   children: React.ReactNode;
+  badge?: number;
 }) {
   return (
     <Link
@@ -284,6 +322,11 @@ function NavLink({
       className="relative rounded-lg px-3 py-1.5 text-sm font-medium text-magic-ink/80 transition-all hover:bg-magic-red/10 hover:text-magic-red"
     >
       {children}
+      {typeof badge === "number" && badge > 0 && (
+        <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] rounded-full bg-magic-red text-white text-[9px] font-bold px-1 align-middle">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </Link>
   );
 }
