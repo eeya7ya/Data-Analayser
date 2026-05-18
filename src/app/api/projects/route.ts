@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { canReadAll, requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 import { ensureFolderProjectCoverage } from "@/lib/projects";
 
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
       // Owner-isolation pattern matches /api/folders. Admins see every
       // project under the folder regardless of owner.
       const rows =
-        user.role === "admin"
+        canReadAll(user)
           ? ((await q`
               select id, folder_id, owner_id, name, description, status, created_at, updated_at
               from projects
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
     }
 
     const rows =
-      user.role === "admin"
+      canReadAll(user)
         ? ((await q`
             select id, folder_id, owner_id, name, description, status, created_at, updated_at
             from projects

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql, ensureSchema } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, canReadAll } from "@/lib/auth";
 import { hasModule, hasModuleRole } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 import ProjectAssignmentsPanel from "@/components/ProjectAssignmentsPanel";
@@ -63,7 +63,7 @@ export default async function ProjectDetailPage({
 
   // Visibility check: admin, owner, projects-module user (any role),
   // or someone with an active assignment on this project.
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
   const isOwner = project.owner_id === user.id;
   let canView = isAdmin || isOwner;
   if (!canView && (await hasModule(user.id, "projects"))) canView = true;

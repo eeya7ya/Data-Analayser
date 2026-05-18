@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, canReadAll } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 import { ensureDefaultProject } from "@/lib/projects";
 
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         ? kindParam
         : null;
     const q = sql();
-    const isAdmin = user.role === "admin";
+    const isAdmin = canReadAll(user);
     const ownerFilter = isAdmin ? null : user.id;
     const kindFilter = kind === "unclassified" ? null : kind;
     const kindIsExplicit = kind !== null;

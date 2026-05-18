@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, canReadAll } from "@/lib/auth";
 import { logLeadEvent, sendLeadMessage } from "@/lib/leads";
 
 export const runtime = "nodejs";
@@ -55,7 +55,7 @@ export async function POST(
       );
     }
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = canReadAll(user);
     const isExecutor = lead.execution_assignee_id === user.id;
     let allowed = isAdmin || isExecutor;
     if (!allowed) {

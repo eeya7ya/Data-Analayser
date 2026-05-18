@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, canReadAll } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 
 export const runtime = "nodejs";
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
     const idParam = searchParams.get("id");
     const search = (searchParams.get("q") ?? "").trim();
     const includeArchived = searchParams.get("include_archived") === "1";
-    const isAdmin = user.role === "admin";
+    const isAdmin = canReadAll(user);
     const q = sql();
 
     // Single-row fetch for the company detail page.

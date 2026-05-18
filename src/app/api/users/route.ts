@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as {
       username?: string;
       password?: string;
-      role?: "admin" | "user";
+      role?: "admin" | "viewer" | "user";
       display_name?: string;
       phone?: string;
     };
@@ -46,7 +46,8 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const role: "admin" | "user" = body.role === "admin" ? "admin" : "user";
+    const role: "admin" | "viewer" | "user" =
+      body.role === "admin" || body.role === "viewer" ? body.role : "user";
     const displayName = body.display_name || "";
     const phone = (body.phone || "").trim();
     const hash = await hashPassword(body.password);
@@ -90,7 +91,7 @@ export async function PATCH(req: NextRequest) {
     }
     const body = (await req.json()) as {
       display_name?: string;
-      role?: "admin" | "user";
+      role?: "admin" | "viewer" | "user";
       password?: string;
       phone?: string;
     };
@@ -99,7 +100,11 @@ export async function PATCH(req: NextRequest) {
     if (body.display_name !== undefined) {
       await q`update users set display_name = ${body.display_name} where id = ${id}`;
     }
-    if (body.role === "admin" || body.role === "user") {
+    if (
+      body.role === "admin" ||
+      body.role === "viewer" ||
+      body.role === "user"
+    ) {
       await q`update users set role = ${body.role} where id = ${id}`;
     }
     if (body.password) {

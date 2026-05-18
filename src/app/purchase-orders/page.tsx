@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth";
+import { canReadAll, getSessionUser } from "@/lib/auth";
 import { ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
 import PurchaseOrdersClient from "@/components/PurchaseOrdersClient";
@@ -38,7 +38,7 @@ export default async function PurchaseOrdersPage({
           <h1 className="text-2xl font-bold text-magic-ink">Purchase Orders</h1>
         </div>
         <PurchaseOrdersClient
-          isAdmin={user.role === "admin"}
+          isAdmin={canReadAll(user)}
           prefillQuotationId={sp.quotation ?? null}
         />
       </main>

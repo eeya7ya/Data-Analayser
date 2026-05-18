@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth";
+import { canReadAll, getSessionUser } from "@/lib/auth";
 import { ensureSchema } from "@/lib/db";
 import { hasModule, hasModuleRole } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
@@ -21,7 +21,7 @@ export default async function StoragePage() {
 
   await ensureSchema();
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
   const hasStorage = isAdmin || (await hasModule(user.id, "storage"));
   const hasProjects = isAdmin || (await hasModule(user.id, "projects"));
   const canManage =

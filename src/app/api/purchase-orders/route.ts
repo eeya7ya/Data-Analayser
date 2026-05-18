@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { canReadAll, requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 
 export const runtime = "nodejs";
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ purchaseOrders: [] });
       }
       const projectRows =
-        user.role === "admin"
+        canReadAll(user)
           ? ((await q`
               select po.id, po.owner_id, po.quotation_id, po.folder_id, po.project_id,
                      po.po_number, po.supplier, po.client_name, po.project_name,
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ purchaseOrders: projectRows });
     }
     const rows =
-      user.role === "admin"
+      canReadAll(user)
         ? ((await q`
             select po.id, po.owner_id, po.quotation_id, po.folder_id, po.project_id,
                    po.po_number, po.supplier, po.client_name, po.project_name,

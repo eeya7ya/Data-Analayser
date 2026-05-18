@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth";
+import { canReadAll, getSessionUser } from "@/lib/auth";
 import TopBar from "@/components/TopBar";
 import AdminTabs from "@/components/AdminTabs";
 import { getAppSettings } from "@/lib/settings";
@@ -16,14 +16,21 @@ export default async function AdminPage() {
   const settingsPromise = getAppSettings({ fresh: true });
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (user.role !== "admin") redirect("/quotation");
+  if (!canReadAll(user)) redirect("/quotation");
+  const readOnly = user.role !== "admin";
   const settings = await settingsPromise;
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
       <main className="max-w-5xl mx-auto px-6 py-6 lg:px-10">
         <h1 className="text-2xl font-bold text-magic-ink mb-4">Admin</h1>
-        <AdminTabs initialSettings={settings} />
+        {readOnly && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            You&apos;re signed in as a <strong>viewer</strong>. Every tab is
+            visible, but Save / Create / Delete actions are disabled.
+          </div>
+        )}
+        <AdminTabs initialSettings={settings} readOnly={readOnly} />
       </main>
     </div>
   );

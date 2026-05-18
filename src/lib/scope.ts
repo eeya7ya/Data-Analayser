@@ -1,5 +1,5 @@
 import { sql } from "./db";
-import type { SessionUser } from "./auth";
+import { canReadAll, type SessionUser } from "./auth";
 import { isModuleManager } from "./modules";
 import type { Module } from "./modules";
 
@@ -82,7 +82,7 @@ export async function getScope(
   user: SessionUser,
   module: Module,
 ): Promise<Scope> {
-  if (user.role === "admin") {
+  if (canReadAll(user)) {
     return { allAccess: true, userIds: [], projectIds: [] };
   }
 

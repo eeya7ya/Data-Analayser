@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { canReadAll, requireUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -29,7 +29,7 @@ export async function GET() {
     await ensureSchema();
     const q = sql();
     const folders =
-      user.role === "admin"
+      canReadAll(user)
         ? ((await q`
             select f.id, f.name, f.owner_id, f.created_at, f.updated_at,
                    f.deleted_at, f.client_email, f.client_phone, f.client_company,
@@ -49,7 +49,7 @@ export async function GET() {
           `) as Array<Record<string, unknown>>);
 
     const quotations =
-      user.role === "admin"
+      canReadAll(user)
         ? ((await q`
             select q.id, q.ref, q.project_name, q.client_name, q.site_name,
                    q.folder_id, q.owner_id, q.created_at, q.updated_at,
@@ -70,7 +70,7 @@ export async function GET() {
           `) as Array<Record<string, unknown>>);
 
     const companies =
-      user.role === "admin"
+      canReadAll(user)
         ? ((await q`
             select c.id, c.name, c.website, c.industry, c.owner_id,
                    c.created_at, c.updated_at, c.deleted_at,

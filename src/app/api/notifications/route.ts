@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, canReadAll } from "@/lib/auth";
 import { hasModuleRole } from "@/lib/modules";
 
 export const runtime = "nodejs";
@@ -40,7 +40,7 @@ export async function GET() {
   }
   await ensureSchema();
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
   const isSales =
     isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
   const isPresales =

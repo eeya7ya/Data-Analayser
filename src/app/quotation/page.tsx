@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSessionUser, type SessionUser } from "@/lib/auth";
+import { canReadAll, getSessionUser, type SessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import { getAppSettings } from "@/lib/settings";
 import TopBar from "@/components/TopBar";
@@ -46,7 +46,7 @@ async function loadListData(
     await schemaPromise;
     const q = sql();
     const [quotations, folders] = await Promise.all([
-      user.role === "admin"
+      canReadAll(user)
         ? (q`
             select q.id, q.ref, q.project_name, q.client_name, q.site_name,
                    q.folder_id, q.owner_id, q.created_at, q.updated_at,
@@ -67,7 +67,7 @@ async function loadListData(
             order by id desc
             limit 200
           ` as unknown as Promise<Array<Record<string, unknown>>>),
-      user.role === "admin"
+      canReadAll(user)
         ? (q`
             select f.id, f.name, f.owner_id, f.created_at, f.updated_at,
                    f.client_email, f.client_phone, f.client_company,
@@ -197,7 +197,7 @@ export default async function QuotationPage({
           <FolderExportImport />
         </div>
         <QuotationsPageTabs
-          isAdmin={user.role === "admin"}
+          isAdmin={canReadAll(user)}
           tab={tab}
           initialQuotations={loaded?.quotations}
           initialFolders={loaded?.folders}

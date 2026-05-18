@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { canReadAll, requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 import { ensureDefaultProject } from "@/lib/projects";
 import type { Sql } from "postgres";
@@ -176,7 +176,7 @@ export async function GET(req: NextRequest) {
         // soft-deleted quotations.
         return NextResponse.json({ quotation: null });
       }
-      if (user.role !== "admin" && Number(row.owner_id) !== user.id) {
+      if (!canReadAll(user) && Number(row.owner_id) !== user.id) {
         return NextResponse.json({ error: "forbidden" }, { status: 403 });
       }
       return NextResponse.json({ quotation: row });
@@ -193,7 +193,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ quotations: [] });
       }
       const projectRows =
-        user.role === "admin"
+        canReadAll(user)
           ? ((await q`
               select id, ref, project_name, client_name, site_name,
                      folder_id, contact_id, project_id, owner_id, status, parent_ref,
@@ -227,7 +227,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ quotations: [] });
       }
       const folderRows =
-        user.role === "admin"
+        canReadAll(user)
           ? ((await q`
               select id, ref, project_name, client_name, site_name,
                      folder_id, contact_id, project_id, owner_id, status, parent_ref,
@@ -260,7 +260,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ quotations: [] });
       }
       const contactRows =
-        user.role === "admin"
+        canReadAll(user)
           ? ((await q`
               select id, ref, project_name, client_name, site_name,
                      folder_id, contact_id, owner_id, status, parent_ref,
@@ -285,7 +285,7 @@ export async function GET(req: NextRequest) {
     }
 
     const rows =
-      user.role === "admin"
+      canReadAll(user)
         ? ((await q`
             select q.id, q.ref, q.project_name, q.client_name, q.site_name,
                    q.folder_id, q.contact_id, q.owner_id, q.status, q.parent_ref,

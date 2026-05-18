@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, canReadAll } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
 import ClientListClient, {
   type ClientFolderRow,
 } from "@/components/ClientListClient";
+import UserScopePicker from "@/components/UserScopePicker";
 
 export const dynamic = "force-dynamic";
+
+interface SearchParams {
+  user?: string;
+}
 
 /**
  * /crm/individual — list of folders marked kind='individual'. Each
@@ -15,68 +20,56 @@ export const dynamic = "force-dynamic";
  * one drops the user into the existing /folder/[id] page with
  * projects + quotations + POs + files.
  *
- * Search and "+ New" live inside the shared ClientListClient.
+ * Search and "+ New" live inside the shared ClientListClient. Admins
+ * / viewers can narrow the list to a single user via `?user=<id>`.
  */
-export default async function IndividualListPage() {
+export default async function IndividualListPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   await ensureSchema();
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
+  const sp = await searchParams;
+  const requested = isAdmin && sp.user ? Number(sp.user) : null;
+  const scopeOwnerId = isAdmin
+    ? Number.isFinite(requested) && requested! > 0
+      ? requested
+      : null
+    : user.id;
   const q = sql();
 
   // An individual is a folder with kind='individual' AND no link to a
   // company. Either column tying it to a company (`cf.company_id`, or a
   // contact's `contacts.company_id`) means the row belongs under
   // /crm/company/<id> and must not leak in here.
-  const folderRows = isAdmin
-    ? ((await q`
-        select cf.id, cf.name, cf.kind, cf.company_id,
-               cf.client_email, cf.client_phone, cf.client_company,
-               u.username as owner_username,
-               (select count(*) from projects p
-                  where p.folder_id = cf.id and p.deleted_at is null) as project_count,
-               (select count(*) from quotations qq
-                  where qq.folder_id = cf.id and qq.deleted_at is null) as quotation_count,
-               (select max(qq.created_at) from quotations qq
-                  where qq.folder_id = cf.id and qq.deleted_at is null) as latest_quotation_at
-        from client_folders cf
-        left join users u on u.id = cf.owner_id
-        where cf.deleted_at is null
-          and cf.kind = 'individual'
-          and cf.company_id is null
-          and not exists (
-            select 1 from contacts ct
-            where ct.folder_id = cf.id
-              and ct.company_id is not null
-              and ct.deleted_at is null
-          )
-        order by latest_quotation_at desc nulls last, cf.name
-      `) as ClientFolderRow[])
-    : ((await q`
-        select cf.id, cf.name, cf.kind, cf.company_id,
-               cf.client_email, cf.client_phone, cf.client_company,
-               u.username as owner_username,
-               (select count(*) from projects p
-                  where p.folder_id = cf.id and p.deleted_at is null) as project_count,
-               (select count(*) from quotations qq
-                  where qq.folder_id = cf.id and qq.deleted_at is null) as quotation_count,
-               (select max(qq.created_at) from quotations qq
-                  where qq.folder_id = cf.id and qq.deleted_at is null) as latest_quotation_at
-        from client_folders cf
-        left join users u on u.id = cf.owner_id
-        where cf.deleted_at is null
-          and cf.kind = 'individual'
-          and cf.company_id is null
-          and cf.owner_id = ${user.id}
-          and not exists (
-            select 1 from contacts ct
-            where ct.folder_id = cf.id
-              and ct.company_id is not null
-              and ct.deleted_at is null
-          )
-        order by latest_quotation_at desc nulls last, cf.name
-      `) as ClientFolderRow[]);
+  const folderRows = (await q`
+    select cf.id, cf.name, cf.kind, cf.company_id,
+           cf.client_email, cf.client_phone, cf.client_company,
+           u.username as owner_username,
+           (select count(*) from projects p
+              where p.folder_id = cf.id and p.deleted_at is null) as project_count,
+           (select count(*) from quotations qq
+              where qq.folder_id = cf.id and qq.deleted_at is null) as quotation_count,
+           (select max(qq.created_at) from quotations qq
+              where qq.folder_id = cf.id and qq.deleted_at is null) as latest_quotation_at
+    from client_folders cf
+    left join users u on u.id = cf.owner_id
+    where cf.deleted_at is null
+      and cf.kind = 'individual'
+      and cf.company_id is null
+      and (${scopeOwnerId}::int is null or cf.owner_id = ${scopeOwnerId})
+      and not exists (
+        select 1 from contacts ct
+        where ct.folder_id = cf.id
+          and ct.company_id is not null
+          and ct.deleted_at is null
+      )
+    order by latest_quotation_at desc nulls last, cf.name
+  `) as ClientFolderRow[];
 
   return (
     <div className="min-h-screen bg-magic-soft/40">
@@ -100,6 +93,8 @@ export default async function IndividualListPage() {
             its own projects, quotations, POs, and files.
           </p>
         </div>
+
+        {isAdmin && <UserScopePicker />}
 
         <ClientListClient
           initial={folderRows}

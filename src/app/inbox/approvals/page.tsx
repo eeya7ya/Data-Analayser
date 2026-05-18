@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql, ensureSchema } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, canReadAll } from "@/lib/auth";
 import { hasModuleRole } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 
@@ -42,7 +42,7 @@ export default async function ApprovalsInboxPage() {
 
   await ensureSchema();
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
   const isSalesManager =
     isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
   const isPresalesManager =
