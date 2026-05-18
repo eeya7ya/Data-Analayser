@@ -30,17 +30,40 @@ interface RawItem {
 }
 
 function snapshotFromItems(raw: unknown): SnapshotItem[] {
-  if (!Array.isArray(raw)) return [];
+  // `items_json` is normally a jsonb array, but legacy / re-imported
+  // quotations can land here as a JSON-encoded string. Mirror the
+  // QuotationViewer's defensive parse so those rows aren't silently
+  // skipped — the previous strict `Array.isArray` check was making
+  // the panel say "this quotation has no items to check" for any
+  // string-encoded row.
+  let parsed: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+
   const out: SnapshotItem[] = [];
-  for (const r of raw as RawItem[]) {
-    const qty = Number(r.quantity);
-    if (!Number.isFinite(qty) || qty <= 0) continue;
+  for (const r of parsed as RawItem[]) {
+    // Section banners (`kind: "section"`) are layout dividers in the
+    // BOQ — no product, no quantity. Skip them outright.
+    if ((r as { kind?: string }).kind === "section") continue;
+
+    const qtyRaw = Number((r as { quantity?: unknown }).quantity);
+    const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : 0;
     const brand = String(r.brand ?? "").trim();
     const model = String(r.model ?? "").trim();
     const description = String(r.description ?? "").trim();
-    // Skip placeholder/empty lines so the storage checklist doesn't
-    // include "row 5: nothing here, qty 0".
-    if (!brand && !model && !description) continue;
+
+    // Keep any row that has product text OR a positive quantity. The
+    // earlier "qty must be > 0" gate was dropping legitimate rows the
+    // user hadn't fully priced yet — qty doesn't tell us anything
+    // about whether the storage team should be asked.
+    if (!brand && !model && !description && qty === 0) continue;
+
     out.push({
       no: Number.isFinite(Number(r.no)) ? Number(r.no) : out.length + 1,
       system: String(r.system ?? "").trim(),
