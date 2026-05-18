@@ -1603,6 +1603,46 @@ async function _ensureSchemaOnce(): Promise<void> {
         on storage_requests(project_id, status)
     `;
 
+    // BOQ availability checks. When a presales engineer wants to know
+    // whether the warehouse can fulfil a draft quotation, they fire one
+    // of these off from the QuotationViewer. We snapshot the items list
+    // into `items_json` so the record stays meaningful even if the
+    // quotation is later edited, and the storage team writes back the
+    // per-item answer into `reply_json`. The partial unique index
+    // enforces "only one open check per quotation at a time" — the
+    // requester's button is disabled in the UI until storage answers
+    // (or the row is cancelled), but the DB is the actual source of
+    // truth in case of a race.
+    await q`
+      create table if not exists quotation_stock_checks (
+        id            bigserial primary key,
+        quotation_id  integer not null references quotations(id) on delete cascade,
+        requested_by  integer not null references users(id) on delete set null,
+        status        text not null default 'pending'
+          check (status in ('pending','answered','cancelled')),
+        items_json    jsonb not null,
+        reply_json    jsonb,
+        storage_notes text,
+        answered_by   integer references users(id) on delete set null,
+        answered_at   timestamptz,
+        created_at    timestamptz not null default now(),
+        updated_at    timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists quotation_stock_checks_q_idx
+        on quotation_stock_checks(quotation_id, created_at desc)
+    `;
+    await q`
+      create index if not exists quotation_stock_checks_status_idx
+        on quotation_stock_checks(status, created_at desc)
+    `;
+    await q`
+      create unique index if not exists quotation_stock_checks_one_pending_idx
+        on quotation_stock_checks(quotation_id)
+        where status = 'pending'
+    `;
+
     // 7. Admin-curated dashboard announcements. Audience targeting is
     //    array-based so a single post can target multiple modules / roles
     //    without a join table. Pinned posts float to the top.
