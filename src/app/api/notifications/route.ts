@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { getSessionUser, canReadAll } from "@/lib/auth";
-import { hasModuleRole } from "@/lib/modules";
+import { hasModule, hasModuleRole } from "@/lib/modules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -111,6 +111,51 @@ export async function GET() {
         secondary: { label: "Admin → Folders", href: "/admin" },
       });
     }
+  }
+
+  // Quotation stock-check signals. Two angles:
+  //   1. Storage-team members get pinged about pending checks waiting
+  //      in their inbox.
+  //   2. The requester gets pinged when a previously-pending check
+  //      flips to `answered`. We use the answered_at timestamp + a
+  //      72-hour fresh window so the bell doesn't become a permanent
+  //      "you have an old reply" shrine.
+  const isStorage = isAdmin || (await hasModule(user.id, "storage"));
+  if (isStorage) {
+    const pendingChecks = (await q`
+      select count(*)::int as n from quotation_stock_checks c
+      join quotations qq on qq.id = c.quotation_id
+      where c.status = 'pending' and qq.deleted_at is null
+    `) as Array<{ n: number }>;
+    const n = pendingChecks[0]?.n ?? 0;
+    if (n > 0) {
+      items.push({
+        id: "stock_checks.pending",
+        severity: "warning",
+        title: `${n} BOQ stock check${n === 1 ? "" : "s"} waiting`,
+        body: "Open the storage inbox to mark each item available / partial / out.",
+        action: { label: "Open inbox", href: "/storage" },
+      });
+    }
+  }
+
+  const recentAnswered = (await q`
+    select count(*)::int as n from quotation_stock_checks c
+    join quotations qq on qq.id = c.quotation_id
+    where c.status = 'answered'
+      and qq.deleted_at is null
+      and c.requested_by = ${user.id}
+      and c.answered_at > now() - interval '72 hours'
+  `) as Array<{ n: number }>;
+  const recent = recentAnswered[0]?.n ?? 0;
+  if (recent > 0) {
+    items.push({
+      id: "stock_checks.answered",
+      severity: "info",
+      title: `Storage answered ${recent} stock check${recent === 1 ? "" : "s"}`,
+      body: "Open the quotation to see the per-item checklist.",
+      action: { label: "View quotations", href: "/quotation" },
+    });
   }
 
   return NextResponse.json({ items });

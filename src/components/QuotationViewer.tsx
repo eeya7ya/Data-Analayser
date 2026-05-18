@@ -10,6 +10,7 @@ import { DEFAULT_TERMS } from "@/lib/quotationDraft";
 import type { AppSettings } from "@/lib/settings";
 import { runQuotationPrint } from "@/lib/printQuotation";
 import QuotationApprovalBar from "./QuotationApprovalBar";
+import QuotationStockCheckPanel from "./QuotationStockCheckPanel";
 
 interface SavedConfig {
   showPictures?: boolean;
@@ -363,6 +364,7 @@ export default function QuotationViewer({
           boqMode={boqMode}
         />
       </div>
+      <QuotationStockCheckPanel quotationId={id} />
     </div>
   );
 }

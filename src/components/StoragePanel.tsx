@@ -50,7 +50,9 @@ interface StorageRequest {
   created_at: string;
 }
 
-type Tab = "locations" | "stock" | "requests";
+import StockChecksTab from "./StockChecksTab";
+
+type Tab = "locations" | "stock" | "requests" | "checks";
 
 export default function StoragePanel({
   canManage,
@@ -67,6 +69,9 @@ export default function StoragePanel({
       <div className="flex items-center gap-2 border-b border-magic-border mb-4">
         <TabButton active={tab === "requests"} onClick={() => setTab("requests")}>
           Requests
+        </TabButton>
+        <TabButton active={tab === "checks"} onClick={() => setTab("checks")}>
+          Stock checks
         </TabButton>
         <TabButton active={tab === "stock"} onClick={() => setTab("stock")}>
           Stock
@@ -86,6 +91,7 @@ export default function StoragePanel({
           onError={setError}
         />
       )}
+      {tab === "checks" && <StockChecksTab onError={setError} />}
       {tab === "stock" && (
         <StockTab canManage={canManage} onError={setError} />
       )}
