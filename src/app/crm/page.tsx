@@ -21,6 +21,7 @@ export default async function CrmLandingPage() {
 
   await ensureSchema();
 
+  const isAdmin = user.role === "admin";
   const q = sql();
 
   type CountRow = {
@@ -32,26 +33,50 @@ export default async function CrmLandingPage() {
     individual_quotations: number;
     unclassified_quotations: number;
   };
-  // Company count now reflects rows in the `companies` table — the
-  // top of the Company branch — rather than folders tagged company.
-  // We also surface client-folder counts so the user knows how many
-  // contacts sit beneath all those companies in aggregate.
-  const countsRows = (await q`
-    select
-      (select count(*) from companies where deleted_at is null) as company_entities,
-      (select count(*) from client_folders where deleted_at is null and kind = 'company') as company_clients,
-      (select count(*) from client_folders where deleted_at is null and kind = 'individual') as individual_folders,
-      (select count(*) from client_folders where deleted_at is null and kind is null) as unclassified_folders,
-      (select count(*) from quotations qq
-         join client_folders cf on cf.id = qq.folder_id
-         where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'company') as company_quotations,
-      (select count(*) from quotations qq
-         join client_folders cf on cf.id = qq.folder_id
-         where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'individual') as individual_quotations,
-      (select count(*) from quotations qq
-         join client_folders cf on cf.id = qq.folder_id
-         where qq.deleted_at is null and cf.deleted_at is null and cf.kind is null) as unclassified_quotations
-  `) as CountRow[];
+  // Non-admins only see counts for rows they own, matching the
+  // owner-scoped queries on /crm/company and /crm/individual. Without
+  // this the landing cards leaked global totals to users whose drill-
+  // down then showed only their own rows.
+  const countsRows = isAdmin
+    ? ((await q`
+        select
+          (select count(*) from companies where deleted_at is null) as company_entities,
+          (select count(*) from client_folders where deleted_at is null and kind = 'company') as company_clients,
+          (select count(*) from client_folders where deleted_at is null and kind = 'individual') as individual_folders,
+          (select count(*) from client_folders where deleted_at is null and kind is null) as unclassified_folders,
+          (select count(*) from quotations qq
+             join client_folders cf on cf.id = qq.folder_id
+             where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'company') as company_quotations,
+          (select count(*) from quotations qq
+             join client_folders cf on cf.id = qq.folder_id
+             where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'individual') as individual_quotations,
+          (select count(*) from quotations qq
+             join client_folders cf on cf.id = qq.folder_id
+             where qq.deleted_at is null and cf.deleted_at is null and cf.kind is null) as unclassified_quotations
+      `) as CountRow[])
+    : ((await q`
+        select
+          (select count(*) from companies
+             where deleted_at is null and owner_id = ${user.id}) as company_entities,
+          (select count(*) from client_folders
+             where deleted_at is null and kind = 'company' and owner_id = ${user.id}) as company_clients,
+          (select count(*) from client_folders
+             where deleted_at is null and kind = 'individual' and owner_id = ${user.id}) as individual_folders,
+          (select count(*) from client_folders
+             where deleted_at is null and kind is null and owner_id = ${user.id}) as unclassified_folders,
+          (select count(*) from quotations qq
+             join client_folders cf on cf.id = qq.folder_id
+             where qq.deleted_at is null and cf.deleted_at is null
+               and cf.kind = 'company' and cf.owner_id = ${user.id}) as company_quotations,
+          (select count(*) from quotations qq
+             join client_folders cf on cf.id = qq.folder_id
+             where qq.deleted_at is null and cf.deleted_at is null
+               and cf.kind = 'individual' and cf.owner_id = ${user.id}) as individual_quotations,
+          (select count(*) from quotations qq
+             join client_folders cf on cf.id = qq.folder_id
+             where qq.deleted_at is null and cf.deleted_at is null
+               and cf.kind is null and cf.owner_id = ${user.id}) as unclassified_quotations
+      `) as CountRow[]);
   const counts = countsRows[0];
 
   // Pending-approval banner moved to the TopBar notification bell so
