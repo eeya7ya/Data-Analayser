@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser, requireAdmin } from "@/lib/auth";
+import { requireUser, requireAdmin, canReadAll } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     // Admins (legacy or via module grant) see every post regardless of
     // audience — that's the admin-as-curator experience. Everyone else
     // gets audience-filtered + expiry-filtered.
-    const isAdmin = user.role === "admin";
+    const isAdmin = canReadAll(user);
     let rows: NewsRow[];
     if (isAdmin && includeArchived) {
       rows = (await q`

@@ -20,8 +20,15 @@ type Tab =
 
 export default function AdminTabs({
   initialSettings,
+  readOnly = false,
 }: {
   initialSettings: AppSettings;
+  /**
+   * Viewer (`role = 'viewer'`) sees every tab but every mutating
+   * control is disabled. Server still rejects writes via
+   * `requireAdmin()` — `readOnly` is the UX mirror of that gate.
+   */
+  readOnly?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("users");
 
@@ -63,7 +70,7 @@ export default function AdminTabs({
       {tab === "users" && (
         <section>
           <h2 className="text-lg font-semibold text-magic-ink mb-3">Users</h2>
-          <UserManager />
+          <UserManager readOnly={readOnly} />
         </section>
       )}
 
@@ -72,7 +79,7 @@ export default function AdminTabs({
           <h2 className="text-lg font-semibold text-magic-ink mb-3">
             Module roles
           </h2>
-          <ModuleRolesPanel />
+          <ModuleRolesPanel readOnly={readOnly} />
         </section>
       )}
 

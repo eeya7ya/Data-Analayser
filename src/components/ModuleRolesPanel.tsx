@@ -39,7 +39,11 @@ interface ModuleRolesPayload {
   catalogue: Record<string, readonly string[]>;
 }
 
-export default function ModuleRolesPanel() {
+export default function ModuleRolesPanel({
+  readOnly = false,
+}: {
+  readOnly?: boolean;
+}) {
   const [data, setData] = useState<ModuleRolesPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +186,7 @@ export default function ModuleRolesPanel() {
                   userId={u.id}
                   catalogue={catalogue}
                   onGrant={grant}
-                  disabled={busy}
+                  disabled={busy || readOnly}
                 />
               </li>
             ))}
@@ -237,13 +241,15 @@ export default function ModuleRolesPanel() {
                           )}
                         </span>
                       </div>
-                      <button
-                        onClick={() => revoke(g.user_id, g.module, g.role)}
-                        disabled={busy}
-                        className="px-2 py-1 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-magic-red/10 hover:text-magic-red disabled:opacity-50 transition-colors"
-                      >
-                        Revoke
-                      </button>
+                      {!readOnly && (
+                        <button
+                          onClick={() => revoke(g.user_id, g.module, g.role)}
+                          disabled={busy}
+                          className="px-2 py-1 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-magic-red/10 hover:text-magic-red disabled:opacity-50 transition-colors"
+                        >
+                          Revoke
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>

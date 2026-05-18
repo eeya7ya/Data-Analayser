@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import type { SessionUser } from "@/lib/auth";
+import { canReadAll } from "@/lib/authShared";
 import NotificationsBell from "@/components/NotificationsBell";
 
 interface ModuleRole {
@@ -82,7 +83,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
     };
   }, []);
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
   const hasStorageAccess =
     isAdmin || (moduleRoles?.some((r) => r.module === "storage") ?? false);
   const hasCrmAccess =

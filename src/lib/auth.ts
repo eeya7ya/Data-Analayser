@@ -16,7 +16,14 @@ function secret(): Uint8Array {
 export interface SessionUser {
   id: number;
   username: string;
-  role: "admin" | "user";
+  /**
+   * `admin` — full read + full write across the system.
+   * `viewer` — full read across the system, but blocked from every
+   *   mutation. The UI surface is the same as admin so the watcher
+   *   "feels like" an admin while being unable to change anything.
+   * `user` — sees and edits only their own rows.
+   */
+  role: "admin" | "viewer" | "user";
   display_name: string;
   /**
    * Per-user phone number, used as the default "Presales Engineer" phone
@@ -143,7 +150,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     return {
       id: Number(payload.sub),
       username: String(payload.username),
-      role: (payload.role as "admin" | "user") || "user",
+      role: (payload.role as "admin" | "viewer" | "user") || "user",
       display_name: String(payload.display_name || ""),
       phone: String(payload.phone || ""),
     };
@@ -161,5 +168,30 @@ export async function requireUser(): Promise<SessionUser> {
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
   if (user.role !== "admin") throw new Error("FORBIDDEN");
+  return user;
+}
+
+/**
+ * Watcher (viewer) capability helpers. Read-side code branches on
+ * `canReadAll` so a viewer sees the same data scope as an admin.
+ * Write-side code calls `requireWriter()` (or strict `requireAdmin()`)
+ * which both reject viewers. The pure helpers live in
+ * `./authShared` so client components can import them without webpack
+ * trying to bundle `next/headers`.
+ */
+export { canReadAll, canWrite } from "./authShared";
+import { canReadAll, canWrite } from "./authShared";
+
+/** Admin OR viewer — every route that surfaces cross-user data. */
+export async function requireReadAll(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!canReadAll(user)) throw new Error("FORBIDDEN");
+  return user;
+}
+
+/** Any non-viewer logged-in user. Used to gate every mutation handler. */
+export async function requireWriter(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!canWrite(user)) throw new Error("FORBIDDEN");
   return user;
 }

@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth";
+import { canReadAll, getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
 import CrmSearch from "@/components/CrmSearch";
+import UserScopePicker from "@/components/UserScopePicker";
 
 export const dynamic = "force-dynamic";
+
+interface SearchParams {
+  user?: string;
+}
 
 /**
  * /crm — the single CRM tab. Two big drill-down entries (Company /
@@ -14,14 +19,30 @@ export const dynamic = "force-dynamic";
  * "Unclassified folders" callout sends admins to the migration
  * quarantine queue (Admin → Folders) for any folder whose `kind` is
  * still NULL.
+ *
+ * Admins / viewers can scope the cards to a single user via
+ * `?user=<id>` (the UserScopePicker writes this). Non-admins are
+ * always scoped to themselves and never see the picker.
  */
-export default async function CrmLandingPage() {
+export default async function CrmLandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
   await ensureSchema();
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
+  const sp = await searchParams;
+  const requestedScope =
+    isAdmin && sp.user ? Number(sp.user) : null;
+  const scopeOwnerId = isAdmin
+    ? Number.isFinite(requestedScope) && requestedScope! > 0
+      ? requestedScope
+      : null
+    : user.id;
   const q = sql();
 
   type CountRow = {
@@ -33,50 +54,38 @@ export default async function CrmLandingPage() {
     individual_quotations: number;
     unclassified_quotations: number;
   };
-  // Non-admins only see counts for rows they own, matching the
-  // owner-scoped queries on /crm/company and /crm/individual. Without
-  // this the landing cards leaked global totals to users whose drill-
-  // down then showed only their own rows.
-  const countsRows = isAdmin
-    ? ((await q`
-        select
-          (select count(*) from companies where deleted_at is null) as company_entities,
-          (select count(*) from client_folders where deleted_at is null and kind = 'company') as company_clients,
-          (select count(*) from client_folders where deleted_at is null and kind = 'individual') as individual_folders,
-          (select count(*) from client_folders where deleted_at is null and kind is null) as unclassified_folders,
-          (select count(*) from quotations qq
-             join client_folders cf on cf.id = qq.folder_id
-             where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'company') as company_quotations,
-          (select count(*) from quotations qq
-             join client_folders cf on cf.id = qq.folder_id
-             where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'individual') as individual_quotations,
-          (select count(*) from quotations qq
-             join client_folders cf on cf.id = qq.folder_id
-             where qq.deleted_at is null and cf.deleted_at is null and cf.kind is null) as unclassified_quotations
-      `) as CountRow[])
-    : ((await q`
-        select
-          (select count(*) from companies
-             where deleted_at is null and owner_id = ${user.id}) as company_entities,
-          (select count(*) from client_folders
-             where deleted_at is null and kind = 'company' and owner_id = ${user.id}) as company_clients,
-          (select count(*) from client_folders
-             where deleted_at is null and kind = 'individual' and owner_id = ${user.id}) as individual_folders,
-          (select count(*) from client_folders
-             where deleted_at is null and kind is null and owner_id = ${user.id}) as unclassified_folders,
-          (select count(*) from quotations qq
-             join client_folders cf on cf.id = qq.folder_id
-             where qq.deleted_at is null and cf.deleted_at is null
-               and cf.kind = 'company' and cf.owner_id = ${user.id}) as company_quotations,
-          (select count(*) from quotations qq
-             join client_folders cf on cf.id = qq.folder_id
-             where qq.deleted_at is null and cf.deleted_at is null
-               and cf.kind = 'individual' and cf.owner_id = ${user.id}) as individual_quotations,
-          (select count(*) from quotations qq
-             join client_folders cf on cf.id = qq.folder_id
-             where qq.deleted_at is null and cf.deleted_at is null
-               and cf.kind is null and cf.owner_id = ${user.id}) as unclassified_quotations
-      `) as CountRow[]);
+  // A single query with a conditional `owner_id = $scope` predicate
+  // covers all three cases: admin "all users" (scope = null), admin
+  // drilling into one user (scope = id), or a regular user pinned to
+  // self. Keeps the SQL surface tiny while letting admins flip
+  // between users via the picker without a route swap.
+  const countsRows = (await q`
+    select
+      (select count(*) from companies
+         where deleted_at is null
+           and (${scopeOwnerId}::int is null or owner_id = ${scopeOwnerId})) as company_entities,
+      (select count(*) from client_folders
+         where deleted_at is null and kind = 'company'
+           and (${scopeOwnerId}::int is null or owner_id = ${scopeOwnerId})) as company_clients,
+      (select count(*) from client_folders
+         where deleted_at is null and kind = 'individual'
+           and (${scopeOwnerId}::int is null or owner_id = ${scopeOwnerId})) as individual_folders,
+      (select count(*) from client_folders
+         where deleted_at is null and kind is null
+           and (${scopeOwnerId}::int is null or owner_id = ${scopeOwnerId})) as unclassified_folders,
+      (select count(*) from quotations qq
+         join client_folders cf on cf.id = qq.folder_id
+         where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'company'
+           and (${scopeOwnerId}::int is null or cf.owner_id = ${scopeOwnerId})) as company_quotations,
+      (select count(*) from quotations qq
+         join client_folders cf on cf.id = qq.folder_id
+         where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'individual'
+           and (${scopeOwnerId}::int is null or cf.owner_id = ${scopeOwnerId})) as individual_quotations,
+      (select count(*) from quotations qq
+         join client_folders cf on cf.id = qq.folder_id
+         where qq.deleted_at is null and cf.deleted_at is null and cf.kind is null
+           and (${scopeOwnerId}::int is null or cf.owner_id = ${scopeOwnerId})) as unclassified_quotations
+  `) as CountRow[];
   const counts = countsRows[0];
 
   // Pending-approval banner moved to the TopBar notification bell so
@@ -106,9 +115,15 @@ export default async function CrmLandingPage() {
 
         <CrmSearch />
 
+        {isAdmin && <UserScopePicker />}
+
         <div className="grid gap-4 md:grid-cols-2">
           <KindCard
-            href="/crm/company"
+            href={
+              scopeOwnerId
+                ? `/crm/company?user=${scopeOwnerId}`
+                : "/crm/company"
+            }
             title="Company"
             count={counts.company_entities}
             clientLabel={`${counts.company_entities} ${counts.company_entities === 1 ? "company" : "companies"} · ${counts.company_clients} client folder${counts.company_clients === 1 ? "" : "s"}`}
@@ -116,7 +131,11 @@ export default async function CrmLandingPage() {
             description="Business clients. Each company holds one or more contacts, and each contact has projects + quotations."
           />
           <KindCard
-            href="/crm/individual"
+            href={
+              scopeOwnerId
+                ? `/crm/individual?user=${scopeOwnerId}`
+                : "/crm/individual"
+            }
             title="Individual"
             count={counts.individual_folders}
             clientLabel={`${counts.individual_folders} ${counts.individual_folders === 1 ? "client" : "clients"}`}

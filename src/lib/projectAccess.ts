@@ -1,5 +1,6 @@
 import { sql } from "./db";
 import type { SessionUser } from "./auth";
+import { canReadAll } from "./auth";
 
 /**
  * Shared "can this user see this project?" check used by every route
@@ -50,7 +51,7 @@ export async function loadAccessibleProject(
   if (rows.length === 0) return null;
   const project = rows[0];
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
   if (isAdmin) return project;
   if (project.owner_id === user.id) return project;
   if (project.folder_owner_id === user.id) return project;

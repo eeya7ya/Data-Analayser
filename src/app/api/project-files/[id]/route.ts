@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { canReadAll, requireUser } from "@/lib/auth";
 import {
   createSignedDownloadUrl,
   deleteStorageObject,
@@ -44,7 +44,7 @@ async function loadFileForUser(
     storage_path: string;
   }>;
   if (rows.length === 0) return null;
-  if (user.role !== "admin" && rows[0].owner_id !== user.id) return null;
+  if (!canReadAll(user) && rows[0].owner_id !== user.id) return null;
   return rows[0];
 }
 

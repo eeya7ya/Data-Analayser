@@ -1,5 +1,5 @@
 import { sql } from "./db";
-import type { SessionUser } from "./auth";
+import { canReadAll, type SessionUser } from "./auth";
 
 /**
  * V2.0 module RBAC.
@@ -100,7 +100,7 @@ export async function requireModule(
   user: SessionUser,
   module: Module,
 ): Promise<void> {
-  if (user.role === "admin") return;
+  if (canReadAll(user)) return;
   if (await hasModule(user.id, module)) return;
   throw new Error("FORBIDDEN");
 }
@@ -126,7 +126,7 @@ export async function requireModuleAllowLegacy(
   user: SessionUser,
   module: Module,
 ): Promise<void> {
-  if (user.role === "admin") return;
+  if (canReadAll(user)) return;
   if (await hasModule(user.id, module)) return;
 
   const q = sql();
@@ -163,7 +163,7 @@ export async function requireModuleRole(
   module: Module,
   role: string,
 ): Promise<void> {
-  if (user.role === "admin") return;
+  if (canReadAll(user)) return;
   if (await hasModuleRole(user.id, module, role)) return;
   throw new Error("FORBIDDEN");
 }

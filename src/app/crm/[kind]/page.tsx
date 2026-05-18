@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, canReadAll } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
 
@@ -77,7 +77,7 @@ export default async function CrmKindPage({
 
   await ensureSchema();
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
   const q = sql();
 
   // Owner-isolation for non-admins, matching the existing

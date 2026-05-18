@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, canReadAll } from "@/lib/auth";
 import { canTransition, logLeadEvent, sendLeadMessage } from "@/lib/leads";
 
 export const runtime = "nodejs";
@@ -65,7 +65,7 @@ export async function POST(
     const lead = leadRows[0];
 
     const isOwner = lead.assigned_to_id === user.id || lead.created_by === user.id;
-    const isAdmin = user.role === "admin";
+    const isAdmin = canReadAll(user);
     if (!isAdmin && !isOwner) {
       // Also allow presales managers to submit on behalf of their team.
       const isManager = (

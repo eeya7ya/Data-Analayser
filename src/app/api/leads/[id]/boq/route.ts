@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, canReadAll } from "@/lib/auth";
 import { logLeadEvent, sendLeadMessage } from "@/lib/leads";
 
 export const runtime = "nodejs";
@@ -61,7 +61,7 @@ export async function POST(
     }
     const lead = leadRows[0];
 
-    const isAdmin = user.role === "admin";
+    const isAdmin = canReadAll(user);
     const isOwner = lead.assigned_to_id === user.id;
     const isManager = isAdmin
       ? true

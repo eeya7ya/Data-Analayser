@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, canReadAll } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import { syncCompanyPeopleAndFolders } from "@/lib/crmPeople";
 import TopBar from "@/components/TopBar";
@@ -67,7 +67,7 @@ export default async function CompanyDetailPage({
   }
   const company = cRows[0];
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
   if (!isAdmin && company.owner_id !== user.id) {
     return (
       <div className="min-h-screen bg-magic-soft/40">

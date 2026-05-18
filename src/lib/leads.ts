@@ -1,5 +1,6 @@
 import { sql } from "./db";
 import type { SessionUser } from "./auth";
+import { canReadAll } from "./auth";
 import { hasModule, hasModuleRole } from "./modules";
 import type { LeadStatus, LeadMessageKind } from "./leadConstants";
 
@@ -190,7 +191,7 @@ export interface LeadVisibility {
 }
 
 export async function getLeadVisibility(user: SessionUser): Promise<LeadVisibility> {
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
   const isPresalesManager =
     isAdmin || (await hasModuleRole(user.id, "crm", "presales_manager"));
   const isSalesManager =

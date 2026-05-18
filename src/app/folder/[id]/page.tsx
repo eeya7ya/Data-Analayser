@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getSessionUser } from "@/lib/auth";
+import { canReadAll, getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
 import FolderProjectsClient from "@/components/FolderProjectsClient";
@@ -86,7 +86,7 @@ export default async function FolderPage({
       </div>
     );
   }
-  if (user.role !== "admin" && folder.owner_id !== user.id) {
+  if (!canReadAll(user) && folder.owner_id !== user.id) {
     return (
       <div className="min-h-screen bg-magic-soft/40">
         <TopBar user={user} />

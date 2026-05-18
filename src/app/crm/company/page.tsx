@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, canReadAll } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
 import CompanyListClient from "@/components/CompanyListClient";
+import UserScopePicker from "@/components/UserScopePicker";
 
 export const dynamic = "force-dynamic";
+
+interface SearchParams {
+  user?: string;
+}
 
 /**
  * /crm/company — list of company entities (rows in the `companies`
@@ -31,12 +36,23 @@ interface CompanyListRow {
   deleted_at: string | null;
 }
 
-export default async function CompanyListPage() {
+export default async function CompanyListPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   await ensureSchema();
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
+  const sp = await searchParams;
+  const requested = isAdmin && sp.user ? Number(sp.user) : null;
+  const scopeOwnerId = isAdmin
+    ? Number.isFinite(requested) && requested! > 0
+      ? requested
+      : null
+    : user.id;
   const q = sql();
   // Counts must also follow `contacts.company_id → contacts.folder_id`,
   // not just `client_folders.company_id`. Post-refactor a person can be
@@ -44,61 +60,34 @@ export default async function CompanyListPage() {
   // still has company_id = NULL until syncCompanyPeopleAndFolders heals
   // it on first detail-page visit. Counting via both keeps the list
   // honest before that lazy heal runs.
-  const rows = isAdmin
-    ? ((await q`
-        select c.id, c.name, c.website, c.industry, c.size_bucket, c.notes,
-               (select count(*) from (
-                  select cf.id from client_folders cf
-                    where cf.company_id = c.id and cf.deleted_at is null
-                  union
-                  select ct.folder_id as id from contacts ct
-                    where ct.company_id = c.id and ct.deleted_at is null
-                      and ct.folder_id is not null
-                      and exists (select 1 from client_folders cf2
-                                  where cf2.id = ct.folder_id
-                                    and cf2.deleted_at is null)
-               ) as client_ids) as client_count,
-               (select count(*) from quotations qq
-                  where qq.deleted_at is null and qq.folder_id in (
-                    select cf.id from client_folders cf
-                      where cf.company_id = c.id and cf.deleted_at is null
-                    union
-                    select ct.folder_id from contacts ct
-                      where ct.company_id = c.id and ct.deleted_at is null
-                        and ct.folder_id is not null
-                  )) as quotation_count,
-               c.deleted_at
-        from companies c
-        where c.deleted_at is null
-        order by c.name
-      `) as CompanyListRow[])
-    : ((await q`
-        select c.id, c.name, c.website, c.industry, c.size_bucket, c.notes,
-               (select count(*) from (
-                  select cf.id from client_folders cf
-                    where cf.company_id = c.id and cf.deleted_at is null
-                  union
-                  select ct.folder_id as id from contacts ct
-                    where ct.company_id = c.id and ct.deleted_at is null
-                      and ct.folder_id is not null
-                      and exists (select 1 from client_folders cf2
-                                  where cf2.id = ct.folder_id
-                                    and cf2.deleted_at is null)
-               ) as client_ids) as client_count,
-               (select count(*) from quotations qq
-                  where qq.deleted_at is null and qq.folder_id in (
-                    select cf.id from client_folders cf
-                      where cf.company_id = c.id and cf.deleted_at is null
-                    union
-                    select ct.folder_id from contacts ct
-                      where ct.company_id = c.id and ct.deleted_at is null
-                        and ct.folder_id is not null
-                  )) as quotation_count,
-               c.deleted_at
-        from companies c
-        where c.deleted_at is null and c.owner_id = ${user.id}
-        order by c.name
-      `) as CompanyListRow[]);
+  const rows = (await q`
+    select c.id, c.name, c.website, c.industry, c.size_bucket, c.notes,
+           (select count(*) from (
+              select cf.id from client_folders cf
+                where cf.company_id = c.id and cf.deleted_at is null
+              union
+              select ct.folder_id as id from contacts ct
+                where ct.company_id = c.id and ct.deleted_at is null
+                  and ct.folder_id is not null
+                  and exists (select 1 from client_folders cf2
+                              where cf2.id = ct.folder_id
+                                and cf2.deleted_at is null)
+           ) as client_ids) as client_count,
+           (select count(*) from quotations qq
+              where qq.deleted_at is null and qq.folder_id in (
+                select cf.id from client_folders cf
+                  where cf.company_id = c.id and cf.deleted_at is null
+                union
+                select ct.folder_id from contacts ct
+                  where ct.company_id = c.id and ct.deleted_at is null
+                    and ct.folder_id is not null
+              )) as quotation_count,
+           c.deleted_at
+    from companies c
+    where c.deleted_at is null
+      and (${scopeOwnerId}::int is null or c.owner_id = ${scopeOwnerId})
+    order by c.name
+  `) as CompanyListRow[];
 
   // The unattached-company-folder count moved to the TopBar
   // notification bell; the inline amber banner that used to live here
@@ -124,6 +113,8 @@ export default async function CompanyListPage() {
             people at the company) and then projects under each client.
           </p>
         </div>
+
+        {isAdmin && <UserScopePicker />}
 
         <CompanyListClient initial={rows} />
       </main>

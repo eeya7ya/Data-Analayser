@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, canReadAll } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -9,7 +9,7 @@ export async function GET() {
     const user = await requireUser();
     await ensureSchema();
     const q = sql();
-    const isAdmin = user.role === "admin";
+    const isAdmin = canReadAll(user);
 
     // Fetch folders — admins export everything, users only export their own.
     // Soft-deleted (trashed) folders and quotations are excluded from the

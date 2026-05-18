@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, canReadAll } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 
 export const runtime = "nodejs";
@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
     }
 
     const q = sql();
-    const isAdmin = user.role === "admin";
+    const isAdmin = canReadAll(user);
     const ownerFilter = isAdmin ? null : user.id;
     const like = `%${search}%`;
     const limit = PER_BUCKET_LIMIT;

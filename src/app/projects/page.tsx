@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql, ensureSchema } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, canReadAll } from "@/lib/auth";
 import { getVisibleProjectIds } from "@/lib/scope";
 import { hasModule } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
@@ -37,7 +37,7 @@ export default async function ProjectsPage() {
 
   await ensureSchema();
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = canReadAll(user);
   const hasProjectsModule = isAdmin || (await hasModule(user.id, "projects"));
   const hasCrmModule = isAdmin || (await hasModule(user.id, "crm"));
 
