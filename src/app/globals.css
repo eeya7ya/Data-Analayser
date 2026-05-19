@@ -101,7 +101,15 @@ body > * {
 }
 
 .quotation-sheet {
-  width: 210mm;
+  /* On screen the sheet fills its parent container so the Designer's
+   * editable table no longer leaves a wide empty strip on either side.
+   * `min-width: 210mm` keeps the columns from collapsing on narrow
+   * viewports (the wrapper falls back to horizontal scroll instead).
+   * Print overrides both width and min-width back to 100% / 0 below
+   * so the printed page still snaps to the @page A4 area exactly. */
+  width: 100%;
+  max-width: 100%;
+  min-width: 210mm;
   min-height: 297mm;
   padding: 14mm 12mm 18mm 12mm;
   background: #ffffff;
@@ -460,6 +468,12 @@ body > * {
     box-shadow: none;
     margin: 0;
     width: 100%;
+    /* Reset the screen-only min-width so the printed sheet collapses
+     * to the @page safe area exactly. The screen rule keeps a 210mm
+     * floor so editor columns don't squeeze; print doesn't need that
+     * floor because the @page margins already define the width. */
+    min-width: 0;
+    max-width: none;
     /* Use the actual A4 printable height (297mm − 14mm top − 18mm bottom)
      * instead of `100vh`. Chrome's print engine resolves `100vh` slightly
      * larger than the @page safe area, so the last sheet would overflow by
