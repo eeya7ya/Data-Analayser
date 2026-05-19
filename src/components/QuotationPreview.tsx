@@ -5,7 +5,6 @@ import {
   computeQuotationTotals,
   effectiveMergedValue,
 } from "@/lib/quotationTotals";
-import { FormattedCellInput } from "@/components/FormattedCellInput";
 import {
   getBrandVariant,
   type BrandVariant,
@@ -168,63 +167,6 @@ function renderPriceCell(n: number): React.ReactNode {
   const v = Number(n) || 0;
   if (v > 0) return money(v);
   return <span className="italic text-magic-ink/70">Free</span>;
-}
-
-/**
- * Lightweight inline formatting for cell text. Lets users mark up a
- * value without a full rich-text editor:
- *   **bold**         → bold weight
- *   ==highlight==    → yellow background mark
- *   [red]text[/red]  → coloured text (red / blue / green / orange)
- * Markers are plain in the editable input so editing stays simple;
- * the parser kicks in only on the non-editable / printed view so the
- * PDF reflects the styling.
- */
-const RICH_COLOR_MAP: Record<string, string> = {
-  red: "#c1272d",
-  blue: "#1d4ed8",
-  green: "#15803d",
-  orange: "#c2410c",
-};
-function renderRichCell(text: string | null | undefined): React.ReactNode {
-  if (!text) return text ?? "";
-  // Tokenise once. The regex is intentionally simple — we don't try to
-  // be a markdown engine, just enough to cover bold / mark / colour.
-  const pattern =
-    /(\*\*[^*\n]+\*\*|==[^=\n]+==|\[(?:red|blue|green|orange)\][^[\n]+\[\/(?:red|blue|green|orange)\])/g;
-  const parts = text.split(pattern);
-  if (parts.length === 1) return text;
-  const nodes: React.ReactNode[] = [];
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    if (!part) continue;
-    if (part.startsWith("**") && part.endsWith("**")) {
-      nodes.push(<strong key={i}>{part.slice(2, -2)}</strong>);
-    } else if (part.startsWith("==") && part.endsWith("==")) {
-      nodes.push(
-        <mark
-          key={i}
-          style={{ background: "#fff3a3", color: "inherit", padding: "0 2px" }}
-        >
-          {part.slice(2, -2)}
-        </mark>,
-      );
-    } else {
-      const m = part.match(
-        /^\[(red|blue|green|orange)\]([\s\S]+)\[\/(red|blue|green|orange)\]$/,
-      );
-      if (m && m[1] === m[3]) {
-        nodes.push(
-          <span key={i} style={{ color: RICH_COLOR_MAP[m[1]] }}>
-            {m[2]}
-          </span>,
-        );
-      } else {
-        nodes.push(part);
-      }
-    }
-  }
-  return <>{nodes}</>;
 }
 
 // ─── Excel-aware clipboard readers ──────────────────────────────────────────
@@ -2265,13 +2207,15 @@ function SystemTable({
               hPlan,
               "font-bold cell-center",
               editable ? (
-                <FormattedCellInput
+                <input
+                  className="cell-input text-center"
                   value={item.brand}
-                  onChange={(v) => onUpdate(globalIndex, { brand: v })}
-                  inputClassName="cell-input text-center"
+                  onChange={(e) =>
+                    onUpdate(globalIndex, { brand: e.target.value })
+                  }
                 />
               ) : (
-                renderRichCell(item.brand)
+                item.brand
               ),
             )}
             {mergeableCell(
@@ -2281,13 +2225,15 @@ function SystemTable({
               hPlan,
               "font-semibold cell-center",
               editable ? (
-                <FormattedCellInput
+                <input
+                  className="cell-input text-center"
                   value={item.model}
-                  onChange={(v) => onUpdate(globalIndex, { model: v })}
-                  inputClassName="cell-input text-center"
+                  onChange={(e) =>
+                    onUpdate(globalIndex, { model: e.target.value })
+                  }
                 />
               ) : (
-                renderRichCell(item.model)
+                item.model
               ),
             )}
             {mergeableCell(
@@ -2297,25 +2243,20 @@ function SystemTable({
               hPlan,
               "text-left align-top",
               editable ? (
-                <FormattedCellInput
-                  as="textarea"
+                <textarea
                   rows={3}
                   value={item.description}
-                  onChange={(v) =>
-                    onUpdate(globalIndex, { description: v })
+                  onChange={(e) =>
+                    onUpdate(globalIndex, { description: e.target.value })
                   }
                   placeholder="Add a short description for this item…"
-                  title="Select text and click B / highlight / colour on the floating toolbar — or type **bold**, ==highlight==, [red]text[/red]."
-                  inputClassName="description-input w-full bg-transparent text-[10.5px]"
+                  className="description-input w-full bg-transparent text-[10.5px]"
                 />
               ) : (
                 <div className="whitespace-pre-wrap text-left">
                   {item.description && item.description.trim()
-                    ? renderRichCell(item.description)
-                    : renderRichCell(
-                        `${item.brand || ""} ${item.model || ""}`.trim() ||
-                          "—",
-                      )}
+                    ? item.description
+                    : `${item.brand || ""} ${item.model || ""}`.trim() || "—"}
                 </div>
               ),
             )}
@@ -2349,13 +2290,15 @@ function SystemTable({
               hPlan,
               "",
               editable ? (
-                <FormattedCellInput
+                <input
+                  className="cell-input text-center"
                   value={item.delivery}
-                  onChange={(v) => onUpdate(globalIndex, { delivery: v })}
-                  inputClassName="cell-input text-center"
+                  onChange={(e) =>
+                    onUpdate(globalIndex, { delivery: e.target.value })
+                  }
                 />
               ) : (
-                renderRichCell(item.delivery)
+                item.delivery
               ),
             )}
             {!boqMode &&
@@ -2474,17 +2417,17 @@ function SystemTable({
               return (
                 <td key={col.id} className="align-top relative">
                   {editable ? (
-                    <FormattedCellInput
+                    <input
+                      className="cell-input text-center"
                       value={cellValue}
-                      onChange={(v) =>
+                      onChange={(e) =>
                         onUpdate(globalIndex, {
-                          extra: { ...(item.extra || {}), [col.id]: v },
+                          extra: { ...(item.extra || {}), [col.id]: e.target.value },
                         })
                       }
-                      inputClassName="cell-input text-center"
                     />
                   ) : cellValue ? (
-                    renderRichCell(cellValue)
+                    cellValue
                   ) : (
                     "—"
                   )}
