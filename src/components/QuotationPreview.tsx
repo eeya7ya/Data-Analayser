@@ -1974,8 +1974,8 @@ function SystemTable({
           </th>
           {showPictures && <th style={{ width: "10%" }}>Picture</th>}
           <th style={{ width: "6%" }}>
-            Quantity
-            {pasteBtn("quantity", "Quantity")}
+            QTY
+            {pasteBtn("quantity", "QTY")}
           </th>
           <th style={{ width: "8%" }}>
             Delivery
