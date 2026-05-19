@@ -257,16 +257,14 @@ body > * {
   }
 
   /* Description cell input: matches the printed font size (10.5px) so the
-   * editor mirrors print output, but that makes the field cramped to type
-   * into. On hover (a quick scan) the field grows a little so the user
-   * can see what's already there; on focus it grows to a comfortable
-   * editing height with a subtle ring. The `field-sizing: content` rule
-   * is a progressive enhancement — modern Chromium fits the box to the
-   * actual text so the visible area never lags behind what the user has
-   * typed; older engines fall through to the `min-height` rules below.
-   * The cell itself uses `vertical-align: top` (defined above) so the
-   * neighbouring Brand / Model / Quantity cells stay anchored to the
-   * top edge as the description grows.
+   * editor mirrors print output. `field-sizing: content` lets modern
+   * Chromium grow the box to the actual text; older engines fall through
+   * to the `min-height` rule. On focus the textarea pops out of inline
+   * flow (anchored to its `position: relative` <td>) so the user gets a
+   * comfortable canvas for typing without the cramped column squeezing
+   * each line. We deliberately do NOT change layout on :hover — moving
+   * the element under the cursor used to deactivate :hover, snap the
+   * element back, re-activate :hover, and visibly jitter the row.
    */
   textarea.description-input {
     field-sizing: content;
@@ -274,22 +272,12 @@ body > * {
     line-height: 1.35;
     border-radius: 4px;
     transition:
-      min-height 180ms ease,
       background-color 180ms ease,
       box-shadow 180ms ease;
   }
   textarea.description-input:hover:not(:focus) {
-    min-height: 8em;
     background: rgba(255, 255, 255, 0.6);
   }
-  /* On focus the textarea pops out of inline flow and overshoots its cell
-   * on both sides so the user gets a comfortable canvas for typing without
-   * the cramped column squeezing each line. The wrapping <td> already
-   * declares `position: relative` (see mergeableCell in QuotationPreview),
-   * so the absolute textarea anchors to that cell and floats above the
-   * neighbouring Brand / Model / Quantity columns. The table's column
-   * widths are therefore untouched — they don't reflow on focus and they
-   * snap straight back when the textarea blurs and returns to inline. */
   textarea.description-input:focus {
     position: absolute;
     top: 4px;
@@ -303,24 +291,18 @@ body > * {
     z-index: 10;
   }
 
-  /* Hover-expand for the short-text cells (brand / model / delivery /
-   * quantity / unit_price / extras). Mirrors `description-input` so the
-   * whole row's content is discoverable just by passing the mouse over
-   * a cell — a stop-gap when a value overflows the narrow column. The
-   * wrapping <td> declares `position: relative`, so the absolutely
-   * positioned focused state anchors to its own cell and never shifts
-   * the table's column widths.
-   *
-   * Works the same on a merged cell: the rule is on the input/textarea
-   * itself, and the merged <td> still acts as the relative anchor, so
-   * the popout is sized against the merged span. */
+  /* Short-text cells (brand / model / delivery / extras). The cell stays
+   * inline on :hover — only :focus pops the input out into an absolute,
+   * wider editing surface anchored to its `position: relative` <td>. The
+   * old hover-expand caused a jitter loop: position changes under the
+   * cursor → :hover deactivates → element snaps back → cursor re-enters
+   * → :hover reactivates → repeat. */
   input.cell-input,
   textarea.cell-input {
     width: 100%;
     background: transparent;
     border-radius: 4px;
     transition:
-      min-height 180ms ease,
       background-color 180ms ease,
       box-shadow 180ms ease;
   }
@@ -338,19 +320,6 @@ body > * {
   input.cell-input:hover:not(:focus),
   textarea.cell-input:hover:not(:focus) {
     background: rgba(255, 255, 255, 0.6);
-  }
-  input.cell-input:hover:not(:focus) {
-    position: absolute;
-    top: 4px;
-    left: -2em;
-    width: calc(100% + 4em);
-    padding: 4px 6px;
-    background: #ffffff;
-    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.18);
-    overflow: visible;
-    text-overflow: clip;
-    white-space: normal;
-    z-index: 5;
   }
   input.cell-input:focus,
   textarea.cell-input:focus {
