@@ -1,0 +1,52 @@
+[
+  {
+    "id": 1,
+    "username": "admin",
+    "password_hash": "pbkdf2$120000$yizWHAicoelhx2QmQU86qQ==$m07B1ov6WtvL2FBaAoVj8QAxXsxxMkN9v0CXwkTwPnM=",
+    "role": "admin",
+    "created_at": "2026-04-09T16:24:42.196562+00:00",
+    "display_name": "Yahya Khaled",
+    "phone": "0795172566",
+    "email": null
+  },
+  {
+    "id": 2,
+    "username": "yahya",
+    "password_hash": "pbkdf2$120000$XfJZcbz+gxHMUO5WAxLHLA==$Vt19rvQ5ejrWH3VvxfugvJ28NVGD4YQDQ+jTXLGuxGw=",
+    "role": "admin",
+    "created_at": "2026-04-10T19:44:39.645895+00:00",
+    "display_name": "Yahya Khaled",
+    "phone": "",
+    "email": null
+  },
+  {
+    "id": 3,
+    "username": "Mosa",
+    "password_hash": "pbkdf2$120000$eoEbOKN+X5DmKHpWSHvjJg==$W6hr6FBqBmNfPxuAZPyREqi+XNPFKAdjfr6T4IBGhhs=",
+    "role": "user",
+    "created_at": "2026-04-10T23:58:36.824483+00:00",
+    "display_name": "Mosa Althaher",
+    "phone": "",
+    "email": null
+  },
+  {
+    "id": 4,
+    "username": "Raghad",
+    "password_hash": "pbkdf2$120000$dGJIH+rMszf4zzWr2R2LZw==$MdHKx6422sMgsBq8G1KyJ1qOBAA7zMrLaq0eqWituBc=",
+    "role": "user",
+    "created_at": "2026-04-15T03:28:21.399606+00:00",
+    "display_name": "Raghad Weshah",
+    "phone": "",
+    "email": null
+  },
+  {
+    "id": 5,
+    "username": "Sara",
+    "password_hash": "pbkdf2$120000$fh3UFsqXYt5LXzzBTFg/Sg==$zGfbUidA+wdUWyr4jC3s9jBlKsoPN8J2g5XmYHIA40s=",
+    "role": "user",
+    "created_at": "2026-04-28T11:36:51.422222+00:00",
+    "display_name": "Sara Sabah",
+    "phone": "0796793032",
+    "email": null
+  }
+]

@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "db:init": "node scripts/init-db.mjs",
-    "db:migrate": "node scripts/migrate-json-to-db.mjs"
+    "db:migrate": "node scripts/migrate-json-to-db.mjs",
+    "db:export": "node scripts/export-data.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
