@@ -9,7 +9,11 @@
     "start": "next start",
     "lint": "next lint",
     "db:init": "node scripts/init-db.mjs",
-    "db:migrate": "node scripts/migrate-json-to-db.mjs"
+    "db:migrate": "node scripts/migrate-json-to-db.mjs",
+    "backup:full": "node scripts/backup-full.mjs",
+    "backup:verify": "node scripts/verify-backup.mjs",
+    "backup:restore": "node scripts/restore-from-backup.mjs",
+    "backup:list": "find backups -type d -name '202*' -exec du -sh {} \\;"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
