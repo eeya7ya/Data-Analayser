@@ -121,11 +121,63 @@ export async function POST() {
       const tableErrors: string[] = [];
       let migrated = 0;
 
-      // Try to migrate chunk; if it fails, recursively retry with smaller chunks
-      async function migrateChunk(chunkRows: Record<string, unknown>[], startIdx: number, batchSize: number): Promise<void> {
+      // For a single oversized row (D1 row cap ~1MB), iteratively replace the
+      // largest string/JSON column with a small truncation marker until the row
+      // fits. Each attempt picks the largest remaining column, so we only lose
+      // as much data as necessary.
+      async function migrateRowWithTruncation(row: Record<string, unknown>, startIdx: number): Promise<void> {
+        const workingParams = keep.map((c) => toD1Param(row[c.column_name], c.udt_name));
+        const truncatedCols: string[] = [];
+
+        for (let attempt = 0; attempt < keep.length; attempt++) {
+          // Find the largest remaining untruncated string column.
+          let largestIdx = -1;
+          let largestSize = 0;
+          for (let idx = 0; idx < workingParams.length; idx++) {
+            const v = workingParams[idx];
+            if (typeof v === "string" && v.length > largestSize && !v.startsWith('{"__truncated_during_migration__"')) {
+              largestSize = v.length;
+              largestIdx = idx;
+            }
+          }
+
+          if (largestIdx === -1) {
+            tableErrors.push(`row ${startIdx}: nothing left to truncate (already truncated: ${truncatedCols.join(", ")})`);
+            return;
+          }
+
+          const colName = keep[largestIdx].column_name;
+          const origValue = workingParams[largestIdx] as string;
+          workingParams[largestIdx] = JSON.stringify({
+            __truncated_during_migration__: true,
+            original_size_bytes: origValue.length,
+            column: colName,
+          });
+          truncatedCols.push(`${colName}(${origValue.length}b)`);
+
+          try {
+            await d1Query(singleRowSql, workingParams);
+            migrated++;
+            tableErrors.push(`row ${startIdx}: oversized column(s) replaced with truncation marker: ${truncatedCols.join(", ")}`);
+            return;
+          } catch (retryErr) {
+            const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+            if (!/SQLITE_TOOBIG|too big/i.test(retryMsg)) {
+              tableErrors.push(`row ${startIdx}: ${retryMsg.slice(0, 200)} (after truncating: ${truncatedCols.join(", ")})`);
+              return;
+            }
+            // Still too big — loop again to truncate next largest column.
+          }
+        }
+
+        tableErrors.push(`row ${startIdx}: still too big after truncating every column: ${truncatedCols.join(", ")}`);
+      }
+
+      // Try to migrate chunk; if it fails, recursively split in half. When down
+      // to a single row that still fails with TOOBIG, fall back to truncation.
+      async function migrateChunk(chunkRows: Record<string, unknown>[], startIdx: number): Promise<void> {
         if (chunkRows.length === 0) return;
 
-        // Build multi-row INSERT statement
         const valueClauses = chunkRows.map(() => `(${keep.map(() => "?").join(", ")})`).join(", ");
         const multiRowSql = `INSERT OR REPLACE INTO "${table}" (${colNames}) VALUES ${valueClauses}`;
         const allParams = chunkRows.flatMap((row) =>
@@ -138,24 +190,26 @@ export async function POST() {
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
 
-          // If batch is 1 row, can't reduce further; report error
           if (chunkRows.length === 1) {
+            if (/SQLITE_TOOBIG|too big/i.test(msg)) {
+              await migrateRowWithTruncation(chunkRows[0], startIdx);
+              return;
+            }
             tableErrors.push(`row ${startIdx}: ${msg.slice(0, 200)}`);
             return;
           }
 
-          // Batch too large; split in half and retry individually
           const mid = Math.ceil(chunkRows.length / 2);
           const left = chunkRows.slice(0, mid);
           const right = chunkRows.slice(mid);
-          await migrateChunk(left, startIdx, batchSize / 2);
-          await migrateChunk(right, startIdx + left.length, batchSize / 2);
+          await migrateChunk(left, startIdx);
+          await migrateChunk(right, startIdx + left.length);
         }
       }
 
       for (let i = 0; i < rows.length; i += rowsPerStmt) {
         const chunk = rows.slice(i, i + rowsPerStmt);
-        await migrateChunk(chunk, i, rowsPerStmt);
+        await migrateChunk(chunk, i);
       }
 
       results.push({
