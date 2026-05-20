@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sql as getDb } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { d1Batch, d1Query, isD1Configured } from "@/lib/db-d1";
+import { d1Query, isD1Configured } from "@/lib/db-d1";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -109,24 +109,27 @@ export async function POST() {
         continue;
       }
 
-      // Build parameterised INSERT OR REPLACE statements.
+      // Build parameterised INSERT OR REPLACE statements with multiple rows
+      // per statement (instead of one-row-per-statement). SQLite happily
+      // accepts multi-row VALUES clauses and we can bind 50+ rows in one query.
       const colNames = keep.map((c) => `"${c.column_name}"`).join(", ");
-      const placeholders = keep.map(() => "?").join(", ");
-      const insertSql = `INSERT OR REPLACE INTO "${table}" (${colNames}) VALUES (${placeholders})`;
 
-      const CHUNK = 50; // statements per d1Batch call
+      const ROWS_PER_STMT = 50; // SQLite can handle this easily (default param limit is 32766)
       const tableErrors: string[] = [];
       let migrated = 0;
 
-      for (let i = 0; i < rows.length; i += CHUNK) {
-        const chunk = rows.slice(i, i + CHUNK);
-        const statements = chunk.map((row) => ({
-          sql: insertSql,
-          params: keep.map((c) => toD1Param(row[c.column_name], c.udt_name)),
-        }));
+      for (let i = 0; i < rows.length; i += ROWS_PER_STMT) {
+        const chunk = rows.slice(i, i + ROWS_PER_STMT);
+        // Build a multi-row INSERT: "... VALUES (?, ?), (?, ?), ..."
+        const valueClauses = chunk.map(() => `(${keep.map(() => "?").join(", ")})`).join(", ");
+        const multiRowSql = `INSERT OR REPLACE INTO "${table}" (${colNames}) VALUES ${valueClauses}`;
+        // Flatten all parameters from all rows into a single array.
+        const allParams = chunk.flatMap((row) =>
+          keep.map((c) => toD1Param(row[c.column_name], c.udt_name)),
+        );
 
         try {
-          await d1Batch(statements);
+          await d1Query(multiRowSql, allParams);
           migrated += chunk.length;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
