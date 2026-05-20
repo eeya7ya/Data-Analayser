@@ -283,10 +283,14 @@ function BackupPanel() {
         System backup &amp; restore
       </h3>
       <p className="text-sm text-magic-ink/60 mb-4">
-        Export a full snapshot of every public-schema table to a single ZIP
-        containing SQL, JSON and CSV per table — re-uploadable at any time. The
-        restore is additive: it upserts by primary key and never deletes rows
-        the destination already has.
+        Exports a single ZIP with every public-schema table (JSON / CSV /
+        Postgres SQL per table + combined <code>all.sql</code>), the actual
+        file bytes from Supabase Storage, a Cloudflare R2 upload script, a
+        starter SQLite schema for D1, and SHA-256 content hashes per table
+        and per blob. Run <code>node verify-integrity.mjs</code> on the
+        unzipped folder to confirm nothing was corrupted. The restore is
+        additive: it upserts by primary key and never deletes rows the
+        destination already has.
       </p>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -299,9 +303,11 @@ function BackupPanel() {
             {exporting ? "Preparing backup…" : "Export full system backup (.zip)"}
           </button>
           <p className="text-xs text-magic-ink/50">
-            Includes <code>all.sql</code>, per-table <code>.json</code>,{" "}
-            <code>.csv</code> and <code>.sql</code>, and a{" "}
-            <code>manifest.json</code> for safe re-import.
+            Includes <code>data/&lt;table&gt;.json</code>,{" "}
+            <code>storage/&lt;bucket&gt;/&lt;path&gt;</code> blobs,{" "}
+            <code>d1/schema.sql</code>, <code>r2/upload-to-r2.sh</code>,{" "}
+            <code>verify-integrity.mjs</code>, and a{" "}
+            <code>MIGRATE-TO-CLOUDFLARE.md</code> walkthrough.
           </p>
           {exportMsg && (
             <p
