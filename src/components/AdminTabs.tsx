@@ -199,10 +199,19 @@ type D1HealthResponse = {
   tables: Array<{ name: string; rows: number }>;
 };
 
+type ApplySchemaResult = {
+  applied: number;
+  skipped: number;
+  errors: string[];
+  error?: string;
+};
+
 function D1HealthPanel() {
   const [data, setData] = useState<D1HealthResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [applyResult, setApplyResult] = useState<ApplySchemaResult | null>(null);
 
   async function check() {
     setBusy(true);
@@ -220,7 +229,27 @@ function D1HealthPanel() {
     }
   }
 
+  async function applySchema() {
+    setApplying(true);
+    setApplyResult(null);
+    try {
+      const res = await fetch("/api/admin/d1-apply-schema", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const body = (await res.json()) as ApplySchemaResult;
+      setApplyResult(body);
+      // Refresh the table list after applying
+      if (!body.error) await check();
+    } catch (e) {
+      setApplyResult({ applied: 0, skipped: 0, errors: [(e as Error).message] });
+    } finally {
+      setApplying(false);
+    }
+  }
+
   const totalRows = data?.tables.reduce((a, b) => a + b.rows, 0) ?? 0;
+  const noTables = data?.configured && data.tables.length === 0;
 
   return (
     <div className="rounded-xl border border-magic-border bg-white p-5">
@@ -234,17 +263,56 @@ function D1HealthPanel() {
         loaded over from Supabase. Read-only — does not modify any row in
         either database.
       </p>
-      <button
-        onClick={check}
-        disabled={busy}
-        className="px-4 py-2 text-sm font-medium rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
-      >
-        {busy ? "Checking…" : "Test D1 connection"}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={check}
+          disabled={busy || applying}
+          className="px-4 py-2 text-sm font-medium rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+        >
+          {busy ? "Checking…" : "Test D1 connection"}
+        </button>
+        {noTables && (
+          <button
+            onClick={applySchema}
+            disabled={applying || busy}
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+          >
+            {applying ? "Applying schema…" : "Apply D1 schema (36 tables)"}
+          </button>
+        )}
+      </div>
       {err && (
         <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           {err}
         </p>
+      )}
+      {applyResult && (
+        <div className="mt-3">
+          {applyResult.error ? (
+            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {applyResult.error}
+            </p>
+          ) : (
+            <div className="text-sm">
+              <p className="text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                Schema applied: {applyResult.applied} statement(s) executed,{" "}
+                {applyResult.skipped} skipped.
+              </p>
+              {applyResult.errors.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {applyResult.errors.map((e, i) => (
+                    <li
+                      key={i}
+                      className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 font-mono break-all"
+                    >
+                      {e}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
       )}
       {data && !err && (
         <div className="mt-3">
@@ -257,25 +325,32 @@ function D1HealthPanel() {
               <p className="text-magic-ink/80 mb-2">
                 Connected. {data.tables.length} table(s), {totalRows} total
                 row(s).
+                {noTables && (
+                  <span className="ml-2 text-amber-700 font-medium">
+                    Schema not applied yet — click the green button above.
+                  </span>
+                )}
               </p>
-              <div className="max-h-64 overflow-y-auto rounded border border-magic-border">
-                <table className="w-full text-xs">
-                  <thead className="bg-magic-soft/60 sticky top-0">
-                    <tr>
-                      <th className="text-left px-3 py-1.5 font-semibold">Table</th>
-                      <th className="text-right px-3 py-1.5 font-semibold">Rows</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.tables.map((t) => (
-                      <tr key={t.name} className="border-t border-magic-border">
-                        <td className="px-3 py-1 font-mono">{t.name}</td>
-                        <td className="px-3 py-1 text-right">{t.rows}</td>
+              {data.tables.length > 0 && (
+                <div className="max-h-64 overflow-y-auto rounded border border-magic-border">
+                  <table className="w-full text-xs">
+                    <thead className="bg-magic-soft/60 sticky top-0">
+                      <tr>
+                        <th className="text-left px-3 py-1.5 font-semibold">Table</th>
+                        <th className="text-right px-3 py-1.5 font-semibold">Rows</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {data.tables.map((t) => (
+                        <tr key={t.name} className="border-t border-magic-border">
+                          <td className="px-3 py-1 font-mono">{t.name}</td>
+                          <td className="px-3 py-1 text-right">{t.rows}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
