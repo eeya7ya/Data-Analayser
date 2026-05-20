@@ -264,20 +264,28 @@ function ExportFooter({ totalFolders }: { totalFolders: number }) {
       <ul className="text-sm text-magic-ink/70 mb-3 ml-5 list-disc space-y-0.5">
         <li>
           <code className="text-xs bg-white px-1 rounded">data/&lt;table&gt;.json</code>{" "}
-          — most portable, recommended for D1 import
+          + SHA-256 per table in <code className="text-xs bg-white px-1 rounded">manifest.json</code>
         </li>
         <li>
           <code className="text-xs bg-white px-1 rounded">storage/&lt;bucket&gt;/&lt;path&gt;</code>{" "}
-          — raw file blobs ready for R2
+          + per-file SHA-256 (raw blobs ready for R2)
+        </li>
+        <li>
+          <code className="text-xs bg-white px-1 rounded">d1/schema.sql</code>{" "}
+          + <code className="text-xs bg-white px-1 rounded">d1/import.sh</code>{" "}
+          — SQLite-translated schema and wrangler import (read caveats first)
         </li>
         <li>
           <code className="text-xs bg-white px-1 rounded">r2/upload-to-r2.sh</code>{" "}
-          — wrangler script that pushes the blobs into your R2 bucket
+          — wrangler r2 upload preserving storage_path
+        </li>
+        <li>
+          <code className="text-xs bg-white px-1 rounded">verify-integrity.mjs</code>{" "}
+          — re-hashes every file, fails loudly on mismatch
         </li>
         <li>
           <code className="text-xs bg-white px-1 rounded">MIGRATE-TO-CLOUDFLARE.md</code>{" "}
-          — step-by-step guide; also includes Postgres-compatible all.sql for
-          Hyperdrive setups
+          — step-by-step + honest D1 caveats (FTS, JSONB, arrays)
         </li>
       </ul>
       <button
