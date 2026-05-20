@@ -121,72 +121,41 @@ export async function POST() {
       const tableErrors: string[] = [];
       let migrated = 0;
 
-      for (let i = 0; i < rows.length; i += rowsPerStmt) {
-        const chunk = rows.slice(i, i + rowsPerStmt);
-        // Build a multi-row INSERT: "... VALUES (?, ?), (?, ?), ..."
-        const valueClauses = chunk.map(() => `(${keep.map(() => "?").join(", ")})`).join(", ");
+      // Try to migrate chunk; if it fails, recursively retry with smaller chunks
+      async function migrateChunk(chunkRows: Record<string, unknown>[], startIdx: number, batchSize: number): Promise<void> {
+        if (chunkRows.length === 0) return;
+
+        // Build multi-row INSERT statement
+        const valueClauses = chunkRows.map(() => `(${keep.map(() => "?").join(", ")})`).join(", ");
         const multiRowSql = `INSERT OR REPLACE INTO "${table}" (${colNames}) VALUES ${valueClauses}`;
-        // Flatten all parameters from all rows into a single array.
-        const allParams = chunk.flatMap((row) =>
+        const allParams = chunkRows.flatMap((row) =>
           keep.map((c) => toD1Param(row[c.column_name], c.udt_name)),
         );
 
         try {
           await d1Query(multiRowSql, allParams);
-          migrated += chunk.length;
+          migrated += chunkRows.length;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
 
-          // If the row is too big for D1's ~1MB row limit, retry one row at a
-          // time so the other rows in this chunk still get migrated. For the
-          // oversized row, find the largest column and store it externally
-          // (truncated with a marker) so the rest of the row's data is saved.
-          if (/SQLITE_TOOBIG|too big/i.test(msg)) {
-            for (let j = 0; j < chunk.length; j++) {
-              const row = chunk[j];
-              const singleParams = keep.map((c) => toD1Param(row[c.column_name], c.udt_name));
-              try {
-                await d1Query(singleRowSql, singleParams);
-                migrated++;
-              } catch (singleErr) {
-                const singleMsg = singleErr instanceof Error ? singleErr.message : String(singleErr);
-                if (/SQLITE_TOOBIG|too big/i.test(singleMsg)) {
-                  // Find columns whose string values exceed D1's per-cell limit.
-                  // Set them to a stub marker JSON so the row still imports and
-                  // the user knows which column to restore manually.
-                  const CELL_LIMIT = 800_000; // ~800KB safety margin under 1MB row cap
-                  const truncatedParams = singleParams.map((v, idx) => {
-                    if (typeof v === "string" && v.length > CELL_LIMIT) {
-                      return JSON.stringify({
-                        __truncated_during_migration__: true,
-                        original_size_bytes: v.length,
-                        column: keep[idx].column_name,
-                      });
-                    }
-                    return v;
-                  });
-                  const oversizedCols = singleParams
-                    .map((v, idx) => ({ v, idx }))
-                    .filter(({ v }) => typeof v === "string" && v.length > CELL_LIMIT)
-                    .map(({ idx, v }) => `${keep[idx].column_name}(${(v as string).length} bytes)`);
-
-                  try {
-                    await d1Query(singleRowSql, truncatedParams);
-                    migrated++;
-                    tableErrors.push(`row ${i + j}: oversized column(s) truncated: ${oversizedCols.join(", ")}`);
-                  } catch (finalErr) {
-                    const finalMsg = finalErr instanceof Error ? finalErr.message : String(finalErr);
-                    tableErrors.push(`row ${i + j}: ${finalMsg.slice(0, 200)}`);
-                  }
-                } else {
-                  tableErrors.push(`row ${i + j}: ${singleMsg.slice(0, 200)}`);
-                }
-              }
-            }
-          } else {
-            tableErrors.push(`rows ${i}–${i + chunk.length - 1}: ${msg}`);
+          // If batch is 1 row, can't reduce further; report error
+          if (chunkRows.length === 1) {
+            tableErrors.push(`row ${startIdx}: ${msg.slice(0, 200)}`);
+            return;
           }
+
+          // Batch too large; split in half and retry individually
+          const mid = Math.ceil(chunkRows.length / 2);
+          const left = chunkRows.slice(0, mid);
+          const right = chunkRows.slice(mid);
+          await migrateChunk(left, startIdx, batchSize / 2);
+          await migrateChunk(right, startIdx + left.length, batchSize / 2);
         }
+      }
+
+      for (let i = 0; i < rows.length; i += rowsPerStmt) {
+        const chunk = rows.slice(i, i + rowsPerStmt);
+        await migrateChunk(chunk, i, rowsPerStmt);
       }
 
       results.push({
