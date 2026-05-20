@@ -276,7 +276,12 @@ function D1HealthPanel() {
 
   const totalRows = data?.tables.reduce((a, b) => a + b.rows, 0) ?? 0;
   const noTables = data?.configured && data.tables.length === 0;
-  const hasTablesNoData = data?.configured && data.tables.length > 0 && totalRows === 0;
+  // Show migrate button if schema is applied but migration is incomplete
+  // (either all tables empty, or some tables have rows but not all — indicating partial migration)
+  const incompleteOrEmptyMigration =
+    data?.configured &&
+    data.tables.length > 0 &&
+    (totalRows === 0 || data.tables.some((t) => t.rows === 0));
   const anyBusy = busy || applying || migrating;
 
   return (
@@ -308,7 +313,7 @@ function D1HealthPanel() {
             {applying ? "Applying schema…" : "Apply D1 schema (36 tables)"}
           </button>
         )}
-        {hasTablesNoData && (
+        {incompleteOrEmptyMigration && (
           <button
             onClick={migrateData}
             disabled={anyBusy}
@@ -404,9 +409,11 @@ function D1HealthPanel() {
                     Schema not applied yet — click the green button above.
                   </span>
                 )}
-                {hasTablesNoData && (
+                {incompleteOrEmptyMigration && !noTables && (
                   <span className="ml-2 text-blue-700 font-medium">
-                    Tables are empty — click the blue button above to copy all data from Supabase.
+                    {totalRows === 0
+                      ? "Tables are empty — click the blue button above to copy all data from Supabase."
+                      : "Migration incomplete — click the blue button above to retry (safe to re-run)."}
                   </span>
                 )}
               </p>
