@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sql as getDb } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { d1Query, isD1Configured } from "@/lib/db-d1";
+import { r2PutObject, isR2Configured, type R2Overflow } from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ export async function POST() {
     }
 
     const q = getDb();
+    const r2Available = isR2Configured();
 
     // 1. Get all public tables in alphabetical order.
     type TableRow = { table_name: string };
@@ -121,56 +123,84 @@ export async function POST() {
       const tableErrors: string[] = [];
       let migrated = 0;
 
-      // For a single oversized row (D1 row cap ~1MB), iteratively replace the
-      // largest string/JSON column with a small truncation marker until the row
-      // fits. Each attempt picks the largest remaining column, so we only lose
-      // as much data as necessary.
-      async function migrateRowWithTruncation(row: Record<string, unknown>, startIdx: number): Promise<void> {
+      // For a single oversized row (D1 row cap ~1MB), iteratively offload the
+      // largest string/JSON column to R2 (no size limit) and replace its D1
+      // value with a small reference pointing at the R2 object. Each attempt
+      // picks the largest remaining column, so we only offload as much as
+      // necessary to make the row fit. The app reads the column via the marker
+      // and lazy-fetches the real value from R2.
+      async function migrateRowWithR2Overflow(row: Record<string, unknown>, startIdx: number): Promise<void> {
+        if (!r2Available) {
+          tableErrors.push(
+            `row ${startIdx}: row exceeds D1 1MB cap and R2 is not configured. ` +
+              "Set CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY in Vercel env.",
+          );
+          return;
+        }
+
         const workingParams = keep.map((c) => toD1Param(row[c.column_name], c.udt_name));
-        const truncatedCols: string[] = [];
+        const rowPk = row.id ?? row.uuid ?? `idx-${startIdx}`;
+        const offloadedCols: string[] = [];
 
         for (let attempt = 0; attempt < keep.length; attempt++) {
-          // Find the largest remaining untruncated string column.
+          // Find the largest remaining string column that hasn't been offloaded yet.
           let largestIdx = -1;
           let largestSize = 0;
           for (let idx = 0; idx < workingParams.length; idx++) {
             const v = workingParams[idx];
-            if (typeof v === "string" && v.length > largestSize && !v.startsWith('{"__truncated_during_migration__"')) {
+            if (typeof v === "string" && v.length > largestSize && !v.startsWith('{"__r2_overflow__"')) {
               largestSize = v.length;
               largestIdx = idx;
             }
           }
 
           if (largestIdx === -1) {
-            tableErrors.push(`row ${startIdx}: nothing left to truncate (already truncated: ${truncatedCols.join(", ")})`);
+            tableErrors.push(`row ${startIdx}: nothing left to offload (already offloaded: ${offloadedCols.join(", ")})`);
             return;
           }
 
           const colName = keep[largestIdx].column_name;
           const origValue = workingParams[largestIdx] as string;
-          workingParams[largestIdx] = JSON.stringify({
-            __truncated_during_migration__: true,
-            original_size_bytes: origValue.length,
+
+          // Upload the original value to R2 under a deterministic key so re-runs
+          // overwrite cleanly rather than accumulating duplicates.
+          const r2Key = `overflow/${table}/${String(rowPk)}/${colName}.json`;
+          let putResult: { bucket: string; key: string; size: number };
+          try {
+            putResult = await r2PutObject(r2Key, origValue, "application/json");
+          } catch (uploadErr) {
+            const uploadMsg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+            tableErrors.push(`row ${startIdx}: R2 upload failed for ${colName}: ${uploadMsg.slice(0, 200)}`);
+            return;
+          }
+
+          const ref: R2Overflow = {
+            __r2_overflow__: true,
+            bucket: putResult.bucket,
+            key: putResult.key,
             column: colName,
-          });
-          truncatedCols.push(`${colName}(${origValue.length}b)`);
+            original_size_bytes: origValue.length,
+            content_type: "application/json",
+          };
+          workingParams[largestIdx] = JSON.stringify(ref);
+          offloadedCols.push(`${colName}(${origValue.length}b→R2)`);
 
           try {
             await d1Query(singleRowSql, workingParams);
             migrated++;
-            tableErrors.push(`row ${startIdx}: oversized column(s) replaced with truncation marker: ${truncatedCols.join(", ")}`);
+            tableErrors.push(`row ${startIdx}: oversized column(s) offloaded to R2: ${offloadedCols.join(", ")}`);
             return;
           } catch (retryErr) {
             const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
             if (!/SQLITE_TOOBIG|too big/i.test(retryMsg)) {
-              tableErrors.push(`row ${startIdx}: ${retryMsg.slice(0, 200)} (after truncating: ${truncatedCols.join(", ")})`);
+              tableErrors.push(`row ${startIdx}: ${retryMsg.slice(0, 200)} (after offloading: ${offloadedCols.join(", ")})`);
               return;
             }
-            // Still too big — loop again to truncate next largest column.
+            // Still too big — loop again to offload next largest column.
           }
         }
 
-        tableErrors.push(`row ${startIdx}: still too big after truncating every column: ${truncatedCols.join(", ")}`);
+        tableErrors.push(`row ${startIdx}: still too big after offloading every column: ${offloadedCols.join(", ")}`);
       }
 
       // Try to migrate chunk; if it fails, recursively split in half. When down
@@ -192,7 +222,7 @@ export async function POST() {
 
           if (chunkRows.length === 1) {
             if (/SQLITE_TOOBIG|too big/i.test(msg)) {
-              await migrateRowWithTruncation(chunkRows[0], startIdx);
+              await migrateRowWithR2Overflow(chunkRows[0], startIdx);
               return;
             }
             tableErrors.push(`row ${startIdx}: ${msg.slice(0, 200)}`);
