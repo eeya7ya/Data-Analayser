@@ -114,6 +114,7 @@ export async function POST() {
       // batch size dynamically: rows_per_batch = floor(MAX_PARAMS / columns).
       // Tables with many columns get smaller batches; narrow tables get larger ones.
       const colNames = keep.map((c) => `"${c.column_name}"`).join(", ");
+      const singleRowSql = `INSERT OR REPLACE INTO "${table}" (${colNames}) VALUES (${keep.map(() => "?").join(", ")})`;
       const MAX_PARAMS = 90; // Safe margin under D1's ~100 limit
       const rowsPerStmt = Math.max(1, Math.floor(MAX_PARAMS / keep.length));
 
@@ -135,8 +136,56 @@ export async function POST() {
           migrated += chunk.length;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          tableErrors.push(`rows ${i}–${i + chunk.length - 1}: ${msg}`);
-          // Continue with next chunk rather than aborting the whole table.
+
+          // If the row is too big for D1's ~1MB row limit, retry one row at a
+          // time so the other rows in this chunk still get migrated. For the
+          // oversized row, find the largest column and store it externally
+          // (truncated with a marker) so the rest of the row's data is saved.
+          if (/SQLITE_TOOBIG|too big/i.test(msg)) {
+            for (let j = 0; j < chunk.length; j++) {
+              const row = chunk[j];
+              const singleParams = keep.map((c) => toD1Param(row[c.column_name], c.udt_name));
+              try {
+                await d1Query(singleRowSql, singleParams);
+                migrated++;
+              } catch (singleErr) {
+                const singleMsg = singleErr instanceof Error ? singleErr.message : String(singleErr);
+                if (/SQLITE_TOOBIG|too big/i.test(singleMsg)) {
+                  // Find columns whose string values exceed D1's per-cell limit.
+                  // Set them to a stub marker JSON so the row still imports and
+                  // the user knows which column to restore manually.
+                  const CELL_LIMIT = 800_000; // ~800KB safety margin under 1MB row cap
+                  const truncatedParams = singleParams.map((v, idx) => {
+                    if (typeof v === "string" && v.length > CELL_LIMIT) {
+                      return JSON.stringify({
+                        __truncated_during_migration__: true,
+                        original_size_bytes: v.length,
+                        column: keep[idx].column_name,
+                      });
+                    }
+                    return v;
+                  });
+                  const oversizedCols = singleParams
+                    .map((v, idx) => ({ v, idx }))
+                    .filter(({ v }) => typeof v === "string" && v.length > CELL_LIMIT)
+                    .map(({ idx, v }) => `${keep[idx].column_name}(${(v as string).length} bytes)`);
+
+                  try {
+                    await d1Query(singleRowSql, truncatedParams);
+                    migrated++;
+                    tableErrors.push(`row ${i + j}: oversized column(s) truncated: ${oversizedCols.join(", ")}`);
+                  } catch (finalErr) {
+                    const finalMsg = finalErr instanceof Error ? finalErr.message : String(finalErr);
+                    tableErrors.push(`row ${i + j}: ${finalMsg.slice(0, 200)}`);
+                  }
+                } else {
+                  tableErrors.push(`row ${i + j}: ${singleMsg.slice(0, 200)}`);
+                }
+              }
+            }
+          } else {
+            tableErrors.push(`rows ${i}–${i + chunk.length - 1}: ${msg}`);
+          }
         }
       }
 
