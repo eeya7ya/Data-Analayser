@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import JSZip from "jszip";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { downloadStorageObject } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -176,6 +177,72 @@ export async function GET() {
     zip.file("all.sql", allSqlChunks.join("\n"));
     zip.file("all.json", JSON.stringify(allJson, jsonReplacer, 2));
     zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+
+    // ─── Supabase Storage bytes ────────────────────────────────────────────
+    // Without this, files like project_files.<row>.storage_path are dangling
+    // pointers after the migration. We list every object in every public-ish
+    // bucket directly from the storage.objects table (instead of the JS SDK's
+    // list, which has pagination quirks) and download each one's bytes.
+    type StorageObjectRow = {
+      bucket_id: string;
+      name: string;
+      size_bytes: number | null;
+    };
+    const storageObjects = (await q`
+      select
+        bucket_id,
+        name,
+        ((metadata->>'size')::bigint) as size_bytes
+      from storage.objects
+      order by bucket_id, name
+    `) as StorageObjectRow[];
+
+    const storageManifest: Array<{
+      bucket: string;
+      path: string;
+      bytes: number | null;
+      embedded: boolean;
+      error?: string;
+    }> = [];
+
+    for (const obj of storageObjects) {
+      try {
+        const bytes = await downloadStorageObject(obj.bucket_id, obj.name);
+        if (bytes) {
+          zip.file(`storage/${obj.bucket_id}/${obj.name}`, bytes);
+          storageManifest.push({
+            bucket: obj.bucket_id,
+            path: obj.name,
+            bytes: bytes.byteLength,
+            embedded: true,
+          });
+        } else {
+          storageManifest.push({
+            bucket: obj.bucket_id,
+            path: obj.name,
+            bytes: obj.size_bytes,
+            embedded: false,
+            error: "download returned null (object missing or unauthorized)",
+          });
+        }
+      } catch (e) {
+        storageManifest.push({
+          bucket: obj.bucket_id,
+          path: obj.name,
+          bytes: obj.size_bytes,
+          embedded: false,
+          error: (e as Error).message,
+        });
+      }
+    }
+    zip.file("storage/_manifest.json", JSON.stringify(storageManifest, null, 2));
+
+    // ─── Cloudflare R2 + D1 migration helpers ──────────────────────────────
+    zip.file(
+      "MIGRATE-TO-CLOUDFLARE.md",
+      buildMigrationReadme(manifest, storageManifest),
+    );
+    zip.file("r2/upload-to-r2.sh", buildR2UploadScript(storageManifest));
     zip.file(
       "README.txt",
       [
@@ -399,6 +466,117 @@ function synthesizeDdl(
   lines.push(colDefs.join(",\n"));
   lines.push(`);`);
   return lines.join("\n") + "\n";
+}
+
+function buildMigrationReadme(
+  manifest: { tableCount: number; tables: Array<{ name: string; rows: number }> },
+  storage: Array<{ bucket: string; path: string; bytes: number | null; embedded: boolean; error?: string }>,
+): string {
+  const tableSummary = manifest.tables
+    .filter((t) => t.rows > 0)
+    .map((t) => `  ${t.name.padEnd(28)} ${t.rows}`)
+    .join("\n");
+  const totalEmbedded = storage.filter((s) => s.embedded).length;
+  const totalBytes = storage
+    .filter((s) => s.embedded && s.bytes)
+    .reduce((a, b) => a + (b.bytes ?? 0), 0);
+  const failed = storage.filter((s) => !s.embedded);
+
+  return `# Migrate this backup to Cloudflare R2 + D1
+
+This ZIP contains everything you need to recreate the entire app on
+Cloudflare: every database row PLUS every file blob from Supabase Storage.
+
+## Contents
+
+  all.json                 every table as { tableName: rows[] }
+  data/<table>.json        per-table JSON (recommended for D1 import)
+  data/<table>.csv         per-table CSV
+  data/<table>.sql         per-table Postgres INSERT statements (NOT D1)
+  schema/<table>.sql       reference DDL (Postgres syntax)
+  all.sql                  combined Postgres restore script (NOT D1)
+  storage/<bucket>/<path>  actual file bytes from Supabase Storage
+  storage/_manifest.json   index of every blob in the ZIP
+  r2/upload-to-r2.sh       wrangler script to push storage/ into R2
+  manifest.json            table list, row counts, columns, PKs
+
+## Populated tables (${manifest.tableCount} total, ${manifest.tables.filter((t) => t.rows > 0).length} non-empty)
+
+${tableSummary}
+
+## Storage blobs
+
+  Embedded: ${totalEmbedded} files, ${(totalBytes / (1024 * 1024)).toFixed(2)} MB
+  Failed:   ${failed.length} files${failed.length ? " (see storage/_manifest.json)" : ""}
+
+## Files → Cloudflare R2
+
+  1. Create an R2 bucket (e.g. \`magictech-files\`) in the Cloudflare dashboard.
+  2. \`wrangler login\` if you haven't.
+  3. \`cd\` into this unzipped folder and run:
+
+         bash r2/upload-to-r2.sh magictech-files
+
+     The script uses \`wrangler r2 object put\` and preserves the exact
+     paths so \`project_files.storage_path\` rows still point at the
+     right object once you swap the storage backend.
+
+## Rows → Cloudflare D1
+
+  D1 is SQLite. The Postgres \`all.sql\` will NOT run there as-is.
+  Recommended path:
+
+  1. Create a D1 database:    \`wrangler d1 create magictech\`
+  2. Translate the schema:    re-implement \`src/lib/db.ts:ensureSchema()\`
+                              with SQLite types (INTEGER PRIMARY KEY
+                              AUTOINCREMENT, TEXT for jsonb/timestamptz,
+                              INTEGER 0/1 for booleans). Apply with
+                              \`wrangler d1 execute magictech --file=schema.sql\`.
+  3. Load the data:           write a small Node script that reads each
+                              data/<table>.json and batches INSERTs via
+                              \`wrangler d1 execute --command\` or the
+                              D1 REST API. JSON is the right input
+                              format here — the .sql files are Postgres.
+
+  If D1's SQLite feels too cramped (jsonb, full-text search, complex
+  joins), the alternative is Cloudflare Hyperdrive in front of a managed
+  Postgres (Neon / Supabase). In that case \`psql -f all.sql\` works
+  unchanged and you skip the translation step entirely.
+`;
+}
+
+function buildR2UploadScript(
+  storage: Array<{ bucket: string; path: string; embedded: boolean }>,
+): string {
+  const lines = [
+    "#!/usr/bin/env bash",
+    "# Push every blob under storage/ into a Cloudflare R2 bucket using wrangler.",
+    "# Usage: bash r2/upload-to-r2.sh <r2-bucket-name>",
+    "set -euo pipefail",
+    "",
+    'if [ -z "${1:-}" ]; then',
+    '  echo "Usage: $0 <r2-bucket-name>"',
+    "  exit 1",
+    "fi",
+    "BUCKET=\"$1\"",
+    "",
+    `echo "Uploading ${storage.filter((s) => s.embedded).length} file(s) to R2 bucket: $BUCKET"`,
+    "",
+  ];
+  for (const obj of storage) {
+    if (!obj.embedded) continue;
+    const local = `storage/${obj.bucket}/${obj.path}`;
+    // The R2 key intentionally keeps the bucket prefix so a multi-bucket
+    // backup doesn't collide on identical paths.
+    const remote = `${obj.bucket}/${obj.path}`;
+    const shellEscape = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+    lines.push(
+      `wrangler r2 object put "$BUCKET/${remote.replace(/"/g, '\\"')}" --file=${shellEscape(local)}`,
+    );
+  }
+  lines.push("");
+  lines.push('echo "Done."');
+  return lines.join("\n");
 }
 
 function hashDbUrl(): string {

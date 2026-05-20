@@ -253,26 +253,31 @@ function ExportFooter({ totalFolders }: { totalFolders: number }) {
   return (
     <div className="mt-6 rounded-xl border border-magic-border bg-magic-soft/50 p-4">
       <h3 className="font-semibold text-magic-ink mb-1">
-        Export everything for the new database
+        Export everything for the new database (R2 + D1)
       </h3>
       <p className="text-sm text-magic-ink/70 mb-3">
         Downloads a single ZIP with every table in the public schema — folders,
-        companies, contacts, users, quotations, projects, products, everything.
-        Per-table files come in three re-importable formats:
+        companies, contacts, users, quotations, projects, products, everything
+        — <strong>plus</strong> the actual file bytes from Supabase Storage
+        (.dwg, PDFs, etc.) so nothing is left behind when you swap backends.
       </p>
       <ul className="text-sm text-magic-ink/70 mb-3 ml-5 list-disc space-y-0.5">
         <li>
           <code className="text-xs bg-white px-1 rounded">data/&lt;table&gt;.json</code>{" "}
-          — most portable, works in any new DB
+          — most portable, recommended for D1 import
         </li>
         <li>
-          <code className="text-xs bg-white px-1 rounded">data/&lt;table&gt;.csv</code>{" "}
-          — for spreadsheet / Cloudflare D1 bulk-import
+          <code className="text-xs bg-white px-1 rounded">storage/&lt;bucket&gt;/&lt;path&gt;</code>{" "}
+          — raw file blobs ready for R2
         </li>
         <li>
-          <code className="text-xs bg-white px-1 rounded">data/&lt;table&gt;.sql</code>{" "}
-          and <code className="text-xs bg-white px-1 rounded">all.sql</code> —
-          Postgres INSERT statements (foreign-key safe order)
+          <code className="text-xs bg-white px-1 rounded">r2/upload-to-r2.sh</code>{" "}
+          — wrangler script that pushes the blobs into your R2 bucket
+        </li>
+        <li>
+          <code className="text-xs bg-white px-1 rounded">MIGRATE-TO-CLOUDFLARE.md</code>{" "}
+          — step-by-step guide; also includes Postgres-compatible all.sql for
+          Hyperdrive setups
         </li>
       </ul>
       <button
