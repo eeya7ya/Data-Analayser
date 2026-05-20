@@ -187,6 +187,99 @@ function DatabasePanel() {
       </div>
 
       <BackupPanel />
+      <D1HealthPanel />
+    </div>
+  );
+}
+
+type D1HealthResponse = {
+  configured: boolean;
+  message?: string;
+  error?: string;
+  tables: Array<{ name: string; rows: number }>;
+};
+
+function D1HealthPanel() {
+  const [data, setData] = useState<D1HealthResponse | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function check() {
+    setBusy(true);
+    setErr(null);
+    setData(null);
+    try {
+      const res = await fetch("/api/admin/d1-health", { cache: "no-store" });
+      const body = (await res.json()) as D1HealthResponse;
+      setData(body);
+      if (!res.ok) setErr(body.error || `HTTP ${res.status}`);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const totalRows = data?.tables.reduce((a, b) => a + b.rows, 0) ?? 0;
+
+  return (
+    <div className="rounded-xl border border-magic-border bg-white p-5">
+      <h3 className="font-semibold text-magic-ink mb-1">
+        Cloudflare D1 connection
+      </h3>
+      <p className="text-sm text-magic-ink/60 mb-4">
+        Reads <code>sqlite_master</code> on D1 via the REST API and counts
+        rows in every table. Useful during the dual-run period to confirm
+        the D1 env vars are wired up and to spot-check the row counts you
+        loaded over from Supabase. Read-only — does not modify any row in
+        either database.
+      </p>
+      <button
+        onClick={check}
+        disabled={busy}
+        className="px-4 py-2 text-sm font-medium rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+      >
+        {busy ? "Checking…" : "Test D1 connection"}
+      </button>
+      {err && (
+        <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {err}
+        </p>
+      )}
+      {data && !err && (
+        <div className="mt-3">
+          {!data.configured ? (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              {data.message || "D1 env vars not set in Vercel."}
+            </p>
+          ) : (
+            <div className="text-sm">
+              <p className="text-magic-ink/80 mb-2">
+                Connected. {data.tables.length} table(s), {totalRows} total
+                row(s).
+              </p>
+              <div className="max-h-64 overflow-y-auto rounded border border-magic-border">
+                <table className="w-full text-xs">
+                  <thead className="bg-magic-soft/60 sticky top-0">
+                    <tr>
+                      <th className="text-left px-3 py-1.5 font-semibold">Table</th>
+                      <th className="text-right px-3 py-1.5 font-semibold">Rows</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.tables.map((t) => (
+                      <tr key={t.name} className="border-t border-magic-border">
+                        <td className="px-3 py-1 font-mono">{t.name}</td>
+                        <td className="px-3 py-1 text-right">{t.rows}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
