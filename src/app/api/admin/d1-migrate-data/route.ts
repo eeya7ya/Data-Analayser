@@ -111,10 +111,12 @@ export async function POST() {
 
       // Build parameterised INSERT OR REPLACE statements with multiple rows
       // per statement (instead of one-row-per-statement). SQLite happily
-      // accepts multi-row VALUES clauses and we can bind 50+ rows in one query.
+      // accepts multi-row VALUES clauses, and we can bind ~10 rows in one query.
+      // D1 has a stricter parameter limit than vanilla SQLite (probably 500-1000),
+      // so we batch conservatively.
       const colNames = keep.map((c) => `"${c.column_name}"`).join(", ");
 
-      const ROWS_PER_STMT = 50; // SQLite can handle this easily (default param limit is 32766)
+      const ROWS_PER_STMT = 10; // Safe for D1's parameter limit
       const tableErrors: string[] = [];
       let migrated = 0;
 
