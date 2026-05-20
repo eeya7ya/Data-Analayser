@@ -206,12 +206,21 @@ type ApplySchemaResult = {
   error?: string;
 };
 
+type MigrateResult = {
+  tables: Array<{ name: string; pgRows: number; migrated: number; errors: string[] }>;
+  totalMigrated: number;
+  totalErrors: number;
+  error?: string;
+};
+
 function D1HealthPanel() {
   const [data, setData] = useState<D1HealthResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [applyResult, setApplyResult] = useState<ApplySchemaResult | null>(null);
+  const [migrating, setMigrating] = useState(false);
+  const [migrateResult, setMigrateResult] = useState<MigrateResult | null>(null);
 
   async function check() {
     setBusy(true);
@@ -239,7 +248,6 @@ function D1HealthPanel() {
       });
       const body = (await res.json()) as ApplySchemaResult;
       setApplyResult(body);
-      // Refresh the table list after applying
       if (!body.error) await check();
     } catch (e) {
       setApplyResult({ applied: 0, skipped: 0, errors: [(e as Error).message] });
@@ -248,8 +256,28 @@ function D1HealthPanel() {
     }
   }
 
+  async function migrateData() {
+    setMigrating(true);
+    setMigrateResult(null);
+    try {
+      const res = await fetch("/api/admin/d1-migrate-data", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const body = (await res.json()) as MigrateResult;
+      setMigrateResult(body);
+      if (!body.error) await check();
+    } catch (e) {
+      setMigrateResult({ tables: [], totalMigrated: 0, totalErrors: 1, error: (e as Error).message });
+    } finally {
+      setMigrating(false);
+    }
+  }
+
   const totalRows = data?.tables.reduce((a, b) => a + b.rows, 0) ?? 0;
   const noTables = data?.configured && data.tables.length === 0;
+  const hasTablesNoData = data?.configured && data.tables.length > 0 && totalRows === 0;
+  const anyBusy = busy || applying || migrating;
 
   return (
     <div className="rounded-xl border border-magic-border bg-white p-5">
@@ -266,7 +294,7 @@ function D1HealthPanel() {
       <div className="flex flex-wrap gap-2">
         <button
           onClick={check}
-          disabled={busy || applying}
+          disabled={anyBusy}
           className="px-4 py-2 text-sm font-medium rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
         >
           {busy ? "Checking…" : "Test D1 connection"}
@@ -274,10 +302,19 @@ function D1HealthPanel() {
         {noTables && (
           <button
             onClick={applySchema}
-            disabled={applying || busy}
+            disabled={anyBusy}
             className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
           >
             {applying ? "Applying schema…" : "Apply D1 schema (36 tables)"}
+          </button>
+        )}
+        {hasTablesNoData && (
+          <button
+            onClick={migrateData}
+            disabled={anyBusy}
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {migrating ? "Migrating data… (may take ~1 min)" : "Migrate all data from Supabase → D1"}
           </button>
         )}
       </div>
@@ -314,6 +351,44 @@ function D1HealthPanel() {
           )}
         </div>
       )}
+      {migrateResult && (
+        <div className="mt-3 text-sm">
+          {migrateResult.error ? (
+            <p className="text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {migrateResult.error}
+            </p>
+          ) : (
+            <div>
+              <p className={`px-3 py-2 rounded-lg border mb-2 ${migrateResult.totalErrors === 0 ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-amber-800 bg-amber-50 border-amber-200"}`}>
+                Migration complete: {migrateResult.totalMigrated.toLocaleString()} rows migrated
+                {migrateResult.totalErrors > 0 && `, ${migrateResult.totalErrors} error(s) — see table below`}.
+              </p>
+              <div className="max-h-72 overflow-y-auto rounded border border-magic-border">
+                <table className="w-full text-xs">
+                  <thead className="bg-magic-soft/60 sticky top-0">
+                    <tr>
+                      <th className="text-left px-3 py-1.5 font-semibold">Table</th>
+                      <th className="text-right px-3 py-1.5 font-semibold">Source rows</th>
+                      <th className="text-right px-3 py-1.5 font-semibold">Migrated</th>
+                      <th className="text-left px-3 py-1.5 font-semibold">Errors</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {migrateResult.tables.map((t) => (
+                      <tr key={t.name} className={`border-t border-magic-border ${t.errors.length > 0 ? "bg-red-50" : t.migrated > 0 ? "bg-emerald-50/40" : ""}`}>
+                        <td className="px-3 py-1 font-mono">{t.name}</td>
+                        <td className="px-3 py-1 text-right">{t.pgRows}</td>
+                        <td className="px-3 py-1 text-right">{t.migrated}</td>
+                        <td className="px-3 py-1 text-red-700 truncate max-w-xs">{t.errors.join("; ") || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {data && !err && (
         <div className="mt-3">
           {!data.configured ? (
@@ -323,11 +398,15 @@ function D1HealthPanel() {
           ) : (
             <div className="text-sm">
               <p className="text-magic-ink/80 mb-2">
-                Connected. {data.tables.length} table(s), {totalRows} total
-                row(s).
+                Connected. {data.tables.length} table(s), {totalRows.toLocaleString()} total row(s).
                 {noTables && (
                   <span className="ml-2 text-amber-700 font-medium">
                     Schema not applied yet — click the green button above.
+                  </span>
+                )}
+                {hasTablesNoData && (
+                  <span className="ml-2 text-blue-700 font-medium">
+                    Tables are empty — click the blue button above to copy all data from Supabase.
                   </span>
                 )}
               </p>
@@ -344,7 +423,7 @@ function D1HealthPanel() {
                       {data.tables.map((t) => (
                         <tr key={t.name} className="border-t border-magic-border">
                           <td className="px-3 py-1 font-mono">{t.name}</td>
-                          <td className="px-3 py-1 text-right">{t.rows}</td>
+                          <td className="px-3 py-1 text-right">{t.rows.toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>
