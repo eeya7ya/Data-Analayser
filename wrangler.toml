@@ -1,0 +1,38 @@
+# Cloudflare bindings for the MagicTech app.
+#
+# This file does NOT change the live Vercel deployment. It only takes effect
+# when the app is deployed to Cloudflare Pages (later) or when wrangler is
+# invoked locally for D1 / R2 admin tasks (e.g. `wrangler d1 execute`).
+#
+# Bindings:
+#   - magictech : the D1 SQLite database that will replace Supabase Postgres
+#                 after the dual-run validation period.
+#   - FILES     : the R2 bucket that will replace Supabase Storage for
+#                 project_files uploads.
+#
+# The compatibility_date pins the Workers runtime feature set so a future
+# Cloudflare update doesn't silently change behaviour under us. Bump it
+# only when we deliberately want new runtime features.
+
+name = "magictech"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ── D1 ────────────────────────────────────────────────────────────────────
+# Created via:  wrangler d1 create magictech  (region: WEUR)
+# Apply schema: wrangler d1 execute magictech --remote --file=./d1/schema.sql
+# Inspect:      wrangler d1 execute magictech --remote --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+
+[[d1_databases]]
+binding = "magictech"
+database_name = "magictech"
+database_id = "385c686f-31a1-46cb-b2ee-a919472ad978"
+
+# ── R2 ────────────────────────────────────────────────────────────────────
+# Created via:  wrangler r2 bucket create magictech-files
+# Bucket name must match what was created; the binding name is what the
+# Worker code references (`env.FILES`).
+
+[[r2_buckets]]
+binding = "magictech_files"
+bucket_name = "magictech-files"
