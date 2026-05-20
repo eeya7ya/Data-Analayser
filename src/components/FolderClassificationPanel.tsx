@@ -203,6 +203,111 @@ export default function FolderClassificationPanel() {
           {error}
         </p>
       )}
+
+      <ExportFooter totalFolders={data.folders.length} />
+    </div>
+  );
+}
+
+function ExportFooter({ totalFolders }: { totalFolders: number }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
+    null,
+  );
+
+  async function download() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/backup", { method: "GET" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("content-disposition") || "";
+      const match = cd.match(/filename="?([^";]+)"?/i);
+      const filename = match
+        ? match[1]
+        : `magictech-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      const mb = (blob.size / (1024 * 1024)).toFixed(2);
+      setMsg({
+        kind: "ok",
+        text: `Downloaded ${filename} (${mb} MB). The ZIP contains JSON, CSV and SQL per table, plus a combined all.sql for one-shot restore.`,
+      });
+    } catch (err) {
+      setMsg({ kind: "error", text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 rounded-xl border border-magic-border bg-magic-soft/50 p-4">
+      <h3 className="font-semibold text-magic-ink mb-1">
+        Export everything for the new database (R2 + D1)
+      </h3>
+      <p className="text-sm text-magic-ink/70 mb-3">
+        Downloads a single ZIP with every table in the public schema — folders,
+        companies, contacts, users, quotations, projects, products, everything
+        — <strong>plus</strong> the actual file bytes from Supabase Storage
+        (.dwg, PDFs, etc.) so nothing is left behind when you swap backends.
+      </p>
+      <ul className="text-sm text-magic-ink/70 mb-3 ml-5 list-disc space-y-0.5">
+        <li>
+          <code className="text-xs bg-white px-1 rounded">data/&lt;table&gt;.json</code>{" "}
+          + SHA-256 per table in <code className="text-xs bg-white px-1 rounded">manifest.json</code>
+        </li>
+        <li>
+          <code className="text-xs bg-white px-1 rounded">storage/&lt;bucket&gt;/&lt;path&gt;</code>{" "}
+          + per-file SHA-256 (raw blobs ready for R2)
+        </li>
+        <li>
+          <code className="text-xs bg-white px-1 rounded">d1/schema.sql</code>{" "}
+          + <code className="text-xs bg-white px-1 rounded">d1/import.sh</code>{" "}
+          — SQLite-translated schema and wrangler import (read caveats first)
+        </li>
+        <li>
+          <code className="text-xs bg-white px-1 rounded">r2/upload-to-r2.sh</code>{" "}
+          — wrangler r2 upload preserving storage_path
+        </li>
+        <li>
+          <code className="text-xs bg-white px-1 rounded">verify-integrity.mjs</code>{" "}
+          — re-hashes every file, fails loudly on mismatch
+        </li>
+        <li>
+          <code className="text-xs bg-white px-1 rounded">MIGRATE-TO-CLOUDFLARE.md</code>{" "}
+          — step-by-step + honest D1 caveats (FTS, JSONB, arrays)
+        </li>
+      </ul>
+      <button
+        onClick={download}
+        disabled={busy}
+        className="px-4 py-2 text-sm font-semibold rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+      >
+        {busy
+          ? "Preparing export…"
+          : `Download full export ZIP (${totalFolders} folders + all tables)`}
+      </button>
+      {msg && (
+        <p
+          className={`mt-3 text-sm rounded-lg px-3 py-2 ${
+            msg.kind === "ok"
+              ? "text-green-700 bg-green-50 border border-green-200"
+              : "text-red-700 bg-red-50 border border-red-200"
+          }`}
+        >
+          {msg.text}
+        </p>
+      )}
     </div>
   );
 }

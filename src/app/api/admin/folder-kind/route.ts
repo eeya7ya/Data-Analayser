@@ -113,12 +113,39 @@ export async function PATCH(req: Request) {
     }
 
     const newKind = body.kind === undefined ? existing[0].kind : body.kind;
-    const newCompanyId =
+    let newCompanyId =
       body.company_id === undefined ? existing[0].company_id : body.company_id;
 
     // Individuals never link to a company; we null out company_id rather
     // than reject so the admin doesn't have to do a two-step.
-    const effectiveCompanyId = newKind === "individual" ? null : newCompanyId;
+    let effectiveCompanyId = newKind === "individual" ? null : newCompanyId;
+
+    // If classifying as "company" but no company is linked, try to auto-create
+    // or match the folder name to an existing company.
+    if (newKind === "company" && effectiveCompanyId === null) {
+      const folderRow = (await q`
+        select name from client_folders where id = ${folderId}
+      `) as Array<{ name: string }>;
+      const folderName = folderRow[0]?.name || "";
+
+      // Try case-insensitive exact match first
+      const matched = (await q`
+        select id from companies
+        where lower(name) = lower(${folderName}) and deleted_at is null
+      `) as Array<{ id: number }>;
+
+      if (matched.length > 0) {
+        effectiveCompanyId = matched[0].id;
+      } else if (folderName.trim()) {
+        // Auto-create a company with the folder name
+        const created = (await q`
+          insert into companies (name)
+          values (${folderName})
+          returning id
+        `) as Array<{ id: number }>;
+        effectiveCompanyId = created[0].id;
+      }
+    }
 
     if (effectiveCompanyId !== null) {
       const companyCheck = (await q`
