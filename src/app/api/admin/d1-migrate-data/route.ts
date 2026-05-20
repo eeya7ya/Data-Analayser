@@ -110,18 +110,18 @@ export async function POST() {
       }
 
       // Build parameterised INSERT OR REPLACE statements with multiple rows
-      // per statement (instead of one-row-per-statement). SQLite happily
-      // accepts multi-row VALUES clauses, and we can bind ~10 rows in one query.
-      // D1 has a stricter parameter limit than vanilla SQLite (probably 500-1000),
-      // so we batch conservatively.
+      // per statement. D1's parameter limit appears to be ~100, so we compute
+      // batch size dynamically: rows_per_batch = floor(MAX_PARAMS / columns).
+      // Tables with many columns get smaller batches; narrow tables get larger ones.
       const colNames = keep.map((c) => `"${c.column_name}"`).join(", ");
+      const MAX_PARAMS = 90; // Safe margin under D1's ~100 limit
+      const rowsPerStmt = Math.max(1, Math.floor(MAX_PARAMS / keep.length));
 
-      const ROWS_PER_STMT = 10; // Safe for D1's parameter limit
       const tableErrors: string[] = [];
       let migrated = 0;
 
-      for (let i = 0; i < rows.length; i += ROWS_PER_STMT) {
-        const chunk = rows.slice(i, i + ROWS_PER_STMT);
+      for (let i = 0; i < rows.length; i += rowsPerStmt) {
+        const chunk = rows.slice(i, i + rowsPerStmt);
         // Build a multi-row INSERT: "... VALUES (?, ?), (?, ?), ..."
         const valueClauses = chunk.map(() => `(${keep.map(() => "?").join(", ")})`).join(", ");
         const multiRowSql = `INSERT OR REPLACE INTO "${table}" (${colNames}) VALUES ${valueClauses}`;
