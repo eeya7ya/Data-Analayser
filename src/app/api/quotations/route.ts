@@ -545,7 +545,7 @@ export async function PATCH(req: NextRequest) {
     };
     const useD1 = isD1Configured();
     const q = useD1 ? null : sql();
-    const existingRows = (await q`
+    const existingRows = (await q!`
       select * from quotations
       where id = ${id} and deleted_at is null
       limit 1
@@ -566,7 +566,7 @@ export async function PATCH(req: NextRequest) {
       body.project_id !== undefined &&
       body.project_id !== null
     ) {
-      const projectRows = (await q`
+      const projectRows = (await q!`
         select owner_id, folder_id from projects
         where id = ${body.project_id} and deleted_at is null
         limit 1
@@ -589,7 +589,7 @@ export async function PATCH(req: NextRequest) {
       body.folder_id !== undefined &&
       body.folder_id !== null
     ) {
-      const folderRows = (await q`
+      const folderRows = (await q!`
         select owner_id from client_folders
         where id = ${body.folder_id} and deleted_at is null
         limit 1
@@ -609,7 +609,7 @@ export async function PATCH(req: NextRequest) {
       body.contact_id !== undefined &&
       body.contact_id !== null
     ) {
-      const contactRows = (await q`
+      const contactRows = (await q!`
         select owner_id from contacts
         where id = ${body.contact_id} and deleted_at is null
         limit 1
@@ -784,7 +784,7 @@ export async function POST(req: NextRequest) {
     let parentProjectId: number | null = null;
     if (mode !== "active") {
       if (body.parent_id) {
-        const parentRows = (await q`
+        const parentRows = (await q!`
           select id, ref, owner_id, project_id, deleted_at from quotations
           where id = ${body.parent_id}
           limit 1
@@ -848,7 +848,7 @@ export async function POST(req: NextRequest) {
     // Owner check on the linked contact for non-admins. Same shape as the
     // PATCH path: refuses an unknown id or one belonging to another user.
     if (user.role !== "admin" && contactId !== null) {
-      const contactRows = (await q`
+      const contactRows = (await q!`
         select owner_id from contacts
         where id = ${contactId} and deleted_at is null
         limit 1
@@ -869,7 +869,7 @@ export async function POST(req: NextRequest) {
     let folderClientEmail: string | null = null;
     let folderClientPhone: string | null = null;
     if (folderId) {
-      const folderRows = (await q`
+      const folderRows = (await q!`
         select owner_id, name, client_email, client_phone
         from client_folders
         where id = ${folderId} and deleted_at is null
@@ -915,7 +915,7 @@ export async function POST(req: NextRequest) {
     // user's project.
     let projectId: number | null = null;
     if (body.project_id !== undefined && body.project_id !== null) {
-      const projectRows = (await q`
+      const projectRows = (await q!`
         select owner_id from projects
         where id = ${body.project_id} and deleted_at is null
         limit 1
