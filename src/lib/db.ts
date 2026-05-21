@@ -285,6 +285,12 @@ const MODULE_RBAC_REVOKE_FLAG = "crm_v2_module_rbac_revoke_v1_2026_05";
  * reason.
  */
 const LEAD_LIFECYCLE_FLAG = "lead_lifecycle_v1_2026_05";
+// quotation_stock_checks was added inside the MODULE_RBAC_V1 block but some
+// databases applied that flag before the table block existed, leaving the
+// table missing on production. /api/notifications hits it on every poll,
+// so the bell 500s until it's re-created. This standalone flag re-runs
+// only the table + index DDL.
+const STOCK_CHECKS_FLAG = "quotation_stock_checks_v1_2026_05";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
@@ -320,7 +326,8 @@ export async function resetSchemaCache(): Promise<void> {
       ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
       ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
       ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
-      ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG}
+      ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG},
+      ${STOCK_CHECKS_FLAG}
     )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
@@ -356,6 +363,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let moduleRbacApplied = false;
   let moduleRbacRevokeApplied = false;
   let leadLifecycleApplied = false;
+  let stockChecksApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -366,7 +374,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${CRM_SEARCH_FLAG}, ${PERF_INDEX_V2_FLAG}, ${QUOTATION_CONTACT_FLAG},
         ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
         ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
-        ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG}
+        ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG},
+        ${STOCK_CHECKS_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -389,6 +398,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     moduleRbacApplied = keys.has(MODULE_RBAC_V1_FLAG);
     moduleRbacRevokeApplied = keys.has(MODULE_RBAC_REVOKE_FLAG);
     leadLifecycleApplied = keys.has(LEAD_LIFECYCLE_FLAG);
+    stockChecksApplied = keys.has(STOCK_CHECKS_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -413,7 +423,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     projectsFoundationApplied &&
     moduleRbacApplied &&
     moduleRbacRevokeApplied &&
-    leadLifecycleApplied
+    leadLifecycleApplied &&
+    stockChecksApplied
   )
     return;
 
@@ -1887,6 +1898,45 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${LEAD_LIFECYCLE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!stockChecksApplied) {
+    // Recreate quotation_stock_checks for databases that applied the
+    // MODULE_RBAC_V1 flag before the table block existed. CREATE IF NOT
+    // EXISTS keeps it a no-op everywhere the table is already there.
+    await q`
+      create table if not exists quotation_stock_checks (
+        id            bigserial primary key,
+        quotation_id  integer not null references quotations(id) on delete cascade,
+        requested_by  integer not null references users(id) on delete set null,
+        status        text not null default 'pending'
+          check (status in ('pending','answered','cancelled')),
+        items_json    jsonb not null,
+        reply_json    jsonb,
+        storage_notes text,
+        answered_by   integer references users(id) on delete set null,
+        answered_at   timestamptz,
+        created_at    timestamptz not null default now(),
+        updated_at    timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists quotation_stock_checks_q_idx
+        on quotation_stock_checks(quotation_id, created_at desc)
+    `;
+    await q`
+      create index if not exists quotation_stock_checks_status_idx
+        on quotation_stock_checks(status, created_at desc)
+    `;
+    await q`
+      create unique index if not exists quotation_stock_checks_one_pending_idx
+        on quotation_stock_checks(quotation_id)
+        where status = 'pending'
+    `;
+    await q`
+      insert into migration_flags (key) values (${STOCK_CHECKS_FLAG})
       on conflict (key) do nothing
     `;
   }

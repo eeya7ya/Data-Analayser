@@ -3,7 +3,7 @@ import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 import { ensureDefaultProject } from "@/lib/projects";
-import { d1Query, isD1Configured } from "@/lib/db-d1";
+import { d1Query } from "@/lib/db-d1";
 import { resolveR2OverflowsInRows } from "@/lib/r2";
 import type { Sql } from "postgres";
 
@@ -192,7 +192,10 @@ export async function GET(req: NextRequest) {
     const contactIdParam = searchParams.get("contact_id");
     const folderIdParam = searchParams.get("folder_id");
 
-    const useD1 = isD1Configured();
+    // D1 migration paused: Supabase is the single source of truth until
+    // the dual-write divergence (review quotations missing from D1) is
+    // reconciled. Flip back to isD1Configured() once D1 is re-synced.
+    const useD1 = false;
     const q = useD1 ? null : sql();
 
     if (id) {
@@ -543,7 +546,7 @@ export async function PATCH(req: NextRequest) {
       contact_id?: number | null;
       project_id?: number | null;
     };
-    const useD1 = isD1Configured();
+    const useD1 = false; // D1 paused — see GET above
     const q = useD1 ? null : sql();
     const existingRows = (await q!`
       select * from quotations
@@ -776,7 +779,7 @@ export async function POST(req: NextRequest) {
     const mode: QuotationMode =
       body.mode === "draft" || body.mode === "review" ? body.mode : "active";
 
-    const useD1 = isD1Configured();
+    const useD1 = false; // D1 paused — see GET above
     const q = useD1 ? null : sql();
 
     // ── Resolve parent for draft / review snapshots ─────────────────────────
@@ -1045,7 +1048,7 @@ export async function DELETE(req: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: "missing id" }, { status: 400 });
     }
-    const useD1 = isD1Configured();
+    const useD1 = false; // D1 paused — see GET above
     const q = useD1 ? null : sql();
 
     let owned: Array<{ owner_id: number | null }>;
