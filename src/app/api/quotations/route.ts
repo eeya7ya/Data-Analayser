@@ -192,7 +192,7 @@ export async function GET(req: NextRequest) {
     const contactIdParam = searchParams.get("contact_id");
     const folderIdParam = searchParams.get("folder_id");
 
-    const useD1 = isD1Configured();
+    const useD1 = false; // TODO: debug
     const q = useD1 ? null : sql();
 
     if (id) {
@@ -543,7 +543,7 @@ export async function PATCH(req: NextRequest) {
       contact_id?: number | null;
       project_id?: number | null;
     };
-    const useD1 = isD1Configured();
+    const useD1 = false; // TODO: debug
     const q = useD1 ? null : sql();
     const existingRows = (await q`
       select * from quotations
@@ -774,7 +774,7 @@ export async function POST(req: NextRequest) {
     const mode: QuotationMode =
       body.mode === "draft" || body.mode === "review" ? body.mode : "active";
 
-    const useD1 = isD1Configured();
+    const useD1 = false; // TODO: debug
     const q = useD1 ? null : sql();
 
     // ── Resolve parent for draft / review snapshots ─────────────────────────
@@ -1039,7 +1039,7 @@ export async function DELETE(req: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: "missing id" }, { status: 400 });
     }
-    const useD1 = isD1Configured();
+    const useD1 = false; // TODO: debug
     const q = useD1 ? null : sql();
 
     let owned: Array<{ owner_id: number | null }>;
