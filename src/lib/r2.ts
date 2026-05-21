@@ -72,6 +72,11 @@ export async function r2PutObject(
 ): Promise<{ bucket: string; key: string; size: number }> {
   const { accountId, accessKeyId, secretAccessKey, bucket } = readR2Config();
   const bodyBuf = typeof body === "string" ? Buffer.from(body, "utf-8") : body;
+  // Copy into a freshly-allocated Uint8Array so the underlying buffer is a
+  // strict ArrayBuffer (not the ArrayBufferLike union). Strict TS lib types
+  // reject Buffer<ArrayBufferLike> as a BodyInit/BlobPart.
+  const bodyBytes = new Uint8Array(bodyBuf.length);
+  bodyBytes.set(bodyBuf);
   const host = `${accountId}.r2.cloudflarestorage.com`;
   const encodedKey = key.split("/").map(encodeURIComponent).join("/");
   const url = `https://${host}/${bucket}/${encodedKey}`;
@@ -123,7 +128,7 @@ export async function r2PutObject(
       "Content-Type": contentType,
       "Content-Length": String(bodyBuf.length),
     },
-    body: new Blob([bodyBuf], { type: contentType }),
+    body: bodyBytes,
   });
 
   if (!res.ok) {
