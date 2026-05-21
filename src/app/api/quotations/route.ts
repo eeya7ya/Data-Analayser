@@ -679,46 +679,46 @@ export async function PATCH(req: NextRequest) {
     if (useD1) {
       // D1 uses ? placeholders. Build a selective update.
       let updateParts: string[] = [];
-      let params: Array<unknown> = [];
+      let params: Array<string | number | null> = [];
 
       updateParts.push("ref = ?");
-      params.push(ref);
+      params.push(ref as string);
       updateParts.push("project_name = ?");
-      params.push(pn);
+      params.push(pn as string);
       updateParts.push("client_name = ?");
-      params.push(cn);
+      params.push(cn as string | null);
       updateParts.push("client_email = ?");
-      params.push(ce);
+      params.push(ce as string | null);
       updateParts.push("client_phone = ?");
-      params.push(cp);
+      params.push(cp as string | null);
       updateParts.push("sales_engineer = ?");
-      params.push(se);
+      params.push(se as string | null);
       updateParts.push("prepared_by = ?");
-      params.push(pb);
+      params.push(pb as string | null);
       updateParts.push("site_name = ?");
-      params.push(sn);
+      params.push(sn as string);
       updateParts.push("tax_percent = ?");
       params.push(tp);
 
       if (hasItems) {
         updateParts.push("items_json = ?");
-        params.push(itemsText);
+        params.push(itemsText as string);
       }
       if (hasTotals) {
         updateParts.push("totals_json = ?");
-        params.push(totalsText);
+        params.push(totalsText as string);
       }
       if (hasConfig) {
         updateParts.push("config_json = ?");
-        params.push(configText);
+        params.push(configText as string);
       }
 
       updateParts.push("folder_id = ?");
-      params.push(fid);
+      params.push(fid as number | null);
       updateParts.push("contact_id = ?");
-      params.push(cid);
+      params.push(cid as number | null);
       updateParts.push("project_id = ?");
-      params.push(pid);
+      params.push(pid as number | null);
       updateParts.push("updated_at = datetime('now')");
 
       params.push(id);
