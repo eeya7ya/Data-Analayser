@@ -192,7 +192,7 @@ export async function GET(req: NextRequest) {
     const contactIdParam = searchParams.get("contact_id");
     const folderIdParam = searchParams.get("folder_id");
 
-    const useD1 = false; // TODO: debug
+    const useD1 = isD1Configured();
     const q = useD1 ? null : sql();
 
     if (id) {
@@ -543,7 +543,7 @@ export async function PATCH(req: NextRequest) {
       contact_id?: number | null;
       project_id?: number | null;
     };
-    const useD1 = false; // TODO: debug
+    const useD1 = isD1Configured();
     const q = useD1 ? null : sql();
     const existingRows = (await q`
       select * from quotations
@@ -672,6 +672,7 @@ export async function PATCH(req: NextRequest) {
 
     let rows: Array<{ id: number; ref: string }>;
     if (useD1) {
+      const nowIso = new Date().toISOString();
       const result = await d1Query<{ id: number; ref: string }>(
         `update quotations set
           ref = ?, project_name = ?, client_name = ?, client_email = ?,
@@ -681,7 +682,7 @@ export async function PATCH(req: NextRequest) {
           totals_json = coalesce(?, totals_json),
           config_json = coalesce(?, config_json),
           folder_id = ?, contact_id = ?, project_id = ?,
-          updated_at = datetime('now')
+          updated_at = ?
          where id = ? returning id, ref`,
         [
           ref,
@@ -699,6 +700,7 @@ export async function PATCH(req: NextRequest) {
           fid,
           cid,
           pid,
+          nowIso,
           id,
         ],
       );
@@ -774,7 +776,7 @@ export async function POST(req: NextRequest) {
     const mode: QuotationMode =
       body.mode === "draft" || body.mode === "review" ? body.mode : "active";
 
-    const useD1 = false; // TODO: debug
+    const useD1 = isD1Configured();
     const q = useD1 ? null : sql();
 
     // ── Resolve parent for draft / review snapshots ─────────────────────────
@@ -954,6 +956,7 @@ export async function POST(req: NextRequest) {
       parent_ref: string | null;
     }>;
     if (useD1) {
+      const nowIso = new Date().toISOString();
       const result = await d1Query<{
         id: number;
         ref: string;
@@ -964,8 +967,8 @@ export async function POST(req: NextRequest) {
           ref, owner_id, project_name, client_name, client_email, client_phone,
           sales_engineer, prepared_by, site_name, tax_percent, items_json,
           totals_json, config_json, folder_id, contact_id, project_id,
-          status, parent_ref
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          status, parent_ref, custom_fields, created_at, updated_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         returning id, ref, status, parent_ref`,
         [
           ref,
@@ -986,6 +989,9 @@ export async function POST(req: NextRequest) {
           projectId,
           mode,
           storedParentRef,
+          "{}",
+          nowIso,
+          nowIso,
         ],
       );
       rows = result.results;
@@ -1039,7 +1045,7 @@ export async function DELETE(req: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: "missing id" }, { status: 400 });
     }
-    const useD1 = false; // TODO: debug
+    const useD1 = isD1Configured();
     const q = useD1 ? null : sql();
 
     let owned: Array<{ owner_id: number | null }>;
@@ -1065,9 +1071,10 @@ export async function DELETE(req: NextRequest) {
     }
 
     if (useD1) {
+      const nowIso = new Date().toISOString();
       await d1Query(
-        `update quotations set deleted_at = datetime('now'), updated_at = datetime('now') where id = ?`,
-        [id],
+        `update quotations set deleted_at = ?, updated_at = ? where id = ?`,
+        [nowIso, nowIso, id],
       );
     } else {
       await q!`
