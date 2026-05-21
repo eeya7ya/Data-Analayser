@@ -53,8 +53,7 @@ function ownerInitial(displayName: string | null | undefined, username: string):
  *     day (or next day, different user) becomes `...MT2`.
  */
 async function genActiveRef(
-  useD1: boolean,
-  q: Sql | null,
+  q: Sql,
   userInitial: string,
 ): Promise<string> {
   const d = new Date();
@@ -66,18 +65,10 @@ async function genActiveRef(
   // Every live (non-deleted) ref, regardless of status. Soft-deleted rows
   // are excluded so their counters become reusable — the requested
   // "deleted MT86 frees up 86 for the next new quotation" behaviour.
-  let rows: Array<{ ref: string }>;
-  if (useD1) {
-    const result = await d1Query<{ ref: string }>(
-      `select ref from quotations where deleted_at is null`,
-    );
-    rows = result.results;
-  } else {
-    rows = (await q!`
-      select ref from quotations
-      where deleted_at is null
-    `) as Array<{ ref: string }>;
-  }
+  const rows = (await q`
+    select ref from quotations
+    where deleted_at is null
+  `) as Array<{ ref: string }>;
 
   const used = new Set<number>();
   for (const { ref } of rows) {
@@ -96,18 +87,9 @@ async function genActiveRef(
   // and hit the unique constraint).
   for (let attempts = 0; attempts < 100; attempts++) {
     const candidate = `Q${userInitial}${datePart}MT${n}`;
-    let existing: Array<Record<string, unknown>>;
-    if (useD1) {
-      const result = await d1Query<Record<string, unknown>>(
-        `select 1 from quotations where ref = ? limit 1`,
-        [candidate],
-      );
-      existing = result.results;
-    } else {
-      existing = (await q!`
-        select 1 from quotations where ref = ${candidate} limit 1
-      `) as unknown as Array<Record<string, unknown>>;
-    }
+    const existing = (await q`
+      select 1 from quotations where ref = ${candidate} limit 1
+    `) as unknown as Array<Record<string, unknown>>;
     if (existing.length === 0) return candidate;
     n++;
   }
@@ -133,8 +115,7 @@ function rootOfRef(ref: string): string {
  * QA42226MT5D1, the second is QA42226MT5D2, and so on.
  */
 async function genSuffixedRef(
-  useD1: boolean,
-  q: Sql | null,
+  q: Sql,
   parentRef: string,
   suffix: "R" | "D",
 ): Promise<string> {
@@ -143,35 +124,17 @@ async function genSuffixedRef(
   // this parent regardless of who created them — two users collaborating
   // on the same quotation still get a correctly-ordered review chain.
   const pattern = `${root}${suffix}%`;
-  let countRows: Array<{ c: number }>;
-  if (useD1) {
-    const result = await d1Query<{ c: number }>(
-      `select count(*) as c from quotations where ref like ?`,
-      [pattern],
-    );
-    countRows = result.results;
-  } else {
-    countRows = (await q!`
-      select count(*)::int as c from quotations
-      where ref like ${pattern}
-    `) as Array<{ c: number }>;
-  }
+  const countRows = (await q`
+    select count(*)::int as c from quotations
+    where ref like ${pattern}
+  `) as Array<{ c: number }>;
   let m = (countRows[0]?.c ?? 0) + 1;
 
   for (let attempts = 0; attempts < 50; attempts++) {
     const candidate = `${root}${suffix}${m}`;
-    let existing: Array<Record<string, unknown>>;
-    if (useD1) {
-      const result = await d1Query<Record<string, unknown>>(
-        `select 1 from quotations where ref = ? limit 1`,
-        [candidate],
-      );
-      existing = result.results;
-    } else {
-      existing = (await q!`
-        select 1 from quotations where ref = ${candidate} limit 1
-      `) as unknown as Array<Record<string, unknown>>;
-    }
+    const existing = (await q`
+      select 1 from quotations where ref = ${candidate} limit 1
+    `) as unknown as Array<Record<string, unknown>>;
     if (existing.length === 0) return candidate;
     m++;
   }
@@ -539,26 +502,12 @@ export async function PATCH(req: NextRequest) {
       contact_id?: number | null;
       project_id?: number | null;
     };
-
-    const useD1 = isD1Configured();
-    const q = useD1 ? null : sql();
-
-    // Fetch existing row from appropriate DB
-    let existingRows: Array<Record<string, unknown>>;
-    if (useD1) {
-      const result = await d1Query<Record<string, unknown>>(
-        `select * from quotations where id = ? and deleted_at is null limit 1`,
-        [id],
-      );
-      existingRows = result.results;
-    } else {
-      existingRows = (await q!`
-        select * from quotations
-        where id = ${id} and deleted_at is null
-        limit 1
-      `) as Array<Record<string, unknown>>;
-    }
-
+    const q = sql();
+    const existingRows = (await q`
+      select * from quotations
+      where id = ${id} and deleted_at is null
+      limit 1
+    `) as Array<Record<string, unknown>>;
     if (existingRows.length === 0) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
@@ -575,7 +524,7 @@ export async function PATCH(req: NextRequest) {
       body.project_id !== undefined &&
       body.project_id !== null
     ) {
-      const projectRows = (await q!`
+      const projectRows = (await q`
         select owner_id, folder_id from projects
         where id = ${body.project_id} and deleted_at is null
         limit 1
@@ -598,7 +547,7 @@ export async function PATCH(req: NextRequest) {
       body.folder_id !== undefined &&
       body.folder_id !== null
     ) {
-      const folderRows = (await q!`
+      const folderRows = (await q`
         select owner_id from client_folders
         where id = ${body.folder_id} and deleted_at is null
         limit 1
@@ -618,7 +567,7 @@ export async function PATCH(req: NextRequest) {
       body.contact_id !== undefined &&
       body.contact_id !== null
     ) {
-      const contactRows = (await q!`
+      const contactRows = (await q`
         select owner_id from contacts
         where id = ${body.contact_id} and deleted_at is null
         limit 1
@@ -670,85 +619,36 @@ export async function PATCH(req: NextRequest) {
     const hasTotals = body.totals !== undefined;
     const hasConfig = body.config !== undefined;
 
-    // Serialize jsonb payloads up-front.
-    const itemsText = hasItems ? JSON.stringify(body.items) : null;
-    const totalsText = hasTotals ? JSON.stringify(body.totals) : null;
-    const configText = hasConfig ? JSON.stringify(body.config) : null;
+    // Serialize jsonb payloads up-front. When the client did not send a
+    // jsonb field, we pass a benign `'null'` literal and the UPDATE's
+    // CASE guard keeps the existing column value — PostgreSQL CASE
+    // short-circuits so the placeholder is never actually evaluated.
+    // `'null'::jsonb` is a valid cast just in case that guarantee slips.
+    const itemsText = hasItems ? JSON.stringify(body.items) : "null";
+    const totalsText = hasTotals ? JSON.stringify(body.totals) : "null";
+    const configText = hasConfig ? JSON.stringify(body.config) : "null";
 
-    let rows: Array<{ id: number; ref: string }>;
-    if (useD1) {
-      // D1 uses ? placeholders. Build a selective update.
-      let updateParts: string[] = [];
-      let params: Array<string | number | null> = [];
-
-      updateParts.push("ref = ?");
-      params.push(ref as string);
-      updateParts.push("project_name = ?");
-      params.push(pn as string);
-      updateParts.push("client_name = ?");
-      params.push(cn as string | null);
-      updateParts.push("client_email = ?");
-      params.push(ce as string | null);
-      updateParts.push("client_phone = ?");
-      params.push(cp as string | null);
-      updateParts.push("sales_engineer = ?");
-      params.push(se as string | null);
-      updateParts.push("prepared_by = ?");
-      params.push(pb as string | null);
-      updateParts.push("site_name = ?");
-      params.push(sn as string);
-      updateParts.push("tax_percent = ?");
-      params.push(tp);
-
-      if (hasItems) {
-        updateParts.push("items_json = ?");
-        params.push(itemsText as string);
-      }
-      if (hasTotals) {
-        updateParts.push("totals_json = ?");
-        params.push(totalsText as string);
-      }
-      if (hasConfig) {
-        updateParts.push("config_json = ?");
-        params.push(configText as string);
-      }
-
-      updateParts.push("folder_id = ?");
-      params.push(fid as number | null);
-      updateParts.push("contact_id = ?");
-      params.push(cid as number | null);
-      updateParts.push("project_id = ?");
-      params.push(pid as number | null);
-      updateParts.push("updated_at = datetime('now')");
-
-      params.push(id);
-
-      const sql = `update quotations set ${updateParts.join(", ")} where id = ? returning id, ref`;
-      const result = await d1Query<{ id: number; ref: string }>(sql, params);
-      rows = result.results;
-    } else {
-      rows = (await q!`
-        update quotations set
-          ref            = ${ref as string},
-          project_name   = ${pn as string},
-          client_name    = ${cn as string | null},
-          client_email   = ${ce as string | null},
-          client_phone   = ${cp as string | null},
-          sales_engineer = ${se as string | null},
-          prepared_by    = ${pb as string | null},
-          site_name      = ${sn as string},
-          tax_percent    = ${tp},
-          items_json     = case when ${hasItems} then ${itemsText}::jsonb else items_json end,
-          totals_json    = case when ${hasTotals} then ${totalsText}::jsonb else totals_json end,
-          config_json    = case when ${hasConfig} then ${configText}::jsonb else config_json end,
-          folder_id      = ${fid as number | null},
-          contact_id     = ${cid as number | null},
-          project_id     = ${pid as number | null},
-          updated_at     = now()
-        where id = ${id}
-        returning id, ref
-      `) as unknown as Array<{ id: number; ref: string }>;
-    }
+    const rows = (await q`
+      update quotations set
+        ref            = ${ref as string},
+        project_name   = ${pn as string},
+        client_name    = ${cn as string | null},
+        client_email   = ${ce as string | null},
+        client_phone   = ${cp as string | null},
+        sales_engineer = ${se as string | null},
+        prepared_by    = ${pb as string | null},
+        site_name      = ${sn as string},
+        tax_percent    = ${tp},
+        items_json     = case when ${hasItems} then ${itemsText}::jsonb else items_json end,
+        totals_json    = case when ${hasTotals} then ${totalsText}::jsonb else totals_json end,
+        config_json    = case when ${hasConfig} then ${configText}::jsonb else config_json end,
+        folder_id      = ${fid as number | null},
+        contact_id     = ${cid as number | null},
+        project_id     = ${pid as number | null},
+        updated_at     = now()
+      where id = ${id}
+      returning id, ref
+    `) as unknown as Array<{ id: number; ref: string }>;
     return NextResponse.json({ quotation: rows[0] });
   } catch (err) {
     return NextResponse.json(
@@ -794,46 +694,24 @@ export async function POST(req: NextRequest) {
     const mode: QuotationMode =
       body.mode === "draft" || body.mode === "review" ? body.mode : "active";
 
-    const useD1 = isD1Configured();
-    const q = useD1 ? null : sql();
+    const q = sql();
 
     // ── Resolve parent for draft / review snapshots ─────────────────────────
     let parentRef: string | null = null;
     let parentProjectId: number | null = null;
     if (mode !== "active") {
       if (body.parent_id) {
-        let parentRows: Array<{
+        const parentRows = (await q`
+          select id, ref, owner_id, project_id, deleted_at from quotations
+          where id = ${body.parent_id}
+          limit 1
+        `) as Array<{
           id: number;
           ref: string;
           owner_id: number | null;
           project_id: number | null;
           deleted_at: unknown;
         }>;
-        if (useD1) {
-          const result = await d1Query<{
-            id: number;
-            ref: string;
-            owner_id: number | null;
-            project_id: number | null;
-            deleted_at: unknown;
-          }>(
-            `select id, ref, owner_id, project_id, deleted_at from quotations where id = ? limit 1`,
-            [body.parent_id],
-          );
-          parentRows = result.results;
-        } else {
-          parentRows = (await q!`
-            select id, ref, owner_id, project_id, deleted_at from quotations
-            where id = ${body.parent_id}
-            limit 1
-          `) as Array<{
-            id: number;
-            ref: string;
-            owner_id: number | null;
-            project_id: number | null;
-            deleted_at: unknown;
-          }>;
-        }
         if (parentRows.length === 0 || parentRows[0].deleted_at) {
           return NextResponse.json(
             { error: "parent quotation not found" },
@@ -872,10 +750,9 @@ export async function POST(req: NextRequest) {
       ref = body.ref.trim();
     } else if (mode === "active") {
       const initial = ownerInitial(user.display_name, user.username);
-      ref = await genActiveRef(useD1, q, initial);
+      ref = await genActiveRef(q, initial);
     } else {
       ref = await genSuffixedRef(
-        useD1,
         q,
         parentRef as string,
         mode === "review" ? "R" : "D",
@@ -887,7 +764,7 @@ export async function POST(req: NextRequest) {
     // Owner check on the linked contact for non-admins. Same shape as the
     // PATCH path: refuses an unknown id or one belonging to another user.
     if (user.role !== "admin" && contactId !== null) {
-      const contactRows = (await q!`
+      const contactRows = (await q`
         select owner_id from contacts
         where id = ${contactId} and deleted_at is null
         limit 1
@@ -908,7 +785,7 @@ export async function POST(req: NextRequest) {
     let folderClientEmail: string | null = null;
     let folderClientPhone: string | null = null;
     if (folderId) {
-      const folderRows = (await q!`
+      const folderRows = (await q`
         select owner_id, name, client_email, client_phone
         from client_folders
         where id = ${folderId} and deleted_at is null
@@ -954,7 +831,7 @@ export async function POST(req: NextRequest) {
     // user's project.
     let projectId: number | null = null;
     if (body.project_id !== undefined && body.project_id !== null) {
-      const projectRows = (await q!`
+      const projectRows = (await q`
         select owner_id from projects
         where id = ${body.project_id} and deleted_at is null
         limit 1
@@ -988,74 +865,30 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    let rows: Array<{
+    const rows = (await q`
+      insert into quotations (
+        ref, owner_id, project_name, client_name, client_email, client_phone,
+        sales_engineer, prepared_by, site_name, tax_percent, items_json,
+        totals_json, config_json, folder_id, contact_id, project_id,
+        status, parent_ref
+      ) values (
+        ${ref}, ${user.id}, ${body.project_name}, ${clientName},
+        ${clientEmail}, ${clientPhone},
+        ${body.sales_engineer || null}, ${body.prepared_by || user.username},
+        ${body.site_name || "SITE"}, ${body.tax_percent ?? 16},
+        ${JSON.stringify(body.items || [])}::jsonb,
+        ${JSON.stringify(body.totals || {})}::jsonb,
+        ${JSON.stringify(body.config || {})}::jsonb,
+        ${folderId}, ${contactId}, ${projectId},
+        ${mode}, ${storedParentRef}
+      )
+      returning id, ref, status, parent_ref
+    `) as Array<{
       id: number;
       ref: string;
       status: string;
       parent_ref: string | null;
     }>;
-    if (useD1) {
-      const result = await d1Query<{
-        id: number;
-        ref: string;
-        status: string;
-        parent_ref: string | null;
-      }>(
-        `insert into quotations (
-          ref, owner_id, project_name, client_name, client_email, client_phone,
-          sales_engineer, prepared_by, site_name, tax_percent, items_json,
-          totals_json, config_json, folder_id, contact_id, project_id,
-          status, parent_ref
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        returning id, ref, status, parent_ref`,
-        [
-          ref,
-          user.id,
-          body.project_name,
-          clientName,
-          clientEmail,
-          clientPhone,
-          body.sales_engineer || null,
-          body.prepared_by || user.username,
-          body.site_name || "SITE",
-          body.tax_percent ?? 16,
-          JSON.stringify(body.items || []),
-          JSON.stringify(body.totals || {}),
-          JSON.stringify(body.config || {}),
-          folderId,
-          contactId,
-          projectId,
-          mode,
-          storedParentRef,
-        ],
-      );
-      rows = result.results;
-    } else {
-      rows = (await q!`
-        insert into quotations (
-          ref, owner_id, project_name, client_name, client_email, client_phone,
-          sales_engineer, prepared_by, site_name, tax_percent, items_json,
-          totals_json, config_json, folder_id, contact_id, project_id,
-          status, parent_ref
-        ) values (
-          ${ref}, ${user.id}, ${body.project_name}, ${clientName},
-          ${clientEmail}, ${clientPhone},
-          ${body.sales_engineer || null}, ${body.prepared_by || user.username},
-          ${body.site_name || "SITE"}, ${body.tax_percent ?? 16},
-          ${JSON.stringify(body.items || [])}::jsonb,
-          ${JSON.stringify(body.totals || {})}::jsonb,
-          ${JSON.stringify(body.config || {})}::jsonb,
-          ${folderId}, ${contactId}, ${projectId},
-          ${mode}, ${storedParentRef}
-        )
-        returning id, ref, status, parent_ref
-      `) as Array<{
-        id: number;
-        ref: string;
-        status: string;
-        parent_ref: string | null;
-      }>;
-    }
     return NextResponse.json({ quotation: rows[0] });
   } catch (err) {
     return NextResponse.json(
@@ -1080,44 +913,22 @@ export async function DELETE(req: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: "missing id" }, { status: 400 });
     }
-
-    const useD1 = isD1Configured();
-    const q = useD1 ? null : sql();
-
-    let owned: Array<{ owner_id: number | null }>;
-    if (useD1) {
-      const result = await d1Query<{ owner_id: number | null }>(
-        `select owner_id from quotations where id = ? and deleted_at is null limit 1`,
-        [id],
-      );
-      owned = result.results;
-    } else {
-      owned = (await q!`
-        select owner_id from quotations
-        where id = ${id} and deleted_at is null
-        limit 1
-      `) as Array<{ owner_id: number | null }>;
-    }
-
+    const q = sql();
+    const owned = (await q`
+      select owner_id from quotations
+      where id = ${id} and deleted_at is null
+      limit 1
+    `) as Array<{ owner_id: number | null }>;
     if (owned.length === 0) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
     if (user.role !== "admin" && owned[0].owner_id !== user.id) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
-
-    if (useD1) {
-      await d1Query(
-        `update quotations set deleted_at = datetime('now'), updated_at = datetime('now') where id = ?`,
-        [id],
-      );
-    } else {
-      await q!`
-        update quotations set deleted_at = now(), updated_at = now()
-        where id = ${id}
-      `;
-    }
-
+    await q`
+      update quotations set deleted_at = now(), updated_at = now()
+      where id = ${id}
+    `;
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(
