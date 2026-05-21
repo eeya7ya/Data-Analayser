@@ -123,7 +123,7 @@ export async function r2PutObject(
       "Content-Type": contentType,
       "Content-Length": String(bodyBuf.length),
     },
-    body: bodyBuf.buffer.slice(bodyBuf.byteOffset, bodyBuf.byteOffset + bodyBuf.byteLength),
+    body: new Blob([bodyBuf], { type: contentType }),
   });
 
   if (!res.ok) {
