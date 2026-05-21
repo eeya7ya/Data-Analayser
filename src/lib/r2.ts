@@ -255,3 +255,67 @@ export async function resolveR2Overflow(value: unknown): Promise<unknown> {
     return body;
   }
 }
+
+/**
+ * Resolve every R2 overflow marker inside a row set in one batched pass.
+ * Operates on the result of a D1 query: each row is an object whose JSON
+ * columns are stored as text. If a column's text starts with the overflow
+ * marker, this fetches the real payload from R2 and replaces the column
+ * with the parsed JSON.
+ *
+ * - `columns` optionally restricts which columns to scan; otherwise every
+ *   string column is checked (cheap — substring match before JSON.parse).
+ * - R2 keys are deduplicated and fetched in parallel, so an N-row result
+ *   set with K distinct overflow refs costs K round-trips, not K*N.
+ * - On R2 failure the original marker string is kept and the error is
+ *   re-thrown so the caller decides (fail the request vs. fall back).
+ *
+ * Returns a new array; input rows are not mutated.
+ */
+export async function resolveR2OverflowsInRows<
+  T extends Record<string, unknown>,
+>(rows: T[], columns?: readonly string[]): Promise<T[]> {
+  if (rows.length === 0) return rows;
+
+  // Collect every (row index, column, parsed marker) tuple, then dedupe by key.
+  const toResolve: Array<{ rowIdx: number; col: string; ref: R2Overflow }> = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const cols = columns ?? Object.keys(row);
+    for (const col of cols) {
+      const v = row[col];
+      if (typeof v !== "string" || !v.includes('"__r2_overflow__"')) continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(v);
+      } catch {
+        continue;
+      }
+      if (isR2OverflowRef(parsed)) {
+        toResolve.push({ rowIdx: i, col, ref: parsed });
+      }
+    }
+  }
+  if (toResolve.length === 0) return rows;
+
+  // One fetch per unique R2 key.
+  const uniqueKeys = Array.from(new Set(toResolve.map((t) => t.ref.key)));
+  const fetched = new Map<string, unknown>();
+  await Promise.all(
+    uniqueKeys.map(async (key) => {
+      const body = await r2GetObject(key);
+      try {
+        fetched.set(key, JSON.parse(body));
+      } catch {
+        fetched.set(key, body);
+      }
+    }),
+  );
+
+  // Build a new row array with the resolved values substituted in.
+  const out = rows.map((r) => ({ ...r })) as T[];
+  for (const { rowIdx, col, ref } of toResolve) {
+    (out[rowIdx] as Record<string, unknown>)[col] = fetched.get(ref.key);
+  }
+  return out;
+}
