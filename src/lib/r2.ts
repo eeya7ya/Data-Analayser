@@ -151,3 +151,107 @@ export type R2Overflow = {
   original_size_bytes: number;
   content_type: string;
 };
+
+/**
+ * GET a single object from R2 and return its body as a UTF-8 string. Used
+ * to resolve `__r2_overflow__` references stored in D1.
+ */
+export async function r2GetObject(key: string): Promise<string> {
+  const { accountId, accessKeyId, secretAccessKey, bucket } = readR2Config();
+  const host = `${accountId}.r2.cloudflarestorage.com`;
+  const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+  const url = `https://${host}/${bucket}/${encodedKey}`;
+
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const dateStamp = amzDate.slice(0, 8);
+  const payloadHash = sha256Hex(""); // empty body for GET
+
+  const canonicalHeaders =
+    `host:${host}\n` +
+    `x-amz-content-sha256:${payloadHash}\n` +
+    `x-amz-date:${amzDate}\n`;
+  const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+
+  const canonicalRequest = [
+    "GET",
+    `/${bucket}/${encodedKey}`,
+    "",
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join("\n");
+
+  const credentialScope = `${dateStamp}/${REGION}/${SERVICE}/aws4_request`;
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    sha256Hex(canonicalRequest),
+  ].join("\n");
+
+  const signingKey = deriveSigningKey(secretAccessKey, dateStamp);
+  const signature = createHmac("sha256", signingKey)
+    .update(stringToSign)
+    .digest("hex");
+
+  const authorization =
+    `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, ` +
+    `SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Host: host,
+      "X-Amz-Date": amzDate,
+      "X-Amz-Content-Sha256": payloadHash,
+      Authorization: authorization,
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`R2 GET ${res.status}: ${text.slice(0, 400)}`);
+  }
+  return res.text();
+}
+
+/**
+ * Type guard: true when the value is a parsed R2 overflow reference.
+ */
+export function isR2OverflowRef(value: unknown): value is R2Overflow {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { __r2_overflow__?: unknown }).__r2_overflow__ === true
+  );
+}
+
+/**
+ * If `value` is (or stringifies to) an R2 overflow reference, fetch the
+ * original payload from R2 and return it parsed as JSON. Otherwise return
+ * the value unchanged. Use this when reading JSON columns from D1 that
+ * may have been offloaded during migration.
+ *
+ * Accepts:
+ *   - a parsed object containing { __r2_overflow__: true, ... }
+ *   - a JSON-string of the above (D1 stores it as text)
+ *   - anything else (passes through unchanged)
+ */
+export async function resolveR2Overflow(value: unknown): Promise<unknown> {
+  let ref: unknown = value;
+  if (typeof value === "string" && value.includes('"__r2_overflow__"')) {
+    try {
+      ref = JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  if (!isR2OverflowRef(ref)) return value;
+  const body = await r2GetObject(ref.key);
+  try {
+    return JSON.parse(body);
+  } catch {
+    return body;
+  }
+}
