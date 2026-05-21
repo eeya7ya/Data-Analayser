@@ -3,6 +3,8 @@ import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 import { ensureDefaultProject } from "@/lib/projects";
+import { d1Query, isD1Configured } from "@/lib/db-d1";
+import { resolveR2OverflowsInRows } from "@/lib/r2";
 import type { Sql } from "postgres";
 
 export const runtime = "nodejs";
@@ -148,7 +150,10 @@ export async function GET(req: NextRequest) {
     const id = searchParams.get("id");
     const contactIdParam = searchParams.get("contact_id");
     const folderIdParam = searchParams.get("folder_id");
-    const q = sql();
+
+    const useD1 = isD1Configured();
+    const q = useD1 ? null : sql();
+
     if (id) {
       // Single-row lookup. Historically this returned even trashed rows so
       // the trash UI could build a preview; now that the Quotation Viewer
@@ -156,16 +161,36 @@ export async function GET(req: NextRequest) {
       // server-component DB query), we also have to enforce the
       // deleted_at filter and the owner check here. Regular users can
       // only read their own quotations; admins can read any row.
-      const rows = (await q`
-        select id, ref, owner_id, project_name, client_name, client_email,
-               client_phone, sales_engineer, prepared_by, tax_percent,
-               site_name, items_json, config_json, folder_id, contact_id,
-               project_id,
-               status, parent_ref, created_at, updated_at, deleted_at
-        from quotations
-        where id = ${Number(id)}
-        limit 1
-      `) as Array<Record<string, unknown>>;
+      let rows: Array<Record<string, unknown>>;
+      if (useD1) {
+        const result = await d1Query<Record<string, unknown>>(
+          `select id, ref, owner_id, project_name, client_name, client_email,
+                  client_phone, sales_engineer, prepared_by, tax_percent,
+                  site_name, items_json, config_json, folder_id, contact_id,
+                  project_id,
+                  status, parent_ref, created_at, updated_at, deleted_at
+           from quotations
+           where id = ?
+           limit 1`,
+          [Number(id)],
+        );
+        rows = result.results;
+        // Resolve R2 overflows in items_json if present
+        if (rows.length > 0) {
+          rows = await resolveR2OverflowsInRows(rows, ["items_json"]);
+        }
+      } else {
+        rows = (await q!`
+          select id, ref, owner_id, project_name, client_name, client_email,
+                 client_phone, sales_engineer, prepared_by, tax_percent,
+                 site_name, items_json, config_json, folder_id, contact_id,
+                 project_id,
+                 status, parent_ref, created_at, updated_at, deleted_at
+          from quotations
+          where id = ${Number(id)}
+          limit 1
+        `) as Array<Record<string, unknown>>;
+      }
       const row = rows[0];
       if (!row) {
         return NextResponse.json({ quotation: null });
@@ -192,28 +217,57 @@ export async function GET(req: NextRequest) {
       if (!Number.isFinite(projectId) || projectId <= 0) {
         return NextResponse.json({ quotations: [] });
       }
-      const projectRows =
-        canReadAll(user)
-          ? ((await q`
-              select id, ref, project_name, client_name, site_name,
-                     folder_id, contact_id, project_id, owner_id, status, parent_ref,
-                     created_at, updated_at
-              from quotations
-              where project_id = ${projectId} and deleted_at is null
-              order by id desc
-              limit 500
-            `) as Array<Record<string, unknown>>)
-          : ((await q`
-              select id, ref, project_name, client_name, site_name,
-                     folder_id, contact_id, project_id, owner_id, status, parent_ref,
-                     created_at, updated_at
-              from quotations
-              where project_id = ${projectId}
-                and owner_id = ${user.id}
-                and deleted_at is null
-              order by id desc
-              limit 500
-            `) as Array<Record<string, unknown>>);
+      let projectRows: Array<Record<string, unknown>>;
+      if (useD1) {
+        if (canReadAll(user)) {
+          const result = await d1Query<Record<string, unknown>>(
+            `select id, ref, project_name, client_name, site_name,
+                    folder_id, contact_id, project_id, owner_id, status, parent_ref,
+                    created_at, updated_at
+             from quotations
+             where project_id = ? and deleted_at is null
+             order by id desc
+             limit 500`,
+            [projectId],
+          );
+          projectRows = result.results;
+        } else {
+          const result = await d1Query<Record<string, unknown>>(
+            `select id, ref, project_name, client_name, site_name,
+                    folder_id, contact_id, project_id, owner_id, status, parent_ref,
+                    created_at, updated_at
+             from quotations
+             where project_id = ? and owner_id = ? and deleted_at is null
+             order by id desc
+             limit 500`,
+            [projectId, user.id],
+          );
+          projectRows = result.results;
+        }
+      } else {
+        projectRows =
+          canReadAll(user)
+            ? ((await q!`
+                select id, ref, project_name, client_name, site_name,
+                       folder_id, contact_id, project_id, owner_id, status, parent_ref,
+                       created_at, updated_at
+                from quotations
+                where project_id = ${projectId} and deleted_at is null
+                order by id desc
+                limit 500
+              `) as Array<Record<string, unknown>>)
+            : ((await q!`
+                select id, ref, project_name, client_name, site_name,
+                       folder_id, contact_id, project_id, owner_id, status, parent_ref,
+                       created_at, updated_at
+                from quotations
+                where project_id = ${projectId}
+                  and owner_id = ${user.id}
+                  and deleted_at is null
+                order by id desc
+                limit 500
+              `) as Array<Record<string, unknown>>);
+      }
       return NextResponse.json({ quotations: projectRows });
     }
 
@@ -226,28 +280,57 @@ export async function GET(req: NextRequest) {
       if (!Number.isFinite(folderId) || folderId <= 0) {
         return NextResponse.json({ quotations: [] });
       }
-      const folderRows =
-        canReadAll(user)
-          ? ((await q`
-              select id, ref, project_name, client_name, site_name,
-                     folder_id, contact_id, project_id, owner_id, status, parent_ref,
-                     created_at, updated_at
-              from quotations
-              where folder_id = ${folderId} and deleted_at is null
-              order by id desc
-              limit 500
-            `) as Array<Record<string, unknown>>)
-          : ((await q`
-              select id, ref, project_name, client_name, site_name,
-                     folder_id, contact_id, project_id, owner_id, status, parent_ref,
-                     created_at, updated_at
-              from quotations
-              where folder_id = ${folderId}
-                and owner_id = ${user.id}
-                and deleted_at is null
-              order by id desc
-              limit 500
-            `) as Array<Record<string, unknown>>);
+      let folderRows: Array<Record<string, unknown>>;
+      if (useD1) {
+        if (canReadAll(user)) {
+          const result = await d1Query<Record<string, unknown>>(
+            `select id, ref, project_name, client_name, site_name,
+                    folder_id, contact_id, project_id, owner_id, status, parent_ref,
+                    created_at, updated_at
+             from quotations
+             where folder_id = ? and deleted_at is null
+             order by id desc
+             limit 500`,
+            [folderId],
+          );
+          folderRows = result.results;
+        } else {
+          const result = await d1Query<Record<string, unknown>>(
+            `select id, ref, project_name, client_name, site_name,
+                    folder_id, contact_id, project_id, owner_id, status, parent_ref,
+                    created_at, updated_at
+             from quotations
+             where folder_id = ? and owner_id = ? and deleted_at is null
+             order by id desc
+             limit 500`,
+            [folderId, user.id],
+          );
+          folderRows = result.results;
+        }
+      } else {
+        folderRows =
+          canReadAll(user)
+            ? ((await q!`
+                select id, ref, project_name, client_name, site_name,
+                       folder_id, contact_id, project_id, owner_id, status, parent_ref,
+                       created_at, updated_at
+                from quotations
+                where folder_id = ${folderId} and deleted_at is null
+                order by id desc
+                limit 500
+              `) as Array<Record<string, unknown>>)
+            : ((await q!`
+                select id, ref, project_name, client_name, site_name,
+                       folder_id, contact_id, project_id, owner_id, status, parent_ref,
+                       created_at, updated_at
+                from quotations
+                where folder_id = ${folderId}
+                  and owner_id = ${user.id}
+                  and deleted_at is null
+                order by id desc
+                limit 500
+              `) as Array<Record<string, unknown>>);
+      }
       return NextResponse.json({ quotations: folderRows });
     }
 
@@ -259,55 +342,113 @@ export async function GET(req: NextRequest) {
       if (!Number.isFinite(contactId) || contactId <= 0) {
         return NextResponse.json({ quotations: [] });
       }
-      const contactRows =
+      let contactRows: Array<Record<string, unknown>>;
+      if (useD1) {
+        if (canReadAll(user)) {
+          const result = await d1Query<Record<string, unknown>>(
+            `select id, ref, project_name, client_name, site_name,
+                    folder_id, contact_id, owner_id, status, parent_ref,
+                    created_at, updated_at
+             from quotations
+             where contact_id = ? and deleted_at is null
+             order by id desc
+             limit 200`,
+            [contactId],
+          );
+          contactRows = result.results;
+        } else {
+          const result = await d1Query<Record<string, unknown>>(
+            `select id, ref, project_name, client_name, site_name,
+                    folder_id, contact_id, owner_id, status, parent_ref,
+                    created_at, updated_at
+             from quotations
+             where contact_id = ? and owner_id = ? and deleted_at is null
+             order by id desc
+             limit 200`,
+            [contactId, user.id],
+          );
+          contactRows = result.results;
+        }
+      } else {
+        contactRows =
+          canReadAll(user)
+            ? ((await q!`
+                select id, ref, project_name, client_name, site_name,
+                       folder_id, contact_id, owner_id, status, parent_ref,
+                       created_at, updated_at
+                from quotations
+                where contact_id = ${contactId} and deleted_at is null
+                order by id desc
+                limit 200
+              `) as Array<Record<string, unknown>>)
+            : ((await q!`
+                select id, ref, project_name, client_name, site_name,
+                       folder_id, contact_id, owner_id, status, parent_ref,
+                       created_at, updated_at
+                from quotations
+                where contact_id = ${contactId}
+                  and owner_id = ${user.id}
+                  and deleted_at is null
+                order by id desc
+                limit 200
+              `) as Array<Record<string, unknown>>);
+      }
+      return NextResponse.json({ quotations: contactRows });
+    }
+
+    let rows: Array<Record<string, unknown>>;
+    if (useD1) {
+      if (canReadAll(user)) {
+        // D1 doesn't support JOIN; fetch quotations and optionally fetch users separately if needed
+        const result = await d1Query<Record<string, unknown>>(
+          `select id, ref, project_name, client_name, site_name,
+                  folder_id, contact_id, owner_id, status, parent_ref,
+                  created_at, updated_at
+           from quotations
+           where deleted_at is null
+           order by id desc
+           limit 500`,
+        );
+        rows = result.results;
+      } else {
+        const result = await d1Query<Record<string, unknown>>(
+          `select id, ref, project_name, client_name, site_name,
+                  folder_id, contact_id, owner_id, status, parent_ref,
+                  created_at, updated_at
+           from quotations
+           where owner_id = ? and deleted_at is null
+           order by id desc
+           limit 200`,
+          [user.id],
+        );
+        rows = result.results;
+      }
+    } else {
+      rows =
         canReadAll(user)
-          ? ((await q`
-              select id, ref, project_name, client_name, site_name,
-                     folder_id, contact_id, owner_id, status, parent_ref,
-                     created_at, updated_at
-              from quotations
-              where contact_id = ${contactId} and deleted_at is null
-              order by id desc
-              limit 200
+          ? ((await q!`
+              select q.id, q.ref, q.project_name, q.client_name, q.site_name,
+                     q.folder_id, q.contact_id, q.owner_id, q.status, q.parent_ref,
+                     q.created_at, q.updated_at,
+                     u.username as owner_username,
+                     u.display_name as owner_display_name
+              from quotations q
+              left join users u on u.id = q.owner_id
+              where q.deleted_at is null
+              order by q.id desc
+              limit 500
             `) as Array<Record<string, unknown>>)
-          : ((await q`
+          : ((await q!`
               select id, ref, project_name, client_name, site_name,
                      folder_id, contact_id, owner_id, status, parent_ref,
                      created_at, updated_at
               from quotations
-              where contact_id = ${contactId}
-                and owner_id = ${user.id}
+              where owner_id = ${user.id}
                 and deleted_at is null
               order by id desc
               limit 200
             `) as Array<Record<string, unknown>>);
-      return NextResponse.json({ quotations: contactRows });
     }
-
-    const rows =
-      canReadAll(user)
-        ? ((await q`
-            select q.id, q.ref, q.project_name, q.client_name, q.site_name,
-                   q.folder_id, q.contact_id, q.owner_id, q.status, q.parent_ref,
-                   q.created_at, q.updated_at,
-                   u.username as owner_username,
-                   u.display_name as owner_display_name
-            from quotations q
-            left join users u on u.id = q.owner_id
-            where q.deleted_at is null
-            order by q.id desc
-            limit 500
-          `) as Array<Record<string, unknown>>)
-        : ((await q`
-            select id, ref, project_name, client_name, site_name,
-                   folder_id, contact_id, owner_id, status, parent_ref,
-                   created_at, updated_at
-            from quotations
-            where owner_id = ${user.id}
-              and deleted_at is null
-            order by id desc
-            limit 200
-          `) as Array<Record<string, unknown>>);
     // `private, max-age=5` gives us near-instant reloads without hiding
     // freshly-saved rows for more than a few seconds. The "new quotation
     // missing from the list" bug that this file briefly fought with
