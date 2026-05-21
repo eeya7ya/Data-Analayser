@@ -213,6 +213,23 @@ type MigrateResult = {
   error?: string;
 };
 
+type VerifyOverflowResult = {
+  total: number;
+  ok: number;
+  failed: number;
+  rows: Array<{
+    id: number;
+    ref: string;
+    ok: boolean;
+    r2_key?: string | null;
+    original_size_bytes?: number | null;
+    resolved_bytes?: number;
+    items_count?: number | null;
+    error?: string;
+  }>;
+  error?: string;
+};
+
 function D1HealthPanel() {
   const [data, setData] = useState<D1HealthResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -221,6 +238,8 @@ function D1HealthPanel() {
   const [applyResult, setApplyResult] = useState<ApplySchemaResult | null>(null);
   const [migrating, setMigrating] = useState(false);
   const [migrateResult, setMigrateResult] = useState<MigrateResult | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<VerifyOverflowResult | null>(null);
 
   async function check() {
     setBusy(true);
@@ -274,6 +293,22 @@ function D1HealthPanel() {
     }
   }
 
+  async function verifyOverflow() {
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      const res = await fetch("/api/admin/d1-verify-overflow", {
+        cache: "no-store",
+      });
+      const body = (await res.json()) as VerifyOverflowResult;
+      setVerifyResult(body);
+    } catch (e) {
+      setVerifyResult({ total: 0, ok: 0, failed: 0, rows: [], error: (e as Error).message });
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   const totalRows = data?.tables.reduce((a, b) => a + b.rows, 0) ?? 0;
   const noTables = data?.configured && data.tables.length === 0;
   // Show migrate button if schema is applied but migration is incomplete
@@ -282,7 +317,7 @@ function D1HealthPanel() {
     data?.configured &&
     data.tables.length > 0 &&
     (totalRows === 0 || data.tables.some((t) => t.rows === 0));
-  const anyBusy = busy || applying || migrating;
+  const anyBusy = busy || applying || migrating || verifying;
 
   return (
     <div className="rounded-xl border border-magic-border bg-white p-5">
@@ -322,6 +357,14 @@ function D1HealthPanel() {
             {migrating ? "Migrating data… (may take ~1 min)" : "Migrate all data from Supabase → D1"}
           </button>
         )}
+        <button
+          onClick={verifyOverflow}
+          disabled={anyBusy}
+          className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
+          title="Fetches each R2 overflow object referenced from D1 and confirms the round-trip works."
+        >
+          {verifying ? "Verifying R2…" : "Verify R2 overflow round-trip"}
+        </button>
       </div>
       {err && (
         <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -390,6 +433,51 @@ function D1HealthPanel() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+      {verifyResult && (
+        <div className="mt-3 text-sm">
+          {verifyResult.error ? (
+            <p className="text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {verifyResult.error}
+            </p>
+          ) : (
+            <div>
+              <p className={`px-3 py-2 rounded-lg border mb-2 ${verifyResult.failed === 0 ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-amber-800 bg-amber-50 border-amber-200"}`}>
+                R2 round-trip: {verifyResult.ok}/{verifyResult.total} resolved
+                {verifyResult.failed > 0 && `, ${verifyResult.failed} failed`}.
+                {verifyResult.total === 0 && " No overflow references found in D1 — nothing to verify."}
+              </p>
+              {verifyResult.rows.length > 0 && (
+                <div className="max-h-72 overflow-y-auto rounded border border-magic-border">
+                  <table className="w-full text-xs">
+                    <thead className="bg-magic-soft/60 sticky top-0">
+                      <tr>
+                        <th className="text-left px-3 py-1.5 font-semibold">Quotation</th>
+                        <th className="text-left px-3 py-1.5 font-semibold">R2 key</th>
+                        <th className="text-right px-3 py-1.5 font-semibold">Original</th>
+                        <th className="text-right px-3 py-1.5 font-semibold">Fetched</th>
+                        <th className="text-right px-3 py-1.5 font-semibold">Items</th>
+                        <th className="text-left px-3 py-1.5 font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {verifyResult.rows.map((r) => (
+                        <tr key={r.id} className={`border-t border-magic-border ${r.ok ? "bg-emerald-50/40" : "bg-red-50"}`}>
+                          <td className="px-3 py-1 font-mono">{r.ref}</td>
+                          <td className="px-3 py-1 font-mono truncate max-w-xs">{r.r2_key || "—"}</td>
+                          <td className="px-3 py-1 text-right">{r.original_size_bytes?.toLocaleString() ?? "—"}</td>
+                          <td className="px-3 py-1 text-right">{r.resolved_bytes?.toLocaleString() ?? "—"}</td>
+                          <td className="px-3 py-1 text-right">{r.items_count ?? "—"}</td>
+                          <td className="px-3 py-1 text-red-700 truncate max-w-xs">{r.ok ? "OK" : r.error}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
