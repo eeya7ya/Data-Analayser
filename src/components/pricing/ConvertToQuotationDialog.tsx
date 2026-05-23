@@ -50,7 +50,7 @@ interface Props {
  *
  * Two paths:
  *   • Existing — pick Company/Individual, then the client, then one of
- *     its projects.
+ *     its projects (or create a fresh project inline).
  *   • New — pick Company/Individual, type the names; the dialog creates
  *     the company (company kind only), the client folder, and the
  *     project, then hands the ids back.
@@ -75,6 +75,10 @@ export function ConvertToQuotationDialog({
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  // When true (in the existing-client path) the user is creating a brand
+  // new project under the chosen client instead of picking an existing one.
+  const [createNewProject, setCreateNewProject] = useState(false);
+  const [existingProjectName, setExistingProjectName] = useState("");
 
   // New-client state
   const [companyName, setCompanyName] = useState("");
@@ -91,6 +95,8 @@ export function ConvertToQuotationDialog({
     setSelectedFolderId(null);
     setProjects([]);
     setSelectedProjectId(null);
+    setCreateNewProject(false);
+    setExistingProjectName("");
     setCompanyName("");
     setClientName("");
     setNewProjectName("");
@@ -129,12 +135,16 @@ export function ConvertToQuotationDialog({
     }
     let cancelled = false;
     setProjectsLoading(true);
+    setCreateNewProject(false);
+    setExistingProjectName("");
     fetch(`/api/projects?folder_id=${selectedFolderId}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { projects: [] }))
       .then((d: { projects?: Project[] }) => {
         if (cancelled) return;
         const list = d.projects ?? [];
         setProjects(list);
+        // No projects yet → default straight into "create new".
+        setCreateNewProject(list.length === 0);
         setSelectedProjectId(list[0]?.id ?? null);
       })
       .catch(() => {
@@ -158,6 +168,33 @@ export function ConvertToQuotationDialog({
     if (mode === "existing") {
       if (selectedFolderId == null) {
         setError("Pick a client first.");
+        return;
+      }
+      // Create a brand-new project under this client when requested.
+      if (createNewProject) {
+        const name = existingProjectName.trim();
+        if (!name) {
+          setError("Project name is required.");
+          return;
+        }
+        setSubmitting(true);
+        try {
+          const pRes = await fetch("/api/projects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ folder_id: selectedFolderId, name }),
+          });
+          if (!pRes.ok) {
+            const e = await pRes.json().catch(() => ({}));
+            throw new Error(e.error || "Failed to create project");
+          }
+          const projectId = (await pRes.json()).project.id as number;
+          onConfirm({ folderId: selectedFolderId, projectId });
+        } catch (e) {
+          setError((e as Error).message);
+        } finally {
+          setSubmitting(false);
+        }
         return;
       }
       onConfirm({ folderId: selectedFolderId, projectId: selectedProjectId });
@@ -240,6 +277,8 @@ export function ConvertToQuotationDialog({
     kind,
     selectedFolderId,
     selectedProjectId,
+    createNewProject,
+    existingProjectName,
     clientName,
     companyName,
     newProjectName,
@@ -363,12 +402,17 @@ export function ConvertToQuotationDialog({
                     </div>
                   ) : (
                     <select
-                      value={selectedProjectId ?? ""}
-                      onChange={(e) =>
-                        setSelectedProjectId(
-                          e.target.value ? Number(e.target.value) : null,
-                        )
-                      }
+                      value={createNewProject ? "__new__" : selectedProjectId ?? ""}
+                      onChange={(e) => {
+                        if (e.target.value === "__new__") {
+                          setCreateNewProject(true);
+                        } else {
+                          setCreateNewProject(false);
+                          setSelectedProjectId(
+                            e.target.value ? Number(e.target.value) : null,
+                          );
+                        }
+                      }}
                       className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
                     >
                       {projects.map((p) => (
@@ -376,7 +420,19 @@ export function ConvertToQuotationDialog({
                           {p.name}
                         </option>
                       ))}
+                      <option value="__new__">➕ Create new project…</option>
                     </select>
+                  )}
+
+                  {createNewProject && !projectsLoading && (
+                    <input
+                      type="text"
+                      autoFocus
+                      value={existingProjectName}
+                      onChange={(e) => setExistingProjectName(e.target.value)}
+                      placeholder="New project name…"
+                      className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    />
                   )}
                 </div>
               )}
@@ -445,7 +501,12 @@ export function ConvertToQuotationDialog({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={busy || (mode === "existing" && selectedFolderId == null)}
+            disabled={
+              busy ||
+              (mode === "existing" &&
+                (selectedFolderId == null ||
+                  (createNewProject && !existingProjectName.trim())))
+            }
             className="flex items-center gap-1.5 rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-magic-red/90 disabled:opacity-60"
           >
             {busy ? (
