@@ -84,6 +84,7 @@ export async function POST(
     const body = (await req.json().catch(() => ({}))) as {
       projectName?: string;
       folderId?: number | null;
+      projectId?: number | null;
       includeOptionalIntro?: boolean;
     };
 
@@ -217,6 +218,7 @@ export async function POST(
           origin: { pricingProjectId: projectId },
         },
         folder_id: body.folderId ?? null,
+        project_id: body.projectId ?? null,
       }),
     });
     if (!upstream.ok) {

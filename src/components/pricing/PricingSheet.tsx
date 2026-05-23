@@ -6,6 +6,7 @@ import { ProjectSelector } from "./ProjectSelector";
 import { ConstantsPanel } from "./ConstantsPanel";
 import { ProductTable } from "./ProductTable";
 import { PricingCharts } from "./PricingCharts";
+import { ConvertToQuotationDialog } from "./ConvertToQuotationDialog";
 import { type Constants, DEFAULT_CONSTANTS } from "@/lib/pricing/calculations";
 import { exportToCsv, exportToPrint } from "@/lib/pricing/export";
 
@@ -69,6 +70,7 @@ export function PricingSheet({
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [showConvertDialog, setShowConvertDialog] = useState(false);
 
   // Editable project meta
   const [projectName, setProjectName] = useState("");
@@ -279,55 +281,62 @@ export function PricingSheet({
   // host's quotation system, then hand the user off to the Designer.
   // We save any unsaved edits first so the quotation matches what the
   // user is currently seeing on screen.
-  const handleConvertToQuotation = useCallback(async () => {
-    if (!selectedProjectId || converting) return;
-    setConverting(true);
-    try {
-      if (savedAt == null || rows.length === 0) {
-        // Run a save when there's no clean checkpoint — keeps the
-        // server-side conversion in sync with the live snapshot.
-        await fetch(`/api/pricing/projects/${selectedProjectId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: projectName,
-            date: projectDate || null,
-            responsiblePerson: responsiblePerson || null,
-            constants: { ...constants, targetCurrency, sourceCurrency },
-            productLines: rows,
-          }),
-        });
+  const handleConvertToQuotation = useCallback(
+    async (folderId: number | null, projectId: number | null) => {
+      if (!selectedProjectId || converting) return;
+      setConverting(true);
+      try {
+        if (savedAt == null || rows.length === 0) {
+          // Run a save when there's no clean checkpoint — keeps the
+          // server-side conversion in sync with the live snapshot.
+          await fetch(`/api/pricing/projects/${selectedProjectId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: projectName,
+              date: projectDate || null,
+              responsiblePerson: responsiblePerson || null,
+              constants: { ...constants, targetCurrency, sourceCurrency },
+              productLines: rows,
+            }),
+          });
+        }
+        const res = await fetch(
+          `/api/pricing/projects/${selectedProjectId}/convert-to-quotation`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              includeOptionalIntro: true,
+              folderId,
+              projectId,
+            }),
+          },
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err?.error ?? "Failed to convert to quotation");
+          return;
+        }
+        const data = (await res.json()) as { redirectTo: string };
+        window.location.href = data.redirectTo;
+      } finally {
+        setConverting(false);
       }
-      const res = await fetch(
-        `/api/pricing/projects/${selectedProjectId}/convert-to-quotation`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ includeOptionalIntro: true }),
-        },
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err?.error ?? "Failed to convert to quotation");
-        return;
-      }
-      const data = (await res.json()) as { redirectTo: string };
-      window.location.href = data.redirectTo;
-    } finally {
-      setConverting(false);
-    }
-  }, [
-    selectedProjectId,
-    converting,
-    savedAt,
-    rows,
-    projectName,
-    projectDate,
-    responsiblePerson,
-    constants,
-    targetCurrency,
-    sourceCurrency,
-  ]);
+    },
+    [
+      selectedProjectId,
+      converting,
+      savedAt,
+      rows,
+      projectName,
+      projectDate,
+      responsiblePerson,
+      constants,
+      targetCurrency,
+      sourceCurrency,
+    ],
+  );
 
   const handleCreateProject = useCallback(async (name: string) => {
     const res = await fetch("/api/pricing/projects", {
@@ -474,7 +483,7 @@ export function PricingSheet({
                 {saving ? "Saving…" : "Save"}
               </button>
               <button
-                onClick={handleConvertToQuotation}
+                onClick={() => setShowConvertDialog(true)}
                 disabled={converting || rows.length === 0}
                 title="Create a draft quotation in the Designer pre-filled from these prices"
                 className="flex items-center gap-1.5 rounded-lg bg-magic-red px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-magic-red/90 disabled:opacity-60"
@@ -602,6 +611,15 @@ export function PricingSheet({
           <PricingCharts rows={rows} constants={constants} />
         </>
       )}
+
+      <ConvertToQuotationDialog
+        open={showConvertDialog}
+        converting={converting}
+        onClose={() => setShowConvertDialog(false)}
+        onConfirm={({ folderId, projectId }) => {
+          void handleConvertToQuotation(folderId, projectId);
+        }}
+      />
     </div>
   );
 }
