@@ -292,6 +292,19 @@ const LEAD_LIFECYCLE_FLAG = "lead_lifecycle_v1_2026_05";
 // only the table + index DDL.
 const STOCK_CHECKS_FLAG = "quotation_stock_checks_v1_2026_05";
 
+/**
+ * Pricing module — embeds the Pricing Sheet workspace inside the host so
+ * sales/presales staff can prepare manufacturer-scoped pricing projects
+ * and convert any of them straight into a quotation draft. Tables are
+ * prefixed `pricing_` to avoid name collisions with the host's existing
+ * `projects` / `manufacturers` semantics.
+ *
+ * The CHECK constraint on `user_module_roles.module` also has to grow to
+ * accept the new value, so this flag wraps the constraint ALTER as well —
+ * the inline CREATE TABLE above already lists 'pricing' for fresh DBs.
+ */
+const PRICING_FOUNDATION_FLAG = "pricing_foundation_v1_2026_05";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -327,7 +340,7 @@ export async function resetSchemaCache(): Promise<void> {
       ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
       ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
       ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG},
-      ${STOCK_CHECKS_FLAG}
+      ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG}
     )
   `;
   // Bust the in-process promise cache so the next ensureSchema() call
@@ -364,6 +377,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let moduleRbacRevokeApplied = false;
   let leadLifecycleApplied = false;
   let stockChecksApplied = false;
+  let pricingFoundationApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -375,7 +389,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
         ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
         ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG},
-        ${STOCK_CHECKS_FLAG}
+        ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -399,6 +413,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     moduleRbacRevokeApplied = keys.has(MODULE_RBAC_REVOKE_FLAG);
     leadLifecycleApplied = keys.has(LEAD_LIFECYCLE_FLAG);
     stockChecksApplied = keys.has(STOCK_CHECKS_FLAG);
+    pricingFoundationApplied = keys.has(PRICING_FOUNDATION_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -424,7 +439,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     moduleRbacApplied &&
     moduleRbacRevokeApplied &&
     leadLifecycleApplied &&
-    stockChecksApplied
+    stockChecksApplied &&
+    pricingFoundationApplied
   )
     return;
 
@@ -1436,7 +1452,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`
       create table if not exists user_module_roles (
         user_id    integer not null references users(id) on delete cascade,
-        module     text not null check (module in ('crm','projects','storage','admin')),
+        module     text not null check (module in ('crm','projects','storage','admin','pricing')),
         role       text not null,
         granted_by integer references users(id) on delete set null,
         created_at timestamptz not null default now(),
@@ -1937,6 +1953,142 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${STOCK_CHECKS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!pricingFoundationApplied) {
+    // The user_module_roles CHECK constraint on existing databases was
+    // created before "pricing" was a valid module name. Postgres assigns
+    // the inline check the auto-name `user_module_roles_module_check`;
+    // DROP-then-ADD swaps it for a wider one. The fresh-DB path's inline
+    // CREATE TABLE already lists 'pricing' so this ALTER is a no-op there.
+    await q`
+      alter table user_module_roles
+        drop constraint if exists user_module_roles_module_check
+    `;
+    await q`
+      alter table user_module_roles
+        add constraint user_module_roles_module_check
+        check (module in ('crm','projects','storage','admin','pricing'))
+    `;
+
+    // Manufacturers visible system-wide. `created_by_user_id` is the
+    // creator's user id (null when an admin pre-seeds one). Color/tag at
+    // this level only matter for the admin's global view; per-user
+    // overrides live in pricing_user_manufacturers.
+    await q`
+      create table if not exists pricing_manufacturers (
+        id                  bigserial primary key,
+        name                text   not null,
+        color               text,
+        tag                 text,
+        created_by_user_id  integer references users(id) on delete set null,
+        created_at          timestamptz not null default now(),
+        deleted_at          timestamptz
+      )
+    `;
+    await q`
+      create index if not exists pricing_manufacturers_active_idx
+        on pricing_manufacturers(deleted_at)
+        where deleted_at is null
+    `;
+
+    // Per-user mapping table so non-admins only see manufacturers they
+    // were granted access to, with their own colour/tag override. Admins
+    // bypass this and see all rows.
+    await q`
+      create table if not exists pricing_user_manufacturers (
+        id              bigserial primary key,
+        user_id         integer not null references users(id) on delete cascade,
+        manufacturer_id integer not null references pricing_manufacturers(id) on delete cascade,
+        color           text not null default 'cyan',
+        tag             text not null default '',
+        created_at      timestamptz not null default now(),
+        deleted_at      timestamptz,
+        unique (user_id, manufacturer_id)
+      )
+    `;
+    await q`
+      create index if not exists pricing_user_manufacturers_user_idx
+        on pricing_user_manufacturers(user_id)
+        where deleted_at is null
+    `;
+
+    // A pricing project is one manufacturer's pricing sheet for one job.
+    // `user_id` is the owning user; admins bypass the ownership filter.
+    // `parent_project_id` + `revision_number` model the "Save as Revision"
+    // lineage so the user can compare current pricing against historical
+    // takes for the same project.
+    await q`
+      create table if not exists pricing_projects (
+        id                  bigserial primary key,
+        name                text   not null,
+        date                text,
+        responsible_person  text,
+        manufacturer_id     integer not null references pricing_manufacturers(id) on delete cascade,
+        user_id             integer references users(id) on delete set null,
+        parent_project_id   integer references pricing_projects(id) on delete set null,
+        revision_number     integer not null default 1,
+        created_at          timestamptz not null default now(),
+        deleted_at          timestamptz
+      )
+    `;
+    await q`
+      create index if not exists pricing_projects_user_idx
+        on pricing_projects(user_id)
+        where deleted_at is null
+    `;
+    await q`
+      create index if not exists pricing_projects_manufacturer_idx
+        on pricing_projects(manufacturer_id)
+        where deleted_at is null
+    `;
+
+    // One row per project — the constants snapshot used when calculating
+    // every line in that project. Defaults match the pricing-sheet app's
+    // out-of-the-box numbers.
+    await q`
+      create table if not exists pricing_project_constants (
+        id              bigserial primary key,
+        project_id      integer not null unique references pricing_projects(id) on delete cascade,
+        currency_rate   numeric(10, 6) not null default 0.710000,
+        shipping_rate   numeric(10, 6) not null default 0.150000,
+        customs_rate    numeric(10, 6) not null default 0.120000,
+        profit_margin   numeric(10, 6) not null default 0.250000,
+        tax_rate        numeric(10, 6) not null default 0.160000,
+        target_currency text not null default 'JOD',
+        source_currency text not null default 'USD'
+      )
+    `;
+
+    // The actual line items. (project_id, position) is the visual order
+    // used in the sheet; per-row overrides let the user pin one line's
+    // shipping/customs/profit treatment when the global constants don't
+    // fit (e.g. an item that ships free).
+    await q`
+      create table if not exists pricing_product_lines (
+        id                      bigserial primary key,
+        project_id              integer not null references pricing_projects(id) on delete cascade,
+        position                integer not null,
+        item_model              text not null default '',
+        price_usd               numeric(12, 4) not null default 0,
+        quantity                integer not null default 1,
+        shipping_override       numeric(12, 4),
+        customs_override        numeric(12, 4),
+        shipping_rate_override  numeric(10, 6),
+        customs_rate_override   numeric(10, 6),
+        profit_rate_override    numeric(10, 6),
+        unique (project_id, position)
+      )
+    `;
+    await q`
+      create index if not exists pricing_product_lines_project_idx
+        on pricing_product_lines(project_id)
+    `;
+
+    await q`
+      insert into migration_flags (key) values (${PRICING_FOUNDATION_FLAG})
       on conflict (key) do nothing
     `;
   }
