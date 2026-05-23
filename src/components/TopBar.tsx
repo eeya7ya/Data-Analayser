@@ -94,6 +94,14 @@ export default function TopBar({ user }: { user: SessionUser }) {
     // (they had access pre-V2; requireModuleAllowLegacy lets the API
     // through and stamps an audit row).
     moduleRoles.length === 0;
+  // Pricing — same legacy-friendly visibility as CRM. The API gate is
+  // requireModuleAllowLegacy so a pre-V2 user with no grants still gets
+  // through; once any admin grants real roles, the strict path takes over.
+  const hasPricingAccess =
+    isAdmin ||
+    moduleRoles === null ||
+    moduleRoles.some((r) => r.module === "pricing") ||
+    moduleRoles.length === 0;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -137,6 +145,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
             </NavLink>
           )}
           {hasStorageAccess && <NavLink href="/storage">Storage</NavLink>}
+          {hasPricingAccess && <NavLink href="/pricing">Pricing</NavLink>}
           {isAdmin && <NavLink href="/admin">Admin</NavLink>}
 
           {/* Legacy URLs — every page from the pre-V2 nav is still here. */}
@@ -227,6 +236,11 @@ export default function TopBar({ user }: { user: SessionUser }) {
             {hasStorageAccess && (
               <MobileNavLink href="/storage" onClick={closeMobile}>
                 Storage
+              </MobileNavLink>
+            )}
+            {hasPricingAccess && (
+              <MobileNavLink href="/pricing" onClick={closeMobile}>
+                Pricing
               </MobileNavLink>
             )}
             {isAdmin && (

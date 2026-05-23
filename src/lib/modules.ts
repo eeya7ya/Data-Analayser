@@ -17,7 +17,7 @@ import { canReadAll, type SessionUser } from "./auth";
  * (the composite PK enforces uniqueness across (user_id, module, role)).
  */
 
-export const MODULES = ["crm", "projects", "storage", "admin"] as const;
+export const MODULES = ["crm", "projects", "storage", "admin", "pricing"] as const;
 export type Module = (typeof MODULES)[number];
 
 /**
@@ -30,6 +30,7 @@ export const ROLES_PER_MODULE = {
   projects: ["technical", "engineer", "manager"],
   storage: ["worker", "manager"],
   admin: ["admin"],
+  pricing: ["sales", "presales", "manager"],
 } as const satisfies Record<Module, readonly string[]>;
 
 export type ModuleRole<M extends Module = Module> =
