@@ -33,6 +33,14 @@ export default async function DashboardPage() {
       !(await hasModule(user.id, "storage")));
   const hasProjects = isAdmin || (await hasModule(user.id, "projects"));
   const hasStorage = isAdmin || (await hasModule(user.id, "storage"));
+  // Pricing — same legacy bypass shape as CRM so pre-V2 users who never
+  // got an explicit grant still see the card and can fall through into
+  // the module. Once an admin grants any module role anywhere, this
+  // collapses to the strict `hasModule("pricing")` check.
+  const hasPricing =
+    isAdmin || (await hasModule(user.id, "pricing")) ||
+    (!(await hasModule(user.id, "projects")) &&
+      !(await hasModule(user.id, "storage")));
 
   // Approval count — we read directly from the DB rather than going
   // through the API endpoint so the page renders in one round-trip.
@@ -121,6 +129,14 @@ export default async function DashboardPage() {
               title="Projects (flat view)"
               description="Every project you own or are assigned to, across clients. Useful for engineers."
               accent="muted"
+            />
+          )}
+          {hasPricing && (
+            <ModuleCard
+              href="/pricing"
+              title="Pricing Sheets"
+              description="Per-manufacturer pricing workspaces with constants, product lines and one-click Convert to Quotation."
+              accent="indigo"
             />
           )}
           {isAdmin && (
