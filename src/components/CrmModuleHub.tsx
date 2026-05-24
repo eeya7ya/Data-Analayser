@@ -9,18 +9,19 @@ import {
   Boxes,
   FolderKanban,
   Tags,
+  ChevronLeft,
   type LucideIcon,
 } from "lucide-react";
 import CrmSearch from "@/components/CrmSearch";
 
 /**
- * The CRM hub. Tabs surface the modules the signed-in user's role grants
- * (sales / presales / storage / projects / pricing) alongside the core
- * Clients drill-down. Tabs the user has no role for are never rendered,
- * so a storage worker and a sales manager see different hubs from the
- * same page. Each module tab is an entry board into that module rather
- * than a duplicate of it — the heavy lifting still lives on the module's
- * own route.
+ * The CRM hub. On entry the user picks a tool first (Clients / Sales /
+ * Presales / Storage / Projects / Pricing) — nothing drills into
+ * companies or clients until a tool is chosen. Only tools the signed-in
+ * user's role grants are offered, and the data behind them is always
+ * scoped to the user's own people (admins can widen via the scope
+ * picker on the page). Each module tool is an entry board into that
+ * module rather than a duplicate of it.
  */
 
 export interface CrmHubFlags {
@@ -47,13 +48,37 @@ interface EntryCard {
 
 type TabId = "clients" | "sales" | "presales" | "storage" | "projects" | "pricing";
 
-const TAB_META: Record<TabId, { label: string; icon: LucideIcon }> = {
-  clients: { label: "Clients", icon: Users },
-  sales: { label: "Sales", icon: Briefcase },
-  presales: { label: "Presales", icon: ClipboardList },
-  storage: { label: "Storage", icon: Boxes },
-  projects: { label: "Projects", icon: FolderKanban },
-  pricing: { label: "Pricing", icon: Tags },
+const TAB_META: Record<TabId, { label: string; icon: LucideIcon; blurb: string }> = {
+  clients: {
+    label: "Clients",
+    icon: Users,
+    blurb: "Your companies and individual clients, with projects + quotations.",
+  },
+  sales: {
+    label: "Sales",
+    icon: Briefcase,
+    blurb: "Leads, approvals, and converting won deals into projects.",
+  },
+  presales: {
+    label: "Presales",
+    icon: ClipboardList,
+    blurb: "Lead inbox, the designer, and pricing → quotation.",
+  },
+  storage: {
+    label: "Storage",
+    icon: Boxes,
+    blurb: "Inventory, locations, and incoming stock-check requests.",
+  },
+  projects: {
+    label: "Projects",
+    icon: FolderKanban,
+    blurb: "Every project you own or are assigned to, across clients.",
+  },
+  pricing: {
+    label: "Pricing",
+    icon: Tags,
+    blurb: "Per-manufacturer pricing workspaces and comparisons.",
+  },
 };
 
 export default function CrmModuleHub({
@@ -65,20 +90,22 @@ export default function CrmModuleHub({
   counts: CrmHubCounts;
   scopeSuffix: string;
 }) {
-  const tabs: TabId[] = ["clients"];
-  if (flags.sales) tabs.push("sales");
-  if (flags.presales) tabs.push("presales");
-  if (flags.storage) tabs.push("storage");
-  if (flags.projects) tabs.push("projects");
-  if (flags.pricing) tabs.push("pricing");
+  const tools: TabId[] = ["clients"];
+  if (flags.sales) tools.push("sales");
+  if (flags.presales) tools.push("presales");
+  if (flags.storage) tools.push("storage");
+  if (flags.projects) tools.push("projects");
+  if (flags.pricing) tools.push("pricing");
 
-  const [tab, setTab] = useState<TabId>("clients");
+  // Tool-first: nothing is selected until the user picks one.
+  const [tab, setTab] = useState<TabId | null>(null);
 
   const entryCards: Record<Exclude<TabId, "clients">, EntryCard[]> = {
+    // Sales is no longer tied to quotations — it lives around leads,
+    // approvals, and converting won deals into projects.
     sales: [
       { href: "/leads", title: "Leads", desc: "Open and track sales leads through the pipeline." },
-      { href: "/inbox/approvals", title: "Approvals inbox", desc: "Review and sign off quotations awaiting your approval." },
-      { href: "/quotation", title: "Quotations", desc: "Browse every quotation across your clients." },
+      { href: "/inbox/approvals", title: "Approvals", desc: "Review and sign off quotations awaiting approval." },
     ],
     presales: [
       { href: "/leads/inbox", title: "Lead inbox", desc: "Leads routed to you for quotation design." },
@@ -97,11 +124,51 @@ export default function CrmModuleHub({
     ],
   };
 
+  // Tool picker — the first thing the user sees.
+  if (tab === null) {
+    return (
+      <div>
+        <p className="mb-3 text-sm font-semibold text-magic-ink/70">
+          Pick a tool to get started
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {tools.map((id) => {
+            const Icon = TAB_META[id].icon;
+            return (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className="group flex flex-col items-start rounded-2xl border border-magic-border bg-white p-5 text-left shadow-mt-soft transition-all hover:border-magic-red hover:shadow-mt-lift"
+              >
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-magic-red/12 to-magic-accent/10 text-magic-red">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <h3 className="mt-3 text-base font-bold text-magic-ink group-hover:text-magic-red">
+                  {TAB_META[id].label}
+                </h3>
+                <p className="mt-1 text-sm text-magic-ink/60">{TAB_META[id].blurb}</p>
+                <span className="mt-3 text-xs font-semibold text-magic-red">Open →</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
-      {/* Tab strip */}
-      <div className="flex flex-wrap gap-1 rounded-2xl border border-magic-border bg-white/70 p-1.5 backdrop-blur-sm">
-        {tabs.map((id) => {
+      {/* Tab strip with a return-to-picker control. */}
+      <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-magic-border bg-white/70 p-1.5 backdrop-blur-sm">
+        <button
+          onClick={() => setTab(null)}
+          className="inline-flex items-center gap-1 rounded-xl px-2.5 py-2 text-sm font-semibold text-magic-ink/60 hover:bg-magic-soft hover:text-magic-ink transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Tools
+        </button>
+        <span className="mx-1 h-5 w-px bg-magic-border/70" />
+        {tools.map((id) => {
           const Icon = TAB_META[id].icon;
           const active = tab === id;
           return (
