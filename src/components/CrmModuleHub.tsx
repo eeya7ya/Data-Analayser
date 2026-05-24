@@ -106,6 +106,7 @@ export default function CrmModuleHub({
     sales: [
       { href: "/leads", title: "Leads", desc: "Open and track sales leads through the pipeline." },
       { href: "/inbox/approvals", title: "Approvals", desc: "Review and sign off quotations awaiting approval." },
+      { href: "/projects/handoffs", title: "Project handoffs", desc: "Quotations you converted into projects, and their status." },
     ],
     presales: [
       { href: "/leads/inbox", title: "Lead inbox", desc: "Leads routed to you for quotation design." },
@@ -117,6 +118,7 @@ export default function CrmModuleHub({
     ],
     projects: [
       { href: "/projects", title: "Projects (flat view)", desc: "Every project you own or are assigned to, across clients." },
+      { href: "/projects/handoffs", title: "Handoffs to assign", desc: "Assign a project member to converted quotations." },
     ],
     pricing: [
       { href: "/pricing", title: "Pricing workspaces", desc: "Per-manufacturer pricing projects and constants." },

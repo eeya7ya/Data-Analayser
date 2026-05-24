@@ -158,6 +158,44 @@ export async function GET() {
     });
   }
 
+  // Project handoffs awaiting a member — projects managers + admins.
+  const isProjectsManager =
+    isAdmin || (await hasModuleRole(user.id, "projects", "manager"));
+  if (isProjectsManager) {
+    const pendingHandoffs = (await q`
+      select count(*)::int as n from project_handoffs
+      where status = 'pending_assignment'
+    `) as Array<{ n: number }>;
+    const n = pendingHandoffs[0]?.n ?? 0;
+    if (n > 0) {
+      raw.push({
+        id: "handoffs.pending",
+        kind: "alarm",
+        severity: "warning",
+        title: `${n} project${n === 1 ? "" : "s"} awaiting a member`,
+        body: "Sales converted these approved quotations — assign a project member to start execution.",
+        action: { label: "Assign", href: "/projects/handoffs" },
+      });
+    }
+  }
+
+  // A handoff assigned to me — the project member's heads-up.
+  const myAssigned = (await q`
+    select count(*)::int as n from project_handoffs
+    where status = 'assigned' and assigned_user_id = ${user.id}
+  `) as Array<{ n: number }>;
+  const mine = myAssigned[0]?.n ?? 0;
+  if (mine > 0) {
+    raw.push({
+      id: "handoffs.assigned_to_me",
+      kind: "alarm",
+      severity: "info",
+      title: `${mine} project${mine === 1 ? "" : "s"} assigned to you`,
+      body: "Open the handoff to view the BOQ, contacts, and site location.",
+      action: { label: "View", href: "/projects/handoffs" },
+    });
+  }
+
   // Messages — admin announcements, audience-filtered the same way the
   // NewsBar does (the 'all' tag is a wildcard in either array).
   const grants = (await q`
