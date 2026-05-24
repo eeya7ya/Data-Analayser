@@ -103,7 +103,8 @@ export default async function CrmLandingPage({
           </Link>
           <h1 className="mt-1 text-2xl font-bold text-magic-ink">CRM</h1>
           <p className="mt-0.5 text-sm text-magic-ink/60">
-            Your modules and clients in one place. Tabs reflect your role.
+            Your workspace. The tools you see reflect your role; clients live
+            inside the Sales, Presales and Projects tools.
           </p>
         </div>
 
