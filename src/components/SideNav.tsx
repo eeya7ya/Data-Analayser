@@ -6,10 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Building2,
-  Inbox,
-  Boxes,
-  Tags,
-  FolderKanban,
   ShieldCheck,
   ChevronDown,
   X,
@@ -69,13 +65,12 @@ export default function SideNav({
     moduleRoles.length === 0 ||
     moduleRoles.some((r) => r.module === m);
 
+  // CRM is the single hub for the work modules (Sales / Presales /
+  // Storage / Projects / Pricing live as tabs inside it), so the drawer
+  // intentionally does NOT repeat them — only the top-level surfaces.
   const primary: NavItem[] = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/crm", label: "CRM", icon: Building2, show: has("crm") || has("projects") },
-    { href: "/leads", label: "Leads", icon: Inbox, show: has("crm") },
-    { href: "/storage", label: "Storage", icon: Boxes, show: has("storage") },
-    { href: "/pricing", label: "Pricing", icon: Tags, show: has("pricing") },
-    { href: "/projects", label: "Projects", icon: FolderKanban, show: isAdmin || has("projects") },
   ].filter((i) => i.show);
 
   const legacy = [

@@ -316,6 +316,16 @@ const PRICING_FOUNDATION_FLAG = "pricing_foundation_v1_2026_05";
  */
 const NOTIFICATION_STATE_FLAG = "notification_state_v1_2026_05";
 
+/**
+ * V1.3a — Convert-to-Project handoffs. A salesperson turns an approved
+ * quotation into an execution handoff: the quotation's line items are
+ * snapshotted as a BOQ, the client contacts + a map location + priority
+ * / notes are captured, and the record routes to a projects manager to
+ * assign a project member. Reuses the existing `project_assignments`
+ * table for the actual roster entry on assignment.
+ */
+const PROJECT_HANDOFFS_FLAG = "project_handoffs_v1_2026_05";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -390,6 +400,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let stockChecksApplied = false;
   let pricingFoundationApplied = false;
   let notificationStateApplied = false;
+  let projectHandoffsApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -402,7 +413,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
         ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG},
         ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG},
-        ${NOTIFICATION_STATE_FLAG}
+        ${NOTIFICATION_STATE_FLAG}, ${PROJECT_HANDOFFS_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -428,6 +439,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     stockChecksApplied = keys.has(STOCK_CHECKS_FLAG);
     pricingFoundationApplied = keys.has(PRICING_FOUNDATION_FLAG);
     notificationStateApplied = keys.has(NOTIFICATION_STATE_FLAG);
+    projectHandoffsApplied = keys.has(PROJECT_HANDOFFS_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -455,7 +467,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     leadLifecycleApplied &&
     stockChecksApplied &&
     pricingFoundationApplied &&
-    notificationStateApplied
+    notificationStateApplied &&
+    projectHandoffsApplied
   )
     return;
 
@@ -2130,6 +2143,56 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${NOTIFICATION_STATE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!projectHandoffsApplied) {
+    // Convert-to-Project handoffs. `boq_snapshot` freezes the quotation's
+    // line items + totals at conversion time so the BOQ the project team
+    // executes can't drift if the quotation is later edited. `status`
+    // walks pending_assignment → assigned → completed (or cancelled).
+    await q`
+      create table if not exists project_handoffs (
+        id                bigserial primary key,
+        quotation_id      integer references quotations(id) on delete set null,
+        project_id        integer references projects(id) on delete set null,
+        folder_id         integer references client_folders(id) on delete set null,
+        created_by        integer references users(id) on delete set null,
+        status            text not null default 'pending_assignment'
+                            check (status in ('pending_assignment','assigned','completed','cancelled')),
+        contact_name      text,
+        contact_phones    text,
+        site_address      text,
+        location_lat      double precision,
+        location_lng      double precision,
+        priority          text not null default 'normal'
+                            check (priority in ('low','normal','high','urgent')),
+        notes             text,
+        boq_snapshot      jsonb not null default '[]'::jsonb,
+        assigned_user_id  integer references users(id) on delete set null,
+        assigned_by       integer references users(id) on delete set null,
+        assigned_at       timestamptz,
+        completed_at      timestamptz,
+        created_at        timestamptz not null default now(),
+        updated_at        timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists project_handoffs_status_idx
+        on project_handoffs(status)
+        where status = 'pending_assignment'
+    `;
+    await q`
+      create index if not exists project_handoffs_assignee_idx
+        on project_handoffs(assigned_user_id)
+    `;
+    await q`
+      create index if not exists project_handoffs_creator_idx
+        on project_handoffs(created_by)
+    `;
+    await q`
+      insert into migration_flags (key) values (${PROJECT_HANDOFFS_FLAG})
       on conflict (key) do nothing
     `;
   }

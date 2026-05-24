@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import ConvertToProjectDialog from "@/components/ConvertToProjectDialog";
 
 /**
  * Dual-approval bar surfaced inside QuotationViewer. Shows the current
@@ -43,6 +44,8 @@ export default function QuotationApprovalBar({
   const [me, setMe] = useState<MeResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [converting, setConverting] = useState(false);
+  const [converted, setConverted] = useState(false);
 
   useEffect(() => {
     void fetch("/api/auth/me", { cache: "no-store" })
@@ -72,6 +75,8 @@ export default function QuotationApprovalBar({
   const canApproveSales = hasRole("crm", "sales_manager");
   const canApprovePresales = hasRole("crm", "presales_manager");
   const canReject = canApproveSales || canApprovePresales;
+  const canConvert =
+    isAdmin || hasRole("crm", "sales") || hasRole("crm", "sales_manager");
 
   async function approve(side: "sales" | "presales") {
     setBusy(true);
@@ -174,12 +179,36 @@ export default function QuotationApprovalBar({
               Reject
             </button>
           )}
+          {canConvert && fullyApproved && !rejected && (
+            <button
+              onClick={() => setConverting(true)}
+              disabled={busy}
+              className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+            >
+              {converted ? "Converted ✓ — convert again" : "Convert to Project"}
+            </button>
+          )}
         </div>
       </div>
+      {converted && (
+        <p className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+          Sent to projects — a manager will assign a member.
+        </p>
+      )}
       {error && (
         <p className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
           {error}
         </p>
+      )}
+      {converting && (
+        <ConvertToProjectDialog
+          quotationId={quotationId}
+          onClose={() => setConverting(false)}
+          onConverted={() => {
+            setConverting(false);
+            setConverted(true);
+          }}
+        />
       )}
     </div>
   );
