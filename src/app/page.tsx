@@ -1,19 +1,18 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { canReadAll, getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
-import { hasModule, hasModuleRole } from "@/lib/modules";
+import { hasModuleRole } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
-import NewsBar from "@/components/NewsBar";
+import DashboardClient, { type DashboardData } from "@/components/DashboardClient";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Main dashboard. The drill-down for client work starts at /crm; this
- * page is where everything else surfaces: announcements, a "you have N
- * approvals waiting" card for managers, and big CTAs into the
- * top-level modules. Legacy pages live behind the Legacy menu in the
- * TopBar so any pre-V2 bookmark still works.
+ * V1.3a dashboard. Modules moved into the CRM hub + the LHS drawer, so
+ * this page is now a personal analytics board plus the Messages/Alarms
+ * inbox. All aggregates are computed in one server pass and handed to
+ * the client chart component, so the page paints once (no empty→data
+ * re-render — `loading.tsx` covers the navigation gap).
  */
 export default async function DashboardPage() {
   const user = await getSessionUser();
@@ -26,27 +25,31 @@ export default async function DashboardPage() {
     isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
   const isPresalesManager =
     isAdmin || (await hasModuleRole(user.id, "crm", "presales_manager"));
-  const hasCrm =
-    isAdmin || (await hasModule(user.id, "crm")) ||
-    // Legacy bypass: pre-V2 users without explicit grants keep CRM access
-    (!(await hasModule(user.id, "projects")) &&
-      !(await hasModule(user.id, "storage")));
-  const hasProjects = isAdmin || (await hasModule(user.id, "projects"));
-  const hasStorage = isAdmin || (await hasModule(user.id, "storage"));
-  // Pricing — same legacy bypass shape as CRM so pre-V2 users who never
-  // got an explicit grant still see the card and can fall through into
-  // the module. Once an admin grants any module role anywhere, this
-  // collapses to the strict `hasModule("pricing")` check.
-  const hasPricing =
-    isAdmin || (await hasModule(user.id, "pricing")) ||
-    (!(await hasModule(user.id, "projects")) &&
-      !(await hasModule(user.id, "storage")));
+  const isManager = isSalesManager || isPresalesManager;
 
-  // Approval count — we read directly from the DB rather than going
-  // through the API endpoint so the page renders in one round-trip.
+  // Non-admins see only their own rows; admins see everything.
+  const scope = isAdmin ? null : user.id;
   const q = sql();
-  let approvalCount = 0;
-  if (isSalesManager || isPresalesManager) {
+
+  const kpiRows = (await q`
+    select
+      (select count(*) from quotations
+        where deleted_at is null
+          and (${scope}::int is null or owner_id = ${scope}))::int as quotations,
+      (select count(*) from client_folders
+        where deleted_at is null
+          and (${scope}::int is null or owner_id = ${scope}))::int as clients,
+      (select count(*) from companies
+        where deleted_at is null
+          and (${scope}::int is null or owner_id = ${scope}))::int as companies,
+      (select count(*) from projects
+        where deleted_at is null
+          and (${scope}::int is null or owner_id = ${scope}))::int as projects
+  `) as Array<{ quotations: number; clients: number; companies: number; projects: number }>;
+  const kpi = kpiRows[0];
+
+  let pendingApprovals = 0;
+  if (isManager) {
     const rows = (await q`
       select
         (case when ${isSalesManager}
@@ -64,121 +67,76 @@ export default async function DashboardPage() {
                       and approved_at is null)
               else 0 end) as needs_presales
     `) as Array<{ needs_sales: number; needs_presales: number }>;
-    approvalCount =
-      Number(rows[0].needs_sales) + Number(rows[0].needs_presales);
+    pendingApprovals = Number(rows[0].needs_sales) + Number(rows[0].needs_presales);
   }
+
+  const monthlyRows = (await q`
+    select to_char(m, 'Mon') as label, coalesce(c.n, 0)::int as count
+    from generate_series(
+      date_trunc('month', now()) - interval '5 months',
+      date_trunc('month', now()),
+      interval '1 month'
+    ) as m
+    left join (
+      select date_trunc('month', created_at) as mm, count(*)::int as n
+      from quotations
+      where deleted_at is null
+        and created_at > now() - interval '6 months'
+        and (${scope}::int is null or owner_id = ${scope})
+      group by mm
+    ) c on c.mm = m
+    order by m
+  `) as Array<{ label: string; count: number }>;
+
+  const statusRows = (await q`
+    select coalesce(nullif(status, ''), 'active') as name, count(*)::int as value
+    from quotations
+    where deleted_at is null
+      and (${scope}::int is null or owner_id = ${scope})
+    group by 1
+    order by value desc
+  `) as Array<{ name: string; value: number }>;
+
+  const approvalRows = (await q`
+    select
+      count(*) filter (where approved_at is not null)::int as approved,
+      count(*) filter (where rejected_at is not null)::int as rejected,
+      count(*) filter (where approved_at is null and rejected_at is null)::int as pending
+    from quotations
+    where deleted_at is null
+      and (${scope}::int is null or owner_id = ${scope})
+  `) as Array<{ approved: number; rejected: number; pending: number }>;
+
+  const data: DashboardData = {
+    kpis: {
+      quotations: kpi.quotations,
+      clients: kpi.clients,
+      companies: kpi.companies,
+      projects: kpi.projects,
+      pendingApprovals,
+    },
+    monthly: monthlyRows.map((r) => ({ label: r.label, count: Number(r.count) })),
+    status: statusRows.map((r) => ({
+      name: r.name.charAt(0).toUpperCase() + r.name.slice(1),
+      value: Number(r.value),
+    })),
+    approvals: {
+      approved: Number(approvalRows[0].approved),
+      pending: Number(approvalRows[0].pending),
+      rejected: Number(approvalRows[0].rejected),
+    },
+  };
 
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
-      <main className="max-w-5xl mx-auto px-6 py-8 lg:px-10">
-        <h1 className="text-2xl font-bold text-magic-ink mb-1">
-          Welcome back, {user.display_name || user.username}.
-        </h1>
-        <p className="text-sm text-magic-ink/60 mb-6">
-          {isAdmin
-            ? "You can administer every module. The Legacy menu in the top bar opens any pre-V2 page."
-            : "Pick a module to drill into. The Legacy menu has the pre-V2 pages if you need an old shortcut."}
-        </p>
-
-        <NewsBar />
-
-        {approvalCount > 0 && (
-          <Link
-            href="/inbox/approvals"
-            className="block mb-6 rounded-2xl border border-magic-red/30 bg-magic-red/5 p-5 hover:bg-magic-red/10 transition-colors"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="font-semibold text-magic-red">
-                  {approvalCount}{" "}
-                  {approvalCount === 1 ? "quotation needs" : "quotations need"}{" "}
-                  your approval
-                </h2>
-                <p className="text-xs text-magic-ink/60 mt-0.5">
-                  Open the inbox to review and sign off.
-                </p>
-              </div>
-              <span className="text-magic-red text-sm font-semibold">
-                Open inbox →
-              </span>
-            </div>
-          </Link>
-        )}
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {hasCrm && (
-            <ModuleCard
-              href="/crm"
-              title="CRM"
-              description="Clients, projects, quotations, POs, BOQs. Pick Company or Individual to drill in."
-              accent="primary"
-            />
-          )}
-          {(hasStorage || hasProjects) && (
-            <ModuleCard
-              href="/storage"
-              title="Storage"
-              description="Inventory, locations, and stock requests."
-              accent="indigo"
-            />
-          )}
-          {hasProjects && (
-            <ModuleCard
-              href="/projects"
-              title="Projects (flat view)"
-              description="Every project you own or are assigned to, across clients. Useful for engineers."
-              accent="muted"
-            />
-          )}
-          {hasPricing && (
-            <ModuleCard
-              href="/pricing"
-              title="Pricing Sheets"
-              description="Per-manufacturer pricing workspaces with constants, product lines and one-click Convert to Quotation."
-              accent="indigo"
-            />
-          )}
-          {isAdmin && (
-            <ModuleCard
-              href="/admin"
-              title="Admin"
-              description="Users, module roles, folder classification, announcements, settings, backup."
-              accent="muted"
-            />
-          )}
-        </div>
+      <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
+        <DashboardClient
+          data={data}
+          greetingName={user.display_name || user.username}
+          isManager={isManager}
+        />
       </main>
     </div>
-  );
-}
-
-function ModuleCard({
-  href,
-  title,
-  description,
-  accent,
-}: {
-  href: string;
-  title: string;
-  description: string;
-  accent: "primary" | "indigo" | "muted";
-}) {
-  const tones: Record<typeof accent, string> = {
-    primary:
-      "border-magic-red/30 bg-gradient-to-br from-magic-red/5 to-white hover:from-magic-red/10",
-    indigo:
-      "border-indigo-200 bg-gradient-to-br from-indigo-50 to-white hover:from-indigo-100",
-    muted: "border-magic-border bg-white hover:bg-magic-soft/30",
-  };
-  return (
-    <Link
-      href={href}
-      className={`block rounded-2xl border p-5 transition-colors ${tones[accent]}`}
-    >
-      <h3 className="font-semibold text-magic-ink text-lg">{title}</h3>
-      <p className="text-sm text-magic-ink/60 mt-1">{description}</p>
-      <p className="mt-3 text-xs font-semibold text-magic-red">Open →</p>
-    </Link>
   );
 }

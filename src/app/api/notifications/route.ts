@@ -7,28 +7,30 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Consolidated notification feed for the TopBar bell. Anything that
- * used to live as a banner taped to a CRM page surfaces here instead
- * so the pages stay quiet and the user has one place to triage:
+ * Consolidated feed for the TopBar bell + the dashboard Messages/Alarms
+ * panel. Two kinds of items share one shape:
  *
- *   • Pending quotation approvals (sales/presales managers + admin)
- *   • Client folders marked `kind=company` but with no company_id
- *     (admin sees all; everyone else sees only the ones they own)
- *   • Folders still un-classified (admin only — they're the only ones
- *     who can resolve from /admin)
+ *   • "alarm"   — derived signals (pending approvals, unattached /
+ *                 unclassified folders, stock checks).
+ *   • "message" — admin announcements (news_posts), audience-filtered.
  *
- * The shape is intentionally generic — `{ id, severity, title, body,
- * action, secondary }` — so adding new sources later doesn't require
- * touching the bell UI.
+ * Per-user state lives in `notification_state`: items the user removed
+ * are filtered out; items marked read come back with `read: true` so the
+ * UI can dim them. `id` doubles as the stable `notif_key` used by the
+ * POST handler below.
  */
 
 export type NotificationSeverity = "info" | "warning" | "critical";
+export type NotificationKind = "alarm" | "message";
 
 export interface NotificationItem {
   id: string;
+  kind: NotificationKind;
   severity: NotificationSeverity;
   title: string;
   body?: string;
+  created_at?: string;
+  read?: boolean;
   action?: { label: string; href: string };
   secondary?: { label: string; href: string };
 }
@@ -47,7 +49,7 @@ export async function GET() {
     isAdmin || (await hasModuleRole(user.id, "crm", "presales_manager"));
 
   const q = sql();
-  const items: NotificationItem[] = [];
+  const raw: NotificationItem[] = [];
 
   if (isSales || isPresales) {
     const approvalRows = (await q`
@@ -62,8 +64,9 @@ export async function GET() {
     `) as Array<{ n: number }>;
     const pending = approvalRows[0]?.n ?? 0;
     if (pending > 0) {
-      items.push({
+      raw.push({
         id: "approvals.pending",
+        kind: "alarm",
         severity: "critical",
         title: `${pending} quotation${pending === 1 ? "" : "s"} need your approval`,
         body: "Open the inbox to review and sign off.",
@@ -83,8 +86,9 @@ export async function GET() {
   `) as Array<{ n: number }>;
   const unattached = unattachedRows[0]?.n ?? 0;
   if (unattached > 0) {
-    items.push({
+    raw.push({
       id: "folders.unattached_company",
+      kind: "alarm",
       severity: "warning",
       title: `${unattached} client folder${unattached === 1 ? "" : "s"} marked company but not attached to one`,
       body: "They keep working, they just don't show up under any company yet. Attach them by opening the folder and picking a company.",
@@ -102,8 +106,9 @@ export async function GET() {
     `) as Array<{ n: number }>;
     const unclassified = unclassifiedRows[0]?.n ?? 0;
     if (unclassified > 0) {
-      items.push({
+      raw.push({
         id: "folders.unclassified",
+        kind: "alarm",
         severity: "warning",
         title: `${unclassified} folder${unclassified === 1 ? "" : "s"} need classification`,
         body: "Pre-V2 folders that haven't been marked Company / Individual yet. Pick a path to clear them.",
@@ -113,13 +118,6 @@ export async function GET() {
     }
   }
 
-  // Quotation stock-check signals. Two angles:
-  //   1. Storage-team members get pinged about pending checks waiting
-  //      in their inbox.
-  //   2. The requester gets pinged when a previously-pending check
-  //      flips to `answered`. We use the answered_at timestamp + a
-  //      72-hour fresh window so the bell doesn't become a permanent
-  //      "you have an old reply" shrine.
   const isStorage = isAdmin || (await hasModule(user.id, "storage"));
   if (isStorage) {
     const pendingChecks = (await q`
@@ -129,8 +127,9 @@ export async function GET() {
     `) as Array<{ n: number }>;
     const n = pendingChecks[0]?.n ?? 0;
     if (n > 0) {
-      items.push({
+      raw.push({
         id: "stock_checks.pending",
+        kind: "alarm",
         severity: "warning",
         title: `${n} BOQ stock check${n === 1 ? "" : "s"} waiting`,
         body: "Open the storage inbox to mark each item available / partial / out.",
@@ -149,8 +148,9 @@ export async function GET() {
   `) as Array<{ n: number }>;
   const recent = recentAnswered[0]?.n ?? 0;
   if (recent > 0) {
-    items.push({
+    raw.push({
       id: "stock_checks.answered",
+      kind: "alarm",
       severity: "info",
       title: `Storage answered ${recent} stock check${recent === 1 ? "" : "s"}`,
       body: "Open the quotation to see the per-item checklist.",
@@ -158,5 +158,111 @@ export async function GET() {
     });
   }
 
+  // Messages — admin announcements, audience-filtered the same way the
+  // NewsBar does (the 'all' tag is a wildcard in either array).
+  const grants = (await q`
+    select module, role from user_module_roles
+    where user_id = ${user.id} and revoked_at is null
+  `) as Array<{ module: string; role: string }>;
+  const moduleTags = ["all", ...grants.map((g) => g.module)];
+  const roleTags = ["all", ...grants.map((g) => g.role)];
+  const newsRows = (await q`
+    select n.id, n.title, n.body, n.pinned, n.created_at
+    from news_posts n
+    where n.deleted_at is null
+      and (n.expires_at is null or n.expires_at > now())
+      and (
+        ${isAdmin}::boolean
+        or (n.audience_modules && ${moduleTags}::text[]
+            and n.audience_roles && ${roleTags}::text[])
+      )
+    order by n.pinned desc, n.created_at desc
+    limit 30
+  `) as Array<{
+    id: number;
+    title: string;
+    body: string;
+    pinned: boolean;
+    created_at: string;
+  }>;
+  for (const m of newsRows) {
+    raw.push({
+      id: `news:${m.id}`,
+      kind: "message",
+      severity: "info",
+      title: m.title,
+      body: m.body,
+      created_at: m.created_at,
+    });
+  }
+
+  // Apply per-user state: drop removed, flag read.
+  const stateRows = (await q`
+    select notif_key, status from notification_state
+    where user_id = ${user.id}
+  `) as Array<{ notif_key: string; status: "read" | "removed" }>;
+  const state = new Map(stateRows.map((r) => [r.notif_key, r.status]));
+  const items = raw
+    .filter((it) => state.get(it.id) !== "removed")
+    .map((it) => ({ ...it, read: state.get(it.id) === "read" }));
+
   return NextResponse.json({ items });
+}
+
+/**
+ * Record per-user state for one feed item. `status: "read"` dims it;
+ * `status: "removed"` hides it from the feed. Re-deriving the same key
+ * later (e.g. a fresh batch of approvals) re-uses the stored status, so
+ * removing a recurring alarm hides only the current instance until its
+ * count changes — which is the expected "dismiss this for now" UX.
+ */
+export async function POST(req: Request) {
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
+  }
+  await ensureSchema();
+
+  const body = (await req.json().catch(() => ({}))) as {
+    key?: string;
+    status?: string;
+    all?: boolean;
+  };
+  const status = body.status === "read" || body.status === "removed" ? body.status : null;
+  if (!status) {
+    return NextResponse.json({ error: "invalid status" }, { status: 400 });
+  }
+
+  const q = sql();
+
+  // "Mark all read": stamp every currently-derived alarm/message key.
+  // The client passes the visible keys so we don't have to re-derive the
+  // whole feed server-side.
+  if (body.all && Array.isArray((body as { keys?: string[] }).keys)) {
+    const keys = ((body as { keys?: string[] }).keys ?? [])
+      .map(String)
+      .filter(Boolean)
+      .slice(0, 200);
+    for (const key of keys) {
+      await q`
+        insert into notification_state (user_id, notif_key, status)
+        values (${user.id}, ${key}, ${status})
+        on conflict (user_id, notif_key)
+        do update set status = ${status}, updated_at = now()
+      `;
+    }
+    return NextResponse.json({ ok: true, count: keys.length });
+  }
+
+  const key = String(body.key ?? "").trim();
+  if (!key) {
+    return NextResponse.json({ error: "key required" }, { status: 400 });
+  }
+  await q`
+    insert into notification_state (user_id, notif_key, status)
+    values (${user.id}, ${key}, ${status})
+    on conflict (user_id, notif_key)
+    do update set status = ${status}, updated_at = now()
+  `;
+  return NextResponse.json({ ok: true });
 }
