@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
+import { findCrossKindConflicts } from "@/lib/crmNames";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -129,6 +130,7 @@ export async function POST(req: Request) {
     const user = await requireUser();
     await ensureSchema();
     await requireModuleAllowLegacy(user, "crm");
+    const isAdmin = canReadAll(user);
 
     const body = (await req.json()) as {
       name?: string;
@@ -140,6 +142,25 @@ export async function POST(req: Request) {
     const name = String(body.name ?? "").trim();
     if (!name) {
       return NextResponse.json({ error: "name required" }, { status: 400 });
+    }
+
+    // De-dup hard block (V1.3a): a name in the Individual list can't also
+    // exist as a Company. Checked before the idempotent reuse so a clean
+    // 409 is returned with the conflicting rows for the UI to surface.
+    const conflicts = await findCrossKindConflicts({
+      name,
+      target: "company",
+      ownerId: isAdmin ? null : user.id,
+    });
+    if (conflicts.length > 0) {
+      return NextResponse.json(
+        {
+          error: `"${name}" already exists as an individual client. A name can't be both an individual and a company.`,
+          conflict: true,
+          matches: conflicts,
+        },
+        { status: 409 },
+      );
     }
 
     const q = sql();

@@ -305,6 +305,17 @@ const STOCK_CHECKS_FLAG = "quotation_stock_checks_v1_2026_05";
  */
 const PRICING_FOUNDATION_FLAG = "pricing_foundation_v1_2026_05";
 
+/**
+ * V1.3a — per-user notification state. The TopBar bell + the dashboard
+ * Messages/Alarms panel surface a mix of derived alarms (pending
+ * approvals, stock checks, unclassified folders) and admin announcements
+ * (news_posts). Those sources are computed, so "mark as read" / "remove"
+ * needs somewhere durable to record the user's intent. One row per
+ * (user, notif_key) carries the latest status; removed items are
+ * filtered out of the feed, read items render dimmed.
+ */
+const NOTIFICATION_STATE_FLAG = "notification_state_v1_2026_05";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -378,6 +389,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let leadLifecycleApplied = false;
   let stockChecksApplied = false;
   let pricingFoundationApplied = false;
+  let notificationStateApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -389,7 +401,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${USER_PHONE_FLAG}, ${PURCHASE_ORDERS_FLAG}, ${CATALOGUE_PICTURE_FLAG},
         ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
         ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG},
-        ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG}
+        ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG},
+        ${NOTIFICATION_STATE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -414,6 +427,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     leadLifecycleApplied = keys.has(LEAD_LIFECYCLE_FLAG);
     stockChecksApplied = keys.has(STOCK_CHECKS_FLAG);
     pricingFoundationApplied = keys.has(PRICING_FOUNDATION_FLAG);
+    notificationStateApplied = keys.has(NOTIFICATION_STATE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -440,7 +454,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     moduleRbacRevokeApplied &&
     leadLifecycleApplied &&
     stockChecksApplied &&
-    pricingFoundationApplied
+    pricingFoundationApplied &&
+    notificationStateApplied
   )
     return;
 
@@ -2089,6 +2104,32 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${PRICING_FOUNDATION_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!notificationStateApplied) {
+    // Per-user read / removed state for the notification + messages feed.
+    // `notif_key` is a stable string the API derives for each item
+    // (e.g. "approvals.pending", "news:42"). UPSERT on (user_id,
+    // notif_key) keeps exactly one row per item per user.
+    await q`
+      create table if not exists notification_state (
+        id          bigserial primary key,
+        user_id     integer not null references users(id) on delete cascade,
+        notif_key   text not null,
+        status      text not null check (status in ('read','removed')),
+        created_at  timestamptz not null default now(),
+        updated_at  timestamptz not null default now(),
+        unique (user_id, notif_key)
+      )
+    `;
+    await q`
+      create index if not exists notification_state_user_idx
+        on notification_state(user_id)
+    `;
+    await q`
+      insert into migration_flags (key) values (${NOTIFICATION_STATE_FLAG})
       on conflict (key) do nothing
     `;
   }

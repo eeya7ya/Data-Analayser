@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { EditFolderDialog } from "@/components/EditFolderDialog";
+import { useNameConflicts } from "@/components/useNameConflicts";
 
 /**
  * Reusable client (folder) list with search + "+ New client".
@@ -254,9 +255,13 @@ function NewClientModal({
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Only individual clients are subject to the cross-kind block; company
+  // contacts may legitimately repeat a person's name across companies.
+  const rawConflicts = useNameConflicts(name, "individual");
+  const conflicts = kind === "individual" ? rawConflicts : [];
 
   async function submit() {
-    if (!name.trim()) return;
+    if (!name.trim() || conflicts.length > 0) return;
     setBusy(true);
     setError(null);
     try {
@@ -324,6 +329,12 @@ function NewClientModal({
           autoFocus
           className="w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
         />
+        {conflicts.length > 0 && (
+          <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+            “{conflicts[0].name}” already exists as a company. A name can’t be
+            both an individual and a company — rename one to continue.
+          </p>
+        )}
         <input
           type="email"
           placeholder="Email"
@@ -355,7 +366,7 @@ function NewClientModal({
           </button>
           <button
             onClick={() => void submit()}
-            disabled={busy || !name.trim()}
+            disabled={busy || !name.trim() || conflicts.length > 0}
             className="rounded bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
           >
             {busy ? "Creating…" : "Create client"}

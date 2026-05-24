@@ -4,6 +4,7 @@ import { sql, ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 import { ensureDefaultProject } from "@/lib/projects";
+import { findCrossKindConflicts } from "@/lib/crmNames";
 
 export const runtime = "nodejs";
 
@@ -145,6 +146,29 @@ export async function POST(req: NextRequest) {
         : body.company_id !== undefined && body.company_id !== null
           ? Number(body.company_id)
           : null;
+
+    // De-dup hard block (V1.3a): an individual client can't share a name
+    // with an existing company. Only individual-kind folders are
+    // checked — company-kind folders are contacts under a company and
+    // intentionally may repeat a person's name across companies.
+    if (kind === "individual") {
+      const conflicts = await findCrossKindConflicts({
+        name,
+        target: "individual",
+        ownerId: canReadAll(user) ? null : user.id,
+      });
+      if (conflicts.length > 0) {
+        return NextResponse.json(
+          {
+            error: `"${name}" already exists as a company. A name can't be both an individual and a company.`,
+            conflict: true,
+            matches: conflicts,
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const q = sql();
     if (companyId !== null) {
       const check = (await q`

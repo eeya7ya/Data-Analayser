@@ -10,8 +10,9 @@ import Image from "next/image";
 export default function TopBarSkeleton() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/40 bg-white/70 backdrop-blur-xl shadow-[0_1px_0_rgba(17,24,39,0.04),0_10px_30px_-20px_rgba(17,24,39,0.25)]">
-      <div className="max-w-screen-2xl mx-auto flex items-center justify-between px-6 py-3">
-        <div className="flex items-center gap-3">
+      <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-2">
+          <span className="h-9 w-[68px] rounded-xl border border-magic-border/70 bg-white/70" />
           <Image
             src="/logo.png"
             alt="Magic Tech"
@@ -20,17 +21,12 @@ export default function TopBarSkeleton() {
             priority
             className="h-9 w-auto object-contain"
           />
-          <span className="hidden sm:inline-block rounded-full bg-gradient-to-r from-magic-red/10 to-magic-accent/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-magic-red/80">
-            Quotation Designer
-          </span>
         </div>
-        <nav className="flex items-center gap-2 text-sm">
-          <span className="h-4 w-16 rounded bg-magic-soft animate-pulse" />
-          <span className="h-4 w-20 rounded bg-magic-soft animate-pulse" />
-          <span className="h-4 w-20 rounded bg-magic-soft animate-pulse" />
-          <span className="h-4 w-20 rounded bg-magic-soft animate-pulse" />
-          <span className="h-6 w-16 rounded-md border border-magic-border bg-magic-soft/40" />
-        </nav>
+        <div className="flex items-center gap-2">
+          <span className="h-9 w-9 rounded-full border border-magic-border/60 bg-white/60" />
+          <span className="h-6 w-28 rounded-full bg-magic-soft/60 animate-pulse" />
+          <span className="h-7 w-20 rounded-xl bg-magic-ink/80" />
+        </div>
       </div>
     </header>
   );
