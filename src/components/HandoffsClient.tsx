@@ -1,8 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { MapPin, Phone, User, ClipboardList } from "lucide-react";
+import { MapPin, Phone, User, ClipboardList, ChevronDown, CheckCircle2 } from "lucide-react";
 import Spinner from "@/components/Spinner";
+
+interface BoqLine {
+  system?: string;
+  brand?: string;
+  model?: string;
+  description?: string;
+  quantity?: number;
+  section?: boolean;
+  section_label?: string;
+}
 
 interface Handoff {
   id: number;
@@ -17,6 +27,8 @@ interface Handoff {
   priority: "low" | "normal" | "high" | "urgent";
   notes: string | null;
   boq_items: number;
+  boq_snapshot: BoqLine[] | null;
+  can_complete: boolean;
   quotation_ref: string | null;
   project_name: string | null;
   folder_name: string | null;
@@ -141,6 +153,23 @@ function HandoffCard({
   const [assignee, setAssignee] = useState<string>("");
   const [role, setRole] = useState<string>("engineer");
   const [busy, setBusy] = useState(false);
+  const [showBoq, setShowBoq] = useState(false);
+
+  async function complete() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/project-handoffs/${h.id}/complete`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      onAssigned();
+    } catch (err) {
+      onError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function assign() {
     if (!assignee) return;
@@ -185,11 +214,56 @@ function HandoffCard({
             by {creator}
           </p>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-magic-soft px-2 py-0.5 text-[11px] font-semibold text-magic-ink/60">
+        <button
+          type="button"
+          onClick={() => setShowBoq((v) => !v)}
+          disabled={h.boq_items === 0}
+          className="inline-flex items-center gap-1 rounded-full bg-magic-soft px-2 py-0.5 text-[11px] font-semibold text-magic-ink/60 hover:bg-magic-soft/70 disabled:cursor-default disabled:opacity-60 transition-colors"
+        >
           <ClipboardList className="h-3.5 w-3.5" />
           {h.boq_items} BOQ line{h.boq_items === 1 ? "" : "s"}
-        </span>
+          {h.boq_items > 0 && (
+            <ChevronDown className={`h-3 w-3 transition-transform ${showBoq ? "rotate-180" : ""}`} />
+          )}
+        </button>
       </div>
+
+      {showBoq && h.boq_snapshot && h.boq_snapshot.length > 0 && (
+        <div className="mt-3 overflow-hidden rounded-xl border border-magic-border">
+          <table className="w-full text-left text-[11px]">
+            <thead className="bg-magic-soft/60 text-magic-ink/55">
+              <tr>
+                <th className="px-2 py-1.5 font-semibold">#</th>
+                <th className="px-2 py-1.5 font-semibold">Item</th>
+                <th className="px-2 py-1.5 font-semibold">Description</th>
+                <th className="px-2 py-1.5 text-right font-semibold">Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              {h.boq_snapshot.map((line, i) => {
+                if (line.section) {
+                  return (
+                    <tr key={i} className="bg-magic-soft/30">
+                      <td colSpan={4} className="px-2 py-1 font-semibold text-magic-ink/70">
+                        {line.section_label || "Section"}
+                      </td>
+                    </tr>
+                  );
+                }
+                const item = [line.brand, line.model].filter(Boolean).join(" ") || "—";
+                return (
+                  <tr key={i} className="border-t border-magic-border/60 align-top">
+                    <td className="px-2 py-1 text-magic-ink/45">{i + 1}</td>
+                    <td className="px-2 py-1 font-medium text-magic-ink/80">{item}</td>
+                    <td className="px-2 py-1 text-magic-ink/60">{line.description || "—"}</td>
+                    <td className="px-2 py-1 text-right text-magic-ink/70">{line.quantity ?? "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="mt-3 grid gap-2 text-xs text-magic-ink/70 sm:grid-cols-2">
         {(h.contact_name || h.contact_phones) && (
@@ -238,38 +312,52 @@ function HandoffCard({
         </p>
       )}
 
-      {canAssign && (
+      {(canAssign || h.can_complete) && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-magic-border/60 pt-3">
-          <select
-            value={assignee}
-            onChange={(e) => setAssignee(e.target.value)}
-            disabled={busy}
-            className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
-          >
-            <option value="">Select member…</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.display_name || u.username}
-              </option>
-            ))}
-          </select>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            disabled={busy}
-            className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
-          >
-            <option value="engineer">Engineer</option>
-            <option value="technical">Technical</option>
-            <option value="manager">Manager</option>
-          </select>
-          <button
-            onClick={() => void assign()}
-            disabled={busy || !assignee}
-            className="rounded bg-magic-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-magic-red disabled:opacity-50 transition-colors"
-          >
-            {busy ? "Assigning…" : h.status === "assigned" ? "Reassign" : "Assign member"}
-          </button>
+          {canAssign && (
+            <>
+              <select
+                value={assignee}
+                onChange={(e) => setAssignee(e.target.value)}
+                disabled={busy}
+                className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
+              >
+                <option value="">Select member…</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.display_name || u.username}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                disabled={busy}
+                className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
+              >
+                <option value="engineer">Engineer</option>
+                <option value="technical">Technical</option>
+                <option value="manager">Manager</option>
+              </select>
+              <button
+                onClick={() => void assign()}
+                disabled={busy || !assignee}
+                className="rounded bg-magic-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-magic-red disabled:opacity-50 transition-colors"
+              >
+                {busy ? "Assigning…" : h.status === "assigned" ? "Reassign" : "Assign member"}
+              </button>
+            </>
+          )}
+          {h.can_complete && (
+            <button
+              onClick={() => void complete()}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {busy ? "Saving…" : "Mark complete"}
+            </button>
+          )}
         </div>
       )}
     </li>

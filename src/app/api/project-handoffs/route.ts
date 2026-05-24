@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
              h.assigned_user_id, h.assigned_by, h.assigned_at, h.completed_at,
              h.created_at,
              jsonb_array_length(coalesce(h.boq_snapshot, '[]'::jsonb)) as boq_items,
+             h.boq_snapshot,
              qq.ref as quotation_ref,
              p.name as project_name,
              cb.username as created_by_username,
@@ -85,9 +86,17 @@ export async function GET(req: NextRequest) {
         case h.priority when 'urgent' then 0 when 'high' then 1 when 'normal' then 2 else 3 end,
         h.created_at desc
       limit 500
-    `) as Array<Record<string, unknown>>;
+    `) as Array<Record<string, unknown> & { assigned_user_id: number | null; status: string }>;
 
-    return NextResponse.json({ handoffs: rows, can_assign: seeAll });
+    // Per-row completion right: the assigned member or any manager/admin
+    // can close out an `assigned` handoff.
+    const handoffs = rows.map((r) => ({
+      ...r,
+      can_complete:
+        r.status === "assigned" && (seeAll || r.assigned_user_id === user.id),
+    }));
+
+    return NextResponse.json({ handoffs, can_assign: seeAll });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "UNKNOWN";
     const s = msg === "UNAUTHENTICATED" ? 401 : msg === "FORBIDDEN" ? 403 : 500;
