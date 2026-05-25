@@ -1,9 +1,12 @@
 import { redirect } from "next/navigation";
 import { canReadAll, getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
-import { hasModuleRole } from "@/lib/modules";
+import { hasModuleRole, getUserModuleRoles } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 import DashboardClient, { type DashboardData } from "@/components/DashboardClient";
+import ExecutionDashboardClient, {
+  type ExecutionProject,
+} from "@/components/ExecutionDashboardClient";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +29,82 @@ export default async function DashboardPage() {
   const isPresalesManager =
     isAdmin || (await hasModuleRole(user.id, "crm", "presales_manager"));
   const isManager = isSalesManager || isPresalesManager;
+
+  // Role-aware dashboard. A "pure" projects person (technician /
+  // engineer / project manager with no sales/presales hat and not an
+  // admin) cares about execution, not quotation analytics — they get a
+  // dedicated board built from their project assignments.
+  const grants = await getUserModuleRoles(user.id);
+  const hasGrant = (m: string, r?: string) =>
+    grants.some((g) => g.module === m && (r ? g.role === r : true));
+  const isCrm = hasGrant("crm");
+  const isProjects = hasGrant("projects");
+  const isProjectsManager = isAdmin || hasGrant("projects", "manager");
+
+  if (!isAdmin && isProjects && !isCrm) {
+    const me = user.id;
+    const qx = sql();
+    const kpiRows = (await qx`
+      select
+        (select count(distinct pa.project_id) from project_assignments pa
+           where pa.user_id = ${me} and pa.deleted_at is null)::int as my_projects,
+        (select count(distinct p.id) from project_assignments pa
+           join projects p on p.id = pa.project_id and p.deleted_at is null
+           where pa.user_id = ${me} and pa.deleted_at is null
+             and p.status <> 'completed')::int as in_execution,
+        (select count(distinct p.id) from project_assignments pa
+           join projects p on p.id = pa.project_id and p.deleted_at is null
+           where pa.user_id = ${me} and pa.deleted_at is null
+             and p.status = 'completed')::int as completed,
+        (select count(*) from execution_reports where author_id = ${me})::int as my_reports
+    `) as Array<{
+      my_projects: number;
+      in_execution: number;
+      completed: number;
+      my_reports: number;
+    }>;
+
+    let awaitingAssignment = 0;
+    if (isProjectsManager) {
+      const r = (await qx`
+        select count(*)::int as n from project_handoffs
+        where status = 'pending_assignment'
+      `) as Array<{ n: number }>;
+      awaitingAssignment = Number(r[0].n);
+    }
+
+    const projectRows = (await qx`
+      select distinct on (p.id)
+             p.id, p.name, p.status, pa.role, pa.notes,
+             cf.name as client_name, p.updated_at
+      from project_assignments pa
+      join projects p on p.id = pa.project_id and p.deleted_at is null
+      join client_folders cf on cf.id = p.folder_id
+      where pa.user_id = ${me} and pa.deleted_at is null
+      order by p.id, p.updated_at desc
+      limit 50
+    `) as ExecutionProject[];
+
+    return (
+      <div className="min-h-screen bg-magic-soft/40">
+        <TopBar user={user} />
+        <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
+          <ExecutionDashboardClient
+            greetingName={user.display_name || user.username}
+            isManager={isProjectsManager}
+            kpis={{
+              myProjects: kpiRows[0].my_projects,
+              inExecution: kpiRows[0].in_execution,
+              completed: kpiRows[0].completed,
+              myReports: kpiRows[0].my_reports,
+              awaitingAssignment,
+            }}
+            projects={projectRows}
+          />
+        </main>
+      </div>
+    );
+  }
 
   // Non-admins see only their own rows; admins see everything.
   const scope = isAdmin ? null : user.id;

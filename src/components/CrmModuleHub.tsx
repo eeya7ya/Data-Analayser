@@ -31,6 +31,10 @@ export interface CrmHubFlags {
   presales: boolean;
   storage: boolean;
   projects: boolean;
+  /** projects.manager — sees the handoff-assignment queue. */
+  projectsManager: boolean;
+  /** crm.presales_manager — distributes leads to presales members. */
+  presalesManager: boolean;
   pricing: boolean;
 }
 
@@ -105,7 +109,7 @@ const TAB_META: Record<TabId, { label: string; icon: LucideIcon; blurb: string }
   presales: {
     label: "Presales",
     icon: ClipboardList,
-    blurb: "Clients, the lead inbox, the designer, and pricing → quotation.",
+    blurb: "Your assigned leads, clients, and pricing → quotation.",
   },
   storage: {
     label: "Storage",
@@ -161,16 +165,33 @@ export default function CrmModuleHub({
       { href: "/projects/handoffs", title: "Project handoffs", desc: "Quotations you converted into projects, and their status." },
     ],
     presales: [
-      { href: "/leads/inbox", title: "Lead inbox", desc: "Leads routed to you for quotation design." },
-      { href: "/designer", title: "Designer", desc: "Build a quotation from the catalogue or with AI." },
+      {
+        href: "/leads",
+        title: flags.presalesManager ? "Leads" : "My leads",
+        desc: flags.presalesManager
+          ? "Distribute leads to presales members and track them."
+          : "Leads assigned to you — attach the client, then build the quotation.",
+      },
       { href: "/pricing", title: "Pricing sheets", desc: "Prepare manufacturer pricing, then convert to a quotation." },
     ],
     storage: [
       { href: "/storage", title: "Storage workspace", desc: "Inventory, locations, and incoming stock-check requests." },
     ],
     projects: [
-      { href: "/projects", title: "Projects (flat view)", desc: "Every project you own or are assigned to, across clients." },
-      { href: "/projects/handoffs", title: "Handoffs to assign", desc: "Assign a project member to converted quotations." },
+      {
+        href: "/projects",
+        title: "My projects",
+        desc: "Projects assigned to you — execution data, notes and follow-ups.",
+      },
+      ...(flags.projectsManager
+        ? [
+            {
+              href: "/projects/handoffs",
+              title: "Handoffs to assign",
+              desc: "Assign a technician / engineer to projects pushed from sales.",
+            },
+          ]
+        : []),
     ],
     pricing: [
       { href: "/pricing", title: "Pricing workspaces", desc: "Per-manufacturer pricing projects and constants." },
