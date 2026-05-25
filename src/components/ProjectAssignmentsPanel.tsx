@@ -174,11 +174,8 @@ export default function ProjectAssignmentsPanel({
                 </div>
                 <div className="text-xs text-magic-ink/60 mt-0.5">
                   {a.location && <>📍 {a.location} · </>}
-                  {(a.start_date || a.end_date) && (
-                    <>
-                      {a.start_date ?? "—"} → {a.end_date ?? "—"} ·{" "}
-                    </>
-                  )}
+                  {a.start_date && <>start {a.start_date} · </>}
+                  {a.end_date && <>⏱ est. completion {a.end_date} · </>}
                   {a.notes && <>{a.notes} · </>}
                   by {a.assigned_by_username ?? "?"}{" "}
                   {new Date(a.created_at).toLocaleDateString()}
@@ -318,22 +315,26 @@ function AssignForm({
           disabled={disabled}
           className="rounded border border-magic-border bg-white px-2 py-1.5 text-sm"
         />
-        <input
-          type="date"
-          placeholder="Start"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          disabled={disabled}
-          className="rounded border border-magic-border bg-white px-2 py-1.5 text-sm"
-        />
-        <input
-          type="date"
-          placeholder="End"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          disabled={disabled}
-          className="rounded border border-magic-border bg-white px-2 py-1.5 text-sm"
-        />
+        <label className="flex flex-col gap-0.5 text-[10px] font-medium uppercase tracking-wide text-magic-ink/50">
+          Start date
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            disabled={disabled}
+            className="rounded border border-magic-border bg-white px-2 py-1.5 text-sm font-normal normal-case text-magic-ink"
+          />
+        </label>
+        <label className="flex flex-col gap-0.5 text-[10px] font-medium uppercase tracking-wide text-magic-ink/50">
+          Est. completion (optional)
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            disabled={disabled}
+            className="rounded border border-magic-border bg-white px-2 py-1.5 text-sm font-normal normal-case text-magic-ink"
+          />
+        </label>
         <input
           type="text"
           placeholder="Notes (optional)"

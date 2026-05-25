@@ -6,6 +6,7 @@ import {
   hasModuleRole,
   requireModuleAllowLegacy,
 } from "@/lib/modules";
+import { sendPushToUsers } from "@/lib/push";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -278,6 +279,19 @@ export async function POST(req: NextRequest) {
                 role,
               })}::jsonb)
     `;
+
+    // Notify the assignee on whatever device they've installed the app on.
+    const projNameRows = (await q`
+      select name from projects where id = ${projectId} limit 1
+    `) as Array<{ name: string }>;
+    const projName = projNameRows[0]?.name || "a project";
+    const due = body.end_date ? ` · due ${body.end_date}` : "";
+    void sendPushToUsers([userId], {
+      title: `Assigned to ${projName}`,
+      body: `Role: ${role}${due}${body.notes ? ` · ${String(body.notes).slice(0, 100)}` : ""}`,
+      url: `/projects/${projectId}`,
+      tag: `assignment-${projectId}-${userId}`,
+    });
 
     return NextResponse.json({ ok: true, id: assignmentId });
   } catch (err) {

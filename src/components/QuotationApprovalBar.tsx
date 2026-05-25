@@ -72,9 +72,8 @@ export default function QuotationApprovalBar({
     isAdmin ||
     !!me?.module_roles.some((r) => r.module === module && r.role === role);
 
-  const canApproveSales = hasRole("crm", "sales_manager");
   const canApprovePresales = hasRole("crm", "presales_manager");
-  const canReject = canApproveSales || canApprovePresales;
+  const canReject = canApprovePresales || hasRole("crm", "sales_manager");
   const canConvert =
     isAdmin || hasRole("crm", "sales") || hasRole("crm", "sales_manager");
 
@@ -124,8 +123,6 @@ export default function QuotationApprovalBar({
     }
   }
 
-  const salesApproved = !!state.sales_approved_at;
-  const presalesApproved = !!state.presales_approved_at;
   const fullyApproved = !!state.approved_at;
   const accepted = !!state.accepted_at;
   const rejected = !!state.rejected_at;
@@ -135,13 +132,11 @@ export default function QuotationApprovalBar({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="font-semibold text-magic-ink/70">Approval:</span>
-          <Pill tone={salesApproved ? "ok" : "muted"}>
-            Sales {salesApproved ? "✓" : "pending"}
-          </Pill>
-          <Pill tone={presalesApproved ? "ok" : "muted"}>
-            Presales {presalesApproved ? "✓" : "pending"}
-          </Pill>
-          {fullyApproved && <Pill tone="strong">Fully approved</Pill>}
+          {fullyApproved ? (
+            <Pill tone="strong">Approved by presales manager</Pill>
+          ) : (
+            <Pill tone="muted">Awaiting presales manager sign-off</Pill>
+          )}
           {accepted && <Pill tone="strong">Client accepted</Pill>}
           {rejected && (
             <Pill tone="warn">
@@ -152,22 +147,13 @@ export default function QuotationApprovalBar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {canApproveSales && !salesApproved && (
-            <button
-              onClick={() => void approve("sales")}
-              disabled={busy}
-              className="px-3 py-1 text-xs font-semibold rounded border border-magic-red text-magic-red hover:bg-magic-red hover:text-white disabled:opacity-50 transition-colors"
-            >
-              Approve as Sales
-            </button>
-          )}
-          {canApprovePresales && !presalesApproved && (
+          {canApprovePresales && !fullyApproved && (
             <button
               onClick={() => void approve("presales")}
               disabled={busy}
               className="px-3 py-1 text-xs font-semibold rounded border border-magic-red text-magic-red hover:bg-magic-red hover:text-white disabled:opacity-50 transition-colors"
             >
-              Approve as Presales
+              Approve quotation
             </button>
           )}
           {canReject && !rejected && (
@@ -185,14 +171,14 @@ export default function QuotationApprovalBar({
               disabled={busy}
               className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
             >
-              {converted ? "Converted ✓ — convert again" : "Convert to Project"}
+              {converted ? "Pushed ✓ — push again" : "Push to execution"}
             </button>
           )}
         </div>
       </div>
       {converted && (
         <p className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
-          Sent to projects — a manager will assign a member.
+          Sent to projects — a project manager will assign a technician/engineer.
         </p>
       )}
       {error && (

@@ -106,6 +106,14 @@ export default function QuotationViewer({
   const pendingBoqRef = useRef<{ ref: string; projectName: string } | null>(
     null,
   );
+  // V1.3b — a plain salesperson can't edit; the Edit button is swapped for
+  // "Request changes" which routes a note back to the presales author.
+  const [salesLocked, setSalesLocked] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [requestNote, setRequestNote] = useState("");
+  const [requestBusy, setRequestBusy] = useState(false);
+  const [requestDone, setRequestDone] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -142,6 +150,62 @@ export default function QuotationViewer({
     const cancel = load();
     return cancel;
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/auth/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then(
+        (data: {
+          user: { role: string } | null;
+          module_roles: Array<{ module: string; role: string }>;
+        }) => {
+          if (cancelled) return;
+          const isAdmin = data.user?.role === "admin";
+          const crm = (data.module_roles || [])
+            .filter((r) => r.module === "crm")
+            .map((r) => r.role);
+          const locked =
+            !isAdmin &&
+            crm.includes("sales") &&
+            !crm.includes("presales") &&
+            !crm.includes("presales_manager") &&
+            !crm.includes("sales_manager");
+          setSalesLocked(locked);
+        },
+      )
+      .catch(() => {
+        if (!cancelled) setSalesLocked(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function submitChangeRequest() {
+    const note = requestNote.trim();
+    if (!note) return;
+    setRequestBusy(true);
+    setRequestError(null);
+    try {
+      const res = await fetch("/api/quotations/request-changes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: quotationId, note }),
+      });
+      if (!res.ok) {
+        const b = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(b.error || `HTTP ${res.status}`);
+      }
+      setRequestDone(true);
+      setRequesting(false);
+      setRequestNote("");
+    } catch (err) {
+      setRequestError((err as Error).message);
+    } finally {
+      setRequestBusy(false);
+    }
+  }
 
   // Once BoQ mode is committed to the DOM, hand off to the shared print
   // helper — same code path the Designer's Print buttons and this viewer's
@@ -297,12 +361,26 @@ export default function QuotationViewer({
     <div>
       <QuotationApprovalBar quotationId={id} initial={approvalState} />
       <div className="no-print flex flex-wrap justify-end mb-3 gap-2">
-        <button
-          onClick={() => router.push(`/designer?id=${id}`)}
-          className="rounded-md border border-magic-border px-4 py-2 text-sm font-semibold hover:bg-magic-soft"
-        >
-          Edit
-        </button>
+        {salesLocked ? (
+          <button
+            onClick={() => {
+              setRequestDone(false);
+              setRequestError(null);
+              setRequesting(true);
+            }}
+            title="You can't edit a quotation from presales — send the changes you need back to the presales author"
+            className="rounded-md border border-magic-border px-4 py-2 text-sm font-semibold hover:bg-magic-soft"
+          >
+            Request changes
+          </button>
+        ) : (
+          <button
+            onClick={() => router.push(`/designer?id=${id}`)}
+            className="rounded-md border border-magic-border px-4 py-2 text-sm font-semibold hover:bg-magic-soft"
+          >
+            Edit
+          </button>
+        )}
         <button
           onClick={() =>
             router.push(`/purchase-orders?quotation=${id}`)
@@ -333,6 +411,52 @@ export default function QuotationViewer({
           Print BOQ
         </button>
       </div>
+      {requestDone && (
+        <div className="no-print mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          Change request sent to the presales author — they&apos;ll get a
+          notification and can update the quotation.
+        </div>
+      )}
+      {requesting && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-magic-border bg-white p-5 shadow-xl">
+            <h3 className="text-base font-semibold text-magic-ink">
+              Request changes
+            </h3>
+            <p className="mt-1 text-xs text-magic-ink/60">
+              Describe the update or modification you need. This goes back to
+              the presales author who can edit the quotation and resend it.
+            </p>
+            <textarea
+              value={requestNote}
+              onChange={(e) => setRequestNote(e.target.value)}
+              rows={4}
+              autoFocus
+              placeholder="e.g. Client wants 4K cameras instead of 1080p on the 2nd floor, and remove the spare switch."
+              className="mt-3 w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
+            />
+            {requestError && (
+              <p className="mt-2 text-xs text-red-700">{requestError}</p>
+            )}
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                onClick={() => setRequesting(false)}
+                disabled={requestBusy}
+                className="rounded-md border border-magic-border px-3 py-1.5 text-sm font-semibold hover:bg-magic-soft disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void submitChangeRequest()}
+                disabled={requestBusy || !requestNote.trim()}
+                className="rounded-md bg-magic-red px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {requestBusy ? "Sending…" : "Send request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* The QuotationPreview is hard-coded to A4 width (210mm) so the
           printed page matches the production template exactly. On
           narrower screens that overflows the parent card and pushes

@@ -3,6 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { NotificationItem } from "@/app/api/notifications/route";
+import {
+  isPushSupported,
+  currentPermission,
+  hasActiveSubscription,
+  enablePush,
+  disablePush,
+} from "@/lib/pushClient";
 
 /**
  * Bell button + dropdown panel for the TopBar. Replaces the inline
@@ -40,6 +47,76 @@ export default function NotificationsBell() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  // Push state: "on" = subscribed, "off" = supported but not subscribed,
+  // "denied" = browser-blocked, "unsupported"/"unconfigured" = hide.
+  const [pushState, setPushState] = useState<
+    "loading" | "on" | "off" | "denied" | "unsupported" | "unconfigured"
+  >("loading");
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMsg, setPushMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function init() {
+      if (!isPushSupported()) {
+        if (!cancelled) setPushState("unsupported");
+        return;
+      }
+      // Push must also be configured server-side (VAPID keys present).
+      try {
+        const res = await fetch("/api/push/public-key", { cache: "no-store" });
+        const { key } = (await res.json()) as { key: string | null };
+        if (!key) {
+          if (!cancelled) setPushState("unconfigured");
+          return;
+        }
+      } catch {
+        if (!cancelled) setPushState("unconfigured");
+        return;
+      }
+      const perm = currentPermission();
+      if (perm === "denied") {
+        if (!cancelled) setPushState("denied");
+        return;
+      }
+      const active = await hasActiveSubscription();
+      if (!cancelled) setPushState(active ? "on" : "off");
+    }
+    void init();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function togglePush() {
+    setPushBusy(true);
+    setPushMsg(null);
+    try {
+      if (pushState === "on") {
+        await disablePush();
+        setPushState("off");
+        setPushMsg("Notifications turned off on this device.");
+      } else {
+        await enablePush();
+        setPushState("on");
+        setPushMsg("Notifications enabled on this device.");
+      }
+    } catch (err) {
+      const m = (err as Error).message;
+      if (m === "blocked") {
+        setPushState("denied");
+        setPushMsg("Permission blocked — allow notifications in your browser settings.");
+      } else if (m === "unsupported") {
+        setPushState("unsupported");
+      } else if (m === "unconfigured") {
+        setPushState("unconfigured");
+      } else {
+        setPushMsg(m || "Could not change notification settings.");
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -187,6 +264,33 @@ export default function NotificationsBell() {
               })}
             </ul>
           )}
+
+          {pushState !== "loading" &&
+            pushState !== "unsupported" &&
+            pushState !== "unconfigured" && (
+              <div className="mt-1 border-t border-magic-border/60 px-3 pt-2">
+                {pushState === "denied" ? (
+                  <p className="text-[11px] text-magic-ink/50">
+                    Notifications are blocked in your browser. Enable them in
+                    the site settings to get alerts on this device.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void togglePush()}
+                    disabled={pushBusy}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-magic-border bg-white px-2.5 py-1 text-[11px] font-semibold text-magic-ink/80 hover:bg-magic-soft disabled:opacity-50 transition-colors"
+                  >
+                    {pushState === "on"
+                      ? "Disable device notifications"
+                      : "Enable notifications on this device"}
+                  </button>
+                )}
+                {pushMsg && (
+                  <p className="mt-1 text-[11px] text-magic-ink/50">{pushMsg}</p>
+                )}
+              </div>
+            )}
         </div>
       )}
     </div>

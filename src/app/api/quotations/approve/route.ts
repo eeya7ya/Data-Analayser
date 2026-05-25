@@ -6,6 +6,7 @@ import {
   hasModuleRole,
   type Module,
 } from "@/lib/modules";
+import { sendPushToUsers } from "@/lib/push";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -125,12 +126,11 @@ export async function POST(req: Request) {
       approved_at: string | null;
     }>;
 
+    // V1.3c — the presales manager's sign-off alone marks the quotation
+    // approved (the sales-manager co-sign was dropped). Sales-side approval
+    // is still recorded if used, but it no longer gates `approved_at`.
     let bothApproved = false;
-    if (
-      after[0].sales_approved_at &&
-      after[0].presales_approved_at &&
-      !after[0].approved_at
-    ) {
+    if (after[0].presales_approved_at && !after[0].approved_at) {
       await q`update quotations set approved_at = now() where id = ${id}`;
       bothApproved = true;
     } else if (after[0].approved_at) {
@@ -142,6 +142,25 @@ export async function POST(req: Request) {
       values (${user.id}, 'quotation', ${id}, ${"approve_" + side},
               ${JSON.stringify({ side, fully_approved: bothApproved })}::jsonb)
     `;
+
+    // Ping the quotation's author so they know it advanced — and on full
+    // approval it's the cue for sales to proceed (PO / send BOQ).
+    const ownerRows = (await q`
+      select owner_id, ref from quotations where id = ${id} limit 1
+    `) as Array<{ owner_id: number | null; ref: string }>;
+    const ownerId = ownerRows[0]?.owner_id ?? null;
+    if (ownerId) {
+      void sendPushToUsers([ownerId], {
+        title: bothApproved
+          ? `${ownerRows[0].ref} fully approved`
+          : `${ownerRows[0].ref} approved by ${side}`,
+        body: bothApproved
+          ? "Both sides signed off — it's ready for the next step."
+          : `Waiting on the other side's sign-off.`,
+        url: `/quotation?id=${id}`,
+        tag: `approve-${id}`,
+      });
+    }
 
     return NextResponse.json({
       ok: true,

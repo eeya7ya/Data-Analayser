@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
+import { isSalesEditLocked } from "@/lib/modules";
 import Designer from "@/components/Designer";
 import DesignerShell from "@/components/DesignerShell";
 import TopBar from "@/components/TopBar";
@@ -63,6 +64,16 @@ export default async function DesignerPage({
   // The API route still enforces ownership, so access control is intact.
   if (sp.id) {
     const quotationId = Number(sp.id);
+    // V1.3b — a plain salesperson never enters Designer edit mode; bounce
+    // them to the read-only viewer where they can print / convert / request
+    // changes. Mirrors the server-side write block in /api/quotations.
+    if (
+      Number.isFinite(quotationId) &&
+      quotationId > 0 &&
+      (await isSalesEditLocked(user))
+    ) {
+      redirect(`/quotation?id=${quotationId}`);
+    }
     if (!Number.isFinite(quotationId) || quotationId <= 0) {
       return (
         <div className="min-h-screen bg-magic-soft/40">
@@ -130,16 +141,10 @@ export default async function DesignerPage({
     if (Number.isFinite(n) && n > 0) initialProjectId = n;
   }
 
-  // Gate: the Designer can only be opened from a client (`?folder=<n>`),
-  // an existing quotation (`?id=<n>`), or the explicit "+ New quotation"
-  // button inside the Designer itself (`?new=1`). Attempting to reach
-  // /designer directly redirects to the Clients & Quotations page so the
-  // user must pick a client/quotation first. The `?new=1` opt-out lets
-  // the in-designer button land on a clean create-mode hero where the
-  // user picks a client without first bouncing through /quotation.
-  if (!initialFolderId && !sp.new) {
-    redirect("/quotation");
-  }
+  // Opening /designer with no client context lands on the create-mode
+  // hero (Designer renders a client picker when initialFolderId is null).
+  // Previously this redirected to /quotation, which made pressing
+  // "Designer" feel like it dumped you on the clients list.
 
   return (
     <div className="min-h-screen bg-magic-soft/40 print-root">

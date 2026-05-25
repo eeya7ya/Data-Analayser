@@ -326,6 +326,30 @@ const NOTIFICATION_STATE_FLAG = "notification_state_v1_2026_05";
  */
 const PROJECT_HANDOFFS_FLAG = "project_handoffs_v1_2026_05";
 
+/**
+ * V1.3b — PWA push, sales change-requests, and project file sharing.
+ *
+ *   • `push_subscriptions` — one row per installed browser/device push
+ *     endpoint so the server can deliver Web Push notifications (handoffs,
+ *     approvals, messages) even when the app is closed.
+ *   • `quotation_change_requests` — a salesperson can no longer edit a
+ *     quotation received from presales; they file a change request that
+ *     routes back to the quotation's author instead.
+ *   • `project_files.shared_to_projects` — sales / presales flip this on a
+ *     file so projects-module users who aren't the owner can read the BOQ
+ *     / allowed attachment. Default false keeps everything private until
+ *     explicitly shared.
+ */
+const V13B_FLAG = "v1_3b_pwa_sharing_change_requests_2026_05";
+
+/**
+ * V1.3c — execution reports. Project technicians / engineers post
+ * progress updates and feedback against the project they were assigned;
+ * the project manager (and project owner / admin) read them. Net-new
+ * table, strictly additive.
+ */
+const V13C_FLAG = "v1_3c_execution_reports_2026_05";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -401,6 +425,8 @@ async function _ensureSchemaOnce(): Promise<void> {
   let pricingFoundationApplied = false;
   let notificationStateApplied = false;
   let projectHandoffsApplied = false;
+  let v13bApplied = false;
+  let v13cApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -413,7 +439,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${PROJECTS_FOUNDATION_FLAG}, ${MODULE_RBAC_V1_FLAG},
         ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG},
         ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG},
-        ${NOTIFICATION_STATE_FLAG}, ${PROJECT_HANDOFFS_FLAG}
+        ${NOTIFICATION_STATE_FLAG}, ${PROJECT_HANDOFFS_FLAG},
+        ${V13B_FLAG}, ${V13C_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -440,6 +467,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     pricingFoundationApplied = keys.has(PRICING_FOUNDATION_FLAG);
     notificationStateApplied = keys.has(NOTIFICATION_STATE_FLAG);
     projectHandoffsApplied = keys.has(PROJECT_HANDOFFS_FLAG);
+    v13bApplied = keys.has(V13B_FLAG);
+    v13cApplied = keys.has(V13C_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -468,7 +497,9 @@ async function _ensureSchemaOnce(): Promise<void> {
     stockChecksApplied &&
     pricingFoundationApplied &&
     notificationStateApplied &&
-    projectHandoffsApplied
+    projectHandoffsApplied &&
+    v13bApplied &&
+    v13cApplied
   )
     return;
 
@@ -2193,6 +2224,100 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${PROJECT_HANDOFFS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!v13bApplied) {
+    // Web Push subscriptions. One row per installed browser/device push
+    // endpoint; multiple devices per user are separate rows. `endpoint`
+    // is globally unique. Dead endpoints (404/410 from the push service)
+    // are pruned in src/lib/push.ts after a failed send.
+    await q`
+      create table if not exists push_subscriptions (
+        id          bigserial primary key,
+        user_id     integer not null references users(id) on delete cascade,
+        endpoint    text not null unique,
+        p256dh      text not null,
+        auth        text not null,
+        user_agent  text,
+        created_at  timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists push_subscriptions_user_idx
+        on push_subscriptions(user_id)
+    `;
+
+    // Sales "request changes" channel. A salesperson cannot edit a
+    // quotation received from presales; instead they file a change
+    // request that routes back to the quotation's author (target_user_id,
+    // normally the owner). Status walks open → resolved.
+    await q`
+      create table if not exists quotation_change_requests (
+        id              bigserial primary key,
+        quotation_id    integer not null references quotations(id) on delete cascade,
+        requested_by    integer references users(id) on delete set null,
+        target_user_id  integer references users(id) on delete set null,
+        note            text not null,
+        status          text not null default 'open' check (status in ('open','resolved')),
+        resolved_by     integer references users(id) on delete set null,
+        resolved_at     timestamptz,
+        created_at      timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists quotation_change_requests_q_idx
+        on quotation_change_requests(quotation_id, status)
+    `;
+    await q`
+      create index if not exists quotation_change_requests_target_idx
+        on quotation_change_requests(target_user_id, status)
+    `;
+
+    // Per-file "share to projects" flag. Sales / presales flip this on a
+    // project file so projects-module users who aren't the file owner can
+    // read it. Default false keeps every file private to its owner until
+    // explicitly shared.
+    await q`
+      alter table project_files
+        add column if not exists shared_to_projects boolean not null default false
+    `;
+    await q`
+      create index if not exists project_files_shared_idx
+        on project_files(project_id, shared_to_projects, deleted_at)
+    `;
+
+    await q`
+      insert into migration_flags (key) values (${V13B_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!v13cApplied) {
+    // Execution reports. A project technician / engineer posts progress
+    // updates + feedback against a project they're assigned to; the
+    // project manager and project owner read them. `kind` colours the
+    // entry (progress update / blocker / completion note); `progress` is
+    // an optional 0-100 percent.
+    await q`
+      create table if not exists execution_reports (
+        id          bigserial primary key,
+        project_id  integer not null references projects(id) on delete cascade,
+        author_id   integer references users(id) on delete set null,
+        kind        text not null default 'update'
+                      check (kind in ('update','blocker','done')),
+        progress    integer check (progress is null or (progress >= 0 and progress <= 100)),
+        body        text not null,
+        created_at  timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists execution_reports_project_idx
+        on execution_reports(project_id, created_at desc)
+    `;
+    await q`
+      insert into migration_flags (key) values (${V13C_FLAG})
       on conflict (key) do nothing
     `;
   }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
-import { requireModuleAllowLegacy } from "@/lib/modules";
+import { requireModuleAllowLegacy, isSalesEditLocked } from "@/lib/modules";
 import { ensureDefaultProject } from "@/lib/projects";
 import { d1Query } from "@/lib/db-d1";
 import { resolveR2OverflowsInRows } from "@/lib/r2";
@@ -561,6 +561,33 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
+    // V1.3b — a plain salesperson can't edit quotation content in the
+    // Designer; they may only request changes back to presales. Lightweight
+    // metadata moves (folder_id / project_id / contact_id only — used by
+    // MoveToFolder and drag-drop) stay allowed because they don't carry any
+    // of the content fields below.
+    const editsContent =
+      body.items !== undefined ||
+      body.totals !== undefined ||
+      body.config !== undefined ||
+      body.project_name !== undefined ||
+      body.tax_percent !== undefined ||
+      body.site_name !== undefined ||
+      body.sales_engineer !== undefined ||
+      body.prepared_by !== undefined ||
+      body.client_name !== undefined ||
+      body.client_email !== undefined ||
+      body.client_phone !== undefined;
+    if (editsContent && (await isSalesEditLocked(user))) {
+      return NextResponse.json(
+        {
+          error:
+            "Salespeople can't edit quotations in the Designer. Use “Request changes” to send updates back to presales.",
+        },
+        { status: 403 },
+      );
+    }
+
     // Verify project ownership when the caller is reassigning the quotation
     // to a different project. Mirrors the folder-ownership guard below so a
     // user can never plant a quotation under another user's project.
@@ -733,6 +760,17 @@ export async function PATCH(req: NextRequest) {
         where id = ${id}
         returning id, ref
       `) as unknown as Array<{ id: number; ref: string }>;
+    }
+
+    // When the author re-edits the quotation content, any open change
+    // requests filed by sales are considered addressed — close the loop so
+    // they stop nagging the author's notification bell.
+    if (editsContent) {
+      await q!`
+        update quotation_change_requests
+        set status = 'resolved', resolved_by = ${user.id}, resolved_at = now()
+        where quotation_id = ${id} and status = 'open'
+      `;
     }
     return NextResponse.json({ quotation: rows[0] });
   } catch (err) {
