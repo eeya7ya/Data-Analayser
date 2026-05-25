@@ -5,6 +5,7 @@ import { getSessionUser, canReadAll } from "@/lib/auth";
 import { hasModule, hasModuleRole } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 import ProjectAssignmentsPanel from "@/components/ProjectAssignmentsPanel";
+import ProjectBoqsTabSection from "@/components/ProjectBoqsTabSection";
 import RequestStockButton from "@/components/RequestStockButton";
 
 export const dynamic = "force-dynamic";
@@ -155,6 +156,12 @@ export default async function ProjectDetailPage({
 
         <ProjectAssignmentsPanel projectId={id} canManage={canManage} />
 
+        {/* BOQs / files. Access-aware: full for owner/admin (with the
+            share toggle), shared-only and read-only for assigned
+            projects-module members. */}
+        <ProjectBoqsTabSection projectId={id} folderId={project.folder_id} />
+
+        {(isAdmin || isOwner) && (
         <section className="rounded-2xl border border-magic-border bg-white p-5">
           <h2 className="text-lg font-semibold text-magic-ink mb-3">
             Quotations under this project
@@ -199,6 +206,7 @@ export default async function ProjectDetailPage({
             </ul>
           )}
         </section>
+        )}
       </main>
     </div>
   );

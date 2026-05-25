@@ -1,6 +1,6 @@
 {
   "name": "magictech-quotation-designer",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "description": "MagicTech AI Quotation Designer — Next.js 15 + Vercel 2026 + Supabase Postgres + Groq",
   "scripts": {
@@ -10,7 +10,8 @@
     "lint": "next lint",
     "db:init": "node scripts/init-db.mjs",
     "db:migrate": "node scripts/migrate-json-to-db.mjs",
-    "db:export": "node scripts/export-data.mjs"
+    "db:export": "node scripts/export-data.mjs",
+    "vapid:gen": "node scripts/gen-vapid.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
@@ -29,6 +30,7 @@
     "react-dom": "19.0.0",
     "recharts": "^3.8.1",
     "tailwind-merge": "^2.5.5",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -36,6 +38,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
     "eslint-config-next": "15.5.14",

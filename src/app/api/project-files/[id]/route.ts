@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
+import { hasModule } from "@/lib/modules";
 import {
   createSignedDownloadUrl,
   deleteStorageObject,
@@ -20,32 +21,68 @@ export const runtime = "nodejs";
  * fresh one so a leaked URL stops working quickly.
  */
 
-async function loadFileForUser(
-  q: ReturnType<typeof sql>,
-  id: number,
-  user: { id: number; role: string },
-): Promise<{
+interface FileRecord {
   id: number;
   owner_id: number | null;
+  project_id: number;
   filename: string;
   mime: string;
   storage_path: string;
-} | null> {
+  shared_to_projects: boolean;
+}
+
+async function loadFileRow(
+  q: ReturnType<typeof sql>,
+  id: number,
+): Promise<FileRecord | null> {
   const rows = (await q`
-    select id, owner_id, filename, mime, storage_path
+    select id, owner_id, project_id, filename, mime, storage_path, shared_to_projects
     from project_files
     where id = ${id} and deleted_at is null
     limit 1
-  `) as Array<{
-    id: number;
-    owner_id: number | null;
-    filename: string;
-    mime: string;
-    storage_path: string;
-  }>;
-  if (rows.length === 0) return null;
-  if (!canReadAll(user) && rows[0].owner_id !== user.id) return null;
-  return rows[0];
+  `) as FileRecord[];
+  return rows[0] ?? null;
+}
+
+/**
+ * Read access: admin / owner always; otherwise a projects-module user (or
+ * an assigned member) may read it only when it's been shared to projects.
+ */
+async function canReadFile(
+  q: ReturnType<typeof sql>,
+  file: FileRecord,
+  user: { id: number; role: string },
+): Promise<boolean> {
+  if (canReadAll(user) || file.owner_id === user.id) return true;
+  if (!file.shared_to_projects) return false;
+  if (await hasModule(user.id, "projects")) return true;
+  const assigned = (await q`
+    select 1 from project_assignments
+    where project_id = ${file.project_id} and user_id = ${user.id}
+      and deleted_at is null
+    limit 1
+  `) as Array<{ "?column?": number }>;
+  return assigned.length > 0;
+}
+
+/**
+ * Manage access (toggle share / move / delete): admin, the file owner, or
+ * the owner of the client folder the project lives under (the sales /
+ * presales person who controls this client's records).
+ */
+async function canManageFile(
+  q: ReturnType<typeof sql>,
+  file: FileRecord,
+  user: { id: number; role: string },
+): Promise<boolean> {
+  if (canReadAll(user) || file.owner_id === user.id) return true;
+  const rows = (await q`
+    select cf.owner_id from projects p
+    join client_folders cf on cf.id = p.folder_id
+    where p.id = ${file.project_id}
+    limit 1
+  `) as Array<{ owner_id: number | null }>;
+  return rows.length > 0 && rows[0].owner_id === user.id;
 }
 
 export async function GET(
@@ -61,8 +98,8 @@ export async function GET(
       return NextResponse.json({ error: "invalid id" }, { status: 400 });
     }
     const q = sql();
-    const file = await loadFileForUser(q, id, user);
-    if (!file) {
+    const file = await loadFileRow(q, id);
+    if (!file || !(await canReadFile(q, file, user))) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
     const isDownload = req.nextUrl.searchParams.get("download") === "1";
@@ -84,13 +121,15 @@ export async function GET(
 /**
  * PATCH /api/project-files/[id]
  *
- * Body: { project_id: number }
- *
- * Re-files a file under a different project. Used by the drag-and-drop
- * "move between projects" affordance on the folder dashboard. Ownership
- * is enforced on both ends — the caller must own the file and the target
- * project — so a user can never plant a file under someone else's
- * project. Admins skip the ownership check.
+ * Two operations, chosen by the body:
+ *   { shared_to_projects: boolean } → flip the "visible to projects" flag
+ *       so projects-module users (engineers / PMs) can read this BOQ /
+ *       attachment. Allowed for admin, the file owner, or the client
+ *       folder owner (the sales / presales person who controls the
+ *       client's records).
+ *   { project_id: number } → re-file under a different project (drag-drop
+ *       "move between projects"). Requires the caller to manage the file
+ *       AND own the target project.
  */
 export async function PATCH(
   req: NextRequest,
@@ -104,18 +143,45 @@ export async function PATCH(
     if (!Number.isFinite(id) || id <= 0) {
       return NextResponse.json({ error: "invalid id" }, { status: 400 });
     }
-    const body = (await req.json()) as { project_id?: number };
+    const body = (await req.json()) as {
+      project_id?: number;
+      shared_to_projects?: boolean;
+    };
+    const q = sql();
+    const file = await loadFileRow(q, id);
+    if (!file) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    if (!(await canManageFile(q, file, user))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    // Share toggle.
+    if (typeof body.shared_to_projects === "boolean") {
+      await q`
+        update project_files
+        set shared_to_projects = ${body.shared_to_projects}
+        where id = ${id}
+      `;
+      await q`
+        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        values (${user.id}, 'project_file', ${id},
+                ${body.shared_to_projects ? "share_to_projects" : "unshare_from_projects"},
+                '{}'::jsonb)
+      `;
+      return NextResponse.json({
+        ok: true,
+        shared_to_projects: body.shared_to_projects,
+      });
+    }
+
+    // Move between projects.
     const targetProjectId = Number(body?.project_id);
     if (!Number.isFinite(targetProjectId) || targetProjectId <= 0) {
       return NextResponse.json(
-        { error: "project_id required" },
+        { error: "project_id or shared_to_projects required" },
         { status: 400 },
       );
-    }
-    const q = sql();
-    const file = await loadFileForUser(q, id, user);
-    if (!file) {
-      return NextResponse.json({ error: "not found" }, { status: 404 });
     }
     const projectRows = (await q`
       select owner_id from projects
@@ -158,8 +224,8 @@ export async function DELETE(
       return NextResponse.json({ error: "invalid id" }, { status: 400 });
     }
     const q = sql();
-    const file = await loadFileForUser(q, id, user);
-    if (!file) {
+    const file = await loadFileRow(q, id);
+    if (!file || !(await canManageFile(q, file, user))) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
     // Soft-delete the row first so the UI can stop showing it

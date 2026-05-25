@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
 import { hasModuleRole } from "@/lib/modules";
+import { sendPushToUsers } from "@/lib/push";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -137,6 +138,13 @@ export async function POST(
       values (${user.id}, 'project_handoff', ${handoffId}, 'assign',
               ${JSON.stringify({ assigned_user_id: assigneeId, role })}::jsonb)
     `;
+
+    void sendPushToUsers([assigneeId], {
+      title: "New project assigned to you",
+      body: `You've been assigned as ${role}. Open the handoff for the BOQ, contacts, and site location.`,
+      url: "/projects/handoffs",
+      tag: `handoff-${handoffId}`,
+    });
 
     return NextResponse.json({ ok: true, status: "assigned" });
   } catch (err) {

@@ -158,6 +158,23 @@ export async function GET() {
     });
   }
 
+  // Change requests filed by sales against quotations I authored — V1.3b.
+  const changeReqRows = (await q`
+    select count(*)::int as n from quotation_change_requests
+    where target_user_id = ${user.id} and status = 'open'
+  `) as Array<{ n: number }>;
+  const openChangeReqs = changeReqRows[0]?.n ?? 0;
+  if (openChangeReqs > 0) {
+    raw.push({
+      id: "change_requests.open",
+      kind: "alarm",
+      severity: "warning",
+      title: `${openChangeReqs} change request${openChangeReqs === 1 ? "" : "s"} on your quotations`,
+      body: "Sales asked for updates. Open the quotation, edit it, and save to resend.",
+      action: { label: "View quotations", href: "/quotation" },
+    });
+  }
+
   // Project handoffs awaiting a member — projects managers + admins.
   const isProjectsManager =
     isAdmin || (await hasModuleRole(user.id, "projects", "manager"));

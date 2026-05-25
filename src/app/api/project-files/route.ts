@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
+import { hasModule } from "@/lib/modules";
 import { normalizeFileKind } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -40,22 +41,43 @@ type FileRow = {
   mime: string;
   size_bytes: number;
   storage_path: string;
+  shared_to_projects: boolean;
   created_at: string;
 };
 
-async function loadProjectForUser(
+/**
+ * Resolve how much of a project's file list the caller may see:
+ *   - "full"   → admin / project owner: every file.
+ *   - "shared" → a projects-module user or an assigned member who isn't
+ *                the owner: only files flagged `shared_to_projects`.
+ *   - null     → no access.
+ */
+async function projectFileAccess(
   q: ReturnType<typeof sql>,
   projectId: number,
   user: { id: number; role: string },
-): Promise<{ id: number; owner_id: number | null } | null> {
+): Promise<"full" | "shared" | null> {
   const rows = (await q`
     select id, owner_id from projects
     where id = ${projectId} and deleted_at is null
     limit 1
   `) as Array<{ id: number; owner_id: number | null }>;
   if (rows.length === 0) return null;
-  if (!canReadAll(user) && rows[0].owner_id !== user.id) return null;
-  return rows[0];
+  if (canReadAll(user) || rows[0].owner_id === user.id) return "full";
+
+  // Projects-module users (managers / engineers / technicians) see shared
+  // files of any project they can reach via their module role.
+  if (await hasModule(user.id, "projects")) return "shared";
+
+  // An assigned member (even without a module role) sees shared files.
+  const assigned = (await q`
+    select 1 from project_assignments
+    where project_id = ${projectId} and user_id = ${user.id} and deleted_at is null
+    limit 1
+  `) as Array<{ "?column?": number }>;
+  if (assigned.length > 0) return "shared";
+
+  return null;
 }
 
 /**
@@ -75,30 +97,35 @@ export async function GET(req: NextRequest) {
       );
     }
     const q = sql();
-    const project = await loadProjectForUser(q, projectId, user);
-    if (!project) {
+    const tier = await projectFileAccess(q, projectId, user);
+    if (!tier) {
       return NextResponse.json({ files: [] });
     }
+    const sharedOnly = tier === "shared";
     const kindParam = searchParams.get("kind");
     const rows = kindParam
       ? ((await q`
-          select id, project_id, owner_id, kind, filename, mime, size_bytes, storage_path, created_at
+          select id, project_id, owner_id, kind, filename, mime, size_bytes,
+                 storage_path, shared_to_projects, created_at
           from project_files
           where project_id = ${projectId}
             and kind = ${kindParam}
             and deleted_at is null
+            and (${sharedOnly}::boolean = false or shared_to_projects = true)
           order by created_at desc, id desc
           limit 500
         `) as FileRow[])
       : ((await q`
-          select id, project_id, owner_id, kind, filename, mime, size_bytes, storage_path, created_at
+          select id, project_id, owner_id, kind, filename, mime, size_bytes,
+                 storage_path, shared_to_projects, created_at
           from project_files
           where project_id = ${projectId}
             and deleted_at is null
+            and (${sharedOnly}::boolean = false or shared_to_projects = true)
           order by created_at desc, id desc
           limit 500
         `) as FileRow[]);
-    return NextResponse.json({ files: rows });
+    return NextResponse.json({ files: rows, access: tier });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message },
@@ -145,8 +172,8 @@ export async function POST(req: NextRequest) {
       );
     }
     const q = sql();
-    const project = await loadProjectForUser(q, projectId, user);
-    if (!project) {
+    const tier = await projectFileAccess(q, projectId, user);
+    if (tier !== "full") {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     // Belt-and-braces: the path the browser hands back must start with
@@ -173,7 +200,8 @@ export async function POST(req: NextRequest) {
         ${filename.slice(0, 200)}, ${mime}, ${Math.max(0, Math.trunc(size))},
         ${storagePath}
       )
-      returning id, project_id, owner_id, kind, filename, mime, size_bytes, storage_path, created_at
+      returning id, project_id, owner_id, kind, filename, mime, size_bytes,
+                storage_path, shared_to_projects, created_at
     `) as FileRow[];
     return NextResponse.json({ file: rows[0] });
   } catch (err) {

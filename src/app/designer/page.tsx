@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
+import { isSalesEditLocked } from "@/lib/modules";
 import Designer from "@/components/Designer";
 import DesignerShell from "@/components/DesignerShell";
 import TopBar from "@/components/TopBar";
@@ -63,6 +64,16 @@ export default async function DesignerPage({
   // The API route still enforces ownership, so access control is intact.
   if (sp.id) {
     const quotationId = Number(sp.id);
+    // V1.3b — a plain salesperson never enters Designer edit mode; bounce
+    // them to the read-only viewer where they can print / convert / request
+    // changes. Mirrors the server-side write block in /api/quotations.
+    if (
+      Number.isFinite(quotationId) &&
+      quotationId > 0 &&
+      (await isSalesEditLocked(user))
+    ) {
+      redirect(`/quotation?id=${quotationId}`);
+    }
     if (!Number.isFinite(quotationId) || quotationId <= 0) {
       return (
         <div className="min-h-screen bg-magic-soft/40">

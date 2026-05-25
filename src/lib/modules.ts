@@ -170,6 +170,28 @@ export async function requireModuleRole(
 }
 
 /**
+ * V1.3b — true when the user is a "plain salesperson": they hold the
+ * `crm:sales` grant but NONE of the roles that are allowed to author /
+ * edit a quotation in the Designer (admin, presales, presales_manager,
+ * sales_manager). These users receive quotations from presales and may
+ * only view / print / convert / request changes — never open the
+ * Designer in edit mode. Used by /api/quotations PATCH and the Designer
+ * page to enforce the lock server-side; the client mirrors the same rule
+ * for button visibility via /api/auth/me.
+ */
+export async function isSalesEditLocked(user: SessionUser): Promise<boolean> {
+  if (canReadAll(user)) return false; // admin / viewer are never sales-locked
+  const grants = await getUserModuleRoles(user.id);
+  const crm = grants.filter((g) => g.module === "crm").map((g) => g.role);
+  const hasSales = crm.includes("sales");
+  const hasElevated =
+    crm.includes("presales") ||
+    crm.includes("presales_manager") ||
+    crm.includes("sales_manager");
+  return hasSales && !hasElevated;
+}
+
+/**
  * True when the user holds any role in `module` whose name ends in
  * `_manager` (e.g. sales_manager, presales_manager, manager). Phase 3
  * uses this to widen visibility scope to team-member rows.
