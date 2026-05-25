@@ -47,6 +47,10 @@ export async function POST(
     const body = (await req.json()) as {
       assigned_user_id?: number;
       role?: string;
+      location?: string;
+      start_date?: string;
+      end_date?: string;
+      notes?: string;
     };
     const assigneeId = Number(body.assigned_user_id);
     if (!Number.isInteger(assigneeId) || assigneeId <= 0) {
@@ -58,6 +62,13 @@ export async function POST(
     const role = (ROLES as readonly string[]).includes(String(body.role))
       ? (body.role as (typeof ROLES)[number])
       : "engineer";
+    const isDate = (s: unknown) =>
+      typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+    const location = body.location?.trim() || null;
+    const startDate = isDate(body.start_date) ? (body.start_date as string) : null;
+    const endDate = isDate(body.end_date) ? (body.end_date as string) : null;
+    const notes =
+      body.notes?.trim() || `Assigned from handoff #${handoffId}`;
 
     const q = sql();
     const rows = (await q`
@@ -115,10 +126,20 @@ export async function POST(
       if (existing.length === 0) {
         await q`
           insert into project_assignments
-            (project_id, user_id, role, assigned_by, notes)
+            (project_id, user_id, role, assigned_by, location, start_date, end_date, notes)
           values
             (${handoff.project_id}, ${assigneeId}, ${role}, ${user.id},
-             ${`Assigned from handoff #${handoffId}`})
+             ${location}, ${startDate}, ${endDate}, ${notes})
+        `;
+      } else {
+        await q`
+          update project_assignments
+          set location = ${location},
+              start_date = ${startDate},
+              end_date = ${endDate},
+              notes = ${notes},
+              assigned_by = ${user.id}
+          where id = ${existing[0].id}
         `;
       }
     }

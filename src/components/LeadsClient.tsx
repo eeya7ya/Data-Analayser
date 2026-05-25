@@ -101,12 +101,6 @@ export default function LeadsClient({ canCreate }: { canCreate: boolean }) {
           </TabButton>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/leads/inbox"
-            className="rounded-lg border border-magic-border bg-white px-3 py-1.5 text-xs font-semibold text-magic-ink hover:bg-magic-soft"
-          >
-            Inbox
-          </Link>
           {canCreate && (
             <Link
               href="/leads/new"

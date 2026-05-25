@@ -7,6 +7,9 @@ import DashboardClient, { type DashboardData } from "@/components/DashboardClien
 import ExecutionDashboardClient, {
   type ExecutionProject,
 } from "@/components/ExecutionDashboardClient";
+import StorageDashboardClient, {
+  type StorageRequestRow,
+} from "@/components/StorageDashboardClient";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +103,56 @@ export default async function DashboardPage() {
               awaitingAssignment,
             }}
             projects={projectRows}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  // Storage people get a warehouse-oriented board.
+  const isStorage = hasGrant("storage");
+  if (!isAdmin && isStorage && !isCrm && !isProjects) {
+    const qs = sql();
+    const k = (await qs`
+      select
+        (select count(*) from storage_requests where status = 'pending')::int as pending,
+        (select count(*) from storage_requests where status = 'fulfilled')::int as fulfilled,
+        (select count(*) from storage_locations where deleted_at is null)::int as locations,
+        (select count(distinct product_id) from storage_stock)::int as stock_items,
+        (select count(*) from quotation_stock_checks where status = 'pending')::int as pending_checks
+    `) as Array<{
+      pending: number;
+      fulfilled: number;
+      locations: number;
+      stock_items: number;
+      pending_checks: number;
+    }>;
+    const reqs = (await qs`
+      select sr.id, sr.quantity, sr.status, sr.created_at,
+             coalesce(nullif(trim(p.vendor || ' ' || p.model), ''), 'Item') as product_label,
+             pr.name as project_name
+      from storage_requests sr
+      left join products p on p.id = sr.product_id
+      left join projects pr on pr.id = sr.project_id
+      where sr.status = 'pending'
+      order by sr.created_at desc
+      limit 20
+    `) as StorageRequestRow[];
+
+    return (
+      <div className="min-h-screen bg-magic-soft/40">
+        <TopBar user={user} />
+        <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
+          <StorageDashboardClient
+            greetingName={user.display_name || user.username}
+            kpis={{
+              pending: k[0].pending,
+              fulfilled: k[0].fulfilled,
+              locations: k[0].locations,
+              stockItems: k[0].stock_items,
+              pendingChecks: k[0].pending_checks,
+            }}
+            requests={reqs}
           />
         </main>
       </div>
