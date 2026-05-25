@@ -5,6 +5,7 @@ import { getSessionUser, canReadAll } from "@/lib/auth";
 import { hasModule, hasModuleRole } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 import ProjectAssignmentsPanel from "@/components/ProjectAssignmentsPanel";
+import MyAssignmentCard from "@/components/MyAssignmentCard";
 import ProjectBoqsTabSection from "@/components/ProjectBoqsTabSection";
 import ExecutionReportsPanel from "@/components/ExecutionReportsPanel";
 import RequestStockButton from "@/components/RequestStockButton";
@@ -154,6 +155,10 @@ export default async function ProjectDetailPage({
             </p>
           )}
         </div>
+
+        {/* The executor's own brief — location / dates / notes the PM set
+            when assigning them. Renders only for assigned members. */}
+        <MyAssignmentCard projectId={id} />
 
         <ProjectAssignmentsPanel projectId={id} canManage={canManage} />
 
