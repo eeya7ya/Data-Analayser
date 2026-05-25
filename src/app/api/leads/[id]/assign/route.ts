@@ -7,6 +7,7 @@ import {
   logLeadEvent,
   sendLeadMessage,
 } from "@/lib/leads";
+import { sendPushToUsers } from "@/lib/push";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -172,6 +173,13 @@ export async function POST(
           `No further action required from you.`,
       });
     }
+
+    void sendPushToUsers([assigneeId], {
+      title: `Lead assigned to you — ${lead.ref}`,
+      body: `${lead.title}. Open it to build the quotation.`,
+      url: `/leads/${leadId}`,
+      tag: `lead-assigned-${leadId}`,
+    });
 
     return NextResponse.json({ ok: true, status: newStatus });
   } catch (err) {

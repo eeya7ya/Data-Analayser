@@ -342,6 +342,14 @@ const PROJECT_HANDOFFS_FLAG = "project_handoffs_v1_2026_05";
  */
 const V13B_FLAG = "v1_3b_pwa_sharing_change_requests_2026_05";
 
+/**
+ * V1.3c — execution reports. Project technicians / engineers post
+ * progress updates and feedback against the project they were assigned;
+ * the project manager (and project owner / admin) read them. Net-new
+ * table, strictly additive.
+ */
+const V13C_FLAG = "v1_3c_execution_reports_2026_05";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -418,6 +426,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let notificationStateApplied = false;
   let projectHandoffsApplied = false;
   let v13bApplied = false;
+  let v13cApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -431,7 +440,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG},
         ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG},
         ${NOTIFICATION_STATE_FLAG}, ${PROJECT_HANDOFFS_FLAG},
-        ${V13B_FLAG}
+        ${V13B_FLAG}, ${V13C_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -459,6 +468,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     notificationStateApplied = keys.has(NOTIFICATION_STATE_FLAG);
     projectHandoffsApplied = keys.has(PROJECT_HANDOFFS_FLAG);
     v13bApplied = keys.has(V13B_FLAG);
+    v13cApplied = keys.has(V13C_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -488,7 +498,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     pricingFoundationApplied &&
     notificationStateApplied &&
     projectHandoffsApplied &&
-    v13bApplied
+    v13bApplied &&
+    v13cApplied
   )
     return;
 
@@ -2279,6 +2290,34 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${V13B_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!v13cApplied) {
+    // Execution reports. A project technician / engineer posts progress
+    // updates + feedback against a project they're assigned to; the
+    // project manager and project owner read them. `kind` colours the
+    // entry (progress update / blocker / completion note); `progress` is
+    // an optional 0-100 percent.
+    await q`
+      create table if not exists execution_reports (
+        id          bigserial primary key,
+        project_id  integer not null references projects(id) on delete cascade,
+        author_id   integer references users(id) on delete set null,
+        kind        text not null default 'update'
+                      check (kind in ('update','blocker','done')),
+        progress    integer check (progress is null or (progress >= 0 and progress <= 100)),
+        body        text not null,
+        created_at  timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists execution_reports_project_idx
+        on execution_reports(project_id, created_at desc)
+    `;
+    await q`
+      insert into migration_flags (key) values (${V13C_FLAG})
       on conflict (key) do nothing
     `;
   }

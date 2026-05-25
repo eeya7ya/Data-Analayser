@@ -57,6 +57,24 @@ export async function canDecideOutcome(user: SessionUser): Promise<boolean> {
   return hasModuleRole(user.id, "crm", "sales");
 }
 
+/**
+ * V1.3c — sales push the deal to the projects team for execution. This is
+ * the same audience as the won/lost decision: a salesperson handling the
+ * received quotation chooses hold / mark sold / push to execution.
+ */
+export async function canPushToExecution(user: SessionUser): Promise<boolean> {
+  return canDecideOutcome(user);
+}
+
+/**
+ * Presales manager signs off the prepared quotation before it's released
+ * to sales (V1.3c). Plain presales prepare it; the manager approves.
+ */
+export async function canSignOffQuotation(user: SessionUser): Promise<boolean> {
+  if (user.role === "admin") return true;
+  return hasModuleRole(user.id, "crm", "presales_manager");
+}
+
 /** Presales_manager picks the project member that receives the BOQ. */
 export async function canSendToExecution(user: SessionUser): Promise<boolean> {
   if (user.role === "admin") return true;
@@ -161,9 +179,15 @@ export async function sendLeadMessage(args: {
  */
 const ALLOWED_NEXT: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
   new: ["assigned"],
-  assigned: ["in_progress"],
-  in_progress: ["quotation_sent"],
-  quotation_sent: ["won", "lost"],
+  assigned: ["in_progress", "quotation_review", "quotation_sent"],
+  // A presales member submits for sign-off (→ quotation_review); a
+  // presales manager may release straight to sales (→ quotation_sent).
+  in_progress: ["quotation_review", "quotation_sent"],
+  // Presales manager either releases to sales or sends it back to the
+  // member for rework.
+  quotation_review: ["quotation_sent", "in_progress"],
+  // Sales: mark won/lost, or push straight to execution (handoff queue).
+  quotation_sent: ["won", "lost", "sent_to_execution"],
   won: ["boq_in_progress", "sent_to_execution"],
   lost: [],
   boq_in_progress: ["sent_to_execution"],

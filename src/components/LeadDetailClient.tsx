@@ -80,6 +80,7 @@ const STATUS_PILL: Record<string, string> = {
   new: "bg-sky-100 text-sky-800 border-sky-200",
   assigned: "bg-indigo-100 text-indigo-800 border-indigo-200",
   in_progress: "bg-violet-100 text-violet-800 border-violet-200",
+  quotation_review: "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200",
   quotation_sent: "bg-amber-100 text-amber-800 border-amber-200",
   won: "bg-emerald-100 text-emerald-800 border-emerald-200",
   lost: "bg-red-100 text-red-800 border-red-200",
@@ -466,10 +467,31 @@ function ActionsCard({
         )}
         {status === "in_progress" &&
           (isMine || flags.isAdmin || flags.isPresalesManager) && (
-            <SubmitQuotationPanel leadId={lead.id} onChanged={onChanged} />
+            <SubmitQuotationPanel
+              leadId={lead.id}
+              onChanged={onChanged}
+              signOff={flags.isPresalesManager || flags.isAdmin}
+            />
+          )}
+        {status === "quotation_review" &&
+          (flags.isPresalesManager || flags.isAdmin) && (
+            <SignOffPanel leadId={lead.id} onChanged={onChanged} />
+          )}
+        {status === "quotation_review" &&
+          !(flags.isPresalesManager || flags.isAdmin) && (
+            <p className="text-xs italic text-magic-ink/50">
+              Submitted — waiting for the presales manager to sign off.
+            </p>
           )}
         {status === "quotation_sent" && (flags.isSales || flags.isAdmin) && (
-          <OutcomePanel leadId={lead.id} onChanged={onChanged} />
+          <>
+            <OutcomePanel leadId={lead.id} onChanged={onChanged} />
+            <PushToExecutionPanel leadId={lead.id} onChanged={onChanged} />
+            <HoldButton leadId={lead.id} onChanged={onChanged} />
+          </>
+        )}
+        {status === "won" && (flags.isSales || flags.isAdmin) && (
+          <PushToExecutionPanel leadId={lead.id} onChanged={onChanged} />
         )}
         {(status === "won" || status === "boq_in_progress") &&
           (isMine || flags.isPresalesManager || flags.isAdmin) && (
@@ -608,9 +630,13 @@ interface QuotationOption {
 function SubmitQuotationPanel({
   leadId,
   onChanged,
+  signOff = false,
 }: {
   leadId: number;
   onChanged: () => void;
+  /** When the actor can sign off (presales manager / admin), submitting
+   * releases straight to sales; otherwise it goes for manager sign-off. */
+  signOff?: boolean;
 }) {
   const [quotations, setQuotations] = useState<QuotationOption[]>([]);
   const [quotationId, setQuotationId] = useState<string>("");
@@ -659,8 +685,13 @@ function SubmitQuotationPanel({
   return (
     <form onSubmit={submit} className="space-y-2 border-t border-magic-border/60 pt-3">
       <h4 className="text-xs font-semibold text-magic-ink">
-        Submit quotation to sales
+        {signOff ? "Release quotation to sales" : "Submit quotation for sign-off"}
       </h4>
+      {!signOff && (
+        <p className="text-[11px] text-magic-ink/60">
+          The presales manager reviews and releases it to sales.
+        </p>
+      )}
       <select
         value={quotationId}
         onChange={(e) => setQuotationId(e.target.value)}
@@ -692,9 +723,194 @@ function SubmitQuotationPanel({
         disabled={busy}
         className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
       >
-        {busy ? "Sending…" : "Send to sales"}
+        {busy
+          ? "Sending…"
+          : signOff
+            ? "Release to sales"
+            : "Submit for sign-off"}
       </button>
     </form>
+  );
+}
+
+/** Presales-manager sign-off on a quotation awaiting review. */
+function SignOffPanel({
+  leadId,
+  onChanged,
+}: {
+  leadId: number;
+  onChanged: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState<"release" | "reject" | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function act(action: "release" | "reject") {
+    setErr(null);
+    setBusy(action);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/approve-quotation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          reason: reason.trim() || undefined,
+        }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      onChanged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="space-y-2 border-t border-magic-border/60 pt-3">
+      <h4 className="text-xs font-semibold text-magic-ink">
+        Sign off quotation
+      </h4>
+      <p className="text-[11px] text-magic-ink/60">
+        Release it to sales, or send it back to the presales engineer for
+        changes.
+      </p>
+      <textarea
+        rows={2}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Optional note (shown if you send it back)"
+        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+      />
+      {err && <p className="text-xs text-red-700">{err}</p>}
+      <div className="flex gap-2">
+        <button
+          onClick={() => act("release")}
+          disabled={!!busy}
+          className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+        >
+          {busy === "release" ? "Releasing…" : "Release to sales"}
+        </button>
+        <button
+          onClick={() => act("reject")}
+          disabled={!!busy}
+          className="flex-1 rounded-lg border border-magic-border bg-white px-3 py-1.5 text-sm font-semibold text-magic-ink/70 hover:bg-amber-50 hover:text-amber-800 disabled:opacity-50"
+        >
+          {busy === "reject" ? "Sending…" : "Send back"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Sales pushes the deal to the projects team (raises a handoff). */
+function PushToExecutionPanel({
+  leadId,
+  onChanged,
+}: {
+  leadId: number;
+  onChanged: () => void;
+}) {
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function push() {
+    setErr(null);
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/push-to-execution`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: notes.trim() || undefined }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      onChanged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2 border-t border-magic-border/60 pt-3">
+      <h4 className="text-xs font-semibold text-magic-ink">
+        Push to execution
+      </h4>
+      <p className="text-[11px] text-magic-ink/60">
+        Hands the BOQ to the projects team. A project manager assigns a
+        technician / engineer.
+      </p>
+      <textarea
+        rows={2}
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Notes for the projects team (optional)"
+        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+      />
+      {err && <p className="text-xs text-red-700">{err}</p>}
+      <button
+        onClick={push}
+        disabled={busy}
+        className="w-full rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50"
+      >
+        {busy ? "Pushing…" : "Push to execution"}
+      </button>
+    </div>
+  );
+}
+
+/** Sales holds a received quotation without deciding yet. */
+function HoldButton({
+  leadId,
+  onChanged,
+}: {
+  leadId: number;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function hold() {
+    setErr(null);
+    setBusy(true);
+    try {
+      const note = window.prompt(
+        "Hold this lead — optional note on why you're pausing it:",
+      );
+      if (note === null) {
+        setBusy(false);
+        return;
+      }
+      const res = await fetch(`/api/leads/${leadId}/hold`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: note.trim() || undefined }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      onChanged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-1 border-t border-magic-border/60 pt-3">
+      {err && <p className="text-xs text-red-700">{err}</p>}
+      <button
+        onClick={hold}
+        disabled={busy}
+        className="w-full rounded-lg border border-magic-border bg-white px-3 py-1.5 text-sm font-semibold text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50"
+      >
+        {busy ? "Saving…" : "Hold for now"}
+      </button>
+    </div>
   );
 }
 
@@ -730,7 +946,9 @@ function OutcomePanel({
 
   return (
     <div className="space-y-2 border-t border-magic-border/60 pt-3">
-      <h4 className="text-xs font-semibold text-magic-ink">Sales decision</h4>
+      <h4 className="text-xs font-semibold text-magic-ink">
+        Sales decision — mark sold or lost
+      </h4>
       <textarea
         rows={2}
         value={reason}
@@ -745,7 +963,7 @@ function OutcomePanel({
           disabled={!!busy}
           className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
         >
-          {busy === "won" ? "Saving…" : "Mark WON"}
+          {busy === "won" ? "Saving…" : "Mark sold (Won)"}
         </button>
         <button
           onClick={() => decide("lost")}

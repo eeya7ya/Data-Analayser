@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
-import { canTransition, logLeadEvent, sendLeadMessage } from "@/lib/leads";
+import {
+  canSignOffQuotation,
+  logLeadEvent,
+  sendLeadMessage,
+} from "@/lib/leads";
+import { sendPushToUsers } from "@/lib/push";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,7 +93,11 @@ export async function POST(
     // We allow both `assigned` and `in_progress` to flow into
     // `quotation_sent` — the in-between stages are an aid to the
     // presales user, not a wall.
-    if (lead.status !== "assigned" && lead.status !== "in_progress") {
+    if (
+      lead.status !== "assigned" &&
+      lead.status !== "in_progress" &&
+      lead.status !== "quotation_review"
+    ) {
       return NextResponse.json(
         {
           error: `cannot submit quotation from status "${lead.status}"`,
@@ -114,18 +123,81 @@ export async function POST(
     }
     const quotation = quotationRows[0];
 
+    // V1.3c — presales manager signs off BEFORE the quotation reaches
+    // sales. A plain presales member's submit parks the lead in
+    // `quotation_review` and pings the managers; a manager (or admin)
+    // releases it straight to sales.
+    const isSignOffAuthority = await canSignOffQuotation(user);
+
+    if (!isSignOffAuthority) {
+      // Member path → awaiting manager sign-off.
+      const subject =
+        body.subject?.trim() ||
+        `[Lead ${lead.ref}] Quotation ${quotation.ref} ready for your sign-off`;
+      const bodyText =
+        body.body?.trim() ||
+        `${user.display_name || user.username} prepared a quotation for this lead.\n\n` +
+          `Lead: ${lead.title}\n` +
+          `Quotation: ${quotation.ref} — ${quotation.project_name}\n\n` +
+          `Review it, then release it to sales (or send it back for changes).`;
+
+      const managers = (await q`
+        select distinct user_id from user_module_roles
+        where module = 'crm' and role = 'presales_manager' and revoked_at is null
+      `) as Array<{ user_id: number }>;
+      const admins = (await q`
+        select id as user_id from users where role = 'admin'
+      `) as Array<{ user_id: number }>;
+      const recipients = new Set<number>();
+      for (const m of managers) recipients.add(m.user_id);
+      for (const a of admins) recipients.add(a.user_id);
+
+      await q`
+        update leads
+        set quotation_id = ${quotationId},
+            quotation_email_subject = ${subject},
+            quotation_email_body = ${bodyText},
+            status = 'quotation_review',
+            updated_at = now()
+        where id = ${leadId}
+      `;
+      await logLeadEvent(
+        leadId,
+        user.id,
+        "quotation_review",
+        `Quotation ${quotation.ref} submitted for presales-manager sign-off`,
+        { quotation_id: quotationId },
+      );
+      for (const rid of recipients) {
+        await sendLeadMessage({
+          leadId,
+          senderId: user.id,
+          recipientId: rid,
+          kind: "quotation_sent_to_sales",
+          subject,
+          body: bodyText,
+        });
+      }
+      void sendPushToUsers([...recipients], {
+        title: `Quotation ${quotation.ref} needs sign-off`,
+        body: `${lead.title} — review and release to sales.`,
+        url: `/leads/${leadId}`,
+        tag: `lead-review-${leadId}`,
+      });
+      return NextResponse.json({ ok: true, status: "quotation_review" });
+    }
+
+    // Manager / admin path → release straight to sales.
     const subject =
       body.subject?.trim() ||
       `[Lead ${lead.ref}] Quotation ${quotation.ref} ready for sales decision`;
     const bodyText =
       body.body?.trim() ||
-      `${user.display_name || user.username} prepared a quotation for this lead.\n\n` +
+      `${user.display_name || user.username} released a quotation for this lead.\n\n` +
         `Lead: ${lead.title}\n` +
         `Quotation: ${quotation.ref} — ${quotation.project_name}\n\n` +
-        `Open the lead and mark it Won or Lost.`;
+        `Open the lead and hold it, mark it sold, or push it to execution.`;
 
-    // Build the recipient list. Explicit recipient_ids wins; otherwise
-    // we fan out to every active sales / sales_manager.
     let recipients: number[] = [];
     if (Array.isArray(body.recipient_ids) && body.recipient_ids.length > 0) {
       recipients = body.recipient_ids
@@ -138,9 +210,6 @@ export async function POST(
           and revoked_at is null
       `) as Array<{ user_id: number }>;
       recipients = rows.map((r) => r.user_id);
-      // Always include the lead creator if they're not already on the
-      // list, so a sales user who opened the lead themselves still
-      // sees the submission land in their inbox.
       if (lead.created_by && !recipients.includes(lead.created_by)) {
         recipients.push(lead.created_by);
       }
@@ -153,19 +222,13 @@ export async function POST(
       );
     }
 
-    const newStatus = "quotation_sent";
-    if (!canTransition("in_progress", newStatus) && !canTransition("assigned", "in_progress")) {
-      // sanity guard — keep the transition map honest.
-      return NextResponse.json({ error: "transition not allowed" }, { status: 409 });
-    }
-
     await q`
       update leads
       set quotation_id = ${quotationId},
           quotation_sent_at = now(),
           quotation_email_subject = ${subject},
           quotation_email_body = ${bodyText},
-          status = ${newStatus},
+          status = 'quotation_sent',
           updated_at = now()
       where id = ${leadId}
     `;
@@ -174,7 +237,7 @@ export async function POST(
       leadId,
       user.id,
       "quotation_sent",
-      `Quotation ${quotation.ref} sent to sales`,
+      `Quotation ${quotation.ref} released to sales`,
       { quotation_id: quotationId, recipients },
     );
 
@@ -188,8 +251,14 @@ export async function POST(
         body: bodyText,
       });
     }
+    void sendPushToUsers(recipients, {
+      title: `Quotation ${quotation.ref} ready for you`,
+      body: `${lead.title} — hold, mark sold, or push to execution.`,
+      url: `/leads/${leadId}`,
+      tag: `lead-quotation-${leadId}`,
+    });
 
-    return NextResponse.json({ ok: true, status: newStatus });
+    return NextResponse.json({ ok: true, status: "quotation_sent" });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "UNKNOWN";
     const status =

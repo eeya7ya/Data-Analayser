@@ -126,12 +126,11 @@ export async function POST(req: Request) {
       approved_at: string | null;
     }>;
 
+    // V1.3c — the presales manager's sign-off alone marks the quotation
+    // approved (the sales-manager co-sign was dropped). Sales-side approval
+    // is still recorded if used, but it no longer gates `approved_at`.
     let bothApproved = false;
-    if (
-      after[0].sales_approved_at &&
-      after[0].presales_approved_at &&
-      !after[0].approved_at
-    ) {
+    if (after[0].presales_approved_at && !after[0].approved_at) {
       await q`update quotations set approved_at = now() where id = ${id}`;
       bothApproved = true;
     } else if (after[0].approved_at) {

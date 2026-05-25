@@ -118,11 +118,12 @@ export async function GET(req: NextRequest) {
         left join users au on au.id = l.assigned_to_id
         where l.deleted_at is null
           and (
-            -- presales manager / admin: untriaged + waiting-on-execution-route
-            (${vis.full}::boolean and l.status in ('new','boq_in_progress'))
+            -- presales manager / admin: untriaged + quotations awaiting
+            -- sign-off + waiting-on-execution-route
+            (${vis.full}::boolean and l.status in ('new','quotation_review','boq_in_progress'))
             -- assigned presales user: their own active work
             or (${vis.ownerOnly}::boolean and l.assigned_to_id = ${vis.userId}
-                and l.status in ('assigned','in_progress','won'))
+                and l.status in ('assigned','in_progress','quotation_review','won'))
             -- sales: quotation waiting for decision
             or (${vis.sales}::boolean and l.status = 'quotation_sent')
             -- projects: lead handed to me for execution
