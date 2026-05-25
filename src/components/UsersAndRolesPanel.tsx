@@ -3,19 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
- * Admin → Users & Roles (unified).
+ * Admin → Users & Roles.
  *
- * Merges the old "Users" (legacy account) and "Modules" (per-module role
- * grants) panels into one screen. For every user you see their account,
- * their access level (user / viewer / admin), and every module role they
- * hold — and you grant / revoke module roles inline, right next to the
- * person they belong to.
- *
- * Two data sources are joined client-side:
- *   • GET /api/users               → the account list
- *   • GET /api/admin/module-roles  → active grants + the (module, role)
- *                                    catalogue, so new roles added
- *                                    server-side show up automatically.
+ * One person, one role. The admin assigns a single role — Admin, Viewer,
+ * or a job role (Sales, Presales Manager, Engineer, …) — and that one
+ * choice defines both the person's access level and what the app shows
+ * them. The (module, role) plumbing is hidden behind friendly names; the
+ * assignment goes through POST /api/admin/assign-role, which sets the
+ * access level and the single module grant atomically.
  */
 
 interface U {
@@ -29,34 +24,63 @@ interface U {
 
 interface Grant {
   user_id: number;
-  username: string;
   module: string;
   role: string;
-  granted_by: number | null;
-  granted_by_username: string | null;
-  created_at: string;
 }
 
-type Catalogue = Record<string, readonly string[]>;
+interface RoleOption {
+  value: string; // "admin" | "viewer" | "none" | "<module>.<role>"
+  label: string;
+}
 
-type AccessLevel = "user" | "viewer" | "admin";
+/** The single source of truth for what an admin can assign. */
+const ROLE_GROUPS: Array<{ group: string; options: RoleOption[] }> = [
+  {
+    group: "Administration",
+    options: [
+      { value: "admin", label: "Admin (full access)" },
+      { value: "viewer", label: "Viewer (read-only admin)" },
+    ],
+  },
+  {
+    group: "Sales & Presales",
+    options: [
+      { value: "crm.sales", label: "Sales" },
+      { value: "crm.sales_manager", label: "Sales Manager" },
+      { value: "crm.presales", label: "Presales" },
+      { value: "crm.presales_manager", label: "Presales Manager" },
+    ],
+  },
+  {
+    group: "Projects",
+    options: [
+      { value: "projects.manager", label: "Project Manager" },
+      { value: "projects.engineer", label: "Engineer" },
+      { value: "projects.technical", label: "Technician" },
+    ],
+  },
+  {
+    group: "Storage",
+    options: [
+      { value: "storage.worker", label: "Storage Worker" },
+      { value: "storage.manager", label: "Storage Manager" },
+    ],
+  },
+  {
+    group: "—",
+    options: [{ value: "none", label: "No role yet" }],
+  },
+];
 
-const MODULE_STYLE: Record<string, string> = {
-  crm: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  projects: "bg-cyan-50 text-cyan-700 border-cyan-200",
-  storage: "bg-amber-50 text-amber-800 border-amber-200",
-  admin: "bg-red-50 text-red-700 border-red-200",
-  pricing: "bg-emerald-50 text-emerald-700 border-emerald-200",
-};
+const LABEL_BY_VALUE: Record<string, string> = Object.fromEntries(
+  ROLE_GROUPS.flatMap((g) => g.options.map((o) => [o.value, o.label])),
+);
 
-const ACCESS_HINT: Record<AccessLevel, string> = {
-  user: "Standard account — access is defined entirely by module roles below.",
-  viewer: "Read-only admin — sees every admin tab but cannot save changes.",
-  admin: "Full administrator — bypasses every module gate.",
-};
-
-function prettyRole(role: string): string {
-  return role.replace(/_/g, " ");
+function roleValueFor(u: U, grants: Grant[]): string {
+  if (u.role === "admin") return "admin";
+  if (u.role === "viewer") return "viewer";
+  const g = grants[0];
+  return g ? `${g.module}.${g.role}` : "none";
 }
 
 export default function UsersAndRolesPanel({
@@ -66,7 +90,6 @@ export default function UsersAndRolesPanel({
 }) {
   const [users, setUsers] = useState<U[]>([]);
   const [grants, setGrants] = useState<Grant[]>([]);
-  const [catalogue, setCatalogue] = useState<Catalogue>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<number | null>(null);
@@ -76,7 +99,7 @@ export default function UsersAndRolesPanel({
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [accessLevel, setAccessLevel] = useState<AccessLevel>("user");
+  const [newRole, setNewRole] = useState<string>("crm.sales");
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
 
@@ -101,7 +124,6 @@ export default function UsersAndRolesPanel({
       if (!mRes.ok) throw new Error(mData.error || `roles HTTP ${mRes.status}`);
       setUsers(uData.users || []);
       setGrants(mData.grants || []);
-      setCatalogue(mData.catalogue || {});
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -125,103 +147,71 @@ export default function UsersAndRolesPanel({
 
   const stats = useMemo(() => {
     const admins = users.filter((u) => u.role === "admin").length;
-    const withRoles = new Set(grants.map((g) => g.user_id)).size;
-    return { total: users.length, admins, withRoles, grants: grants.length };
-  }, [users, grants]);
+    const assigned = users.filter(
+      (u) =>
+        u.role === "admin" ||
+        u.role === "viewer" ||
+        (grantsByUser.get(u.id)?.length ?? 0) > 0,
+    ).length;
+    return { total: users.length, admins, assigned };
+  }, [users, grantsByUser]);
+
+  async function assignRole(userId: number, role: string) {
+    setBusyUserId(userId);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/assign-role", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user_id: userId, role }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      await loadAll();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusyUserId(null);
+    }
+  }
 
   async function createUser(e: React.FormEvent) {
     e.preventDefault();
     setCreateErr(null);
     setCreating(true);
     try {
+      // Create the account first (as a plain user), then apply the role.
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username,
           password,
-          role: accessLevel,
+          role: newRole === "admin" ? "admin" : newRole === "viewer" ? "viewer" : "user",
           display_name: displayName,
           phone,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed");
+      const newId = data.user?.id;
+      if (newId && newRole.includes(".")) {
+        await fetch("/api/admin/assign-role", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ user_id: newId, role: newRole }),
+        });
+      }
       setUsername("");
       setDisplayName("");
       setPhone("");
       setPassword("");
-      setAccessLevel("user");
+      setNewRole("crm.sales");
       await loadAll();
     } catch (e) {
       setCreateErr((e as Error).message);
     } finally {
       setCreating(false);
-    }
-  }
-
-  async function changeAccessLevel(id: number, level: AccessLevel) {
-    setBusyUserId(id);
-    setError(null);
-    try {
-      const res = await fetch(`/api/users?id=${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: level }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "failed");
-      await loadAll();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusyUserId(null);
-    }
-  }
-
-  async function grantRole(userId: number, module: string, role: string) {
-    setBusyUserId(userId);
-    setError(null);
-    try {
-      const res = await fetch("/api/admin/module-roles", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ user_id: userId, module, role }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      await loadAll();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusyUserId(null);
-    }
-  }
-
-  async function revokeRole(userId: number, module: string, role: string) {
-    if (
-      !window.confirm(
-        `Revoke ${module}.${role}?\n\n` +
-          "Soft-revoke — the grant row stays in the database and you can " +
-          "re-grant it any time.",
-      )
-    )
-      return;
-    setBusyUserId(userId);
-    setError(null);
-    try {
-      const res = await fetch("/api/admin/module-roles", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ user_id: userId, module, role }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      await loadAll();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusyUserId(null);
     }
   }
 
@@ -277,15 +267,12 @@ export default function UsersAndRolesPanel({
 
   return (
     <div className="space-y-5">
-      {/* Summary */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-3 gap-3">
         <StatCard label="Users" value={stats.total} />
         <StatCard label="Admins" value={stats.admins} />
-        <StatCard label="With module roles" value={stats.withRoles} />
-        <StatCard label="Active grants" value={stats.grants} />
+        <StatCard label="With a role" value={stats.assigned} />
       </div>
 
-      {/* Create user */}
       {!readOnly && (
         <form
           onSubmit={createUser}
@@ -323,16 +310,11 @@ export default function UsersAndRolesPanel({
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-            <select
-              className="rounded-md border border-magic-border px-3 py-2 text-sm"
-              value={accessLevel}
-              onChange={(e) => setAccessLevel(e.target.value as AccessLevel)}
-              title={ACCESS_HINT[accessLevel]}
-            >
-              <option value="user">Access: user</option>
-              <option value="viewer">Access: viewer (read-only)</option>
-              <option value="admin">Access: admin</option>
-            </select>
+            <RoleSelect
+              value={newRole}
+              onChange={setNewRole}
+              includeNone={false}
+            />
             <button
               disabled={creating}
               className="rounded-md bg-magic-red px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
@@ -340,11 +322,6 @@ export default function UsersAndRolesPanel({
               {creating ? "Creating…" : "Create user"}
             </button>
           </div>
-          <p className="mt-2 text-xs text-magic-ink/50">
-            After creating, assign module roles (sales, presales, engineer…)
-            in the table below — that&apos;s what defines what each person can
-            do.
-          </p>
           {createErr && (
             <div className="mt-2 text-xs text-red-600">{createErr}</div>
           )}
@@ -363,20 +340,16 @@ export default function UsersAndRolesPanel({
           <thead className="bg-magic-header text-xs uppercase text-magic-red">
             <tr>
               <th className="p-3 text-left">User</th>
-              <th className="p-3 text-left">Access level</th>
-              <th className="p-3 text-left">Module roles</th>
+              <th className="p-3 text-left">Role</th>
               <th className="p-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {users.map((u) => {
-              const userGrants = grantsByUser.get(u.id) ?? [];
+              const value = roleValueFor(u, grantsByUser.get(u.id) ?? []);
               const rowBusy = busyUserId === u.id;
               return (
-                <tr
-                  key={u.id}
-                  className="border-t border-magic-border align-top"
-                >
+                <tr key={u.id} className="border-t border-magic-border align-middle">
                   <td className="p-3">
                     <div className="font-semibold text-magic-ink">
                       {u.username}
@@ -392,57 +365,14 @@ export default function UsersAndRolesPanel({
                   <td className="p-3">
                     {readOnly ? (
                       <span className="rounded-md border border-magic-border bg-magic-soft px-2 py-1 text-xs text-magic-ink/70">
-                        {u.role}
+                        {LABEL_BY_VALUE[value] ?? value}
                       </span>
                     ) : (
-                      <select
-                        value={u.role}
+                      <RoleSelect
+                        value={value}
                         disabled={rowBusy}
-                        title={ACCESS_HINT[u.role as AccessLevel]}
-                        onChange={(e) =>
-                          void changeAccessLevel(
-                            u.id,
-                            e.target.value as AccessLevel,
-                          )
-                        }
-                        className="rounded-md border border-magic-border px-2 py-1 text-sm disabled:opacity-60"
-                      >
-                        <option value="user">user</option>
-                        <option value="viewer">viewer</option>
-                        <option value="admin">admin</option>
-                      </select>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {userGrants.length === 0 && (
-                        <span className="text-xs italic text-magic-ink/40">
-                          no module roles
-                        </span>
-                      )}
-                      {userGrants.map((g) => (
-                        <RoleChip
-                          key={`${g.module}.${g.role}`}
-                          module={g.module}
-                          role={g.role}
-                          onRevoke={
-                            readOnly
-                              ? undefined
-                              : () => revokeRole(u.id, g.module, g.role)
-                          }
-                          disabled={rowBusy}
-                        />
-                      ))}
-                    </div>
-                    {!readOnly && (
-                      <div className="mt-2">
-                        <AddRoleForm
-                          catalogue={catalogue}
-                          existing={userGrants}
-                          disabled={rowBusy}
-                          onGrant={(m, r) => grantRole(u.id, m, r)}
-                        />
-                      </div>
+                        onChange={(v) => void assignRole(u.id, v)}
+                      />
                     )}
                   </td>
                   <td className="whitespace-nowrap p-3 text-right">
@@ -478,7 +408,7 @@ export default function UsersAndRolesPanel({
       {/* Mobile cards */}
       <div className="space-y-3 lg:hidden">
         {users.map((u) => {
-          const userGrants = grantsByUser.get(u.id) ?? [];
+          const value = roleValueFor(u, grantsByUser.get(u.id) ?? []);
           const rowBusy = busyUserId === u.id;
           return (
             <div
@@ -505,63 +435,17 @@ export default function UsersAndRolesPanel({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <label className="text-xs text-magic-ink/60">Access</label>
+                <label className="text-xs text-magic-ink/60">Role</label>
                 {readOnly ? (
                   <span className="rounded-md border border-magic-border bg-magic-soft px-2 py-1 text-sm text-magic-ink/70">
-                    {u.role}
+                    {LABEL_BY_VALUE[value] ?? value}
                   </span>
                 ) : (
-                  <select
-                    value={u.role}
+                  <RoleSelect
+                    value={value}
                     disabled={rowBusy}
-                    onChange={(e) =>
-                      void changeAccessLevel(
-                        u.id,
-                        e.target.value as AccessLevel,
-                      )
-                    }
-                    className="rounded-md border border-magic-border px-2 py-1 text-sm disabled:opacity-60"
-                  >
-                    <option value="user">user</option>
-                    <option value="viewer">viewer</option>
-                    <option value="admin">admin</option>
-                  </select>
-                )}
-              </div>
-
-              <div>
-                <div className="mb-1 text-xs text-magic-ink/60">
-                  Module roles
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {userGrants.length === 0 && (
-                    <span className="text-xs italic text-magic-ink/40">
-                      none
-                    </span>
-                  )}
-                  {userGrants.map((g) => (
-                    <RoleChip
-                      key={`${g.module}.${g.role}`}
-                      module={g.module}
-                      role={g.role}
-                      onRevoke={
-                        readOnly
-                          ? undefined
-                          : () => revokeRole(u.id, g.module, g.role)
-                      }
-                      disabled={rowBusy}
-                    />
-                  ))}
-                </div>
-                {!readOnly && (
-                  <div className="mt-2">
-                    <AddRoleForm
-                      catalogue={catalogue}
-                      existing={userGrants}
-                      disabled={rowBusy}
-                      onGrant={(m, r) => grantRole(u.id, m, r)}
-                    />
-                  </div>
+                    onChange={(v) => void assignRole(u.id, v)}
+                  />
                 )}
               </div>
 
@@ -660,94 +544,39 @@ function StatCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function RoleChip({
-  module,
-  role,
-  onRevoke,
+function RoleSelect({
+  value,
+  onChange,
   disabled,
+  includeNone = true,
 }: {
-  module: string;
-  role: string;
-  onRevoke?: () => void;
+  value: string;
+  onChange: (value: string) => void;
   disabled?: boolean;
+  includeNone?: boolean;
 }) {
-  const style = MODULE_STYLE[module] ?? "bg-gray-50 text-gray-700 border-gray-200";
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${style}`}
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      className="rounded-md border border-magic-border bg-white px-2 py-1.5 text-sm disabled:opacity-60"
     >
-      <span className="opacity-60">{module}</span>
-      <span className="font-semibold">{prettyRole(role)}</span>
-      {onRevoke && (
-        <button
-          onClick={onRevoke}
-          disabled={disabled}
-          title={`Revoke ${module}.${role}`}
-          className="ml-0.5 rounded-full px-1 leading-none hover:bg-black/10 disabled:opacity-40"
-        >
-          ×
-        </button>
-      )}
-    </span>
-  );
-}
-
-function AddRoleForm({
-  catalogue,
-  existing,
-  onGrant,
-  disabled,
-}: {
-  catalogue: Catalogue;
-  existing: Grant[];
-  onGrant: (module: string, role: string) => void;
-  disabled?: boolean;
-}) {
-  const modules = Object.keys(catalogue);
-  const [module, setModule] = useState<string>(modules[0] ?? "crm");
-  const roles = catalogue[module] ?? [];
-  const [role, setRole] = useState<string>(roles[0] ?? "");
-
-  useEffect(() => {
-    setRole(catalogue[module]?.[0] ?? "");
-  }, [module, catalogue]);
-
-  const already = existing.some((g) => g.module === module && g.role === role);
-
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <select
-        value={module}
-        onChange={(e) => setModule(e.target.value)}
-        disabled={disabled}
-        className="rounded border border-magic-border bg-white px-2 py-1 text-xs"
-      >
-        {modules.map((m) => (
-          <option key={m} value={m}>
-            {m}
-          </option>
-        ))}
-      </select>
-      <select
-        value={role}
-        onChange={(e) => setRole(e.target.value)}
-        disabled={disabled || roles.length === 0}
-        className="rounded border border-magic-border bg-white px-2 py-1 text-xs"
-      >
-        {roles.map((r) => (
-          <option key={r} value={r}>
-            {prettyRole(r)}
-          </option>
-        ))}
-      </select>
-      <button
-        onClick={() => role && onGrant(module, role)}
-        disabled={disabled || !role || already}
-        title={already ? "Already granted" : `Grant ${module}.${role}`}
-        className="rounded bg-magic-red px-2 py-1 text-xs font-semibold text-white hover:bg-magic-red/90 disabled:opacity-40"
-      >
-        {already ? "Granted" : "+ Add role"}
-      </button>
-    </div>
+      {ROLE_GROUPS.map((g) => {
+        const opts = g.options.filter(
+          (o) => includeNone || o.value !== "none",
+        );
+        if (opts.length === 0) return null;
+        return (
+          <optgroup key={g.group} label={g.group}>
+            {opts.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </optgroup>
+        );
+      })}
+    </select>
   );
 }
