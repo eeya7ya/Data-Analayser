@@ -152,6 +152,10 @@ function HandoffCard({
 }) {
   const [assignee, setAssignee] = useState<string>("");
   const [role, setRole] = useState<string>("engineer");
+  const [location, setLocation] = useState<string>(h.site_address || "");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [assignNotes, setAssignNotes] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [showBoq, setShowBoq] = useState(false);
 
@@ -178,7 +182,14 @@ function HandoffCard({
       const res = await fetch(`/api/project-handoffs/${h.id}/assign`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ assigned_user_id: Number(assignee), role }),
+        body: JSON.stringify({
+          assigned_user_id: Number(assignee),
+          role,
+          location: location.trim() || undefined,
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+          notes: assignNotes.trim() || undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -315,30 +326,69 @@ function HandoffCard({
       {(canAssign || h.can_complete) && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-magic-border/60 pt-3">
           {canAssign && (
-            <>
-              <select
-                value={assignee}
-                onChange={(e) => setAssignee(e.target.value)}
-                disabled={busy}
-                className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
-              >
-                <option value="">Select member…</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.display_name || u.username}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                disabled={busy}
-                className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
-              >
-                <option value="engineer">Engineer</option>
-                <option value="technical">Technical</option>
-                <option value="manager">Manager</option>
-              </select>
+            <div className="w-full space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={assignee}
+                  onChange={(e) => setAssignee(e.target.value)}
+                  disabled={busy}
+                  className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
+                >
+                  <option value="">Select member…</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.display_name || u.username}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  disabled={busy}
+                  className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
+                >
+                  <option value="engineer">Engineer</option>
+                  <option value="technical">Technical</option>
+                  <option value="manager">Manager</option>
+                </select>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  disabled={busy}
+                  placeholder="Site location / address"
+                  className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs sm:col-span-2"
+                />
+                <label className="flex items-center gap-1.5 text-[11px] text-magic-ink/55">
+                  Start
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    disabled={busy}
+                    className="flex-1 rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
+                  />
+                </label>
+                <label className="flex items-center gap-1.5 text-[11px] text-magic-ink/55">
+                  End
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    disabled={busy}
+                    className="flex-1 rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
+                  />
+                </label>
+                <textarea
+                  value={assignNotes}
+                  onChange={(e) => setAssignNotes(e.target.value)}
+                  disabled={busy}
+                  rows={2}
+                  placeholder="Notes for the assignee (scope, access, contacts…)"
+                  className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs sm:col-span-2"
+                />
+              </div>
               <button
                 onClick={() => void assign()}
                 disabled={busy || !assignee}
@@ -346,7 +396,7 @@ function HandoffCard({
               >
                 {busy ? "Assigning…" : h.status === "assigned" ? "Reassign" : "Assign member"}
               </button>
-            </>
+            </div>
           )}
           {h.can_complete && (
             <button

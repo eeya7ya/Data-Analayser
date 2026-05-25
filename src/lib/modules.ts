@@ -130,6 +130,17 @@ export async function requireModuleAllowLegacy(
   if (canReadAll(user)) return;
   if (await hasModule(user.id, module)) return;
 
+  // Presales prepare manufacturer pricing as part of their lifecycle
+  // (pricing sheet → quotation), so a crm presales / presales_manager
+  // role grants access to the pricing module too.
+  if (
+    module === "pricing" &&
+    ((await hasModuleRole(user.id, "crm", "presales")) ||
+      (await hasModuleRole(user.id, "crm", "presales_manager")))
+  ) {
+    return;
+  }
+
   const q = sql();
   const anyRoles = (await q`
     select 1 as ok from user_module_roles

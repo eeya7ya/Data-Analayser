@@ -452,6 +452,16 @@ function ActionsCard({
         Actions
       </h3>
       <div className="space-y-3">
+        {(isMine || flags.isPresalesManager || flags.isAdmin) &&
+          ["new", "assigned", "in_progress", "quotation_review"].includes(
+            status,
+          ) && (
+            <LinkClientPanel
+              leadId={lead.id}
+              currentFolderName={lead.folder_name}
+              onChanged={onChanged}
+            />
+          )}
         {status === "new" && (flags.isPresalesManager || flags.isAdmin) && (
           <AssignPanel leadId={lead.id} onChanged={onChanged} />
         )}
@@ -532,6 +542,206 @@ function ActionsCard({
             </p>
           )}
       </div>
+    </div>
+  );
+}
+
+interface FolderOption {
+  id: number;
+  name: string;
+  kind: string | null;
+  client_phone: string | null;
+}
+
+/**
+ * Presales attaches the lead to a client (company / individual) — either
+ * by picking an existing folder or creating a fresh one — so the work is
+ * filed under the right client before the quotation is built.
+ */
+function LinkClientPanel({
+  leadId,
+  currentFolderName,
+  onChanged,
+}: {
+  leadId: number;
+  currentFolderName: string | null;
+  onChanged: () => void;
+}) {
+  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const [folders, setFolders] = useState<FolderOption[]>([]);
+  const [folderId, setFolderId] = useState("");
+  const [kind, setKind] = useState<"individual" | "company">("individual");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/folders", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { folders?: FolderOption[] }) => setFolders(d.folders ?? []))
+      .catch(() => setFolders([]));
+  }, []);
+
+  async function linkExisting(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    if (!folderId) {
+      setErr("Pick a client.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/link-client`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folder_id: Number(folderId) }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      onChanged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createAndLink(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    if (!name.trim()) {
+      setErr("Enter the client name.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const fRes = await fetch("/api/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          kind,
+          client_phone: phone.trim() || null,
+          client_email: email.trim() || null,
+        }),
+      });
+      const fData = (await fRes.json()) as {
+        error?: string;
+        id?: number;
+        folder?: { id?: number };
+      };
+      if (!fRes.ok) throw new Error(fData.error || `HTTP ${fRes.status}`);
+      const newId = fData.folder?.id ?? fData.id;
+      if (!newId) throw new Error("could not read new client id");
+      const res = await fetch(`/api/leads/${leadId}/link-client`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folder_id: newId }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setName("");
+      setPhone("");
+      setEmail("");
+      onChanged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2 border-t border-magic-border/60 pt-3">
+      <h4 className="text-xs font-semibold text-magic-ink">
+        {currentFolderName ? "Linked client" : "Attach a client"}
+      </h4>
+      {currentFolderName && (
+        <p className="rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+          {currentFolderName}
+        </p>
+      )}
+      <div className="inline-flex rounded-lg border border-magic-border bg-white p-0.5 text-xs">
+        <button
+          type="button"
+          onClick={() => setMode("existing")}
+          className={`rounded-md px-2 py-1 font-semibold ${mode === "existing" ? "bg-magic-soft text-magic-ink" : "text-magic-ink/50"}`}
+        >
+          Existing
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("new")}
+          className={`rounded-md px-2 py-1 font-semibold ${mode === "new" ? "bg-magic-soft text-magic-ink" : "text-magic-ink/50"}`}
+        >
+          New client
+        </button>
+      </div>
+
+      {mode === "existing" ? (
+        <form onSubmit={linkExisting} className="space-y-2">
+          <select
+            value={folderId}
+            onChange={(e) => setFolderId(e.target.value)}
+            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+          >
+            <option value="">Pick a client…</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+                {f.kind ? ` (${f.kind})` : ""}
+              </option>
+            ))}
+          </select>
+          {err && <p className="text-xs text-red-700">{err}</p>}
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
+          >
+            {busy ? "Linking…" : currentFolderName ? "Change client" : "Link client"}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={createAndLink} className="space-y-2">
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as "individual" | "company")}
+            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+          >
+            <option value="individual">Individual</option>
+            <option value="company">Company</option>
+          </select>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={kind === "company" ? "Company / client name" : "Client name"}
+            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+          />
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Phone (optional)"
+            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+          />
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email (optional)"
+            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+          />
+          {err && <p className="text-xs text-red-700">{err}</p>}
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
+          >
+            {busy ? "Creating…" : "Create & link"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }
