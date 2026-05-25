@@ -1,17 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
-import UserManager from "./UserManager";
+import UsersAndRolesPanel from "./UsersAndRolesPanel";
 import AdminSettings from "./AdminSettings";
 import AdminQuotationExport from "./AdminQuotationExport";
-import ModuleRolesPanel from "./ModuleRolesPanel";
 import FolderClassificationPanel from "./FolderClassificationPanel";
 import NewsAdminPanel from "./NewsAdminPanel";
 import type { AppSettings } from "@/lib/settings";
 
 type Tab =
   | "users"
-  | "modules"
   | "folders"
   | "news"
   | "settings"
@@ -36,10 +34,7 @@ export default function AdminTabs({
     <div className="space-y-4">
       <div className="flex items-center gap-2 border-b border-magic-border">
         <TabButton active={tab === "users"} onClick={() => setTab("users")}>
-          Users
-        </TabButton>
-        <TabButton active={tab === "modules"} onClick={() => setTab("modules")}>
-          Modules
+          Users &amp; Roles
         </TabButton>
         <TabButton active={tab === "folders"} onClick={() => setTab("folders")}>
           Folders
@@ -69,17 +64,10 @@ export default function AdminTabs({
 
       {tab === "users" && (
         <section>
-          <h2 className="text-lg font-semibold text-magic-ink mb-3">Users</h2>
-          <UserManager readOnly={readOnly} />
-        </section>
-      )}
-
-      {tab === "modules" && (
-        <section>
           <h2 className="text-lg font-semibold text-magic-ink mb-3">
-            Module roles
+            Users &amp; Roles
           </h2>
-          <ModuleRolesPanel readOnly={readOnly} />
+          <UsersAndRolesPanel readOnly={readOnly} />
         </section>
       )}
 

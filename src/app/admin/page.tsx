@@ -22,7 +22,7 @@ export default async function AdminPage() {
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
-      <main className="max-w-5xl mx-auto px-6 py-6 lg:px-10">
+      <main className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 lg:px-10">
         <h1 className="text-2xl font-bold text-magic-ink mb-4">Admin</h1>
         {readOnly && (
           <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
