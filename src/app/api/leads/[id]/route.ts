@@ -81,7 +81,7 @@ export async function GET(
     // requirement that "sales and presales can see read-only progress
     // of the lead lifecycle".
     const vis = await getLeadVisibility(user);
-    if (!vis.full && !vis.sales && !vis.ownerOnly && !vis.execution) {
+    if (!vis.full && !vis.sales && !vis.ownerOnly) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 

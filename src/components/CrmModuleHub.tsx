@@ -160,17 +160,15 @@ export default function CrmModuleHub({
 
   const entryCards: Record<TabId, EntryCard[]> = {
     sales: [
-      { href: "/leads", title: "Leads", desc: "Open and track sales leads through the pipeline." },
+      { href: "/leads", title: "New leads", desc: "Open new leads and hand them to presales for distribution." },
       { href: "/inbox/approvals", title: "Approvals", desc: "Review and sign off quotations awaiting approval." },
       { href: "/projects/handoffs", title: "Project handoffs", desc: "Quotations you converted into projects, and their status." },
     ],
     presales: [
       {
         href: "/leads",
-        title: flags.presalesManager ? "Leads" : "My leads",
-        desc: flags.presalesManager
-          ? "Distribute leads to presales members and track them."
-          : "Leads assigned to you — attach the client, then build the quotation.",
+        title: "New leads",
+        desc: "Distribute new leads to presales members.",
       },
       { href: "/pricing", title: "Pricing sheets", desc: "Prepare manufacturer pricing, then convert to a quotation." },
     ],
@@ -278,23 +276,10 @@ export default function CrmModuleHub({
         </div>
       )}
 
-      {/* Workflow entry cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {entryCards[tab].map((c) => (
-          <Link
-            key={c.href}
-            href={c.href}
-            className={`group rounded-2xl border border-magic-border bg-white p-5 shadow-mt-soft transition-all ${tone.border} hover:shadow-mt-lift`}
-          >
-            <span className={`inline-block h-1.5 w-9 rounded-full ${tone.solid}`} />
-            <h3 className="mt-3 text-base font-bold text-magic-ink">{c.title}</h3>
-            <p className="mt-1 text-sm text-magic-ink/60">{c.desc}</p>
-            <p className={`mt-3 text-xs font-semibold ${tone.text}`}>Open →</p>
-          </Link>
-        ))}
-      </div>
-
-      {/* Clients — woven into the sales / presales / projects lifecycle. */}
+      {/* Clients first — companies / individuals are the core of the
+          sales / presales / projects work. The workflow tool cards below
+          (New leads, Pricing sheets, …) are additional tools layered on
+          top, so they render after the clients. */}
       {TOOLS_WITH_CLIENTS.has(tab) && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -326,6 +311,32 @@ export default function CrmModuleHub({
           </div>
         </div>
       )}
+
+      {/* Workflow tool cards — additional tools for the role. */}
+      <div className="space-y-3">
+        {TOOLS_WITH_CLIENTS.has(tab) && (
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-magic-ink/55">
+              Tools
+            </h2>
+            <span className="h-px flex-1 bg-magic-border/70" />
+          </div>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {entryCards[tab].map((c) => (
+            <Link
+              key={c.href}
+              href={c.href}
+              className={`group rounded-2xl border border-magic-border bg-white p-5 shadow-mt-soft transition-all ${tone.border} hover:shadow-mt-lift`}
+            >
+              <span className={`inline-block h-1.5 w-9 rounded-full ${tone.solid}`} />
+              <h3 className="mt-3 text-base font-bold text-magic-ink">{c.title}</h3>
+              <p className="mt-1 text-sm text-magic-ink/60">{c.desc}</p>
+              <p className={`mt-3 text-xs font-semibold ${tone.text}`}>Open →</p>
+            </Link>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -15,19 +15,16 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/leads/:id/assign
  *
- * Presales manager picks a specific presales user from the dropdown
- * (`assignee_id`) and routes the lead to them. This is the "set the lead
- * inside the progress list and distribute by email" transition: status
- * moves from `new` → `assigned` and a lead_message lands in the
- * presales user's inbox.
+ * Presales manager distributes the lead: picks a presales user from the
+ * dropdown (`assignee_id`) and routes it to them. This is the lead's only
+ * job — status moves from `new` → `distributed` (terminal) and a
+ * lead_message lands in the presales user's inbox.
  *
  * Body: { assignee_id: number, note?: string }
  *
- * Only the lead's status is permitted to change from `new` here; an
- * already-assigned lead can be RE-ASSIGNED only by an admin or another
- * presales manager (caught by the same role gate), and the new
- * assignee replaces the previous one without flipping the status —
- * the timeline records both assignments.
+ * A lead that's already `distributed` can be RE-DISTRIBUTED by an admin or
+ * presales manager (same role gate); the new assignee replaces the
+ * previous one and the timeline records both.
  */
 export async function POST(
   req: NextRequest,
@@ -75,13 +72,12 @@ export async function POST(
     }
     const lead = leadRows[0];
 
-    // Reject if status is past the assignment stage. Re-assignment of a
-    // lead that's still in `assigned` is allowed — that's a manager
-    // changing their mind before the presales user has touched it.
-    if (lead.status !== "new" && lead.status !== "assigned") {
+    // A lead can be distributed from `new`, or re-distributed while
+    // already `distributed` (a manager changing their mind).
+    if (lead.status !== "new" && lead.status !== "distributed") {
       return NextResponse.json(
         {
-          error: `cannot assign a lead in status "${lead.status}" — the workflow has already moved past triage`,
+          error: `cannot distribute a lead in status "${lead.status}"`,
         },
         { status: 409 },
       );
@@ -109,13 +105,13 @@ export async function POST(
     }
 
     const willTransition = lead.status === "new";
-    if (willTransition && !canTransition("new", "assigned")) {
+    if (willTransition && !canTransition("new", "distributed")) {
       // Defensive — the map says it's allowed; if anyone tweaks it
       // wrong this catches it before the UPDATE runs.
       return NextResponse.json({ error: "transition not allowed" }, { status: 409 });
     }
 
-    const newStatus = "assigned";
+    const newStatus = "distributed";
     await q`
       update leads
       set assigned_to_id = ${assigneeId},
@@ -132,23 +128,22 @@ export async function POST(
     const assigneeLabel =
       assigneeRow[0]?.display_name || assigneeRow[0]?.username || "the presales engineer";
 
-    const verb = lead.assigned_to_id ? "reassigned" : "assigned";
+    const verb = lead.assigned_to_id ? "redistributed" : "distributed";
     await logLeadEvent(leadId, user.id, verb, `${verb} to ${assigneeLabel}`, {
       assignee_id: assigneeId,
       previous_assignee_id: lead.assigned_to_id,
       note: body.note ?? null,
     });
 
-    const subject = `[Lead ${lead.ref}] Assigned to you — ${lead.title}`;
+    const subject = `[Lead ${lead.ref}] Distributed to you — ${lead.title}`;
     const noteLine = body.note?.trim()
       ? `\n\nNote from presales manager:\n${body.note.trim()}\n`
       : "";
     const bodyText =
-      `${user.display_name || user.username} assigned this lead to you.\n\n` +
+      `${user.display_name || user.username} distributed this lead to you.\n\n` +
       `Title: ${lead.title}\n` +
-      `Status: ${newStatus}\n` +
       noteLine +
-      `Open the lead to start your work — attach the company, client folder, contact, and quotation as you progress.`;
+      `Pick up the work from here in the CRM client area.`;
 
     await sendLeadMessage({
       leadId,
@@ -175,10 +170,10 @@ export async function POST(
     }
 
     void sendPushToUsers([assigneeId], {
-      title: `Lead assigned to you — ${lead.ref}`,
-      body: `${lead.title}. Open it to build the quotation.`,
+      title: `Lead distributed to you — ${lead.ref}`,
+      body: `${lead.title}. Pick up the work in the CRM client area.`,
       url: `/leads/${leadId}`,
-      tag: `lead-assigned-${leadId}`,
+      tag: `lead-distributed-${leadId}`,
     });
 
     return NextResponse.json({ ok: true, status: newStatus });

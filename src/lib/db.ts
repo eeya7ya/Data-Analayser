@@ -1842,29 +1842,23 @@ async function _ensureSchemaOnce(): Promise<void> {
     // is touched. Soft-delete (`deleted_at`) on the leads row and FK
     // ON DELETE SET NULL on every link so the lead survives even if its
     // linked company / folder / contact / quotation / file is later
-    // archived. The status text column doubles as the workflow stage:
+    // archived. The status text column doubles as the workflow stage — the
+    // lead exists only to be distributed:
     //
-    //   new                — opened by a sales / presales user. Presales
-    //                        manager queue.
-    //   assigned           — presales manager handed off to a specific
-    //                        presales user.
-    //   in_progress        — presales user has begun attaching company /
-    //                        client / contact. Updated freely until
-    //                        quotation_sent.
-    //   quotation_sent     — presales user pushed the quotation to sales.
-    //                        Sales decision queue.
-    //   won                — sales accepted. Back to presales for BOQ.
-    //   lost               — sales rejected. Terminal.
-    //   boq_in_progress    — presales user attaching BOQ file. Optional
-    //                        intermediate stage if the BOQ is uploaded
-    //                        before being routed to execution.
-    //   sent_to_execution  — presales manager handed off to a specific
-    //                        projects-module user.
-    //   completed          — project execution finished.
+    //   new          — opened by a sales / presales user. Presales manager
+    //                  distribution queue.
+    //   distributed  — presales manager handed the lead to a specific
+    //                  presales member. Terminal — the lead's job is done;
+    //                  the actual quotation / project work continues in the
+    //                  CRM client area and the project-handoffs queue.
     //
-    // The status column is plain text (no CHECK constraint) on purpose so
-    // adding a new stage later doesn't require an ALTER. Range is enforced
-    // in the API layer (`/lib/leads.ts`).
+    // Older deployments may still hold rows in legacy stages (assigned,
+    // in_progress, quotation_sent, won, lost, …); the UI renders their raw
+    // status as a fallback. The status column is plain text (no CHECK
+    // constraint) so the range is enforced in the API layer
+    // (`/lib/leads.ts`). The downstream link columns below (quotation_id,
+    // outcome, boq_file_id, execution_assignee_id, …) are retained for
+    // those legacy rows but are no longer written by the lead flow.
     await q`
       create table if not exists leads (
         id                       serial primary key,

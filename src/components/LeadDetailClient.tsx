@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { LEAD_STATUS_LABEL, LEAD_STATUS_WAITING_ON } from "@/lib/leadConstants";
+import { LEAD_STATUS_LABEL } from "@/lib/leadConstants";
 
 interface LeadRow {
   id: number;
@@ -17,39 +15,15 @@ interface LeadRow {
   created_by_username: string | null;
   created_by_name: string | null;
   requested_timeline_at: string | null;
-  presales_manager_id: number | null;
   presales_manager_username: string | null;
   assigned_to_id: number | null;
   assigned_to_username: string | null;
   assigned_to_name: string | null;
   assigned_at: string | null;
-  company_id: number | null;
   company_name: string | null;
-  folder_id: number | null;
   folder_name: string | null;
-  contact_id: number | null;
   contact_first_name: string | null;
   contact_last_name: string | null;
-  contact_email: string | null;
-  contact_phone: string | null;
-  quotation_id: number | null;
-  quotation_ref: string | null;
-  quotation_project_name: string | null;
-  quotation_sent_at: string | null;
-  outcome: string | null;
-  outcome_by_username: string | null;
-  outcome_at: string | null;
-  outcome_reason: string | null;
-  boq_file_id: number | null;
-  boq_filename: string | null;
-  boq_uploaded_at: string | null;
-  execution_assignee_id: number | null;
-  execution_assignee_username: string | null;
-  execution_assignee_name: string | null;
-  sent_to_execution_at: string | null;
-  project_id: number | null;
-  project_name: string | null;
-  completed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -78,19 +52,10 @@ interface CurrentUser {
 
 const STATUS_PILL: Record<string, string> = {
   new: "bg-sky-100 text-sky-800 border-sky-200",
-  assigned: "bg-indigo-100 text-indigo-800 border-indigo-200",
-  in_progress: "bg-violet-100 text-violet-800 border-violet-200",
-  quotation_review: "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200",
-  quotation_sent: "bg-amber-100 text-amber-800 border-amber-200",
-  won: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  lost: "bg-red-100 text-red-800 border-red-200",
-  boq_in_progress: "bg-teal-100 text-teal-800 border-teal-200",
-  sent_to_execution: "bg-cyan-100 text-cyan-800 border-cyan-200",
-  completed: "bg-gray-200 text-gray-800 border-gray-300",
+  distributed: "bg-emerald-100 text-emerald-800 border-emerald-200",
 };
 
 export default function LeadDetailClient({ leadId }: { leadId: number }) {
-  const router = useRouter();
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [events, setEvents] = useState<LeadEvent[]>([]);
   const [me, setMe] = useState<CurrentUser | null>(null);
@@ -113,7 +78,6 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
           setLead(leadData.lead);
           setEvents(leadData.events ?? []);
         }
-        // /api/auth/me returns { user: { id, role, ... }, module_roles: [...] }
         const u = meData?.user ?? null;
         if (u) {
           setMe({
@@ -136,22 +100,14 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
 
   const reload = () => setTick((t) => t + 1);
 
-  // Role flags derived from the auth/me response.
   const flags = useMemo(() => {
     if (!me) return null;
     const isAdmin = me.role === "admin";
     const has = (m: string, r: string) =>
       isAdmin || me.module_roles.some((g) => g.module === m && g.role === r);
-    const isPresalesManager = has("crm", "presales_manager");
-    const isPresales = has("crm", "presales") || isPresalesManager;
-    const isSalesManager = has("crm", "sales_manager");
-    const isSales = has("crm", "sales") || isSalesManager;
     return {
       isAdmin,
-      isPresalesManager,
-      isPresales,
-      isSalesManager,
-      isSales,
+      isPresalesManager: has("crm", "presales_manager"),
     };
   }, [me]);
 
@@ -170,9 +126,8 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
     );
   }
 
-  const isMine =
-    lead.assigned_to_id === me.id || lead.created_by === me.id;
-  const isExecutor = lead.execution_assignee_id === me.id;
+  const canDistribute = flags.isPresalesManager || flags.isAdmin;
+  const assigned = lead.assigned_to_name || lead.assigned_to_username;
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -184,17 +139,9 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
               <h2 className="mt-1 text-xl font-bold text-magic-ink">{lead.title}</h2>
             </div>
             <span
-              className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold ${STATUS_PILL[lead.status] ?? ""}`}
+              className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold ${STATUS_PILL[lead.status] ?? "border-slate-200 bg-slate-100 text-slate-700"}`}
             >
               {LEAD_STATUS_LABEL[lead.status as keyof typeof LEAD_STATUS_LABEL] ?? lead.status}
-            </span>
-          </div>
-
-          <div className="mt-2 text-[11px] uppercase tracking-wide text-magic-ink/40">
-            Waiting on:{" "}
-            <span className="font-semibold text-magic-ink/70 normal-case">
-              {LEAD_STATUS_WAITING_ON[lead.status as keyof typeof LEAD_STATUS_WAITING_ON] ??
-                "—"}
             </span>
           </div>
 
@@ -216,11 +163,11 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
               value={lead.requested_timeline_at ?? "—"}
             />
             <Field
-              label="Assigned presales"
-              value={lead.assigned_to_name || lead.assigned_to_username || "—"}
+              label="Distributed to"
+              value={assigned || "—"}
             />
             <Field
-              label="Presales manager"
+              label="Distributed by"
               value={lead.presales_manager_username ?? "—"}
             />
           </dl>
@@ -258,105 +205,6 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
                   </div>
                 )}
               </div>
-            </div>
-          )}
-
-          {lead.quotation_id && lead.quotation_ref && (
-            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-900/70">
-                Quotation
-              </div>
-              <div className="mt-1 flex items-center justify-between gap-2">
-                <div>
-                  <div className="font-mono text-xs text-amber-900">
-                    {lead.quotation_ref}
-                  </div>
-                  <div className="text-xs text-amber-900/70">
-                    {lead.quotation_project_name}
-                  </div>
-                </div>
-                <Link
-                  href={`/quotation/${lead.quotation_ref}`}
-                  className="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100"
-                >
-                  Open quotation
-                </Link>
-              </div>
-              {lead.quotation_sent_at && (
-                <p className="mt-1 text-[11px] text-amber-900/60">
-                  Sent to sales: {new Date(lead.quotation_sent_at).toLocaleString()}
-                </p>
-              )}
-            </div>
-          )}
-
-          {lead.outcome && (
-            <div
-              className={`mt-3 rounded-lg border p-3 text-sm ${
-                lead.outcome === "won"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                  : "border-red-200 bg-red-50 text-red-900"
-              }`}
-            >
-              <div className="text-[11px] font-semibold uppercase tracking-wide opacity-70">
-                Sales outcome
-              </div>
-              <div className="mt-1 text-sm font-bold">
-                {lead.outcome.toUpperCase()}
-              </div>
-              {lead.outcome_reason && (
-                <p className="mt-1 text-xs opacity-80">{lead.outcome_reason}</p>
-              )}
-              <p className="mt-1 text-[11px] opacity-60">
-                {lead.outcome_by_username} ·{" "}
-                {lead.outcome_at ? new Date(lead.outcome_at).toLocaleString() : ""}
-              </p>
-            </div>
-          )}
-
-          {lead.boq_file_id && lead.boq_filename && (
-            <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-teal-900/70">
-                BOQ
-              </div>
-              <div className="mt-1 text-sm font-medium text-teal-900">
-                {lead.boq_filename}
-              </div>
-              {lead.boq_uploaded_at && (
-                <p className="text-[11px] text-teal-900/60">
-                  Uploaded {new Date(lead.boq_uploaded_at).toLocaleString()}
-                </p>
-              )}
-              {lead.project_id && lead.project_name && (
-                <p className="mt-1 text-[11px] text-teal-900/60">
-                  Project: <span className="font-mono">{lead.project_name}</span>
-                </p>
-              )}
-            </div>
-          )}
-
-          {lead.execution_assignee_id && (
-            <div className="mt-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-900/70">
-                Execution
-              </div>
-              <div className="mt-1 text-sm">
-                Routed to{" "}
-                <span className="font-semibold text-cyan-900">
-                  {lead.execution_assignee_name ||
-                    lead.execution_assignee_username}
-                </span>
-              </div>
-              {lead.sent_to_execution_at && (
-                <p className="text-[11px] text-cyan-900/60">
-                  Sent {new Date(lead.sent_to_execution_at).toLocaleString()}
-                </p>
-              )}
-              {lead.completed_at && (
-                <p className="mt-1 text-[11px] font-semibold text-cyan-900/80">
-                  Completed {new Date(lead.completed_at).toLocaleString()}
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -397,16 +245,36 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
         </div>
       </div>
 
-      {/* Right rail — context-aware actions */}
+      {/* Right rail — distribution is the lead's only action */}
       <div className="space-y-4">
-        <ActionsCard
-          lead={lead}
-          flags={flags}
-          isMine={isMine}
-          isExecutor={isExecutor}
-          onChanged={reload}
-          router={router}
-        />
+        <div className="rounded-xl border border-magic-border bg-white p-5 shadow-sm">
+          <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-magic-ink/70">
+            Distribution
+          </h3>
+          {lead.status === "distributed" && (
+            <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+              Distributed to{" "}
+              <span className="font-semibold">{assigned || "a presales member"}</span>
+              {lead.assigned_at && (
+                <> · {new Date(lead.assigned_at).toLocaleDateString()}</>
+              )}
+              . This lead&apos;s job is complete.
+            </p>
+          )}
+          {canDistribute ? (
+            <DistributePanel
+              leadId={lead.id}
+              onChanged={reload}
+              reassign={lead.status === "distributed"}
+            />
+          ) : (
+            lead.status === "new" && (
+              <p className="text-xs italic text-magic-ink/50">
+                Waiting for a presales manager to distribute this lead.
+              </p>
+            )
+          )}
+        </div>
       </div>
     </div>
   );
@@ -423,330 +291,11 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function ActionsCard({
-  lead,
-  flags,
-  isMine,
-  isExecutor,
-  onChanged,
-  router,
-}: {
-  lead: LeadRow;
-  flags: {
-    isAdmin: boolean;
-    isPresalesManager: boolean;
-    isPresales: boolean;
-    isSalesManager: boolean;
-    isSales: boolean;
-  };
-  isMine: boolean;
-  isExecutor: boolean;
-  onChanged: () => void;
-  router: ReturnType<typeof useRouter>;
-}) {
-  const status = lead.status as keyof typeof LEAD_STATUS_LABEL;
-
-  return (
-    <div className="rounded-xl border border-magic-border bg-white p-5 shadow-sm">
-      <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-magic-ink/70">
-        Actions
-      </h3>
-      <div className="space-y-3">
-        {(isMine || flags.isPresalesManager || flags.isAdmin) &&
-          ["new", "assigned", "in_progress", "quotation_review"].includes(
-            status,
-          ) && (
-            <LinkClientPanel
-              leadId={lead.id}
-              currentFolderName={lead.folder_name}
-              onChanged={onChanged}
-            />
-          )}
-        {status === "new" && (flags.isPresalesManager || flags.isAdmin) && (
-          <AssignPanel leadId={lead.id} onChanged={onChanged} />
-        )}
-        {status === "assigned" && (
-          <>
-            {(flags.isPresalesManager || flags.isAdmin) && (
-              <AssignPanel leadId={lead.id} onChanged={onChanged} reassign />
-            )}
-            {(isMine || flags.isAdmin || flags.isPresalesManager) && (
-              <SubmitQuotationPanel leadId={lead.id} onChanged={onChanged} />
-            )}
-          </>
-        )}
-        {status === "in_progress" &&
-          (isMine || flags.isAdmin || flags.isPresalesManager) && (
-            <SubmitQuotationPanel
-              leadId={lead.id}
-              onChanged={onChanged}
-              signOff={flags.isPresalesManager || flags.isAdmin}
-            />
-          )}
-        {status === "quotation_review" &&
-          (flags.isPresalesManager || flags.isAdmin) && (
-            <SignOffPanel leadId={lead.id} onChanged={onChanged} />
-          )}
-        {status === "quotation_review" &&
-          !(flags.isPresalesManager || flags.isAdmin) && (
-            <p className="text-xs italic text-magic-ink/50">
-              Submitted — waiting for the presales manager to sign off.
-            </p>
-          )}
-        {status === "quotation_sent" && (flags.isSales || flags.isAdmin) && (
-          <>
-            <OutcomePanel leadId={lead.id} onChanged={onChanged} />
-            <PushToExecutionPanel leadId={lead.id} onChanged={onChanged} />
-            <HoldButton leadId={lead.id} onChanged={onChanged} />
-          </>
-        )}
-        {status === "won" && (flags.isSales || flags.isAdmin) && (
-          <PushToExecutionPanel leadId={lead.id} onChanged={onChanged} />
-        )}
-        {(status === "won" || status === "boq_in_progress") &&
-          (isMine || flags.isPresalesManager || flags.isAdmin) && (
-            <BoqPanel
-              leadId={lead.id}
-              folderId={lead.folder_id}
-              currentBoqId={lead.boq_file_id}
-              onChanged={onChanged}
-              router={router}
-            />
-          )}
-        {(status === "boq_in_progress" || status === "won") &&
-          lead.boq_file_id &&
-          (flags.isPresalesManager || flags.isAdmin) && (
-            <SendToExecutionPanel leadId={lead.id} onChanged={onChanged} />
-          )}
-        {status === "sent_to_execution" &&
-          (isExecutor || flags.isAdmin || flags.isPresalesManager) && (
-            <CompletePanel leadId={lead.id} onChanged={onChanged} />
-          )}
-        {status === "lost" && (
-          <p className="text-xs italic text-magic-ink/50">
-            This lead is closed (lost). No further action available.
-          </p>
-        )}
-        {status === "completed" && (
-          <p className="text-xs italic text-magic-ink/50">
-            This lead is complete. Audit-only.
-          </p>
-        )}
-        {!flags.isAdmin &&
-          !flags.isPresalesManager &&
-          !flags.isSales &&
-          !flags.isPresales &&
-          !isExecutor && (
-            <p className="text-xs italic text-magic-ink/50">
-              You have read-only access to this lead.
-            </p>
-          )}
-      </div>
-    </div>
-  );
-}
-
-interface FolderOption {
-  id: number;
-  name: string;
-  kind: string | null;
-  client_phone: string | null;
-}
-
 /**
- * Presales attaches the lead to a client (company / individual) — either
- * by picking an existing folder or creating a fresh one — so the work is
- * filed under the right client before the quotation is built.
+ * Presales manager distributes the lead to a presales member. Posting to
+ * the assign route flips the lead to `distributed` — its terminal state.
  */
-function LinkClientPanel({
-  leadId,
-  currentFolderName,
-  onChanged,
-}: {
-  leadId: number;
-  currentFolderName: string | null;
-  onChanged: () => void;
-}) {
-  const [mode, setMode] = useState<"existing" | "new">("existing");
-  const [folders, setFolders] = useState<FolderOption[]>([]);
-  const [folderId, setFolderId] = useState("");
-  const [kind, setKind] = useState<"individual" | "company">("individual");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/folders", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: { folders?: FolderOption[] }) => setFolders(d.folders ?? []))
-      .catch(() => setFolders([]));
-  }, []);
-
-  async function linkExisting(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    if (!folderId) {
-      setErr("Pick a client.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/leads/${leadId}/link-client`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folder_id: Number(folderId) }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function createAndLink(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    if (!name.trim()) {
-      setErr("Enter the client name.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const fRes = await fetch("/api/folders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          kind,
-          client_phone: phone.trim() || null,
-          client_email: email.trim() || null,
-        }),
-      });
-      const fData = (await fRes.json()) as {
-        error?: string;
-        id?: number;
-        folder?: { id?: number };
-      };
-      if (!fRes.ok) throw new Error(fData.error || `HTTP ${fRes.status}`);
-      const newId = fData.folder?.id ?? fData.id;
-      if (!newId) throw new Error("could not read new client id");
-      const res = await fetch(`/api/leads/${leadId}/link-client`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folder_id: newId }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setName("");
-      setPhone("");
-      setEmail("");
-      onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-2 border-t border-magic-border/60 pt-3">
-      <h4 className="text-xs font-semibold text-magic-ink">
-        {currentFolderName ? "Linked client" : "Attach a client"}
-      </h4>
-      {currentFolderName && (
-        <p className="rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
-          {currentFolderName}
-        </p>
-      )}
-      <div className="inline-flex rounded-lg border border-magic-border bg-white p-0.5 text-xs">
-        <button
-          type="button"
-          onClick={() => setMode("existing")}
-          className={`rounded-md px-2 py-1 font-semibold ${mode === "existing" ? "bg-magic-soft text-magic-ink" : "text-magic-ink/50"}`}
-        >
-          Existing
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("new")}
-          className={`rounded-md px-2 py-1 font-semibold ${mode === "new" ? "bg-magic-soft text-magic-ink" : "text-magic-ink/50"}`}
-        >
-          New client
-        </button>
-      </div>
-
-      {mode === "existing" ? (
-        <form onSubmit={linkExisting} className="space-y-2">
-          <select
-            value={folderId}
-            onChange={(e) => setFolderId(e.target.value)}
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-          >
-            <option value="">Pick a client…</option>
-            {folders.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-                {f.kind ? ` (${f.kind})` : ""}
-              </option>
-            ))}
-          </select>
-          {err && <p className="text-xs text-red-700">{err}</p>}
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
-          >
-            {busy ? "Linking…" : currentFolderName ? "Change client" : "Link client"}
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={createAndLink} className="space-y-2">
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as "individual" | "company")}
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-          >
-            <option value="individual">Individual</option>
-            <option value="company">Company</option>
-          </select>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={kind === "company" ? "Company / client name" : "Client name"}
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-          />
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="Phone (optional)"
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-          />
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email (optional)"
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-          />
-          {err && <p className="text-xs text-red-700">{err}</p>}
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
-          >
-            {busy ? "Creating…" : "Create & link"}
-          </button>
-        </form>
-      )}
-    </div>
-  );
-}
-
-function AssignPanel({
+function DistributePanel({
   leadId,
   onChanged,
   reassign = false,
@@ -772,7 +321,7 @@ function AssignPanel({
     e.preventDefault();
     setErr(null);
     if (!assigneeId) {
-      setErr("Pick a presales user.");
+      setErr("Pick a presales member.");
       return;
     }
     setBusy(true);
@@ -796,16 +345,16 @@ function AssignPanel({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-2 border-t border-magic-border/60 pt-3">
+    <form onSubmit={submit} className="mt-2 space-y-2">
       <h4 className="text-xs font-semibold text-magic-ink">
-        {reassign ? "Re-assign presales engineer" : "Assign to presales engineer"}
+        {reassign ? "Re-distribute to another member" : "Distribute to a presales member"}
       </h4>
       <select
         value={assigneeId}
         onChange={(e) => setAssigneeId(e.target.value)}
         className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
       >
-        <option value="">Pick a presales engineer…</option>
+        <option value="">Pick a presales member…</option>
         {users.map((u) => (
           <option key={u.id} value={u.id}>
             {u.display_name || u.username}
@@ -816,7 +365,7 @@ function AssignPanel({
         rows={2}
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        placeholder="Optional note to include in the email"
+        placeholder="Optional note to include in the message"
         className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
       />
       {err && <p className="text-xs text-red-700">{err}</p>}
@@ -825,584 +374,8 @@ function AssignPanel({
         disabled={busy}
         className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
       >
-        {busy ? "Sending…" : reassign ? "Re-assign & email" : "Assign & email"}
+        {busy ? "Sending…" : reassign ? "Re-distribute & notify" : "Distribute & notify"}
       </button>
     </form>
-  );
-}
-
-interface QuotationOption {
-  id: number;
-  ref: string;
-  project_name: string;
-}
-
-function SubmitQuotationPanel({
-  leadId,
-  onChanged,
-  signOff = false,
-}: {
-  leadId: number;
-  onChanged: () => void;
-  /** When the actor can sign off (presales manager / admin), submitting
-   * releases straight to sales; otherwise it goes for manager sign-off. */
-  signOff?: boolean;
-}) {
-  const [quotations, setQuotations] = useState<QuotationOption[]>([]);
-  const [quotationId, setQuotationId] = useState<string>("");
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch(`/api/quotations`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: { quotations?: QuotationOption[] }) =>
-        setQuotations(d.quotations ?? []),
-      )
-      .catch(() => setQuotations([]));
-  }, []);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    if (!quotationId) {
-      setErr("Select a quotation to send.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/leads/${leadId}/submit-quotation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          quotation_id: Number(quotationId),
-          subject: subject.trim() || undefined,
-          body: body.trim() || undefined,
-        }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-2 border-t border-magic-border/60 pt-3">
-      <h4 className="text-xs font-semibold text-magic-ink">
-        {signOff ? "Release quotation to sales" : "Submit quotation for sign-off"}
-      </h4>
-      {!signOff && (
-        <p className="text-[11px] text-magic-ink/60">
-          The presales manager reviews and releases it to sales.
-        </p>
-      )}
-      <select
-        value={quotationId}
-        onChange={(e) => setQuotationId(e.target.value)}
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      >
-        <option value="">Pick the quotation to send…</option>
-        {quotations.map((qq) => (
-          <option key={qq.id} value={qq.id}>
-            {qq.ref} — {qq.project_name}
-          </option>
-        ))}
-      </select>
-      <input
-        value={subject}
-        onChange={(e) => setSubject(e.target.value)}
-        placeholder="Email subject (optional)"
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      />
-      <textarea
-        rows={3}
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder="Message to sales (optional — a default is used otherwise)"
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      />
-      {err && <p className="text-xs text-red-700">{err}</p>}
-      <button
-        type="submit"
-        disabled={busy}
-        className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
-      >
-        {busy
-          ? "Sending…"
-          : signOff
-            ? "Release to sales"
-            : "Submit for sign-off"}
-      </button>
-    </form>
-  );
-}
-
-/** Presales-manager sign-off on a quotation awaiting review. */
-function SignOffPanel({
-  leadId,
-  onChanged,
-}: {
-  leadId: number;
-  onChanged: () => void;
-}) {
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState<"release" | "reject" | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function act(action: "release" | "reject") {
-    setErr(null);
-    setBusy(action);
-    try {
-      const res = await fetch(`/api/leads/${leadId}/approve-quotation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          reason: reason.trim() || undefined,
-        }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  return (
-    <div className="space-y-2 border-t border-magic-border/60 pt-3">
-      <h4 className="text-xs font-semibold text-magic-ink">
-        Sign off quotation
-      </h4>
-      <p className="text-[11px] text-magic-ink/60">
-        Release it to sales, or send it back to the presales engineer for
-        changes.
-      </p>
-      <textarea
-        rows={2}
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        placeholder="Optional note (shown if you send it back)"
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      />
-      {err && <p className="text-xs text-red-700">{err}</p>}
-      <div className="flex gap-2">
-        <button
-          onClick={() => act("release")}
-          disabled={!!busy}
-          className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
-        >
-          {busy === "release" ? "Releasing…" : "Release to sales"}
-        </button>
-        <button
-          onClick={() => act("reject")}
-          disabled={!!busy}
-          className="flex-1 rounded-lg border border-magic-border bg-white px-3 py-1.5 text-sm font-semibold text-magic-ink/70 hover:bg-amber-50 hover:text-amber-800 disabled:opacity-50"
-        >
-          {busy === "reject" ? "Sending…" : "Send back"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/** Sales pushes the deal to the projects team (raises a handoff). */
-function PushToExecutionPanel({
-  leadId,
-  onChanged,
-}: {
-  leadId: number;
-  onChanged: () => void;
-}) {
-  const [notes, setNotes] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function push() {
-    setErr(null);
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/leads/${leadId}/push-to-execution`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: notes.trim() || undefined }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-2 border-t border-magic-border/60 pt-3">
-      <h4 className="text-xs font-semibold text-magic-ink">
-        Push to execution
-      </h4>
-      <p className="text-[11px] text-magic-ink/60">
-        Hands the BOQ to the projects team. A project manager assigns a
-        technician / engineer.
-      </p>
-      <textarea
-        rows={2}
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-        placeholder="Notes for the projects team (optional)"
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      />
-      {err && <p className="text-xs text-red-700">{err}</p>}
-      <button
-        onClick={push}
-        disabled={busy}
-        className="w-full rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50"
-      >
-        {busy ? "Pushing…" : "Push to execution"}
-      </button>
-    </div>
-  );
-}
-
-/** Sales holds a received quotation without deciding yet. */
-function HoldButton({
-  leadId,
-  onChanged,
-}: {
-  leadId: number;
-  onChanged: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function hold() {
-    setErr(null);
-    setBusy(true);
-    try {
-      const note = window.prompt(
-        "Hold this lead — optional note on why you're pausing it:",
-      );
-      if (note === null) {
-        setBusy(false);
-        return;
-      }
-      const res = await fetch(`/api/leads/${leadId}/hold`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: note.trim() || undefined }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-1 border-t border-magic-border/60 pt-3">
-      {err && <p className="text-xs text-red-700">{err}</p>}
-      <button
-        onClick={hold}
-        disabled={busy}
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-1.5 text-sm font-semibold text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50"
-      >
-        {busy ? "Saving…" : "Hold for now"}
-      </button>
-    </div>
-  );
-}
-
-function OutcomePanel({
-  leadId,
-  onChanged,
-}: {
-  leadId: number;
-  onChanged: () => void;
-}) {
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState<"won" | "lost" | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function decide(outcome: "won" | "lost") {
-    setErr(null);
-    setBusy(outcome);
-    try {
-      const res = await fetch(`/api/leads/${leadId}/outcome`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outcome, reason: reason.trim() || undefined }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  return (
-    <div className="space-y-2 border-t border-magic-border/60 pt-3">
-      <h4 className="text-xs font-semibold text-magic-ink">
-        Sales decision — mark sold or lost
-      </h4>
-      <textarea
-        rows={2}
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        placeholder="Optional reason / notes for the decision"
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      />
-      {err && <p className="text-xs text-red-700">{err}</p>}
-      <div className="flex gap-2">
-        <button
-          onClick={() => decide("won")}
-          disabled={!!busy}
-          className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
-        >
-          {busy === "won" ? "Saving…" : "Mark sold (Won)"}
-        </button>
-        <button
-          onClick={() => decide("lost")}
-          disabled={!!busy}
-          className="flex-1 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-50"
-        >
-          {busy === "lost" ? "Saving…" : "Mark LOST"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function BoqPanel({
-  leadId,
-  folderId,
-  currentBoqId,
-  onChanged,
-  router,
-}: {
-  leadId: number;
-  folderId: number | null;
-  currentBoqId: number | null;
-  onChanged: () => void;
-  router: ReturnType<typeof useRouter>;
-}) {
-  const [fileId, setFileId] = useState<string>("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    if (!fileId.trim()) {
-      setErr("Enter the project_files id of the uploaded BOQ.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/leads/${leadId}/boq`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ boq_file_id: Number(fileId) }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-2 border-t border-magic-border/60 pt-3">
-      <h4 className="text-xs font-semibold text-magic-ink">
-        {currentBoqId ? "Replace BOQ" : "Attach BOQ"}
-      </h4>
-      <p className="text-[11px] text-magic-ink/60">
-        Upload the BOQ via the project's Files tab (kind = BOQ), then paste its
-        file id below. We attach it to this lead and stamp the project.
-      </p>
-      {folderId && (
-        <button
-          type="button"
-          onClick={() => router.push(`/folder/${folderId}`)}
-          className="block w-full rounded-lg border border-magic-border bg-white px-2 py-1 text-[11px] font-semibold text-magic-ink hover:bg-magic-soft"
-        >
-          → Open the client folder to upload
-        </button>
-      )}
-      <input
-        value={fileId}
-        onChange={(e) => setFileId(e.target.value)}
-        type="number"
-        placeholder="project_files id"
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      />
-      {err && <p className="text-xs text-red-700">{err}</p>}
-      <button
-        type="submit"
-        disabled={busy}
-        className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
-      >
-        {busy ? "Attaching…" : "Attach BOQ"}
-      </button>
-    </form>
-  );
-}
-
-function SendToExecutionPanel({
-  leadId,
-  onChanged,
-}: {
-  leadId: number;
-  onChanged: () => void;
-}) {
-  const [users, setUsers] = useState<UserRef[]>([]);
-  const [assigneeId, setAssigneeId] = useState("");
-  const [role, setRole] = useState("engineer");
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/leads/users?role=projects", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: { users?: UserRef[] }) => setUsers(d.users ?? []))
-      .catch(() => setUsers([]));
-  }, []);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    if (!assigneeId) {
-      setErr("Pick a project user.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/leads/${leadId}/send-to-execution`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          execution_assignee_id: Number(assigneeId),
-          role,
-          subject: subject.trim() || undefined,
-          body: body.trim() || undefined,
-        }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-2 border-t border-magic-border/60 pt-3">
-      <h4 className="text-xs font-semibold text-magic-ink">Send BOQ to execution</h4>
-      <select
-        value={assigneeId}
-        onChange={(e) => setAssigneeId(e.target.value)}
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      >
-        <option value="">Pick a project user…</option>
-        {users.map((u) => (
-          <option key={u.id} value={u.id}>
-            {u.display_name || u.username}
-          </option>
-        ))}
-      </select>
-      <select
-        value={role}
-        onChange={(e) => setRole(e.target.value)}
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      >
-        <option value="engineer">Engineer</option>
-        <option value="technical">Technical</option>
-        <option value="manager">Project manager</option>
-      </select>
-      <input
-        value={subject}
-        onChange={(e) => setSubject(e.target.value)}
-        placeholder="Email subject (optional)"
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      />
-      <textarea
-        rows={3}
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder="Message to the project user (optional)"
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      />
-      {err && <p className="text-xs text-red-700">{err}</p>}
-      <button
-        type="submit"
-        disabled={busy}
-        className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
-      >
-        {busy ? "Sending…" : "Send to execution"}
-      </button>
-    </form>
-  );
-}
-
-function CompletePanel({
-  leadId,
-  onChanged,
-}: {
-  leadId: number;
-  onChanged: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function complete() {
-    setErr(null);
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/leads/${leadId}/complete`, {
-        method: "POST",
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-2 border-t border-magic-border/60 pt-3">
-      <h4 className="text-xs font-semibold text-magic-ink">Execution</h4>
-      {err && <p className="text-xs text-red-700">{err}</p>}
-      <button
-        onClick={complete}
-        disabled={busy}
-        className="w-full rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
-      >
-        {busy ? "Saving…" : "Mark complete"}
-      </button>
-    </div>
   );
 }
