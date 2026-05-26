@@ -14,16 +14,16 @@ import type { LeadStatus, LeadMessageKind } from "./leadConstants";
  * must only be imported from server code (route handlers, server
  * components, etc.).
  *
- * The lifecycle (see migration in /lib/db.ts) is:
+ * The lifecycle is intentionally tiny — a lead exists only to be
+ * distributed:
  *
- *   new → assigned → in_progress → quotation_sent
- *       → won  → boq_in_progress → sent_to_execution → completed
- *       → lost (terminal)
+ *   new → distributed (terminal)
  *
- * Each transition is guarded by a role/owner check and emits one
- * `lead_events` row plus one or more `lead_messages` to the next
- * responsible user. The message also creates a `notifications` row so
- * the TopBar bell pings without us having to poll a second feed.
+ * A presales manager distributes (assigns) a new lead to a presales
+ * member; that completes the lead's job. Each transition emits one
+ * `lead_events` row plus a `lead_messages` to the recipient. The message
+ * also creates a `notifications` row so the TopBar bell pings without us
+ * having to poll a second feed.
  */
 
 // Re-export the constants so existing server callers keep working.
@@ -44,39 +44,8 @@ export async function canCreateLead(user: SessionUser): Promise<boolean> {
   return hasModule(user.id, "crm");
 }
 
-/** Only presales_manager triages the queue. Admins always pass. */
+/** Only presales_manager distributes the queue. Admins always pass. */
 export async function canTriageLeads(user: SessionUser): Promise<boolean> {
-  if (user.role === "admin") return true;
-  return hasModuleRole(user.id, "crm", "presales_manager");
-}
-
-/** Sales / sales_manager are the only ones who can mark won / lost. */
-export async function canDecideOutcome(user: SessionUser): Promise<boolean> {
-  if (user.role === "admin") return true;
-  if (await hasModuleRole(user.id, "crm", "sales_manager")) return true;
-  return hasModuleRole(user.id, "crm", "sales");
-}
-
-/**
- * V1.3c — sales push the deal to the projects team for execution. This is
- * the same audience as the won/lost decision: a salesperson handling the
- * received quotation chooses hold / mark sold / push to execution.
- */
-export async function canPushToExecution(user: SessionUser): Promise<boolean> {
-  return canDecideOutcome(user);
-}
-
-/**
- * Presales manager signs off the prepared quotation before it's released
- * to sales (V1.3c). Plain presales prepare it; the manager approves.
- */
-export async function canSignOffQuotation(user: SessionUser): Promise<boolean> {
-  if (user.role === "admin") return true;
-  return hasModuleRole(user.id, "crm", "presales_manager");
-}
-
-/** Presales_manager picks the project member that receives the BOQ. */
-export async function canSendToExecution(user: SessionUser): Promise<boolean> {
   if (user.role === "admin") return true;
   return hasModuleRole(user.id, "crm", "presales_manager");
 }
@@ -178,21 +147,8 @@ export async function sendLeadMessage(args: {
  * a lead past a stage that other users haven't seen yet.
  */
 const ALLOWED_NEXT: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
-  new: ["assigned"],
-  assigned: ["in_progress", "quotation_review", "quotation_sent"],
-  // A presales member submits for sign-off (→ quotation_review); a
-  // presales manager may release straight to sales (→ quotation_sent).
-  in_progress: ["quotation_review", "quotation_sent"],
-  // Presales manager either releases to sales or sends it back to the
-  // member for rework.
-  quotation_review: ["quotation_sent", "in_progress"],
-  // Sales: mark won/lost, or push straight to execution (handoff queue).
-  quotation_sent: ["won", "lost", "sent_to_execution"],
-  won: ["boq_in_progress", "sent_to_execution"],
-  lost: [],
-  boq_in_progress: ["sent_to_execution"],
-  sent_to_execution: ["completed"],
-  completed: [],
+  new: ["distributed"],
+  distributed: [],
 };
 
 export function canTransition(from: LeadStatus, to: LeadStatus): boolean {
@@ -202,15 +158,13 @@ export function canTransition(from: LeadStatus, to: LeadStatus): boolean {
 // ── Visibility scope ──────────────────────────────────────────────────────
 
 export interface LeadVisibility {
-  /** Admin or presales_manager — sees everything. */
+  /** Admin or presales_manager — sees and distributes every lead. */
   full: boolean;
-  /** Sales / sales_manager — sees leads after they're submitted to sales. */
+  /** Sales / sales_manager — sees leads they opened. */
   sales: boolean;
-  /** Presales (non-manager) — sees only leads assigned TO them or CREATED by them. */
+  /** Presales (non-manager) — sees leads distributed TO them or opened by them. */
   ownerOnly: boolean;
-  /** Projects-module user — sees leads currently routed to them for execution. */
-  execution: boolean;
-  /** Effective user id used for assigned_to / created_by / execution filters. */
+  /** Effective user id used for assigned_to / created_by filters. */
   userId: number;
 }
 
@@ -222,13 +176,11 @@ export async function getLeadVisibility(user: SessionUser): Promise<LeadVisibili
     isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
   const isSales = isSalesManager || (await hasModuleRole(user.id, "crm", "sales"));
   const isPresales = isPresalesManager || (await hasModuleRole(user.id, "crm", "presales"));
-  const isProjects = isAdmin || (await hasModule(user.id, "projects"));
 
   return {
-    full: isAdmin || isPresalesManager || isSalesManager,
+    full: isAdmin || isPresalesManager,
     sales: isSales,
     ownerOnly: isPresales,
-    execution: isProjects,
     userId: user.id,
   };
 }

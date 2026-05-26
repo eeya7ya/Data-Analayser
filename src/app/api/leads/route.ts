@@ -16,9 +16,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET  /api/leads        → role-filtered list of leads.
- *                          Optional ?status=new|assigned|... to filter.
- *                          Optional ?scope=mine|inbox|all
- *                          (default = role-inferred).
+ *                          Optional ?status=new|distributed to filter.
  *
  * POST /api/leads        → create a new lead. Allowed for any CRM user
  *                          (sales / sales_manager / presales /
@@ -59,117 +57,41 @@ export async function GET(req: NextRequest) {
     const vis = await getLeadVisibility(user);
     const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get("status");
-    const scope = searchParams.get("scope") ?? "auto";
 
     const q = sql();
 
-    // Build the WHERE clause from the user's effective visibility. We do
-    // this with two SQL paths instead of one because the `postgres` tagged-
-    // template lib doesn't compose dynamic OR/AND clauses cleanly — keeping
-    // the queries fully written-out is far easier to audit than threading
-    // 14 conditional fragments through one template.
-    //
-    // Visibility rules:
-    //   - admin / presales_manager / sales_manager : every lead
-    //   - sales (non-manager)                      : leads that have
-    //                                                reached the sales
-    //                                                stage (status >=
-    //                                                quotation_sent) OR
-    //                                                leads they created
-    //   - presales (non-manager)                   : leads assigned to
-    //                                                them OR they created
-    //   - projects user (no CRM role)              : leads currently in
-    //                                                their execution
-    //                                                queue
-    //
-    // `scope=mine` always narrows to leads the user is directly
-    // responsible for; `scope=inbox` narrows to leads waiting on the
-    // user's action right now.
-
-    let rows: LeadRow[];
-
-    if (vis.full && scope !== "mine" && scope !== "inbox") {
-      rows = (await q`
-        select l.id, l.ref, l.title, l.description, l.source, l.priority, l.status,
-               l.created_by, cu.username as created_by_username,
-               l.requested_timeline_at,
-               l.assigned_to_id, au.username as assigned_to_username,
-               l.company_id, l.folder_id, l.contact_id, l.quotation_id,
-               l.outcome, l.outcome_at, l.created_at, l.updated_at
-        from leads l
-        left join users cu on cu.id = l.created_by
-        left join users au on au.id = l.assigned_to_id
-        where l.deleted_at is null
-          and (${statusFilter}::text is null or l.status = ${statusFilter})
-        order by l.created_at desc
-        limit 500
-      `) as LeadRow[];
-    } else if (scope === "inbox") {
-      // "Waiting on me" — different per role.
-      rows = (await q`
-        select l.id, l.ref, l.title, l.description, l.source, l.priority, l.status,
-               l.created_by, cu.username as created_by_username,
-               l.requested_timeline_at,
-               l.assigned_to_id, au.username as assigned_to_username,
-               l.company_id, l.folder_id, l.contact_id, l.quotation_id,
-               l.outcome, l.outcome_at, l.created_at, l.updated_at
-        from leads l
-        left join users cu on cu.id = l.created_by
-        left join users au on au.id = l.assigned_to_id
-        where l.deleted_at is null
-          and (
-            -- presales manager / admin: untriaged + quotations awaiting
-            -- sign-off + waiting-on-execution-route
-            (${vis.full}::boolean and l.status in ('new','quotation_review','boq_in_progress'))
-            -- assigned presales user: their own active work
-            or (${vis.ownerOnly}::boolean and l.assigned_to_id = ${vis.userId}
-                and l.status in ('assigned','in_progress','quotation_review','won'))
-            -- sales: quotation waiting for decision
-            or (${vis.sales}::boolean and l.status = 'quotation_sent')
-            -- projects: lead handed to me for execution
-            or (${vis.execution}::boolean and l.execution_assignee_id = ${vis.userId}
-                and l.status = 'sent_to_execution')
-          )
-        order by
-          case l.priority
-            when 'urgent' then 0
-            when 'high'   then 1
-            when 'normal' then 2
-            else 3
-          end,
-          l.created_at desc
-        limit 500
-      `) as LeadRow[];
-    } else {
-      // Default "mine" — anything I created, am assigned to, or am
-      // executing. Status filter still applies on top.
-      rows = (await q`
-        select l.id, l.ref, l.title, l.description, l.source, l.priority, l.status,
-               l.created_by, cu.username as created_by_username,
-               l.requested_timeline_at,
-               l.assigned_to_id, au.username as assigned_to_username,
-               l.company_id, l.folder_id, l.contact_id, l.quotation_id,
-               l.outcome, l.outcome_at, l.created_at, l.updated_at
-        from leads l
-        left join users cu on cu.id = l.created_by
-        left join users au on au.id = l.assigned_to_id
-        where l.deleted_at is null
-          and (${statusFilter}::text is null or l.status = ${statusFilter})
-          and (
-            l.created_by = ${vis.userId}
-            or l.assigned_to_id = ${vis.userId}
-            or l.execution_assignee_id = ${vis.userId}
-            -- managers always see the full list when they hit "mine" with
-            -- no scope hint, so they don't get an empty page after we
-            -- default scope=auto for them
-            or ${vis.full}::boolean
-            -- sales role sees quotations in flight even on "mine"
-            or (${vis.sales}::boolean and l.status in ('quotation_sent','won','lost','completed'))
-          )
-        order by l.created_at desc
-        limit 500
-      `) as LeadRow[];
-    }
+    // Visibility:
+    //   - admin / presales_manager : every lead (the distribution queue)
+    //   - everyone else            : leads they opened OR were distributed
+    //                                to them
+    // Optional ?status filter (new | distributed) applies on top.
+    const rows = (await q`
+      select l.id, l.ref, l.title, l.description, l.source, l.priority, l.status,
+             l.created_by, cu.username as created_by_username,
+             l.requested_timeline_at,
+             l.assigned_to_id, au.username as assigned_to_username,
+             l.company_id, l.folder_id, l.contact_id, l.quotation_id,
+             l.outcome, l.outcome_at, l.created_at, l.updated_at
+      from leads l
+      left join users cu on cu.id = l.created_by
+      left join users au on au.id = l.assigned_to_id
+      where l.deleted_at is null
+        and (${statusFilter}::text is null or l.status = ${statusFilter})
+        and (
+          ${vis.full}::boolean
+          or l.created_by = ${vis.userId}
+          or l.assigned_to_id = ${vis.userId}
+        )
+      order by
+        case l.priority
+          when 'urgent' then 0
+          when 'high'   then 1
+          when 'normal' then 2
+          else 3
+        end,
+        l.created_at desc
+      limit 500
+    `) as LeadRow[];
 
     return NextResponse.json({ leads: rows });
   } catch (err) {

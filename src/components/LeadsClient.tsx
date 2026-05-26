@@ -1,12 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  LEAD_STATUSES,
-  LEAD_STATUS_LABEL,
-  LEAD_STATUS_WAITING_ON,
-} from "@/lib/leadConstants";
+import { LEAD_STATUS_LABEL } from "@/lib/leadConstants";
 
 interface Lead {
   id: number;
@@ -16,11 +12,10 @@ interface Lead {
   status: string;
   created_by_username: string | null;
   assigned_to_username: string | null;
-  requested_timeline_at: string | null;
-  outcome: string | null;
   created_at: string;
-  updated_at: string;
 }
+
+type Tab = "new" | "distributed" | "all";
 
 const PRIORITY_PILL: Record<string, string> = {
   urgent: "bg-red-100 text-red-800 border-red-200",
@@ -31,19 +26,11 @@ const PRIORITY_PILL: Record<string, string> = {
 
 const STATUS_PILL: Record<string, string> = {
   new: "bg-sky-100 text-sky-800 border-sky-200",
-  assigned: "bg-indigo-100 text-indigo-800 border-indigo-200",
-  in_progress: "bg-violet-100 text-violet-800 border-violet-200",
-  quotation_sent: "bg-amber-100 text-amber-800 border-amber-200",
-  won: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  lost: "bg-red-100 text-red-800 border-red-200",
-  boq_in_progress: "bg-teal-100 text-teal-800 border-teal-200",
-  sent_to_execution: "bg-cyan-100 text-cyan-800 border-cyan-200",
-  completed: "bg-gray-200 text-gray-800 border-gray-300",
+  distributed: "bg-emerald-100 text-emerald-800 border-emerald-200",
 };
 
 export default function LeadsClient({ canCreate }: { canCreate: boolean }) {
-  const [tab, setTab] = useState<"inbox" | "mine" | "all">("inbox");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [tab, setTab] = useState<Tab>("new");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +41,7 @@ export default function LeadsClient({ canCreate }: { canCreate: boolean }) {
     setError(null);
 
     const params = new URLSearchParams();
-    params.set("scope", tab);
-    if (statusFilter) params.set("status", statusFilter);
+    if (tab !== "all") params.set("status", tab);
 
     fetch(`/api/leads?${params.toString()}`, { cache: "no-store" })
       .then((r) => r.json())
@@ -78,65 +64,30 @@ export default function LeadsClient({ canCreate }: { canCreate: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [tab, statusFilter]);
-
-  const counts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const l of leads) c[l.status] = (c[l.status] ?? 0) + 1;
-    return c;
-  }, [leads]);
+  }, [tab]);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex rounded-xl border border-magic-border bg-white p-1 text-sm shadow-sm">
-          <TabButton active={tab === "inbox"} onClick={() => setTab("inbox")}>
-            Waiting on me
+          <TabButton active={tab === "new"} onClick={() => setTab("new")}>
+            New
           </TabButton>
-          <TabButton active={tab === "mine"} onClick={() => setTab("mine")}>
-            My leads
+          <TabButton active={tab === "distributed"} onClick={() => setTab("distributed")}>
+            Distributed
           </TabButton>
           <TabButton active={tab === "all"} onClick={() => setTab("all")}>
-            All leads
+            All
           </TabButton>
         </div>
-        <div className="flex items-center gap-2">
-          {canCreate && (
-            <Link
-              href="/leads/new"
-              className="rounded-lg bg-magic-red px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-magic-red/90"
-            >
-              + New lead
-            </Link>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-magic-ink/60">Filter by status:</span>
-        <button
-          onClick={() => setStatusFilter("")}
-          className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
-            statusFilter === ""
-              ? "border-magic-ink/40 bg-magic-ink/5 text-magic-ink"
-              : "border-magic-border bg-white text-magic-ink/60 hover:bg-magic-soft"
-          }`}
-        >
-          All ({leads.length})
-        </button>
-        {LEAD_STATUSES.map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s === statusFilter ? "" : s)}
-            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
-              statusFilter === s
-                ? "border-magic-ink/40 bg-magic-ink/5 text-magic-ink"
-                : `${STATUS_PILL[s] ?? "bg-white"} hover:opacity-80`
-            }`}
+        {canCreate && (
+          <Link
+            href="/leads/new"
+            className="rounded-lg bg-magic-red px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-magic-red/90"
           >
-            {LEAD_STATUS_LABEL[s]} ({counts[s] ?? 0})
-          </button>
-        ))}
+            + New lead
+          </Link>
+        )}
       </div>
 
       {error && (
@@ -153,24 +104,27 @@ export default function LeadsClient({ canCreate }: { canCreate: boolean }) {
               <th className="px-3 py-2 font-semibold">Title</th>
               <th className="px-3 py-2 font-semibold">Priority</th>
               <th className="px-3 py-2 font-semibold">Status</th>
-              <th className="px-3 py-2 font-semibold">Created by</th>
-              <th className="px-3 py-2 font-semibold">Assigned to</th>
-              <th className="px-3 py-2 font-semibold">Waiting on</th>
-              <th className="px-3 py-2 font-semibold">Created</th>
+              <th className="px-3 py-2 font-semibold">Opened by</th>
+              <th className="px-3 py-2 font-semibold">Distributed to</th>
+              <th className="px-3 py-2 font-semibold">Opened</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-magic-border/40">
             {loading && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-magic-ink/50">
+                <td colSpan={7} className="px-3 py-6 text-center text-magic-ink/50">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && leads.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-magic-ink/50">
-                  No leads in this view yet.
+                <td colSpan={7} className="px-3 py-8 text-center text-magic-ink/50">
+                  {tab === "new"
+                    ? "No new leads waiting to be distributed."
+                    : tab === "distributed"
+                      ? "No distributed leads yet."
+                      : "No leads yet."}
                 </td>
               </tr>
             )}
@@ -199,7 +153,7 @@ export default function LeadsClient({ canCreate }: { canCreate: boolean }) {
                   </td>
                   <td className="px-3 py-2">
                     <span
-                      className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_PILL[l.status] ?? ""}`}
+                      className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_PILL[l.status] ?? "border-slate-200 bg-slate-100 text-slate-700"}`}
                     >
                       {LEAD_STATUS_LABEL[l.status as keyof typeof LEAD_STATUS_LABEL] ?? l.status}
                     </span>
@@ -208,10 +162,9 @@ export default function LeadsClient({ canCreate }: { canCreate: boolean }) {
                     {l.created_by_username ?? "—"}
                   </td>
                   <td className="px-3 py-2 text-xs text-magic-ink/70">
-                    {l.assigned_to_username ?? <span className="text-magic-ink/40">unassigned</span>}
-                  </td>
-                  <td className="px-3 py-2 text-[11px] text-magic-ink/60">
-                    {LEAD_STATUS_WAITING_ON[l.status as keyof typeof LEAD_STATUS_WAITING_ON] ?? "—"}
+                    {l.assigned_to_username ?? (
+                      <span className="text-magic-ink/40">not distributed</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-[11px] text-magic-ink/50">
                     {new Date(l.created_at).toLocaleDateString()}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
-import { hasModuleRole, requireModuleAllowLegacy } from "@/lib/modules";
+import { hasModule, hasModuleRole, requireModuleAllowLegacy } from "@/lib/modules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +34,19 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    await requireModuleAllowLegacy(user, "crm");
+    // The handoff queue spans two modules: sales (crm) raise handoffs by
+    // converting approved quotations; projects managers/members assign and
+    // act on them. Read access is granted by EITHER module — gating on crm
+    // alone wrongly 403s a projects manager who holds no crm role. Everyone
+    // else falls through to the legacy-aware crm gate (keeps the no-grants
+    // bypass; FORBIDDEN for unrelated single-module users).
+    if (
+      !canReadAll(user) &&
+      !(await hasModule(user.id, "crm")) &&
+      !(await hasModule(user.id, "projects"))
+    ) {
+      await requireModuleAllowLegacy(user, "crm");
+    }
 
     const { searchParams } = new URL(req.url);
     const statusParam = searchParams.get("status");

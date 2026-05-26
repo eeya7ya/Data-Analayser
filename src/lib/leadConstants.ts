@@ -8,55 +8,28 @@
  * (and its `tls`, `fs`, `perf_hooks` requires) into the browser bundle.
  */
 
-export const LEAD_STATUSES = [
-  "new",
-  "assigned",
-  "in_progress",
-  "quotation_review",
-  "quotation_sent",
-  "won",
-  "lost",
-  "boq_in_progress",
-  "sent_to_execution",
-  "completed",
-] as const;
+/**
+ * The lead has exactly one job: intake → distribution. A presales manager
+ * distributes (assigns) a new lead to a presales member; that's the whole
+ * lifecycle. Once `distributed`, the lead is done — the actual quotation /
+ * project work happens in the CRM client area and the handoffs queue, not
+ * on the lead.
+ */
+export const LEAD_STATUSES = ["new", "distributed"] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 export const LEAD_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type LeadPriority = (typeof LEAD_PRIORITIES)[number];
 
-export const LEAD_MESSAGE_KINDS = [
-  "lead_assigned",
-  "quotation_sent_to_sales",
-  "won",
-  "lost",
-  "boq_sent_to_execution",
-  "general",
-] as const;
+export const LEAD_MESSAGE_KINDS = ["lead_assigned", "general"] as const;
 export type LeadMessageKind = (typeof LEAD_MESSAGE_KINDS)[number];
 
 export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
   new: "New",
-  assigned: "Assigned",
-  in_progress: "In progress",
-  quotation_review: "Awaiting presales manager sign-off",
-  quotation_sent: "Quotation sent to sales",
-  won: "Won",
-  lost: "Lost",
-  boq_in_progress: "BOQ in progress",
-  sent_to_execution: "Sent to execution",
-  completed: "Completed",
+  distributed: "Distributed",
 };
 
 export const LEAD_STATUS_WAITING_ON: Record<LeadStatus, string> = {
-  new: "Presales manager (triage & assign)",
-  assigned: "Assigned presales user",
-  in_progress: "Assigned presales user (submit quotation)",
-  quotation_review: "Presales manager (sign off & release to sales)",
-  quotation_sent: "Sales (hold / mark sold / push to execution)",
-  won: "Sales (push to execution)",
-  lost: "—",
-  boq_in_progress: "Presales manager (route to execution)",
-  sent_to_execution: "Project manager (assign technician/engineer)",
-  completed: "—",
+  new: "Presales manager (distribute)",
+  distributed: "—",
 };
