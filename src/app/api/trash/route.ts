@@ -232,3 +232,84 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+/**
+ * Permanent delete ("Delete forever") for an item already sitting in the
+ * Trash. This is irreversible. We deliberately require the row to be
+ * soft-deleted first (deleted_at is not null) so nothing can be purged
+ * straight from an active list without passing through the Trash.
+ *
+ * Referential integrity is handled by the schema's FK delete rules:
+ *   • companies            → folders/quotations/contacts get company_id SET NULL
+ *   • client_folders       → projects CASCADE (and their files/assignments/
+ *                            reports), quotations get folder_id SET NULL — so
+ *                            we explicitly purge the folder's quotations too.
+ *   • quotations           → change_requests / stock_checks CASCADE
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireUser();
+    await ensureSchema();
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type");
+    const id = Number(searchParams.get("id"));
+    if (!type || !Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: "type and id required" }, { status: 400 });
+    }
+    const q = sql();
+    const isAdmin = canReadAll(user);
+
+    if (type === "company") {
+      const rows = (await q`
+        select owner_id from companies where id = ${id} and deleted_at is not null limit 1
+      `) as Array<{ owner_id: number | null }>;
+      if (rows.length === 0) {
+        return NextResponse.json({ error: "company not in trash" }, { status: 404 });
+      }
+      if (!isAdmin && rows[0].owner_id !== user.id) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+      await q`delete from companies where id = ${id}`;
+      return NextResponse.json({ ok: true });
+    }
+
+    if (type === "folder") {
+      const rows = (await q`
+        select owner_id from client_folders where id = ${id} and deleted_at is not null limit 1
+      `) as Array<{ owner_id: number | null }>;
+      if (rows.length === 0) {
+        return NextResponse.json({ error: "folder not in trash" }, { status: 404 });
+      }
+      if (!isAdmin && rows[0].owner_id !== user.id) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+      // Purge the quotations belonging to this client too — otherwise the
+      // FK would only null their folder_id and leave them stranded in Trash.
+      await q`delete from quotations where folder_id = ${id}`;
+      await q`delete from client_folders where id = ${id}`;
+      return NextResponse.json({ ok: true });
+    }
+
+    if (type === "quotation") {
+      const rows = (await q`
+        select owner_id from quotations where id = ${id} and deleted_at is not null limit 1
+      `) as Array<{ owner_id: number | null }>;
+      if (rows.length === 0) {
+        return NextResponse.json({ error: "quotation not in trash" }, { status: 404 });
+      }
+      if (!isAdmin && rows[0].owner_id !== user.id) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+      await q`delete from quotations where id = ${id}`;
+      return NextResponse.json({ ok: true });
+    }
+
+    return NextResponse.json({ error: "unknown type" }, { status: 400 });
+  } catch (err) {
+    const msg = (err as Error).message;
+    return NextResponse.json(
+      { error: msg },
+      { status: msg === "UNAUTHENTICATED" ? 401 : 500 },
+    );
+  }
+}

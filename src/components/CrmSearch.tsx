@@ -97,17 +97,21 @@ function folderBase(
   if (kind === "individual") {
     return `/crm/individual/${folderId}`;
   }
-  // Unclassified / orphaned company folder — fall through to the
-  // generic [kind] catch-all, which redirects to the correct kind URL
-  // once it resolves the folder.
-  const fallbackKind = kind ?? "unclassified";
-  return `/crm/${fallbackKind}/${folderId}`;
+  // Unclassified / orphaned folder (no kind, or a company folder missing its
+  // company link). These have no place in the company/individual route trees,
+  // so we send them to the universal per-folder drill-down at /folder/[id].
+  return `/folder/${folderId}`;
 }
 
 function quotationHref(qq: QuotationHit): string {
   if (qq.folder_id == null) return "/crm";
   const base = folderBase(qq.folder_kind, qq.company_id, qq.folder_id);
-  if (qq.project_id) return `${base}/${qq.project_id}/quotations/${qq.id}`;
+  // The deep /quotations/[qId] path only exists under the company/individual
+  // route trees; unclassified folders resolve to /folder/[id], which has no
+  // such sub-route, so land on the folder page instead.
+  if (qq.project_id && qq.folder_kind) {
+    return `${base}/${qq.project_id}/quotations/${qq.id}`;
+  }
   // Project couldn't be resolved (legacy row + no default project yet).
   // Land on the client page; the user can drill the last step manually.
   return base;
@@ -116,7 +120,7 @@ function quotationHref(qq: QuotationHit): string {
 function poHref(po: PoHit): string {
   if (po.folder_id == null) return "/crm";
   const base = folderBase(po.folder_kind, po.company_id, po.folder_id);
-  if (po.project_id) return `${base}/${po.project_id}/pos`;
+  if (po.project_id && po.folder_kind) return `${base}/${po.project_id}/pos`;
   return base;
 }
 
@@ -333,7 +337,7 @@ function ProjectsSection({ items }: { items: ProjectHit[] }) {
       <ul className="space-y-1.5">
         {items.map((p) => {
           const base = folderBase(p.folder_kind, p.company_id, p.folder_id);
-          const href = `${base}/${p.id}`;
+          const href = p.folder_kind ? `${base}/${p.id}` : base;
           return (
             <li key={`pr-${p.id}`}>
               <Link

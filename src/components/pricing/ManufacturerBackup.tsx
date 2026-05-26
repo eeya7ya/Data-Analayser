@@ -123,12 +123,22 @@ export function ManufacturerBackup({
         throw new Error(err.error || "Restore failed");
       }
       const data = await res.json();
-      setStatus({
-        kind: "success",
-        text: `Restored ${data.restored} project${
-          data.restored === 1 ? "" : "s"
-        }${data.skipped ? ` (${data.skipped} skipped)` : ""}`,
-      });
+      if (data.failed > 0) {
+        const first = data.failures?.[0];
+        setStatus({
+          kind: "error",
+          text: `Restored ${data.restored}, but ${data.failed} failed${
+            first ? `: "${first.name}" — ${first.error}` : ""
+          }`,
+        });
+      } else {
+        setStatus({
+          kind: "success",
+          text: `Restored ${data.restored} project${
+            data.restored === 1 ? "" : "s"
+          }${data.skipped ? ` (${data.skipped} skipped)` : ""}`,
+        });
+      }
       clearStatusSoon();
       onRestored?.();
     } catch (e) {

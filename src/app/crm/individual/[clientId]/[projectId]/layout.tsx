@@ -42,7 +42,9 @@ export default async function IndividualProjectLayout({
     );
   }
   if (project.folder_kind === "company" && !project.folder_company_id) {
-    redirect(`/crm/unclassified/${folderId}/${projId}`);
+    // Orphaned company folder (no company link) — no place in the
+    // company/individual trees, so fall back to the universal drill-down.
+    redirect(`/folder/${folderId}`);
   }
 
   const base = `/crm/individual/${folderId}/${projId}`;
