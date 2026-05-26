@@ -3,12 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
- * Admin → Folders: classify each client folder as Company or Individual,
- * and link Company folders to the canonical companies row. NULL-kind
- * folders sort to the top so the migration quarantine queue stays
- * visible. No folder is ever deleted from this UI; the worst-case
- * action is "un-classify" (kind = null), which sends the row back to
- * the top of the queue for re-review.
+ * Admin → Folders: migration queue for client folders that still need
+ * to be tied into the new CRM model. A folder appears here while either
+ * its `kind` is unset or it is marked as a Company without a canonical
+ * `companies` row linked. The moment it is marked Individual, or marked
+ * Company AND linked to a company, it leaves the queue.
  */
 
 interface FolderRow {
@@ -34,14 +33,17 @@ interface Payload {
   companies: CompanyOption[];
 }
 
-type KindFilter = "unclassified" | "company" | "individual" | "all";
+function needsMigration(f: FolderRow): boolean {
+  if (f.kind === null) return true;
+  if (f.kind === "company" && f.company_id === null) return true;
+  return false;
+}
 
 export default function FolderClassificationPanel() {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [filter, setFilter] = useState<KindFilter>("unclassified");
   const [query, setQuery] = useState("");
 
   const refresh = useCallback(async () => {
@@ -94,33 +96,22 @@ export default function FolderClassificationPanel() {
     }
   }
 
-  const counts = useMemo(() => {
-    const c = { unclassified: 0, company: 0, individual: 0, all: 0 };
-    for (const f of data?.folders ?? []) {
-      c.all += 1;
-      if (f.kind === null) c.unclassified += 1;
-      else if (f.kind === "company") c.company += 1;
-      else if (f.kind === "individual") c.individual += 1;
-    }
-    return c;
-  }, [data]);
+  const queue = useMemo(
+    () => (data?.folders ?? []).filter(needsMigration),
+    [data],
+  );
 
   const visible = useMemo(() => {
     const lc = query.trim().toLowerCase();
-    return (data?.folders ?? []).filter((f) => {
-      if (filter === "unclassified" && f.kind !== null) return false;
-      if (filter === "company" && f.kind !== "company") return false;
-      if (filter === "individual" && f.kind !== "individual") return false;
-      if (lc) {
-        const hay = [f.name, f.client_company, f.client_email, f.owner_username]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        if (!hay.includes(lc)) return false;
-      }
-      return true;
+    if (!lc) return queue;
+    return queue.filter((f) => {
+      const hay = [f.name, f.client_company, f.client_email, f.owner_username]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(lc);
     });
-  }, [data, filter, query]);
+  }, [queue, query]);
 
   if (loading) {
     return <p className="text-sm text-magic-ink/60">Loading folders…</p>;
@@ -140,37 +131,19 @@ export default function FolderClassificationPanel() {
     <div className="space-y-4">
       <div className="rounded-xl border border-magic-border bg-white p-4">
         <p className="text-sm text-magic-ink/70">
-          Each client folder needs a <strong>kind</strong> so the new module
-          UI can tell Company clients from Individual ones. Folders created
-          before V2.0 default to <em>unclassified</em> and surface here.
-          Nothing is deleted by this screen — the worst-case action just
-          sends a row back to the unclassified queue.
+          Migration queue. A folder appears here until it is either marked
+          <em> Individual</em> or marked <em>Company</em> <strong>and</strong>{" "}
+          linked to a canonical company. Once both are set, the row leaves
+          this list automatically — already-classified folders are managed
+          from the regular CRM views.
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterPill
-          active={filter === "unclassified"}
-          onClick={() => setFilter("unclassified")}
-          tone="warn"
-        >
-          Unclassified · {counts.unclassified}
-        </FilterPill>
-        <FilterPill
-          active={filter === "company"}
-          onClick={() => setFilter("company")}
-        >
-          Company · {counts.company}
-        </FilterPill>
-        <FilterPill
-          active={filter === "individual"}
-          onClick={() => setFilter("individual")}
-        >
-          Individual · {counts.individual}
-        </FilterPill>
-        <FilterPill active={filter === "all"} onClick={() => setFilter("all")}>
-          All · {counts.all}
-        </FilterPill>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm font-semibold text-magic-ink">
+          {queue.length} folder{queue.length === 1 ? "" : "s"} awaiting
+          migration
+        </span>
         <input
           type="search"
           placeholder="Search folder, owner, email…"
@@ -182,7 +155,9 @@ export default function FolderClassificationPanel() {
 
       {visible.length === 0 ? (
         <p className="text-sm text-magic-ink/50 italic px-1">
-          No folders match this filter.
+          {queue.length === 0
+            ? "All folders migrated. Nothing to do here."
+            : "No folders match this search."}
         </p>
       ) : (
         <ul className="space-y-2">
@@ -411,30 +386,6 @@ function FolderRowItem({
         </div>
       )}
     </li>
-  );
-}
-
-function FilterPill({
-  active,
-  onClick,
-  tone,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  tone?: "warn";
-  children: React.ReactNode;
-}) {
-  const base = "px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors";
-  const tones = active
-    ? tone === "warn"
-      ? "border-amber-300 bg-amber-50 text-amber-800"
-      : "border-magic-red bg-magic-red/10 text-magic-red"
-    : "border-magic-border bg-white text-magic-ink/70 hover:bg-magic-soft";
-  return (
-    <button onClick={onClick} className={`${base} ${tones}`}>
-      {children}
-    </button>
   );
 }
 
