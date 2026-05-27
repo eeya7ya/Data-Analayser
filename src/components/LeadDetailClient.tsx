@@ -307,6 +307,7 @@ function DistributePanel({
   const [users, setUsers] = useState<UserRef[]>([]);
   const [assigneeId, setAssigneeId] = useState<string>("");
   const [note, setNote] = useState("");
+  const [respondBy, setRespondBy] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -332,6 +333,7 @@ function DistributePanel({
         body: JSON.stringify({
           assignee_id: Number(assigneeId),
           note: note.trim() || undefined,
+          requested_timeline_at: respondBy || undefined,
         }),
       });
       const data = (await res.json()) as { error?: string };
@@ -368,6 +370,21 @@ function DistributePanel({
         placeholder="Optional note to include in the message"
         className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
       />
+      <div>
+        <label className="block text-[11px] font-semibold uppercase tracking-wide text-magic-ink/55">
+          Response needed by
+        </label>
+        <input
+          type="date"
+          value={respondBy}
+          onChange={(e) => setRespondBy(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+        />
+        <p className="mt-1 text-[10px] text-magic-ink/50">
+          Presales sets its own turnaround — the date this lead should be
+          responded to.
+        </p>
+      </div>
       {err && <p className="text-xs text-red-700">{err}</p>}
       <button
         type="submit"

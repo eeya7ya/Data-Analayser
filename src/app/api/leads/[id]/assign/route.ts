@@ -46,8 +46,20 @@ export async function POST(
       return NextResponse.json({ error: "invalid id" }, { status: 400 });
     }
 
-    const body = (await req.json()) as { assignee_id?: number; note?: string };
+    const body = (await req.json()) as {
+      assignee_id?: number;
+      note?: string;
+      requested_timeline_at?: string | null;
+    };
     const assigneeId = Number(body.assignee_id);
+    // Presales owns its own turnaround: the manager optionally sets the
+    // response-by date when distributing. `null`/empty leaves whatever's
+    // already on the lead untouched (see the coalesce in the UPDATE).
+    const respondBy =
+      typeof body.requested_timeline_at === "string" &&
+      body.requested_timeline_at.trim()
+        ? body.requested_timeline_at.trim()
+        : null;
     if (!Number.isInteger(assigneeId) || assigneeId <= 0) {
       return NextResponse.json(
         { error: "assignee_id is required" },
@@ -118,6 +130,7 @@ export async function POST(
           assigned_at    = now(),
           presales_manager_id = ${user.id},
           status         = ${newStatus},
+          requested_timeline_at = coalesce(${respondBy}, requested_timeline_at),
           updated_at     = now()
       where id = ${leadId}
     `;

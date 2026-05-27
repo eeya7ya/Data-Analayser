@@ -6,10 +6,11 @@ import { LEAD_PRIORITIES } from "@/lib/leadConstants";
 
 /**
  * Lead opening form. Captures the bare minimum — title, optional
- * description, priority, source label, and the date by which sales
- * expects a presales response (`requested_timeline_at`). Linkage to a
- * company / client folder / contact is intentionally deferred to the
- * lead detail page; presales fills those in as the deal develops.
+ * description, priority, and source label. Linkage to a company / client
+ * folder / contact is intentionally deferred to the lead detail page;
+ * presales fills those in as the deal develops. The response-by date is
+ * NOT set here — presales owns their own turnaround, so the presales
+ * manager sets it when they distribute the lead.
  */
 export default function LeadCreateForm() {
   const router = useRouter();
@@ -17,7 +18,6 @@ export default function LeadCreateForm() {
   const [description, setDescription] = useState("");
   const [source, setSource] = useState("");
   const [priority, setPriority] = useState<string>("normal");
-  const [timeline, setTimeline] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +38,6 @@ export default function LeadCreateForm() {
           description: description.trim() || null,
           source: source.trim() || null,
           priority,
-          requested_timeline_at: timeline || null,
         }),
       });
       const data = (await res.json()) as { id?: number; error?: string };
@@ -85,7 +84,7 @@ export default function LeadCreateForm() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wide text-magic-ink/60">
             Priority
@@ -113,21 +112,6 @@ export default function LeadCreateForm() {
             placeholder="referral, website, cold call…"
             className="mt-1 w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
           />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold uppercase tracking-wide text-magic-ink/60">
-            Response needed by
-          </label>
-          <input
-            type="date"
-            value={timeline}
-            onChange={(e) => setTimeline(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-          />
-          <p className="mt-1 text-[10px] text-magic-ink/50">
-            Date by which sales expects the presales manager to assign and
-            respond.
-          </p>
         </div>
       </div>
 
