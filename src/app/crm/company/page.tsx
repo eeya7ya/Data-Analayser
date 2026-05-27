@@ -33,6 +33,7 @@ interface CompanyListRow {
   notes: string | null;
   client_count: number;
   quotation_count: number;
+  file_count: number;
   deleted_at: string | null;
 }
 
@@ -82,6 +83,16 @@ export default async function CompanyListPage({
                   where ct.company_id = c.id and ct.deleted_at is null
                     and ct.folder_id is not null
               )) as quotation_count,
+           (select count(*) from project_files pf
+              join projects p on p.id = pf.project_id and p.deleted_at is null
+              where pf.deleted_at is null and p.folder_id in (
+                select cf.id from client_folders cf
+                  where cf.company_id = c.id and cf.deleted_at is null
+                union
+                select ct.folder_id from contacts ct
+                  where ct.company_id = c.id and ct.deleted_at is null
+                    and ct.folder_id is not null
+              )) as file_count,
            c.deleted_at
     from companies c
     where c.deleted_at is null

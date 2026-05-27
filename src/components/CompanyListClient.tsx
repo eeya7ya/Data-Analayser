@@ -22,6 +22,7 @@ interface Company {
   notes: string | null;
   client_count: number;
   quotation_count: number;
+  file_count: number;
   deleted_at: string | null;
 }
 
@@ -101,7 +102,7 @@ export default function CompanyListClient({
           className="flex-1 min-w-0 rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
         />
         <Link
-          href="/quotation?tab=trash"
+          href="/crm/trash"
           className="rounded-lg border border-magic-border px-3 py-2 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
         >
           Trash
@@ -163,7 +164,8 @@ export default function CompanyListClient({
                   <div className="text-xs text-magic-ink/50 mt-1">
                     {c.client_count} client{c.client_count === 1 ? "" : "s"} ·{" "}
                     {c.quotation_count} quotation
-                    {c.quotation_count === 1 ? "" : "s"}
+                    {c.quotation_count === 1 ? "" : "s"} ·{" "}
+                    {c.file_count} file{c.file_count === 1 ? "" : "s"}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">

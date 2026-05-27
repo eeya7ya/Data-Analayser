@@ -35,6 +35,7 @@ interface CompanyRow {
   updated_at: string;
   client_count: number;
   quotation_count: number;
+  file_count: number;
   deleted_at: string | null;
 }
 
@@ -67,6 +68,10 @@ export async function GET(req: NextRequest) {
                   join client_folders cf on cf.id = qq.folder_id
                   where cf.company_id = c.id
                     and qq.deleted_at is null and cf.deleted_at is null) as quotation_count,
+               (select count(*) from project_files pf
+                  join projects p on p.id = pf.project_id and p.deleted_at is null
+                  join client_folders cf on cf.id = p.folder_id and cf.deleted_at is null
+                  where cf.company_id = c.id and pf.deleted_at is null) as file_count,
                c.deleted_at
         from companies c
         left join users u on u.id = c.owner_id
@@ -101,6 +106,10 @@ export async function GET(req: NextRequest) {
                 join client_folders cf on cf.id = qq.folder_id
                 where cf.company_id = c.id
                   and qq.deleted_at is null and cf.deleted_at is null) as quotation_count,
+             (select count(*) from project_files pf
+                join projects p on p.id = pf.project_id and p.deleted_at is null
+                join client_folders cf on cf.id = p.folder_id and cf.deleted_at is null
+                where cf.company_id = c.id and pf.deleted_at is null) as file_count,
              c.deleted_at
       from companies c
       left join users u on u.id = c.owner_id
