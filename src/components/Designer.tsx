@@ -205,12 +205,6 @@ export default function Designer({
   const [projectId, setProjectId] = useState<number | null>(
     initialProjectId ?? null,
   );
-  const [showNewFolder, setShowNewFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [newFolderEmail, setNewFolderEmail] = useState("");
-  const [newFolderPhone, setNewFolderPhone] = useState("");
-  const [newFolderCompany, setNewFolderCompany] = useState("");
-  const [creatingFolder, setCreatingFolder] = useState(false);
   // When true, the embedded QuotationPreview is rendered in non-editable
   // mode for the duration of a browser print dialog, so the printed output
   // matches the /quotation viewer exactly (no editable chrome, no extra
@@ -883,45 +877,6 @@ export default function Designer({
     }
   }, [editMode, hydrated, folderId]);
 
-  async function createFolder() {
-    const name = newFolderName.trim();
-    if (!name) return;
-    setCreatingFolder(true);
-    try {
-      const res = await fetch("/api/folders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          client_email: newFolderEmail.trim() || null,
-          client_phone: newFolderPhone.trim() || null,
-          client_company: newFolderCompany.trim() || null,
-        }),
-      });
-      const data = await readJson(res);
-      if (!res.ok) throw new Error(data.error || `failed (${res.status})`);
-      setFolders((prev) =>
-        [...prev, data.folder].sort((a, b) => a.name.localeCompare(b.name)),
-      );
-      setFolderId(data.folder.id);
-      setNewFolderName("");
-      setNewFolderEmail("");
-      setNewFolderPhone("");
-      setNewFolderCompany("");
-      setShowNewFolder(false);
-      // Invalidate the Next.js Router Cache so the next visit to /quotation
-      // re-runs its server component and picks up the new folder. Without
-      // this, a folder created here but never attached to a saved quotation
-      // can appear "not stored" because the cached /quotation RSC payload
-      // still reflects the pre-creation state.
-      router.refresh();
-    } catch (err) {
-      alert((err as Error).message || "Failed to create client folder");
-    } finally {
-      setCreatingFolder(false);
-    }
-  }
-
   // ── Persist draft whenever it changes (new-mode only) ─────────────────────
   useEffect(() => {
     if (!hydrated || editMode) return;
@@ -1340,30 +1295,6 @@ export default function Designer({
     setTerms([...adminDefaultTerms]);
     setPricingCategoryState("si");
     if (!editMode) clearDraft();
-  }
-
-  /**
-   * User-initiated "start a brand-new quotation" — the explicit opt-out
-   * from the "restore last-used project on refresh" behaviour. We drop
-   * any in-flight draft, clear the editing context (so the auto-redirect
-   * effect doesn't bounce us back), then navigate to /designer?new=1 so
-   * a fresh reload lands on the empty hero. The query flag lives only
-   * long enough for the redirect effect to see it once — subsequent
-   * edits populate a brand-new draft from zero.
-   */
-  function startNewQuotation() {
-    if (
-      items.length > 0 &&
-      !confirm(
-        "Start a new quotation? Any unsaved changes in the current draft will be discarded.",
-      )
-    ) {
-      return;
-    }
-    clearDraft();
-    saveEditingContext(null);
-    if (editMode && existing) clearEditDraft(existing.id);
-    router.push("/designer?new=1");
   }
 
   // Prints the current in-memory quotation preview straight from the
@@ -1808,125 +1739,6 @@ export default function Designer({
       </div>
       )}
 
-      {/* ── Client folder (CRM) ─────────────────────────────────────────────
-          A client folder IS the client record. Selecting one populates the
-          email / phone / name on the printable quotation and locks those
-          fields so the user only needs to fill in the project name. */}
-      <div className="no-print rounded-2xl border border-magic-border bg-white p-4">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="flex-1 min-w-[220px]">
-            <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
-              Client {editMode ? "" : <span className="text-magic-red">*</span>}
-            </label>
-            {!showNewFolder ? (
-              <div className="flex items-center gap-2">
-                <select
-                  value={folderId ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "__new__") {
-                      setShowNewFolder(true);
-                    } else {
-                      setFolderId(v ? Number(v) : null);
-                    }
-                  }}
-                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[240px]"
-                >
-                  <option value="">
-                    {editMode ? "No client (unfiled)" : "— Select a client —"}
-                  </option>
-                  {folders.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                      {f.client_company ? ` · ${f.client_company}` : ""}
-                    </option>
-                  ))}
-                  <option value="__new__">+ New client…</option>
-                </select>
-                {/* Explicit opt-out of "restore last-used project on refresh".
-                    Clicking this discards the in-flight draft and lands on a
-                    fresh /designer?new=1 page — the designer no longer
-                    auto-redirects when the `new` flag is present. */}
-                <button
-                  type="button"
-                  onClick={startNewQuotation}
-                  title="Start a brand-new quotation (discards any unsaved draft)"
-                  className="rounded-md border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/80 hover:bg-magic-soft"
-                >
-                  + New quotation
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-start gap-2">
-                <input
-                  autoFocus
-                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[180px]"
-                  placeholder="Client name *"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") { e.preventDefault(); createFolder(); }
-                    if (e.key === "Escape") {
-                      setShowNewFolder(false);
-                      setNewFolderName("");
-                      setNewFolderEmail("");
-                      setNewFolderPhone("");
-                      setNewFolderCompany("");
-                    }
-                  }}
-                />
-                <input
-                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[180px]"
-                  placeholder="Email"
-                  value={newFolderEmail}
-                  onChange={(e) => setNewFolderEmail(e.target.value)}
-                />
-                <input
-                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[150px]"
-                  placeholder="Phone"
-                  value={newFolderPhone}
-                  onChange={(e) => setNewFolderPhone(e.target.value)}
-                />
-                <input
-                  className="rounded-md border border-magic-border px-3 py-1.5 text-sm min-w-[170px]"
-                  placeholder="Company"
-                  value={newFolderCompany}
-                  onChange={(e) => setNewFolderCompany(e.target.value)}
-                />
-                <button
-                  onClick={createFolder}
-                  disabled={!newFolderName.trim() || creatingFolder}
-                  className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
-                >
-                  {creatingFolder ? "Creating…" : "Create client"}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowNewFolder(false);
-                    setNewFolderName("");
-                    setNewFolderEmail("");
-                    setNewFolderPhone("");
-                    setNewFolderCompany("");
-                  }}
-                  className="rounded-md border border-magic-border px-3 py-1.5 text-xs hover:bg-magic-soft"
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-          </div>
-          {selectedFolder && !showNewFolder && (
-            <div className="text-[11px] text-magic-ink/70 space-y-0.5 pt-4">
-              <div><span className="font-semibold">Email:</span> {selectedFolder.client_email || "—"}</div>
-              <div><span className="font-semibold">Phone:</span> {selectedFolder.client_phone || "—"}</div>
-              <div><span className="font-semibold">Company:</span> {selectedFolder.client_company || "—"}</div>
-              <div className="text-magic-ink/40 italic">
-                Client info comes from this folder. Edit it on the Quotations page.
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* ── Quotation preview & table editor ───────────────────────────────
           Hidden in create mode until a client folder is picked so the user

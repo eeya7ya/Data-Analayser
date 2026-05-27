@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Spinner from "@/components/Spinner";
 
 interface Project {
   id: number;
@@ -175,6 +176,19 @@ export default function FolderProjectsClient({
   // The header doubles as a toggle on mobile and a static label on
   // desktop where the sidebar is always visible.
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // First paint: show a real loading animation instead of the empty
+  // two-pane shell (which used to flash "Select a project on the left"
+  // before the project list had even arrived). We only gate the very
+  // first load — once projects are in hand the live layout takes over,
+  // including its own "No projects yet" empty state.
+  if (loadingProjects) {
+    return (
+      <div className="rounded-2xl border border-magic-border bg-white p-12 flex items-center justify-center">
+        <Spinner size={28} label={`Loading ${folderName}…`} />
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
@@ -713,6 +727,25 @@ function QuotationsTab({
 }) {
   const [items, setItems] = useState<QuotationRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Uploaded quotation files (kind='quotation') — old quotations that were
+  // originally produced in Excel and just need a home under the project,
+  // alongside the ones designed in-app.
+  const [files, setFiles] = useState<FileRow[]>([]);
+
+  const loadFiles = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/project-files?project_id=${project.id}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { files?: FileRow[] };
+      setFiles((data.files ?? []).filter((f) => f.kind === "quotation"));
+    } catch {
+      // Non-fatal: the uploaded-quotation list just stays empty; the real
+      // quotations above are the primary content of this tab.
+    }
+  }, [project.id]);
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -731,10 +764,11 @@ function QuotationsTab({
       }
     }
     void load();
+    void loadFiles();
     return () => {
       cancelled = true;
     };
-  }, [project.id, refreshKey]);
+  }, [project.id, refreshKey, loadFiles]);
 
   if (error) {
     return (
@@ -799,6 +833,40 @@ function QuotationsTab({
           ))}
         </ul>
       )}
+
+      <div className="mt-5 border-t border-magic-border/60 pt-4">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-magic-ink/60 mb-2">
+          Existing quotation files
+        </h4>
+        <FileUploader
+          projectId={project.id}
+          kind="quotation"
+          variant="quotation"
+          onUploaded={loadFiles}
+        />
+        <div className="mt-3">
+          {files.length === 0 ? (
+            <div className="text-xs text-magic-ink/50">
+              No uploaded quotation files. Use the button above to attach an old
+              Excel or PDF quotation.
+            </div>
+          ) : (
+            <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
+              {files.map((f) => (
+                <FileRowItem
+                  key={f.id}
+                  file={f}
+                  onDragStart={onDragStart}
+                  onDragEnd={onDragEnd}
+                  onDeleted={(id) =>
+                    setFiles((prev) => prev.filter((row) => row.id !== id))
+                  }
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -816,6 +884,25 @@ function PosTab({
 }) {
   const [items, setItems] = useState<PoRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Uploaded PO files (kind='po'). The full PO designer is being reworked,
+  // so for now this tab is an upload-first surface: attach the PO document
+  // (Excel / PDF) here. Any purchase orders created earlier through the PO
+  // module still surface in the list below so nothing is hidden.
+  const [files, setFiles] = useState<FileRow[]>([]);
+
+  const loadFiles = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/project-files?project_id=${project.id}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { files?: FileRow[] };
+      setFiles((data.files ?? []).filter((f) => f.kind === "po"));
+    } catch {
+      // Non-fatal: the uploaded-PO list just stays empty.
+    }
+  }, [project.id]);
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -834,10 +921,11 @@ function PosTab({
       }
     }
     void load();
+    void loadFiles();
     return () => {
       cancelled = true;
     };
-  }, [project.id, refreshKey]);
+  }, [project.id, refreshKey, loadFiles]);
 
   if (error) {
     return (
@@ -849,50 +937,68 @@ function PosTab({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs text-magic-ink/60">
-          {items === null ? "Loading…" : `${items.length} purchase order${items.length === 1 ? "" : "s"}`}
-        </span>
-        <Link
-          href={`/purchase-orders`}
-          className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white"
-        >
-          Open PO module
-        </Link>
+      <FileUploader
+        projectId={project.id}
+        kind="po"
+        variant="po"
+        onUploaded={loadFiles}
+      />
+
+      <div className="mt-4">
+        {files.length === 0 ? (
+          <div className="text-xs text-magic-ink/50">
+            No purchase orders uploaded yet. Use the button above to attach a PO
+            document.
+          </div>
+        ) : (
+          <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
+            {files.map((f) => (
+              <FileRowItem
+                key={f.id}
+                file={f}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+                onDeleted={(id) =>
+                  setFiles((prev) => prev.filter((row) => row.id !== id))
+                }
+              />
+            ))}
+          </ul>
+        )}
       </div>
-      {items === null ? (
-        <div className="text-xs text-magic-ink/50">Loading…</div>
-      ) : items.length === 0 ? (
-        <div className="text-xs text-magic-ink/50">
-          No purchase orders yet for this project.
+
+      {items && items.length > 0 && (
+        <div className="mt-5 border-t border-magic-border/60 pt-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-magic-ink/60 mb-2">
+            Purchase orders from the PO module
+          </h4>
+          <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
+            {items.map((row) => (
+              <li
+                key={row.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", String(row.id));
+                  onDragStart("po", row.id);
+                }}
+                onDragEnd={onDragEnd}
+                className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40 cursor-grab active:cursor-grabbing"
+                title="Drag onto a project in the sidebar to move this PO"
+              >
+                <div className="min-w-0">
+                  <span className="font-mono text-sm">{row.po_number}</span>
+                  <span className="ml-2 text-sm text-magic-ink/70 truncate">
+                    {row.supplier || "—"}
+                  </span>
+                </div>
+                <div className="text-xs text-magic-ink/60">
+                  {row.currency} {Number(row.amount).toFixed(2)}
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
-      ) : (
-        <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
-          {items.map((row) => (
-            <li
-              key={row.id}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", String(row.id));
-                onDragStart("po", row.id);
-              }}
-              onDragEnd={onDragEnd}
-              className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40 cursor-grab active:cursor-grabbing"
-              title="Drag onto a project in the sidebar to move this PO"
-            >
-              <div className="min-w-0">
-                <span className="font-mono text-sm">{row.po_number}</span>
-                <span className="ml-2 text-sm text-magic-ink/70 truncate">
-                  {row.supplier || "—"}
-                </span>
-              </div>
-              <div className="text-xs text-magic-ink/60">
-                {row.currency} {Number(row.amount).toFixed(2)}
-              </div>
-            </li>
-          ))}
-        </ul>
       )}
     </div>
   );
@@ -904,9 +1010,9 @@ function PosTab({
  *   - variant="boq"   → shows files saved with kind='boq'; uploads land
  *                       with kind='boq' so they stay in the BOQ tab.
  *   - variant="media" → shows everything else (DWGs, images, videos,
- *                       PDFs, archives, plus any legacy kind='quotation'
- *                       or kind='po' uploads). New uploads land with
- *                       kind='other' which keeps them in this tab.
+ *                       PDFs, archives). New uploads land with kind='other'
+ *                       which keeps them in this tab. Quotation- and
+ *                       PO-kind uploads live in their own tabs instead.
  */
 function FilesTab({
   project,
@@ -951,7 +1057,10 @@ function FilesTab({
     () =>
       variant === "boq"
         ? files.filter((f) => f.kind === "boq")
-        : files.filter((f) => f.kind !== "boq"),
+        : files.filter(
+            (f) =>
+              f.kind !== "boq" && f.kind !== "quotation" && f.kind !== "po",
+          ),
     [files, variant],
   );
 
@@ -1009,7 +1118,7 @@ function FileUploader({
 }: {
   projectId: number;
   kind: FileKind;
-  variant: "boq" | "media";
+  variant: "boq" | "media" | "quotation" | "po";
   onUploaded: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -1093,11 +1202,21 @@ function FileUploader({
   );
 
   const buttonLabel =
-    variant === "boq" ? "Upload BOQ file" : "Upload project file";
-  const limitsHint =
     variant === "boq"
-      ? "PDF / spreadsheet up to 25 MB · image up to 15 MB · DWG up to 50 MB"
-      : "DWG up to 50 MB · video up to 200 MB · image up to 15 MB · PDF up to 25 MB · other up to 50 MB";
+      ? "Upload BOQ file"
+      : variant === "quotation"
+        ? "Upload existing quotation"
+        : variant === "po"
+          ? "Upload purchase order"
+          : "Upload project file";
+  const limitsHint =
+    variant === "quotation"
+      ? "Attach an old Excel / PDF quotation · spreadsheet or PDF up to 25 MB"
+      : variant === "po"
+        ? "Attach a PO document · spreadsheet or PDF up to 25 MB"
+        : variant === "boq"
+          ? "PDF / spreadsheet up to 25 MB · image up to 15 MB · DWG up to 50 MB"
+          : "DWG up to 50 MB · video up to 200 MB · image up to 15 MB · PDF up to 25 MB · other up to 50 MB";
 
   return (
     <div className="rounded-lg border border-dashed border-magic-border bg-magic-soft/30 p-4">

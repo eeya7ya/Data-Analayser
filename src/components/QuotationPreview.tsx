@@ -1556,6 +1556,15 @@ function QuotationPage({
               {children}
             </td>
           </tr>
+          {/* Spacer row: in print it absorbs the leftover vertical space so
+              the running <tfoot> address bar pins to the bottom of the page.
+              Keeping the push on a dedicated empty row (instead of the
+              content row) lets the content row keep its natural height and
+              fragment across pages cleanly — so the footer never overlaps
+              the items table on multi-page quotations. */}
+          <tr className="sheet-spacer-row" aria-hidden>
+            <td />
+          </tr>
         </tbody>
         <tfoot>
           <tr>
