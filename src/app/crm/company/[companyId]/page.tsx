@@ -92,11 +92,10 @@ export default async function CompanyDetailPage({
 
   // Reconcile contacts ↔ folders so the unified "People at this
   // company" list shows every person and every legacy client folder.
-  // Also mints a default-client contact when the company is empty so
-  // a quotation started here always has a person to attach to.
+  // A company with no people is left empty — the panel below offers
+  // "+ New contact" instead of auto-creating a placeholder client.
   await syncCompanyPeopleAndFolders({
     companyId,
-    companyName: company.name,
     userId: user.id,
     isAdmin,
   });
