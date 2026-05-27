@@ -20,6 +20,8 @@ interface LeadRow {
   assigned_to_username: string | null;
   assigned_to_name: string | null;
   assigned_at: string | null;
+  company_id: number | null;
+  folder_id: number | null;
   company_name: string | null;
   folder_name: string | null;
   contact_first_name: string | null;
@@ -160,7 +162,11 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
             />
             <Field
               label="Requested response by"
-              value={lead.requested_timeline_at ?? "—"}
+              value={
+                lead.requested_timeline_at
+                  ? new Date(lead.requested_timeline_at).toLocaleDateString()
+                  : "—"
+              }
             />
             <Field
               label="Distributed to"
@@ -275,7 +281,162 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
             )
           )}
         </div>
+
+        {lead.status === "distributed" &&
+          (me.id === lead.assigned_to_id || canDistribute) && (
+            <WorkPanel
+              leadId={lead.id}
+              folderId={lead.folder_id}
+              folderName={lead.folder_name}
+              companyName={lead.company_name}
+              onChanged={reload}
+            />
+          )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Where the assigned presales engineer turns a distributed lead into real
+ * CRM work: link it to a client (a company contact or an individual), then
+ * jump into that client's workspace to create projects and quotations.
+ */
+function WorkPanel({
+  leadId,
+  folderId,
+  folderName,
+  companyName,
+  onChanged,
+}: {
+  leadId: number;
+  folderId: number | null;
+  folderName: string | null;
+  companyName: string | null;
+  onChanged: () => void;
+}) {
+  interface FolderOpt {
+    id: number;
+    name: string;
+    kind: "company" | "individual" | null;
+    company_id: number | null;
+    company_name?: string | null;
+  }
+  const [folders, setFolders] = useState<FolderOpt[]>([]);
+  const [picking, setPicking] = useState(false);
+  const [selected, setSelected] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!picking || folders.length > 0) return;
+    fetch("/api/folders", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { folders?: FolderOpt[] }) => setFolders(d.folders ?? []))
+      .catch(() => setFolders([]));
+  }, [picking, folders.length]);
+
+  async function link() {
+    if (!selected) {
+      setErr("Pick a client first.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const folder = folders.find((f) => String(f.id) === selected);
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folder_id: Number(selected),
+          company_id: folder?.company_id ?? null,
+        }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setPicking(false);
+      onChanged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-magic-border bg-white p-5 shadow-sm">
+      <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-magic-ink/70">
+        Work on this lead
+      </h3>
+
+      {folderId ? (
+        <div className="space-y-3">
+          <p className="rounded-md bg-magic-soft/50 px-3 py-2 text-xs text-magic-ink/80">
+            Linked to client{" "}
+            <span className="font-semibold">{folderName || `#${folderId}`}</span>
+            {companyName && <> · {companyName}</>}.
+          </p>
+          <a
+            href={`/folder/${folderId}`}
+            className="block w-full rounded-lg bg-magic-red px-3 py-1.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
+          >
+            Open client workspace →
+          </a>
+          <button
+            type="button"
+            onClick={() => setPicking((v) => !v)}
+            className="w-full rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft"
+          >
+            {picking ? "Cancel" : "Change linked client"}
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-xs text-magic-ink/60">
+            Link this lead to a client to start working — a company contact or
+            an individual. Then open their workspace to add projects and
+            quotations.
+          </p>
+          {!picking && (
+            <button
+              type="button"
+              onClick={() => setPicking(true)}
+              className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
+            >
+              Link to a client
+            </button>
+          )}
+        </div>
+      )}
+
+      {picking && (
+        <div className="mt-3 space-y-2">
+          <select
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+          >
+            <option value="">Pick a client…</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+                {f.company_name ? ` · ${f.company_name}` : ""}
+                {f.kind === "individual" ? " (individual)" : ""}
+              </option>
+            ))}
+          </select>
+          {err && <p className="text-xs text-red-700">{err}</p>}
+          <button
+            type="button"
+            onClick={() => void link()}
+            disabled={busy || !selected}
+            className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
+          >
+            {busy ? "Linking…" : "Link client"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
