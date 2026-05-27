@@ -263,6 +263,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const q = sql();
     const stamp = new Date().toISOString().slice(0, 10);
     const created: { id: number; name: string }[] = [];
+    const failures: { name: string; error: string }[] = [];
     let skipped = 0;
 
     for (const bp of body.projects) {
@@ -272,66 +273,95 @@ export async function POST(req: Request, { params }: Ctx) {
       }
       const name = `${bp.name.trim()} (restored ${stamp})`;
 
-      const projectRows = (await q`
-        insert into pricing_projects (
-          name, date, responsible_person, manufacturer_id, user_id
-        ) values (
-          ${name},
-          ${bp.date ?? null},
-          ${typeof bp.responsiblePerson === "string" ? bp.responsiblePerson : null},
-          ${mfgId},
-          ${restoreOwnerId}
-        )
-        returning id, name
-      `) as Array<{ id: number; name: string }>;
-      const project = projectRows[0];
+      // Import each project atomically: the project row, its constants and
+      // ALL its product lines are written in one transaction. Previously
+      // these were three independent statements with no transaction, so a
+      // failure on the line insert left a project with a title but no line
+      // data, and aborted every project after it ("titles only, data
+      // dropped"). Now a project either lands complete or not at all, and a
+      // single bad project is recorded in `failures` instead of killing the
+      // whole import.
+      try {
+        const project = await q.begin(async (tx) => {
+          const projectRows = (await tx`
+            insert into pricing_projects (
+              name, date, responsible_person, manufacturer_id, user_id
+            ) values (
+              ${name},
+              ${bp.date ?? null},
+              ${typeof bp.responsiblePerson === "string" ? bp.responsiblePerson : null},
+              ${mfgId},
+              ${restoreOwnerId}
+            )
+            returning id, name
+          `) as Array<{ id: number; name: string }>;
+          const proj = projectRows[0];
 
-      const c = bp.constants ?? null;
-      await q`
-        insert into pricing_project_constants (
-          project_id, currency_rate, shipping_rate, customs_rate,
-          profit_margin, tax_rate, target_currency, source_currency
-        ) values (
-          ${project.id},
-          ${c?.currencyRate ?? "0.710000"},
-          ${c?.shippingRate ?? "0.150000"},
-          ${c?.customsRate  ?? "0.120000"},
-          ${c?.profitMargin ?? "0.250000"},
-          ${c?.taxRate      ?? "0.160000"},
-          ${c?.targetCurrency ?? "JOD"},
-          ${c?.sourceCurrency ?? "USD"}
-        )
-      `;
+          const c = bp.constants ?? null;
+          await tx`
+            insert into pricing_project_constants (
+              project_id, currency_rate, shipping_rate, customs_rate,
+              profit_margin, tax_rate, target_currency, source_currency
+            ) values (
+              ${proj.id},
+              ${c?.currencyRate ?? "0.710000"},
+              ${c?.shippingRate ?? "0.150000"},
+              ${c?.customsRate  ?? "0.120000"},
+              ${c?.profitMargin ?? "0.250000"},
+              ${c?.taxRate      ?? "0.160000"},
+              ${c?.targetCurrency ?? "JOD"},
+              ${c?.sourceCurrency ?? "USD"}
+            )
+          `;
 
-      const lines = Array.isArray(bp.productLines) ? bp.productLines : [];
-      if (lines.length > 0) {
-        const rows = lines.map((l, idx) => ({
-          project_id: project.id,
-          position: typeof l.position === "number" ? l.position : idx + 1,
-          item_model: typeof l.itemModel === "string" ? l.itemModel : "",
-          price_usd: l.priceUsd != null ? String(l.priceUsd) : "0",
-          quantity:
-            typeof l.quantity === "number" && l.quantity > 0 ? l.quantity : 1,
-          shipping_override:
-            l.shippingOverride != null ? String(l.shippingOverride) : null,
-          customs_override:
-            l.customsOverride != null ? String(l.customsOverride) : null,
-          shipping_rate_override:
-            l.shippingRateOverride != null ? String(l.shippingRateOverride) : null,
-          customs_rate_override:
-            l.customsRateOverride != null ? String(l.customsRateOverride) : null,
-          profit_rate_override:
-            l.profitRateOverride != null ? String(l.profitRateOverride) : null,
-        }));
-        await q`insert into pricing_product_lines ${q(rows)}`;
+          const lines = Array.isArray(bp.productLines) ? bp.productLines : [];
+          if (lines.length > 0) {
+            // De-dupe positions so a malformed backup (repeated positions)
+            // can't trip the (project_id, position) unique constraint and
+            // wipe out the whole project's line import.
+            const seen = new Set<number>();
+            const rows = lines.map((l, idx) => {
+              let position = typeof l.position === "number" ? l.position : idx + 1;
+              while (seen.has(position)) position++;
+              seen.add(position);
+              return {
+                project_id: proj.id,
+                position,
+                item_model: typeof l.itemModel === "string" ? l.itemModel : "",
+                price_usd: l.priceUsd != null ? String(l.priceUsd) : "0",
+                quantity:
+                  typeof l.quantity === "number" && l.quantity > 0 ? l.quantity : 1,
+                shipping_override:
+                  l.shippingOverride != null ? String(l.shippingOverride) : null,
+                customs_override:
+                  l.customsOverride != null ? String(l.customsOverride) : null,
+                shipping_rate_override:
+                  l.shippingRateOverride != null ? String(l.shippingRateOverride) : null,
+                customs_rate_override:
+                  l.customsRateOverride != null ? String(l.customsRateOverride) : null,
+                profit_rate_override:
+                  l.profitRateOverride != null ? String(l.profitRateOverride) : null,
+              };
+            });
+            await tx`insert into pricing_product_lines ${tx(rows)}`;
+          }
+          return proj;
+        });
+        created.push({ id: project.id, name: project.name });
+      } catch (projErr) {
+        failures.push({
+          name: bp.name.trim(),
+          error: (projErr as Error).message || "insert failed",
+        });
       }
-      created.push({ id: project.id, name: project.name });
     }
 
     return NextResponse.json({
-      success: true,
+      success: failures.length === 0,
       restored: created.length,
       skipped,
+      failed: failures.length,
+      failures,
       projects: created,
     });
   } catch (err) {

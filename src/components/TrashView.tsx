@@ -5,9 +5,9 @@ import Link from "next/link";
 
 /**
  * TrashView — the "junction box" for soft-deleted client folders,
- * quotations, and companies. Items listed here never auto-purge; the only
- * operations are "Restore" (undo the delete) and "look at them". There is
- * deliberately NO permanent-delete button.
+ * quotations, and companies. Items listed here never auto-purge. Each row
+ * can be "Restore"d (undo the delete) or "Delete forever"ed — the latter
+ * hard-deletes the row via DELETE /api/trash and is irreversible.
  */
 
 interface TrashCompany {
@@ -61,6 +61,7 @@ export default function TrashView({ isAdmin }: { isAdmin: boolean }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [restoringKind, setRestoringKind] = useState<string | null>(null);
+  const [purgingKind, setPurgingKind] = useState<string | null>(null);
   // We purposely leave `isAdmin` reserved for future admin-only restore UI
   // (e.g. bulk empty). For now the API already scopes results server-side.
   void isAdmin;
@@ -116,6 +117,47 @@ export default function TrashView({ isAdmin }: { isAdmin: boolean }) {
       setError((err as Error).message);
     } finally {
       setRestoringKind(null);
+    }
+  }
+
+  async function purge(
+    type: "folder" | "quotation" | "company",
+    id: number,
+    label: string,
+  ) {
+    const noun =
+      type === "company" ? "company" : type === "folder" ? "client" : "quotation";
+    const extra =
+      type === "folder"
+        ? "\n\nAll of its projects and quotations will be permanently deleted too."
+        : "";
+    if (
+      !window.confirm(
+        `Permanently delete the ${noun} "${label}"? This CANNOT be undone.${extra}`,
+      )
+    )
+      return;
+    const key = `${type}:${id}`;
+    setPurgingKind(key);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/trash?type=${type}&id=${id}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Delete failed");
+      if (type === "folder") {
+        setFolders((prev) => prev.filter((f) => f.id !== id));
+      } else if (type === "quotation") {
+        setQuotations((prev) => prev.filter((q) => q.id !== id));
+      } else {
+        setCompanies((prev) => prev.filter((c) => c.id !== id));
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setPurgingKind(null);
     }
   }
 
@@ -179,13 +221,20 @@ export default function TrashView({ isAdmin }: { isAdmin: boolean }) {
                       <td className="p-3 text-xs text-magic-ink/60">
                         {formatDateTime(c.deleted_at)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right whitespace-nowrap">
                         <button
                           onClick={() => restore("company", c.id)}
-                          disabled={restoringKind === key}
+                          disabled={restoringKind === key || purgingKind === key}
                           className="text-xs font-medium text-green-700 hover:underline disabled:opacity-50"
                         >
                           {restoringKind === key ? "Restoring…" : "Restore"}
+                        </button>
+                        <button
+                          onClick={() => purge("company", c.id, c.name)}
+                          disabled={restoringKind === key || purgingKind === key}
+                          className="ml-3 text-xs font-medium text-red-700 hover:underline disabled:opacity-50"
+                        >
+                          {purgingKind === key ? "Deleting…" : "Delete forever"}
                         </button>
                       </td>
                     </tr>
@@ -234,13 +283,20 @@ export default function TrashView({ isAdmin }: { isAdmin: boolean }) {
                       <td className="p-3 text-xs text-magic-ink/60">
                         {formatDateTime(f.deleted_at)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right whitespace-nowrap">
                         <button
                           onClick={() => restore("folder", f.id)}
-                          disabled={restoringKind === key}
+                          disabled={restoringKind === key || purgingKind === key}
                           className="text-xs font-medium text-green-700 hover:underline disabled:opacity-50"
                         >
                           {restoringKind === key ? "Restoring…" : "Restore"}
+                        </button>
+                        <button
+                          onClick={() => purge("folder", f.id, f.name)}
+                          disabled={restoringKind === key || purgingKind === key}
+                          className="ml-3 text-xs font-medium text-red-700 hover:underline disabled:opacity-50"
+                        >
+                          {purgingKind === key ? "Deleting…" : "Delete forever"}
                         </button>
                       </td>
                     </tr>
@@ -296,13 +352,20 @@ export default function TrashView({ isAdmin }: { isAdmin: boolean }) {
                       <td className="p-3 text-xs text-magic-ink/60">
                         {formatDateTime(r.deleted_at)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right whitespace-nowrap">
                         <button
                           onClick={() => restore("quotation", r.id)}
-                          disabled={restoringKind === key}
+                          disabled={restoringKind === key || purgingKind === key}
                           className="text-xs font-medium text-green-700 hover:underline disabled:opacity-50"
                         >
                           {restoringKind === key ? "Restoring…" : "Restore"}
+                        </button>
+                        <button
+                          onClick={() => purge("quotation", r.id, r.ref)}
+                          disabled={restoringKind === key || purgingKind === key}
+                          className="ml-3 text-xs font-medium text-red-700 hover:underline disabled:opacity-50"
+                        >
+                          {purgingKind === key ? "Deleting…" : "Delete forever"}
                         </button>
                       </td>
                     </tr>

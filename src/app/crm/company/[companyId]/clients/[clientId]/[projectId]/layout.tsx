@@ -51,8 +51,9 @@ export default async function CompanyProjectLayout({
     if (project.folder_kind === "individual") {
       redirect(`/crm/individual/${folderId}/${projId}`);
     }
-    // Unattached — old URL still works via legacy [kind] route.
-    redirect(`/crm/unclassified/${folderId}/${projId}`);
+    // Unattached / unclassified — no place in the company/individual
+    // trees, so fall back to the universal per-folder drill-down.
+    redirect(`/folder/${folderId}`);
   }
 
   const q = sql();
