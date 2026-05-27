@@ -12,7 +12,14 @@ export const dynamic = "force-dynamic";
 
 interface SearchParams {
   user?: string;
+  tool?: string;
 }
+
+const TOOL_LABELS: Record<string, string> = {
+  sales: "Sales",
+  presales: "Presales",
+  projects: "Projects",
+};
 
 /**
  * /crm/individual — list of folders marked kind='individual'. Each
@@ -34,6 +41,8 @@ export default async function IndividualListPage({
 
   const isAdmin = canReadAll(user);
   const sp = await searchParams;
+  const toolLabel = sp.tool ? TOOL_LABELS[sp.tool] : undefined;
+  const toolQuery = toolLabel ? `?tool=${sp.tool}` : "";
   const requested = isAdmin && sp.user ? Number(sp.user) : null;
   const scopeOwnerId = isAdmin
     ? Number.isFinite(requested) && requested! > 0
@@ -54,6 +63,9 @@ export default async function IndividualListPage({
               where p.folder_id = cf.id and p.deleted_at is null) as project_count,
            (select count(*) from quotations qq
               where qq.folder_id = cf.id and qq.deleted_at is null) as quotation_count,
+           (select count(*) from project_files pf
+              join projects p on p.id = pf.project_id and p.deleted_at is null
+              where p.folder_id = cf.id and pf.deleted_at is null) as file_count,
            (select max(qq.created_at) from quotations qq
               where qq.folder_id = cf.id and qq.deleted_at is null) as latest_quotation_at
     from client_folders cf
@@ -84,6 +96,18 @@ export default async function IndividualListPage({
             <Link href="/crm" className="hover:text-magic-red">
               CRM
             </Link>
+            {toolLabel && (
+              <>
+                {" "}
+                <span>→</span>{" "}
+                <Link
+                  href={`/crm?tool=${sp.tool}`}
+                  className="hover:text-magic-red"
+                >
+                  {toolLabel}
+                </Link>
+              </>
+            )}
           </div>
           <h1 className="text-2xl font-bold text-magic-ink mt-1">
             Individual clients
@@ -104,6 +128,7 @@ export default async function IndividualListPage({
           newLabel="+ New individual"
           searchPlaceholder="Search name, email, phone…"
           emptyHint="No individual clients yet. Use + New individual to add the first one."
+          backTool={toolQuery}
         />
       </main>
     </div>

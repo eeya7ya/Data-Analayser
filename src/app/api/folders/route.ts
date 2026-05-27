@@ -54,6 +54,9 @@ export async function GET(req: NextRequest) {
                 where p.folder_id = f.id and p.deleted_at is null) as project_count,
              (select count(*) from quotations qq
                 where qq.folder_id = f.id and qq.deleted_at is null) as quotation_count,
+             (select count(*) from project_files pf
+                join projects p on p.id = pf.project_id and p.deleted_at is null
+                where p.folder_id = f.id and pf.deleted_at is null) as file_count,
              (select max(qq.created_at) from quotations qq
                 where qq.folder_id = f.id and qq.deleted_at is null) as latest_quotation_at
       from client_folders f
@@ -83,6 +86,7 @@ export async function GET(req: NextRequest) {
       owner_display_name: string | null;
       project_count: number;
       quotation_count: number;
+      file_count: number;
       latest_quotation_at: string | null;
       company_name: string | null;
     }>;

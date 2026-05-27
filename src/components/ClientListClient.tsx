@@ -31,6 +31,7 @@ export interface ClientFolderRow {
   owner_username: string | null;
   project_count: number;
   quotation_count: number;
+  file_count: number;
   latest_quotation_at: string | null;
 }
 
@@ -42,6 +43,7 @@ export default function ClientListClient({
   newLabel,
   searchPlaceholder,
   emptyHint,
+  backTool = "",
 }: {
   initial: ClientFolderRow[];
   newClientKind: "company" | "individual";
@@ -50,6 +52,9 @@ export default function ClientListClient({
   newLabel: string;
   searchPlaceholder: string;
   emptyHint: string;
+  /** e.g. "?tool=presales" — preserved on row links + Trash so the deeper
+   * pages can link back to the originating CRM hub tab. */
+  backTool?: string;
 }) {
   const [items, setItems] = useState<ClientFolderRow[]>(initial);
   const [query, setQuery] = useState("");
@@ -98,10 +103,10 @@ export default function ClientListClient({
     void refresh();
   }, [refresh]);
 
-  async function archive(id: number) {
+  async function softDelete(id: number) {
     if (
       !window.confirm(
-        "Archive this client? It moves to Trash and can be restored from there.",
+        "Delete this client? It moves to Trash and can be restored from there.",
       )
     )
       return;
@@ -130,6 +135,12 @@ export default function ClientListClient({
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1 min-w-0 rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
         />
+        <Link
+          href={`/crm/trash${backTool}`}
+          className="rounded-lg border border-magic-border px-3 py-2 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
+        >
+          Trash
+        </Link>
         <button
           onClick={() => setCreating(true)}
           className="rounded-lg bg-magic-red text-white px-3 py-2 text-sm font-semibold hover:bg-magic-red/90 transition-colors"
@@ -160,7 +171,7 @@ export default function ClientListClient({
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <Link
-                    href={`${linkBase}/${f.id}`}
+                    href={`${linkBase}/${f.id}${backTool}`}
                     className="font-semibold text-magic-ink hover:text-magic-red"
                   >
                     {f.name}
@@ -173,7 +184,8 @@ export default function ClientListClient({
                   <div className="text-xs text-magic-ink/50 mt-1">
                     {f.project_count} project
                     {f.project_count === 1 ? "" : "s"} · {f.quotation_count}{" "}
-                    quotation{f.quotation_count === 1 ? "" : "s"}
+                    quotation{f.quotation_count === 1 ? "" : "s"} ·{" "}
+                    {f.file_count} file{f.file_count === 1 ? "" : "s"}
                     {f.latest_quotation_at && (
                       <>
                         {" "}
@@ -185,7 +197,7 @@ export default function ClientListClient({
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <Link
-                    href={`${linkBase}/${f.id}`}
+                    href={`${linkBase}/${f.id}${backTool}`}
                     className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
                   >
                     Open
@@ -198,11 +210,11 @@ export default function ClientListClient({
                     Edit
                   </button>
                   <button
-                    onClick={() => void archive(f.id)}
+                    onClick={() => void softDelete(f.id)}
                     disabled={busy}
-                    className="px-2 py-1.5 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 disabled:opacity-50 transition-colors"
+                    className="px-2 py-1.5 text-xs font-medium rounded border border-magic-border text-magic-ink/70 hover:bg-red-50 hover:text-red-700 hover:border-red-300 disabled:opacity-50 transition-colors"
                   >
-                    Archive
+                    Delete
                   </button>
                 </div>
               </div>
@@ -291,6 +303,7 @@ function NewClientModal({
         owner_username: null,
         project_count: 0,
         quotation_count: 0,
+        file_count: 0,
         latest_quotation_at: null,
       });
     } catch (err) {

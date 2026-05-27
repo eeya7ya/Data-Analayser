@@ -32,12 +32,23 @@ interface CompanyRow {
   deleted_at: string | null;
 }
 
+const TOOL_LABELS: Record<string, string> = {
+  sales: "Sales",
+  presales: "Presales",
+  projects: "Projects",
+};
+
 export default async function CompanyDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ tool?: string }>;
 }) {
   const { companyId: idParam } = await params;
+  const { tool } = await searchParams;
+  const toolLabel = tool ? TOOL_LABELS[tool] : undefined;
+  const toolQuery = toolLabel ? `?tool=${tool}` : "";
   const companyId = Number(idParam);
   if (!Number.isFinite(companyId) || companyId <= 0) notFound();
 
@@ -127,8 +138,22 @@ export default async function CompanyDetailPage({
             <Link href="/crm" className="hover:text-magic-red">
               CRM
             </Link>{" "}
+            {toolLabel && (
+              <>
+                <span>→</span>{" "}
+                <Link
+                  href={`/crm?tool=${tool}`}
+                  className="hover:text-magic-red"
+                >
+                  {toolLabel}
+                </Link>{" "}
+              </>
+            )}
             <span>→</span>{" "}
-            <Link href="/crm/company" className="hover:text-magic-red">
+            <Link
+              href={`/crm/company${toolQuery}`}
+              className="hover:text-magic-red"
+            >
               Companies
             </Link>
           </div>

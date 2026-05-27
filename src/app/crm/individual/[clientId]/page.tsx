@@ -17,12 +17,23 @@ export const dynamic = "force-dynamic";
  * If the folder gets reclassified company / unclassified later,
  * redirect to the canonical URL so bookmarks self-heal.
  */
+const TOOL_LABELS: Record<string, string> = {
+  sales: "Sales",
+  presales: "Presales",
+  projects: "Projects",
+};
+
 export default async function IndividualClientPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ clientId: string }>;
+  searchParams: Promise<{ tool?: string }>;
 }) {
   const { clientId: clientIdParam } = await params;
+  const { tool } = await searchParams;
+  const toolLabel = tool ? TOOL_LABELS[tool] : undefined;
+  const toolQuery = toolLabel ? `?tool=${tool}` : "";
   const folderId = Number(clientIdParam);
   if (!Number.isFinite(folderId)) notFound();
 
@@ -91,8 +102,22 @@ export default async function IndividualClientPage({
             <Link href="/crm" className="hover:text-magic-red">
               CRM
             </Link>{" "}
+            {toolLabel && (
+              <>
+                <span>→</span>{" "}
+                <Link
+                  href={`/crm?tool=${tool}`}
+                  className="hover:text-magic-red"
+                >
+                  {toolLabel}
+                </Link>{" "}
+              </>
+            )}
             <span>→</span>{" "}
-            <Link href="/crm/individual" className="hover:text-magic-red">
+            <Link
+              href={`/crm/individual${toolQuery}`}
+              className="hover:text-magic-red"
+            >
               Individual clients
             </Link>
           </div>

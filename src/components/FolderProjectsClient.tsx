@@ -794,7 +794,9 @@ function QuotationsTab({
         </Link>
       </div>
       {items === null ? (
-        <div className="text-xs text-magic-ink/50">Loading…</div>
+        <div className="py-6 flex justify-center">
+          <Spinner size={20} label="Loading quotations…" />
+        </div>
       ) : items.length === 0 ? (
         <div className="text-xs text-magic-ink/50">
           No quotations yet for this project.
@@ -1087,7 +1089,9 @@ function FilesTab({
 
       <div className="mt-4">
         {loading ? (
-          <div className="text-xs text-magic-ink/50">Loading files…</div>
+          <div className="py-6 flex justify-center">
+            <Spinner size={20} label="Loading files…" />
+          </div>
         ) : visible.length === 0 ? (
           <div className="text-xs text-magic-ink/50">{emptyLabel}</div>
         ) : (
