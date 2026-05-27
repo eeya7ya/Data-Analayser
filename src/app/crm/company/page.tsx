@@ -10,7 +10,17 @@ export const dynamic = "force-dynamic";
 
 interface SearchParams {
   user?: string;
+  tool?: string;
 }
+
+// Labels for the CRM hub tabs a company can be opened from, so the
+// breadcrumb can offer an explicit "← back to <tool>" crumb instead of
+// only linking to the bare CRM tool picker.
+const TOOL_LABELS: Record<string, string> = {
+  sales: "Sales",
+  presales: "Presales",
+  projects: "Projects",
+};
 
 /**
  * /crm/company — list of company entities (rows in the `companies`
@@ -48,6 +58,10 @@ export default async function CompanyListPage({
 
   const isAdmin = canReadAll(user);
   const sp = await searchParams;
+  const toolLabel = sp.tool ? TOOL_LABELS[sp.tool] : undefined;
+  // Preserve the originating hub tab on every link out of this page so the
+  // company detail breadcrumb can also offer the "back to <tool>" crumb.
+  const toolQuery = toolLabel ? `?tool=${sp.tool}` : "";
   const requested = isAdmin && sp.user ? Number(sp.user) : null;
   const scopeOwnerId = isAdmin
     ? Number.isFinite(requested) && requested! > 0
@@ -117,6 +131,18 @@ export default async function CompanyListPage({
             <Link href="/crm" className="hover:text-magic-red">
               CRM
             </Link>
+            {toolLabel && (
+              <>
+                {" "}
+                <span>→</span>{" "}
+                <Link
+                  href={`/crm?tool=${sp.tool}`}
+                  className="hover:text-magic-red"
+                >
+                  {toolLabel}
+                </Link>
+              </>
+            )}
           </div>
           <h1 className="text-2xl font-bold text-magic-ink mt-1">Companies</h1>
           <p className="text-sm text-magic-ink/60 mt-0.5">
@@ -127,7 +153,7 @@ export default async function CompanyListPage({
 
         {isAdmin && <UserScopePicker />}
 
-        <CompanyListClient initial={rows} />
+        <CompanyListClient initial={rows} backTool={toolQuery} />
       </main>
     </div>
   );

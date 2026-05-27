@@ -28,8 +28,12 @@ interface Company {
 
 export default function CompanyListClient({
   initial,
+  backTool = "",
 }: {
   initial: Company[];
+  /** e.g. "?tool=presales" — carried onto each company link so the detail
+   * page can link back to the originating CRM hub tab. */
+  backTool?: string;
 }) {
   const [items, setItems] = useState<Company[]>(initial);
   const [query, setQuery] = useState("");
@@ -139,7 +143,7 @@ export default function CompanyListClient({
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <Link
-                    href={`/crm/company/${c.id}`}
+                    href={`/crm/company/${c.id}${backTool}`}
                     className="font-semibold text-magic-ink hover:text-magic-red"
                   >
                     {c.name}
@@ -170,7 +174,7 @@ export default function CompanyListClient({
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <Link
-                    href={`/crm/company/${c.id}`}
+                    href={`/crm/company/${c.id}${backTool}`}
                     className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
                   >
                     Open

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Briefcase,
@@ -139,10 +139,18 @@ export default function CrmModuleHub({
   flags,
   counts,
   scopeSuffix,
+  initialTool,
 }: {
   flags: CrmHubFlags;
   counts: CrmHubCounts;
   scopeSuffix: string;
+  /**
+   * Tool to open on first render, read from `?tool=` on the server. Lets a
+   * drill-down page (e.g. a company opened from the Presales tab) link back
+   * to `/crm?tool=presales` and land the user on the right tab instead of
+   * the bare tool picker.
+   */
+  initialTool?: string | null;
 }) {
   const tools: TabId[] = [];
   if (flags.sales) tools.push("sales");
@@ -153,10 +161,39 @@ export default function CrmModuleHub({
 
   const multiTool = tools.length > 1;
   // Single-role users land straight on their one tool; everyone else
-  // starts on the picker.
+  // starts on the tab named by `?tool=` (if valid) or the picker.
+  const validInitial: TabId | null =
+    initialTool && (tools as string[]).includes(initialTool)
+      ? (initialTool as TabId)
+      : null;
   const [tab, setTab] = useState<TabId | null>(
-    tools.length === 1 ? tools[0] : null,
+    tools.length === 1 ? tools[0] : validInitial,
   );
+
+  // Restore the last-used tab on a fresh visit that didn't name a tool in
+  // the URL — so a plain "CRM" breadcrumb from any deeper page (companies,
+  // individuals, a project drill-down) lands back on the tab the user was
+  // in, not the bare tool picker. Runs once on mount.
+  useEffect(() => {
+    if (tools.length <= 1 || validInitial) return;
+    const saved = sessionStorage.getItem("crm.tool");
+    if (saved && (tools as string[]).includes(saved)) {
+      setTab(saved as TabId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist the active tab and keep the URL's `?tool=` in sync (without a
+  // full navigation) so the breadcrumb links resolve to the same tab and
+  // the browser Back button restores it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    sessionStorage.setItem("crm.tool", tab ?? "");
+    const url = new URL(window.location.href);
+    if (tab) url.searchParams.set("tool", tab);
+    else url.searchParams.delete("tool");
+    window.history.replaceState(null, "", url);
+  }, [tab]);
 
   const entryCards: Record<TabId, EntryCard[]> = {
     sales: [
@@ -291,7 +328,9 @@ export default function CrmModuleHub({
           <CrmSearch />
           <div className="grid gap-4 md:grid-cols-2">
             <KindCard
-              href={`/crm/company${scopeSuffix}`}
+              href={`/crm/company${scopeSuffix}${
+                scopeSuffix ? "&" : "?"
+              }tool=${tab}`}
               title="Company"
               icon={Building2}
               tone="indigo"
@@ -300,7 +339,9 @@ export default function CrmModuleHub({
               description="Business clients. Each company holds one or more contacts, each with projects + quotations."
             />
             <KindCard
-              href={`/crm/individual${scopeSuffix}`}
+              href={`/crm/individual${scopeSuffix}${
+                scopeSuffix ? "&" : "?"
+              }tool=${tab}`}
               title="Individual"
               icon={User}
               tone="cyan"

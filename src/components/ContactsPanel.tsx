@@ -136,7 +136,7 @@ export default function ContactsPanel({
           className="flex-1 min-w-0 rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
         />
         <Link
-          href="/quotation?tab=trash"
+          href="/crm/trash"
           className="rounded-lg border border-magic-border px-3 py-2 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
         >
           Trash

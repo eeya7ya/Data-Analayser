@@ -75,6 +75,30 @@ export async function GET() {
     }
   }
 
+  // New leads awaiting distribution — the presales manager's triage queue.
+  // sendLeadMessage already drops a row in the `notifications` table on
+  // create, but the bell feed is built from derived signals (it doesn't
+  // read that table), so without this a manager never saw new leads in the
+  // bell. Counting status='new' self-clears the moment a lead is
+  // distributed.
+  if (isPresales) {
+    const newLeadRows = (await q`
+      select count(*)::int as n from leads
+      where deleted_at is null and status = 'new'
+    `) as Array<{ n: number }>;
+    const newLeads = newLeadRows[0]?.n ?? 0;
+    if (newLeads > 0) {
+      raw.push({
+        id: "leads.new_undistributed",
+        kind: "alarm",
+        severity: "critical",
+        title: `${newLeads} new lead${newLeads === 1 ? "" : "s"} awaiting distribution`,
+        body: "Sales opened these — assign each to a presales engineer.",
+        action: { label: "Open leads", href: "/leads" },
+      });
+    }
+  }
+
   const ownerFilter = isAdmin ? null : user.id;
 
   const unattachedRows = (await q`

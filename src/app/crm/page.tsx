@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 interface SearchParams {
   user?: string;
+  tool?: string;
 }
 
 /**
@@ -112,7 +113,12 @@ export default async function CrmLandingPage({
 
         {isAdmin && <UserScopePicker />}
 
-        <CrmModuleHub flags={flags} counts={counts} scopeSuffix={scopeSuffix} />
+        <CrmModuleHub
+          flags={flags}
+          counts={counts}
+          scopeSuffix={scopeSuffix}
+          initialTool={sp.tool ?? null}
+        />
       </main>
     </div>
   );
