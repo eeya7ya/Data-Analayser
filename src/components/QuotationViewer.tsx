@@ -355,6 +355,11 @@ export default function QuotationViewer({
     rejected_at: (row.rejected_at as string | null) ?? null,
     rejected_by: (row.rejected_by as number | null) ?? null,
     rejected_reason: (row.rejected_reason as string | null) ?? null,
+    sales_outcome: (row.sales_outcome as string | null) ?? null,
+    sales_outcome_at: (row.sales_outcome_at as string | null) ?? null,
+    sales_outcome_reason: (row.sales_outcome_reason as string | null) ?? null,
+    hold_transfer_at: (row.hold_transfer_at as string | null) ?? null,
+    transferred_at: (row.transferred_at as string | null) ?? null,
   };
 
   return (

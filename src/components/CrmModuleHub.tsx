@@ -197,6 +197,8 @@ export default function CrmModuleHub({
 
   const entryCards: Record<TabId, EntryCard[]> = {
     sales: [
+      { href: "/leads/new", title: "Request for Quotation", desc: "Open an RFQ — presales picks it up and builds the quotation." },
+      { href: "/crm/sales-pipeline", title: "Sales pipeline", desc: "Your Held, Won, and Lost deals — track and analyse outcomes." },
       { href: "/leads", title: "New leads", desc: "Open new leads and hand them to presales for distribution." },
       { href: "/inbox/approvals", title: "Approvals", desc: "Review and sign off quotations awaiting approval." },
       { href: "/projects/handoffs", title: "Project handoffs", desc: "Quotations you converted into projects, and their status." },

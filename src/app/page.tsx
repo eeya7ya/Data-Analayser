@@ -200,6 +200,8 @@ export default async function DashboardPage() {
     pendingApprovals = Number(rows[0].n);
   }
 
+  // Three granularities for the trend chart, all computed in one pass so
+  // the client can flip between them without a round-trip (V1.3D toggle).
   const monthlyRows = (await q`
     select to_char(m, 'Mon') as label, coalesce(c.n, 0)::int as count
     from generate_series(
@@ -217,6 +219,57 @@ export default async function DashboardPage() {
     ) c on c.mm = m
     order by m
   `) as Array<{ label: string; count: number }>;
+
+  const weeklyRows = (await q`
+    select to_char(m, 'DD Mon') as label, coalesce(c.n, 0)::int as count
+    from generate_series(
+      date_trunc('week', now()) - interval '11 weeks',
+      date_trunc('week', now()),
+      interval '1 week'
+    ) as m
+    left join (
+      select date_trunc('week', created_at) as ww, count(*)::int as n
+      from quotations
+      where deleted_at is null
+        and created_at > now() - interval '12 weeks'
+        and (${scope}::int is null or owner_id = ${scope})
+      group by ww
+    ) c on c.ww = m
+    order by m
+  `) as Array<{ label: string; count: number }>;
+
+  const dailyRows = (await q`
+    select to_char(m, 'DD Mon') as label, coalesce(c.n, 0)::int as count
+    from generate_series(
+      date_trunc('day', now()) - interval '29 days',
+      date_trunc('day', now()),
+      interval '1 day'
+    ) as m
+    left join (
+      select date_trunc('day', created_at) as dd, count(*)::int as n
+      from quotations
+      where deleted_at is null
+        and created_at > now() - interval '30 days'
+        and (${scope}::int is null or owner_id = ${scope})
+      group by dd
+    ) c on c.dd = m
+    order by m
+  `) as Array<{ label: string; count: number }>;
+
+  // Sales outcome breakdown — Won / Lost / Held for the outcome panel.
+  const outcomeRows = (await q`
+    select
+      count(*) filter (
+        where sales_outcome = 'accepted' or transferred_at is not null
+      )::int as won,
+      count(*) filter (where sales_outcome = 'rejected')::int as lost,
+      count(*) filter (
+        where sales_outcome = 'held' and transferred_at is null
+      )::int as held
+    from quotations
+    where deleted_at is null
+      and (${scope}::int is null or owner_id = ${scope})
+  `) as Array<{ won: number; lost: number; held: number }>;
 
   const statusRows = (await q`
     select coalesce(nullif(status, ''), 'active') as name, count(*)::int as value
@@ -246,6 +299,13 @@ export default async function DashboardPage() {
       pendingApprovals,
     },
     monthly: monthlyRows.map((r) => ({ label: r.label, count: Number(r.count) })),
+    weekly: weeklyRows.map((r) => ({ label: r.label, count: Number(r.count) })),
+    daily: dailyRows.map((r) => ({ label: r.label, count: Number(r.count) })),
+    outcomes: {
+      won: Number(outcomeRows[0].won),
+      lost: Number(outcomeRows[0].lost),
+      held: Number(outcomeRows[0].held),
+    },
     status: statusRows.map((r) => ({
       name: r.name.charAt(0).toUpperCase() + r.name.slice(1),
       value: Number(r.value),

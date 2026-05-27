@@ -199,6 +199,28 @@ export async function GET() {
     });
   }
 
+  // V1.3D — quotations the user marked Held for Execution that haven't
+  // moved to projects yet. Scheduled holds auto-transfer on the next
+  // sweep; manual holds sit here until pushed. Self-clears on transfer.
+  const heldRows = (await q`
+    select count(*)::int as n from quotations
+    where deleted_at is null
+      and sales_outcome = 'held'
+      and transferred_at is null
+      and (${ownerFilter}::int is null or owner_id = ${ownerFilter})
+  `) as Array<{ n: number }>;
+  const heldPending = heldRows[0]?.n ?? 0;
+  if (heldPending > 0) {
+    raw.push({
+      id: "holds.pending_transfer",
+      kind: "alarm",
+      severity: "info",
+      title: `${heldPending} quotation${heldPending === 1 ? "" : "s"} held for execution`,
+      body: "Scheduled holds transfer automatically; transfer the rest when you're ready.",
+      action: { label: "Open pipeline", href: "/crm/sales-pipeline" },
+    });
+  }
+
   // Project handoffs awaiting a member — projects managers + admins.
   const isProjectsManager =
     isAdmin || (await hasModuleRole(user.id, "projects", "manager"));
