@@ -509,13 +509,13 @@ body > * {
    *
    * The table's `height: 100%` (parent `.quotation-sheet` is at least
    * `100vh` tall in print) makes the table fill the full printable area
-   * even when the items table is short. A dedicated empty spacer row
-   * (`.sheet-spacer-row`) carries `height: 100%` so it eats every leftover
-   * pixel of vertical space and pushes the running <tfoot> to the bottom
-   * of the page. The content row keeps its NATURAL height (no height:100%)
-   * so when the items table overflows it fragments cleanly across pages —
-   * with the spacer absorbing the slack on the last page — and the running
-   * footer never overlaps the table on continuation pages. */
+   * even when the items table is short — without this the natural-flow
+   * <tfoot> would render right under the items rather than at the bottom
+   * of the page. The single tbody row has `height: 100%` so it eats every
+   * leftover pixel of vertical space, pushing the <tfoot> down. When the
+   * items table overflows the page, the body row grows past 100% and the
+   * outer table fragments cleanly across pages, with thead/tfoot
+   * automatically repeating on each fragment. */
   .quotation-sheet > table.sheet-layout {
     width: 100%;
     height: 100%;
@@ -528,11 +528,12 @@ body > * {
   .quotation-sheet > table.sheet-layout > tfoot {
     display: table-footer-group;
   }
-  .quotation-sheet > table.sheet-layout > tbody > tr.sheet-spacer-row {
+  .quotation-sheet > table.sheet-layout > tbody > tr {
     height: 100%;
   }
   .quotation-sheet > table.sheet-layout > tbody > tr > td.sheet-body-cell {
     vertical-align: top;
+    height: 100%;
   }
 
   /* ---- 6. Inner items table (per system) ---------------------------------

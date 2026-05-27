@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser, canReadAll } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import TopBar from "@/components/TopBar";
+import UnclassifiedClientsList from "@/components/UnclassifiedClientsList";
 
 export const dynamic = "force-dynamic";
 
@@ -102,63 +103,7 @@ export default async function UnclassifiedClientsPage() {
           </p>
         </div>
 
-        {rows.length === 0 ? (
-          <div className="rounded-2xl border border-magic-border bg-white p-8 text-center">
-            <p className="text-magic-ink/70 mb-2">No unclassified clients.</p>
-            <p className="text-sm text-magic-ink/50">
-              Every folder you can see already has a kind.
-            </p>
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {rows.map((f) => (
-              <li
-                key={f.id}
-                className="rounded-xl border border-magic-border bg-white p-4 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <Link
-                      href={`/folder/${f.id}`}
-                      className="font-semibold text-magic-ink hover:text-magic-red"
-                    >
-                      {f.name}
-                    </Link>
-                    <span className="ml-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">
-                      Unclassified
-                    </span>
-                    <div className="text-xs text-magic-ink/60 mt-0.5">
-                      {f.company_name && <>linked: {f.company_name} · </>}
-                      {f.client_company && !f.company_name && (
-                        <>{f.client_company} · </>
-                      )}
-                      {f.client_email && <>{f.client_email} · </>}
-                      {f.owner_username && <>owner @{f.owner_username}</>}
-                    </div>
-                    <div className="text-xs text-magic-ink/50 mt-1">
-                      {f.project_count} project
-                      {f.project_count === 1 ? "" : "s"} · {f.quotation_count}{" "}
-                      quotation{f.quotation_count === 1 ? "" : "s"}
-                      {f.latest_quotation_at && (
-                        <>
-                          {" "}
-                          · latest{" "}
-                          {new Date(f.latest_quotation_at).toLocaleDateString()}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <Link
-                    href={`/folder/${f.id}`}
-                    className="shrink-0 rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
-                  >
-                    Open
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <UnclassifiedClientsList initial={rows} />
       </main>
     </div>
   );

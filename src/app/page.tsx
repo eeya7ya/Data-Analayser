@@ -182,24 +182,22 @@ export default async function DashboardPage() {
 
   let pendingApprovals = 0;
   if (isManager) {
+    // Count each pending quotation ONCE. Summing a sales-pending count and
+    // a presales-pending count double-counts every quotation that needs
+    // both sign-offs (and an admin is both managers), which is how this
+    // KPI ballooned past the total quotation count. The OR mirrors the
+    // notifications bell's approval query.
     const rows = (await q`
-      select
-        (case when ${isSalesManager}
-              then (select count(*) from quotations
-                    where deleted_at is null
-                      and sales_approved_at is null
-                      and rejected_at is null
-                      and approved_at is null)
-              else 0 end) as needs_sales,
-        (case when ${isPresalesManager}
-              then (select count(*) from quotations
-                    where deleted_at is null
-                      and presales_approved_at is null
-                      and rejected_at is null
-                      and approved_at is null)
-              else 0 end) as needs_presales
-    `) as Array<{ needs_sales: number; needs_presales: number }>;
-    pendingApprovals = Number(rows[0].needs_sales) + Number(rows[0].needs_presales);
+      select count(*)::int as n from quotations
+      where deleted_at is null
+        and approved_at is null
+        and rejected_at is null
+        and (
+          (${isSalesManager}::boolean and sales_approved_at is null)
+          or (${isPresalesManager}::boolean and presales_approved_at is null)
+        )
+    `) as Array<{ n: number }>;
+    pendingApprovals = Number(rows[0].n);
   }
 
   const monthlyRows = (await q`
