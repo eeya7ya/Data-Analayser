@@ -10,7 +10,6 @@ import ExecutionDashboardClient, {
 import StorageDashboardClient, {
   type StorageRequestRow,
 } from "@/components/StorageDashboardClient";
-import UpdateNotesPanel from "@/components/UpdateNotesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -108,9 +107,6 @@ export default async function DashboardPage() {
             }}
             projects={projectRows}
           />
-          <div className="mt-6">
-            <UpdateNotesPanel />
-          </div>
         </main>
       </div>
     );
@@ -161,9 +157,6 @@ export default async function DashboardPage() {
             }}
             requests={reqs}
           />
-          <div className="mt-6">
-            <UpdateNotesPanel />
-          </div>
         </main>
       </div>
     );
@@ -337,9 +330,6 @@ export default async function DashboardPage() {
           isManager={isManager}
           showOutcomes={isSales}
         />
-        <div className="mt-6">
-          <UpdateNotesPanel />
-        </div>
       </main>
     </div>
   );

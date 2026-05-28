@@ -302,10 +302,29 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
   );
 }
 
+interface CompanyOpt {
+  id: number;
+  name: string;
+}
+interface FolderOpt {
+  id: number;
+  name: string;
+  kind: "company" | "individual" | null;
+  company_id: number | null;
+  company_name?: string | null;
+}
+
 /**
  * Where the assigned presales engineer turns a distributed lead into real
- * CRM work: link it to a client (a company contact or an individual), then
- * jump into that client's workspace to create projects and quotations.
+ * CRM work. The flow mirrors the real process:
+ *
+ *   New client →  pick Company or Individual  →  create the client
+ *   Existing   →  pick Company/Individual     →  select the client
+ *
+ * Either way the lead gets linked to a client folder (owned by the
+ * engineer, so they keep access) and the panel then drops them into that
+ * client's workspace, where they create a project and start a quotation
+ * or pricing.
  */
 function WorkPanel({
   leadId,
@@ -320,47 +339,179 @@ function WorkPanel({
   companyName: string | null;
   onChanged: () => void;
 }) {
-  interface FolderOpt {
-    id: number;
-    name: string;
-    kind: "company" | "individual" | null;
-    company_id: number | null;
-    company_name?: string | null;
+  // Once linked, the panel is just the launch pad into the workspace.
+  if (folderId) {
+    return (
+      <div className="rounded-xl border border-magic-border bg-white p-5 shadow-sm">
+        <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-magic-ink/70">
+          Work on this lead
+        </h3>
+        <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          Linked to client{" "}
+          <span className="font-semibold">{folderName || `#${folderId}`}</span>
+          {companyName && <> · {companyName}</>}.
+        </p>
+        <p className="mt-2 text-xs text-magic-ink/60">
+          Next: open the workspace to create a project, then start a quotation
+          or pricing for it.
+        </p>
+        <a
+          href={`/folder/${folderId}`}
+          className="mt-3 block w-full rounded-lg bg-magic-red px-3 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
+        >
+          Open client workspace →
+        </a>
+        <LinkClientWizard
+          leadId={leadId}
+          onChanged={onChanged}
+          relabel="Change linked client"
+        />
+      </div>
+    );
   }
-  const [folders, setFolders] = useState<FolderOpt[]>([]);
-  const [picking, setPicking] = useState(false);
-  const [selected, setSelected] = useState<string>("");
+
+  return (
+    <div className="rounded-xl border border-magic-border bg-white p-5 shadow-sm">
+      <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-magic-ink/70">
+        Work on this lead
+      </h3>
+      <p className="mb-3 text-xs text-magic-ink/60">
+        Assign this lead to a company or an individual — create a brand-new
+        client or add it to an existing one. Then open the workspace to create
+        a project and start a quotation or pricing.
+      </p>
+      <LinkClientWizard leadId={leadId} onChanged={onChanged} startOpen />
+    </div>
+  );
+}
+
+/**
+ * The company/individual + new/existing client picker. Collapsed by
+ * default (a single "Change linked client" toggle) unless `startOpen`.
+ */
+function LinkClientWizard({
+  leadId,
+  onChanged,
+  startOpen = false,
+  relabel,
+}: {
+  leadId: number;
+  onChanged: () => void;
+  startOpen?: boolean;
+  relabel?: string;
+}) {
+  const [open, setOpen] = useState(startOpen);
+  const [mode, setMode] = useState<"new" | "existing">("new");
+  const [kind, setKind] = useState<"individual" | "company">("individual");
+
+  // shared
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // new-client fields
+  const [clientName, setClientName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [newCompany, setNewCompany] = useState(""); // typed new company name
+
+  // existing-client + company selection
+  const [companies, setCompanies] = useState<CompanyOpt[]>([]);
+  const [companySel, setCompanySel] = useState<string>(""); // "" | id | "__new__"
+  const [folders, setFolders] = useState<FolderOpt[]>([]);
+  const [folderSel, setFolderSel] = useState<string>("");
+
+  // Load companies whenever we need them (company kind, either mode).
   useEffect(() => {
-    if (!picking || folders.length > 0) return;
-    fetch("/api/folders", { cache: "no-store" })
+    if (!open || kind !== "company") return;
+    fetch("/api/companies", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { companies?: CompanyOpt[] }) => setCompanies(d.companies ?? []))
+      .catch(() => setCompanies([]));
+  }, [open, kind]);
+
+  // Load the client list for the "existing" picker.
+  useEffect(() => {
+    if (!open || mode !== "existing") return;
+    let url = "/api/folders";
+    if (kind === "individual") url += "?kind=individual";
+    else if (companySel && companySel !== "__new__")
+      url += `?company_id=${companySel}`;
+    else {
+      setFolders([]);
+      return;
+    }
+    fetch(url, { cache: "no-store" })
       .then((r) => r.json())
       .then((d: { folders?: FolderOpt[] }) => setFolders(d.folders ?? []))
       .catch(() => setFolders([]));
-  }, [picking, folders.length]);
+    setFolderSel("");
+  }, [open, mode, kind, companySel]);
 
-  async function link() {
-    if (!selected) {
-      setErr("Pick a client first.");
-      return;
+  async function patchLead(folder_id: number, company_id: number | null) {
+    const res = await fetch(`/api/leads/${leadId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder_id, company_id }),
+    });
+    const data = (await res.json()) as { error?: string };
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  }
+
+  async function createCompanyIfNeeded(): Promise<number | null> {
+    if (kind !== "company") return null;
+    if (companySel === "__new__" || (mode === "new" && !companySel)) {
+      const name = newCompany.trim();
+      if (!name) throw new Error("Enter the company name.");
+      const res = await fetch("/api/companies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = (await res.json()) as {
+        company?: { id: number };
+        error?: string;
+      };
+      if (!res.ok || !data.company)
+        throw new Error(data.error || "Could not create the company.");
+      return data.company.id;
     }
+    if (!companySel) throw new Error("Pick a company.");
+    return Number(companySel);
+  }
+
+  async function submit() {
     setBusy(true);
     setErr(null);
     try {
-      const folder = folders.find((f) => String(f.id) === selected);
-      const res = await fetch(`/api/leads/${leadId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          folder_id: Number(selected),
-          company_id: folder?.company_id ?? null,
-        }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setPicking(false);
+      if (mode === "existing") {
+        if (!folderSel) throw new Error("Select a client.");
+        const folder = folders.find((f) => String(f.id) === folderSel);
+        await patchLead(Number(folderSel), folder?.company_id ?? null);
+      } else {
+        // NEW client → create the folder (and company first if needed).
+        const name = clientName.trim();
+        if (!name) throw new Error("Enter the client name.");
+        const companyId = await createCompanyIfNeeded();
+        const res = await fetch("/api/folders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            kind,
+            company_id: companyId,
+            client_email: email.trim() || null,
+            client_phone: phone.trim() || null,
+          }),
+        });
+        const data = (await res.json()) as {
+          folder?: { id: number; company_id: number | null };
+          error?: string;
+        };
+        if (!res.ok || !data.folder)
+          throw new Error(data.error || "Could not create the client.");
+        await patchLead(data.folder.id, data.folder.company_id ?? companyId);
+      }
+      setOpen(false);
       onChanged();
     } catch (e) {
       setErr((e as Error).message);
@@ -369,79 +520,185 @@ function WorkPanel({
     }
   }
 
-  return (
-    <div className="rounded-xl border border-magic-border bg-white p-5 shadow-sm">
-      <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-magic-ink/70">
-        Work on this lead
-      </h3>
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-2 w-full rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft"
+      >
+        {relabel ?? "Link to a client"}
+      </button>
+    );
+  }
 
-      {folderId ? (
-        <div className="space-y-3">
-          <p className="rounded-md bg-magic-soft/50 px-3 py-2 text-xs text-magic-ink/80">
-            Linked to client{" "}
-            <span className="font-semibold">{folderName || `#${folderId}`}</span>
-            {companyName && <> · {companyName}</>}.
-          </p>
-          <a
-            href={`/folder/${folderId}`}
-            className="block w-full rounded-lg bg-magic-red px-3 py-1.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
-          >
-            Open client workspace →
-          </a>
-          <button
-            type="button"
-            onClick={() => setPicking((v) => !v)}
-            className="w-full rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft"
-          >
-            {picking ? "Cancel" : "Change linked client"}
-          </button>
+  const fieldCls =
+    "w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red";
+
+  return (
+    <div className="mt-3 space-y-3 rounded-lg border border-magic-border/70 bg-magic-soft/30 p-3">
+      {/* New vs existing */}
+      <Segmented
+        value={mode}
+        onChange={(v) => setMode(v as "new" | "existing")}
+        options={[
+          { value: "new", label: "New client" },
+          { value: "existing", label: "Existing" },
+        ]}
+      />
+
+      {/* Company vs individual */}
+      <Segmented
+        value={kind}
+        onChange={(v) => setKind(v as "individual" | "company")}
+        options={[
+          { value: "individual", label: "Individual" },
+          { value: "company", label: "Company" },
+        ]}
+      />
+
+      {mode === "new" ? (
+        <div className="space-y-2">
+          {kind === "company" && (
+            <div className="space-y-2">
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-magic-ink/55">
+                Company
+              </label>
+              <select
+                value={companySel}
+                onChange={(e) => setCompanySel(e.target.value)}
+                className={fieldCls}
+              >
+                <option value="">➕ New company…</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              {(companySel === "" || companySel === "__new__") && (
+                <input
+                  value={newCompany}
+                  onChange={(e) => setNewCompany(e.target.value)}
+                  placeholder="New company name"
+                  className={fieldCls}
+                />
+              )}
+            </div>
+          )}
+          <label className="block text-[11px] font-semibold uppercase tracking-wide text-magic-ink/55">
+            {kind === "company" ? "Client / contact name" : "Client name"}
+          </label>
+          <input
+            value={clientName}
+            onChange={(e) => setClientName(e.target.value)}
+            placeholder={kind === "company" ? "e.g. Yahya Khaled" : "Full name"}
+            className={fieldCls}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email (optional)"
+              className={fieldCls}
+            />
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Phone (optional)"
+              className={fieldCls}
+            />
+          </div>
         </div>
       ) : (
         <div className="space-y-2">
-          <p className="text-xs text-magic-ink/60">
-            Link this lead to a client to start working — a company contact or
-            an individual. Then open their workspace to add projects and
-            quotations.
-          </p>
-          {!picking && (
-            <button
-              type="button"
-              onClick={() => setPicking(true)}
-              className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
+          {kind === "company" && (
+            <select
+              value={companySel}
+              onChange={(e) => setCompanySel(e.target.value)}
+              className={fieldCls}
             >
-              Link to a client
-            </button>
+              <option value="">Pick a company…</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           )}
-        </div>
-      )}
-
-      {picking && (
-        <div className="mt-3 space-y-2">
           <select
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+            value={folderSel}
+            onChange={(e) => setFolderSel(e.target.value)}
+            className={fieldCls}
+            disabled={kind === "company" && !companySel}
           >
-            <option value="">Pick a client…</option>
+            <option value="">
+              {kind === "company" && !companySel
+                ? "Pick a company first…"
+                : "Select the client…"}
+            </option>
             {folders.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
                 {f.company_name ? ` · ${f.company_name}` : ""}
-                {f.kind === "individual" ? " (individual)" : ""}
               </option>
             ))}
           </select>
-          {err && <p className="text-xs text-red-700">{err}</p>}
-          <button
-            type="button"
-            onClick={() => void link()}
-            disabled={busy || !selected}
-            className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
-          >
-            {busy ? "Linking…" : "Link client"}
-          </button>
         </div>
       )}
+
+      {err && <p className="text-xs text-red-700">{err}</p>}
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="rounded-lg border border-magic-border bg-white px-3 py-2 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => void submit()}
+          disabled={busy}
+          className="flex-1 rounded-lg bg-magic-red px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
+        >
+          {busy
+            ? "Working…"
+            : mode === "new"
+              ? "Create client & link"
+              : "Link client"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Segmented({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <div className="inline-flex w-full items-center gap-0.5 rounded-lg border border-magic-border bg-white p-0.5">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className={`flex-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+            value === o.value
+              ? "bg-magic-red text-white shadow-sm"
+              : "text-magic-ink/60 hover:text-magic-ink"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }

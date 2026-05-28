@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   CalendarDays,
   NotebookPen,
+  Megaphone,
   ChevronDown,
   X,
   type LucideIcon,
@@ -78,6 +79,7 @@ export default function SideNav({
     { href: "/crm", label: "CRM", icon: Building2, show: has("crm") || has("projects") },
     { href: "/calendar", label: "Calendar", icon: CalendarDays, show: true },
     { href: "/notes", label: "My Notes", icon: NotebookPen, show: true },
+    { href: "/updates", label: "Updates", icon: Megaphone, show: true },
   ].filter((i) => i.show);
 
   const legacy = [
