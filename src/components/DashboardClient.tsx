@@ -62,10 +62,13 @@ export default function DashboardClient({
   data,
   greetingName,
   isManager,
+  showOutcomes,
 }: {
   data: DashboardData;
   greetingName: string;
   isManager: boolean;
+  /** "Sales outcomes" (Won/Lost/Held) is a sales-only scoreboard. */
+  showOutcomes: boolean;
 }) {
   const { kpis, status, approvals, outcomes } = data;
   const [granularity, setGranularity] = useState<Granularity>("monthly");
@@ -167,13 +170,15 @@ export default function DashboardClient({
             </div>
           </div>
 
-          <Panel title="Sales outcomes" subtitle="Won · Lost · Held for execution">
-            <div className="grid grid-cols-3 gap-3">
-              <OutcomeStat label="Won" value={outcomes.won} tone="emerald" />
-              <OutcomeStat label="Lost" value={outcomes.lost} tone="amber" />
-              <OutcomeStat label="Held" value={outcomes.held} tone="red" />
-            </div>
-          </Panel>
+          {showOutcomes && (
+            <Panel title="Sales outcomes" subtitle="Won · Lost · Held for execution">
+              <div className="grid grid-cols-3 gap-3">
+                <OutcomeStat label="Won" value={outcomes.won} tone="emerald" />
+                <OutcomeStat label="Lost" value={outcomes.lost} tone="amber" />
+                <OutcomeStat label="Held" value={outcomes.held} tone="red" />
+              </div>
+            </Panel>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Panel title="By status" subtitle="Active quotations">

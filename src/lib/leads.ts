@@ -184,3 +184,27 @@ export async function getLeadVisibility(user: SessionUser): Promise<LeadVisibili
     userId: user.id,
   };
 }
+
+/**
+ * Folder-level access granted *through* a lead. A presales engineer who
+ * gets a lead distributed to them (or the salesperson who opened it)
+ * doesn't own the client folder it's linked to, so the plain
+ * `owner_id = self` check would lock them out of the very workspace the
+ * lead asks them to work in. This returns true when the user is the
+ * current assignee or the creator of a live lead linked to the folder,
+ * so the folder pages can widen access for exactly those people.
+ */
+export async function userHasLeadAccessToFolder(
+  userId: number,
+  folderId: number,
+): Promise<boolean> {
+  const q = sql();
+  const rows = (await q`
+    select 1 as one from leads
+    where folder_id = ${folderId}
+      and deleted_at is null
+      and (assigned_to_id = ${userId} or created_by = ${userId})
+    limit 1
+  `) as Array<{ one: number }>;
+  return rows.length > 0;
+}

@@ -9,7 +9,6 @@ import CrmModuleHub, {
   type CrmHubFlags,
   type CrmHubCounts,
 } from "@/components/CrmModuleHub";
-import UpdateNotesPanel from "@/components/UpdateNotesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -120,8 +119,6 @@ export default async function CrmLandingPage({
           scopeSuffix={scopeSuffix}
           initialTool={sp.tool ?? null}
         />
-
-        <UpdateNotesPanel />
       </main>
     </div>
   );
