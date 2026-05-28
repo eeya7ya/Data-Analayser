@@ -200,11 +200,11 @@ export async function userHasLeadAccessToFolder(
 ): Promise<boolean> {
   const q = sql();
   const rows = (await q`
-    select 1 from leads
+    select 1 as one from leads
     where folder_id = ${folderId}
       and deleted_at is null
       and (assigned_to_id = ${userId} or created_by = ${userId})
     limit 1
-  `) as Array<unknown>;
+  `) as Array<{ one: number }>;
   return rows.length > 0;
 }
