@@ -6,20 +6,38 @@ import { LEAD_PRIORITIES } from "@/lib/leadConstants";
 
 /**
  * Lead opening form. Captures the bare minimum — title, optional
- * description, priority, and source label. Linkage to a company / client
- * folder / contact is intentionally deferred to the lead detail page;
- * presales fills those in as the deal develops. The response-by date is
- * NOT set here — presales owns their own turnaround, so the presales
- * manager sets it when they distribute the lead.
+ * description, priority, and source label.
+ *
+ * V1.3D — when opened as a Request for Quotation from a client / project,
+ * the company + client folder (+ contact) arrive pre-resolved via
+ * `context` and are smart-assigned to the lead. They render as read-only
+ * chips here (sales shouldn't re-pick what the page already knows) and are
+ * sent with the create request; the server re-validates them. Any other
+ * linkage is still filled in later from the lead detail page.
  */
-export default function LeadCreateForm() {
+export interface LeadContext {
+  folderId?: number | null;
+  companyId?: number | null;
+  contactId?: number | null;
+  clientName?: string | null;
+  companyName?: string | null;
+  prefillTitle?: string | null;
+}
+
+export default function LeadCreateForm({
+  context,
+}: {
+  context?: LeadContext;
+}) {
   const router = useRouter();
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(context?.prefillTitle ?? "");
   const [description, setDescription] = useState("");
   const [source, setSource] = useState("");
   const [priority, setPriority] = useState<string>("normal");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isRfq = Boolean(context?.folderId || context?.companyId);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +56,9 @@ export default function LeadCreateForm() {
           description: description.trim() || null,
           source: source.trim() || null,
           priority,
+          company_id: context?.companyId ?? null,
+          folder_id: context?.folderId ?? null,
+          contact_id: context?.contactId ?? null,
         }),
       });
       const data = (await res.json()) as { id?: number; error?: string };
@@ -57,6 +78,29 @@ export default function LeadCreateForm() {
       onSubmit={onSubmit}
       className="space-y-4 rounded-xl border border-magic-border bg-white p-5 shadow-sm"
     >
+      {isRfq && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+            Smart-assigned
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+            {context?.companyName && (
+              <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 font-semibold text-indigo-700 ring-1 ring-indigo-200">
+                Company: {context.companyName}
+              </span>
+            )}
+            {context?.clientName && (
+              <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 font-semibold text-indigo-700 ring-1 ring-indigo-200">
+                Client: {context.clientName}
+              </span>
+            )}
+          </div>
+          <p className="mt-1.5 text-[11px] text-indigo-700/70">
+            These are linked automatically. Presales will build the quotation
+            against this client.
+          </p>
+        </div>
+      )}
       <div>
         <label className="block text-xs font-semibold uppercase tracking-wide text-magic-ink/60">
           Title <span className="text-magic-red">*</span>

@@ -350,6 +350,21 @@ const V13B_FLAG = "v1_3b_pwa_sharing_change_requests_2026_05";
  */
 const V13C_FLAG = "v1_3c_execution_reports_2026_05";
 
+/**
+ * V1.3D — sales module. A salesperson can now mark the client outcome on
+ * an approved quotation: Accepted (won), Rejected (lost), or Held for
+ * Execution. A held quotation can carry a `hold_transfer_at` schedule —
+ * when that time passes a lazy sweep (src/lib/holds.ts, run from the
+ * pipeline list + dashboard) auto-creates the project handoff; sales can
+ * also transfer it manually at any time. `transferred_at` records when
+ * the held quote was actually pushed to the projects team. The Held /
+ * Won / Lost buckets that power the new CRM sales-pipeline tabs and the
+ * dashboard outcome stats are derived from these columns. Also seeds a
+ * pinned "update notes" post so the new CRM Update Notes panel isn't
+ * empty on first load. Strictly additive.
+ */
+const V13D_FLAG = "v1_3d_sales_module_2026_05";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -427,6 +442,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let projectHandoffsApplied = false;
   let v13bApplied = false;
   let v13cApplied = false;
+  let v13dApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -440,7 +456,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG},
         ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG},
         ${NOTIFICATION_STATE_FLAG}, ${PROJECT_HANDOFFS_FLAG},
-        ${V13B_FLAG}, ${V13C_FLAG}
+        ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -469,6 +485,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     projectHandoffsApplied = keys.has(PROJECT_HANDOFFS_FLAG);
     v13bApplied = keys.has(V13B_FLAG);
     v13cApplied = keys.has(V13C_FLAG);
+    v13dApplied = keys.has(V13D_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -499,7 +516,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     notificationStateApplied &&
     projectHandoffsApplied &&
     v13bApplied &&
-    v13cApplied
+    v13cApplied &&
+    v13dApplied
   )
     return;
 
@@ -2312,6 +2330,87 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${V13C_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!v13dApplied) {
+    // V1.3D sales module. Sales marks the client outcome on an approved
+    // quotation. `sales_outcome` is the salesperson's verdict — distinct
+    // from the manager approval reject (`rejected_at`), which is about
+    // sign-off, not the deal result. Held quotations stage for execution:
+    // `hold_transfer_at` is an optional schedule (null = manual only) and
+    // `transferred_at` records when the project handoff was actually
+    // created (manually or by the lazy sweep in src/lib/holds.ts).
+    await q`
+      alter table quotations
+        add column if not exists sales_outcome text
+    `;
+    await q`
+      alter table quotations
+        drop constraint if exists quotations_sales_outcome_check
+    `;
+    await q`
+      alter table quotations
+        add constraint quotations_sales_outcome_check
+        check (sales_outcome is null
+               or sales_outcome in ('accepted','rejected','held'))
+    `;
+    await q`
+      alter table quotations
+        add column if not exists sales_outcome_at timestamptz
+    `;
+    await q`
+      alter table quotations
+        add column if not exists sales_outcome_by integer references users(id) on delete set null
+    `;
+    await q`
+      alter table quotations
+        add column if not exists sales_outcome_reason text
+    `;
+    await q`
+      alter table quotations
+        add column if not exists hold_transfer_at timestamptz
+    `;
+    await q`
+      alter table quotations
+        add column if not exists transferred_at timestamptz
+    `;
+    // Partial index for the hold sweep: it only ever scans held, not-yet
+    // transferred rows that carry a schedule, so this stays tiny.
+    await q`
+      create index if not exists quotations_hold_due_idx
+        on quotations(hold_transfer_at)
+        where sales_outcome = 'held' and transferred_at is null
+    `;
+
+    // Seed one pinned update note so the new CRM "Update notes" panel has
+    // something to show on first load. created_by is null (system) — the
+    // FK is on delete set null and nullable. Guarded by the once-per-DB
+    // flag so it never double-inserts.
+    await q`
+      insert into news_posts
+        (title, body, audience_modules, audience_roles, pinned, created_by)
+      values (
+        ${"V1.3D — Sales module update"},
+        ${[
+          "What changed for Sales in this release:",
+          "",
+          "• Request for Quotation — open an RFQ straight from a client or project; the company and client are smart-assigned for you, presales picks it up and builds the quotation.",
+          "• Quotation outcome — mark an approved quotation Accepted, Rejected, or Held for Execution right on the quotation page.",
+          "• Held for Execution — set a transfer time and the deal moves to the projects team automatically (or push it manually), with notifications along the way.",
+          "• Sales pipeline — new Held / Won / Lost tabs in the CRM Sales tool so you can track and analyse your deals.",
+          "• Dashboard — toggle your analytics between daily, weekly, and monthly, and see your win/loss/held outcomes at a glance.",
+        ].join("\n")},
+        ${["all"]}::text[],
+        ${["all"]}::text[],
+        ${true},
+        ${null}
+      )
+    `;
+
+    await q`
+      insert into migration_flags (key) values (${V13D_FLAG})
       on conflict (key) do nothing
     `;
   }

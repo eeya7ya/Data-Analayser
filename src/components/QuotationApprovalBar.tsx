@@ -26,6 +26,12 @@ interface ApprovalState {
   rejected_at: string | null;
   rejected_by: number | null;
   rejected_reason: string | null;
+  // V1.3D — sales client-outcome.
+  sales_outcome: string | null;
+  sales_outcome_at: string | null;
+  sales_outcome_reason: string | null;
+  hold_transfer_at: string | null;
+  transferred_at: string | null;
 }
 
 interface MeResponse {
@@ -46,6 +52,10 @@ export default function QuotationApprovalBar({
   const [error, setError] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const [converted, setConverted] = useState(false);
+  // V1.3D — sales outcome (Accept / Reject / Hold for Execution).
+  const [outcomeBusy, setOutcomeBusy] = useState(false);
+  const [holdOpen, setHoldOpen] = useState(false);
+  const [holdAt, setHoldAt] = useState("");
 
   useEffect(() => {
     void fetch("/api/auth/me", { cache: "no-store" })
@@ -123,9 +133,67 @@ export default function QuotationApprovalBar({
     }
   }
 
+  async function markOutcome(
+    outcome: "accepted" | "rejected" | "held",
+    extra: { reason?: string; hold_transfer_at?: string | null } = {},
+  ) {
+    setOutcomeBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/quotations/outcome", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: quotationId, outcome, ...extra }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      setHoldOpen(false);
+      setHoldAt("");
+      await refetch();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setOutcomeBusy(false);
+    }
+  }
+
+  async function rejectOutcome() {
+    const reason = window.prompt(
+      "Mark this deal lost. Add a brief reason (the client passed, lost to a competitor, budget, …):",
+    );
+    if (reason === null) return;
+    await markOutcome("rejected", { reason: reason.trim() });
+  }
+
+  async function transferNow() {
+    setOutcomeBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/quotations/transfer-hold", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: quotationId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      await refetch();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setOutcomeBusy(false);
+    }
+  }
+
   const fullyApproved = !!state.approved_at;
-  const accepted = !!state.accepted_at;
+  const accepted = !!state.accepted_at || state.sales_outcome === "accepted";
   const rejected = !!state.rejected_at;
+  const outcome = state.sales_outcome;
+  const transferred = !!state.transferred_at;
+  const heldPending = outcome === "held" && !transferred;
 
   return (
     <div className="no-print rounded-xl border border-magic-border bg-white px-4 py-3 mb-3">
@@ -165,10 +233,11 @@ export default function QuotationApprovalBar({
               Reject
             </button>
           )}
-          {canConvert && fullyApproved && !rejected && (
+          {canConvert && fullyApproved && !rejected && !transferred && (
             <button
               onClick={() => setConverting(true)}
               disabled={busy}
+              title="Push to execution now with site / contact details"
               className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
             >
               {converted ? "Pushed ✓ — push again" : "Push to execution"}
@@ -176,6 +245,113 @@ export default function QuotationApprovalBar({
           )}
         </div>
       </div>
+
+      {/* V1.3D — sales records the client outcome. Accept / Reject can be
+          marked any time; Hold for Execution stages the deal and (with a
+          time set) auto-transfers it to the projects team. */}
+      {canConvert && (
+        <div className="mt-3 border-t border-magic-border/60 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-semibold text-magic-ink/70">Outcome:</span>
+              {outcome === "accepted" && <Pill tone="ok">Won — client accepted</Pill>}
+              {outcome === "rejected" && (
+                <Pill tone="warn">
+                  Lost
+                  {state.sales_outcome_reason &&
+                    `: ${state.sales_outcome_reason.slice(0, 60)}`}
+                </Pill>
+              )}
+              {heldPending && (
+                <Pill tone="strong">
+                  Held for execution
+                  {state.hold_transfer_at
+                    ? ` · auto-transfers ${new Date(state.hold_transfer_at).toLocaleString()}`
+                    : " · manual transfer"}
+                </Pill>
+              )}
+              {transferred && <Pill tone="ok">Sent to projects ✓</Pill>}
+              {!outcome && !transferred && (
+                <span className="text-magic-ink/45">Not set yet</span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!transferred && (
+                <>
+                  <button
+                    onClick={() => void markOutcome("accepted")}
+                    disabled={outcomeBusy || !fullyApproved}
+                    title={fullyApproved ? "Client accepted the quotation" : "Approve the quotation first"}
+                    className="px-3 py-1 text-xs font-semibold rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
+                  >
+                    Accepted
+                  </button>
+                  <button
+                    onClick={() => void rejectOutcome()}
+                    disabled={outcomeBusy}
+                    className="px-3 py-1 text-xs font-semibold rounded border border-magic-border text-magic-ink/70 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 disabled:opacity-50 transition-colors"
+                  >
+                    Rejected
+                  </button>
+                  <button
+                    onClick={() => setHoldOpen((v) => !v)}
+                    disabled={outcomeBusy || !fullyApproved}
+                    title={fullyApproved ? "Stage for the projects team" : "Approve the quotation first"}
+                    className="px-3 py-1 text-xs font-semibold rounded border border-magic-red text-magic-red hover:bg-magic-red hover:text-white disabled:opacity-50 transition-colors"
+                  >
+                    Hold for execution
+                  </button>
+                </>
+              )}
+              {heldPending && (
+                <button
+                  onClick={() => void transferNow()}
+                  disabled={outcomeBusy}
+                  className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+                >
+                  Transfer now
+                </button>
+              )}
+            </div>
+          </div>
+          {holdOpen && !transferred && (
+            <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg border border-magic-border bg-magic-soft/40 p-3">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-magic-ink/60">
+                  Auto-transfer at (optional)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={holdAt}
+                  onChange={(e) => setHoldAt(e.target.value)}
+                  className="mt-1 rounded-md border border-magic-border px-2 py-1 text-sm"
+                />
+              </div>
+              <button
+                onClick={() =>
+                  void markOutcome("held", { hold_transfer_at: holdAt || null })
+                }
+                disabled={outcomeBusy}
+                className="rounded-md bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-magic-red/90 disabled:opacity-50"
+              >
+                {holdAt ? "Hold & schedule" : "Hold (manual transfer)"}
+              </button>
+              <button
+                onClick={() => setHoldOpen(false)}
+                disabled={outcomeBusy}
+                className="rounded-md border border-magic-border px-3 py-1.5 text-xs font-semibold hover:bg-magic-soft disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <p className="w-full text-[11px] text-magic-ink/50">
+                Leave the time empty to transfer manually whenever you&apos;re
+                ready. With a time set, the deal moves to the projects team
+                automatically once it passes.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       {converted && (
         <p className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
           Sent to projects — a project manager will assign a technician/engineer.

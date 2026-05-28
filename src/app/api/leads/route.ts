@@ -119,6 +119,13 @@ export async function POST(req: NextRequest) {
       source?: string;
       priority?: LeadPriority;
       requested_timeline_at?: string | null;
+      // V1.3D — Request for Quotation context. When sales opens an RFQ from
+      // a client / project, the company + client folder (+ optional contact)
+      // are smart-assigned so presales picks up the lead already linked to
+      // the right account. Validated below against rows the caller can see.
+      company_id?: number | null;
+      folder_id?: number | null;
+      contact_id?: number | null;
     };
 
     const title = String(body.title ?? "").trim();
@@ -141,13 +148,56 @@ export async function POST(req: NextRequest) {
     const ref = await generateLeadRef();
 
     const q = sql();
+
+    // Smart-assign context — only persist IDs that actually resolve to a
+    // live row (and, for non-admins, one they own) so a stray id from the
+    // query string can't attach a lead to someone else's account.
+    const ownerScope = user.role === "admin" ? null : user.id;
+    let folderId: number | null = null;
+    let companyId: number | null = null;
+    let contactId: number | null = null;
+    if (Number.isInteger(body.folder_id) && Number(body.folder_id) > 0) {
+      const fr = (await q`
+        select id, company_id from client_folders
+        where id = ${Number(body.folder_id)} and deleted_at is null
+          and (${ownerScope}::int is null or owner_id = ${ownerScope})
+        limit 1
+      `) as Array<{ id: number; company_id: number | null }>;
+      if (fr.length > 0) {
+        folderId = fr[0].id;
+        companyId = fr[0].company_id;
+      }
+    }
+    if (
+      companyId === null &&
+      Number.isInteger(body.company_id) &&
+      Number(body.company_id) > 0
+    ) {
+      const cr = (await q`
+        select id from companies
+        where id = ${Number(body.company_id)} and deleted_at is null
+          and (${ownerScope}::int is null or owner_id = ${ownerScope})
+        limit 1
+      `) as Array<{ id: number }>;
+      if (cr.length > 0) companyId = cr[0].id;
+    }
+    if (Number.isInteger(body.contact_id) && Number(body.contact_id) > 0) {
+      const ctr = (await q`
+        select id from contacts
+        where id = ${Number(body.contact_id)} and deleted_at is null
+          and (${ownerScope}::int is null or owner_id = ${ownerScope})
+        limit 1
+      `) as Array<{ id: number }>;
+      if (ctr.length > 0) contactId = ctr[0].id;
+    }
+
     const inserted = (await q`
       insert into leads
         (ref, title, description, source, priority, status,
-         created_by, requested_timeline_at)
+         created_by, requested_timeline_at, company_id, folder_id, contact_id)
       values
         (${ref}, ${title}, ${description}, ${source}, ${priority}, 'new',
-         ${user.id}, ${requestedTimelineAt})
+         ${user.id}, ${requestedTimelineAt}, ${companyId}, ${folderId}, ${contactId})
       returning id, ref
     `) as Array<{ id: number; ref: string }>;
     const leadId = inserted[0].id;
