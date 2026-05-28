@@ -259,6 +259,41 @@ export async function GET() {
     });
   }
 
+  // Lead inbox — unread lead messages addressed to this user. The assign
+  // route's sendLeadMessage() writes a row here whenever a lead is
+  // distributed / re-routed to someone, but this bell feed is otherwise
+  // built only from derived signals, so the recipient (e.g. the presales
+  // engineer a lead was just handed to) never actually saw "a lead was
+  // distributed to you". Surfacing the unread ones fixes that; opening
+  // the lead inbox marks them read, which self-clears the alarm.
+  const leadMsgRows = (await q`
+    select m.id, m.subject, m.body, m.lead_id, m.created_at
+    from lead_messages m
+    where m.recipient_id = ${user.id}
+      and m.read_at is null
+    order by m.created_at desc
+    limit 20
+  `) as Array<{
+    id: number;
+    subject: string;
+    body: string;
+    lead_id: number | null;
+    created_at: string;
+  }>;
+  for (const m of leadMsgRows) {
+    raw.push({
+      id: `lead_msg:${m.id}`,
+      kind: "message",
+      severity: "info",
+      title: m.subject,
+      body: m.body,
+      created_at: m.created_at,
+      action: m.lead_id
+        ? { label: "Open lead", href: `/leads/${m.lead_id}` }
+        : undefined,
+    });
+  }
+
   // Messages — admin announcements, audience-filtered the same way the
   // NewsBar does (the 'all' tag is a wildcard in either array).
   const grants = (await q`

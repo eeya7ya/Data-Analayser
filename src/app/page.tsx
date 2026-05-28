@@ -10,6 +10,7 @@ import ExecutionDashboardClient, {
 import StorageDashboardClient, {
   type StorageRequestRow,
 } from "@/components/StorageDashboardClient";
+import UpdateNotesPanel from "@/components/UpdateNotesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,9 @@ export default async function DashboardPage() {
   const isCrm = hasGrant("crm");
   const isProjects = hasGrant("projects");
   const isProjectsManager = isAdmin || hasGrant("projects", "manager");
+  // "Sales outcomes" (Won / Lost / Held) is a salesperson's scoreboard —
+  // only sales roles (and admins) should see it on the dashboard.
+  const isSales = isSalesManager || hasGrant("crm", "sales");
 
   if (!isAdmin && isProjects && !isCrm) {
     const me = user.id;
@@ -104,6 +108,9 @@ export default async function DashboardPage() {
             }}
             projects={projectRows}
           />
+          <div className="mt-6">
+            <UpdateNotesPanel />
+          </div>
         </main>
       </div>
     );
@@ -154,6 +161,9 @@ export default async function DashboardPage() {
             }}
             requests={reqs}
           />
+          <div className="mt-6">
+            <UpdateNotesPanel />
+          </div>
         </main>
       </div>
     );
@@ -325,7 +335,11 @@ export default async function DashboardPage() {
           data={data}
           greetingName={user.display_name || user.username}
           isManager={isManager}
+          showOutcomes={isSales}
         />
+        <div className="mt-6">
+          <UpdateNotesPanel />
+        </div>
       </main>
     </div>
   );

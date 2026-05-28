@@ -282,8 +282,13 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
           )}
         </div>
 
+        {/* "Work on this lead" belongs to the person the lead was handed
+            to — the assignee — not the manager who distributed it. A
+            manager who passes a lead to another member shouldn't keep a
+            work panel for a client they're not running. Admins keep it as
+            a fill-in. */}
         {lead.status === "distributed" &&
-          (me.id === lead.assigned_to_id || canDistribute) && (
+          (me.id === lead.assigned_to_id || flags.isAdmin) && (
             <WorkPanel
               leadId={lead.id}
               folderId={lead.folder_id}
