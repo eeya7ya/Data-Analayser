@@ -2,19 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CalendarDays,
+  CalendarHeart,
   ChevronLeft,
   ChevronRight,
+  Plus,
   Trash2,
   X,
 } from "lucide-react";
 
 /**
- * Calendar Marker — a per-user week calendar. One page == one week and the
- * grid fills the viewport. Click any day to jot a short note and tag it
- * with a colour; marks persist via /api/calendar (scoped to the signed-in
- * user). Navigation moves a week at a time, with a quick jump back to the
- * current week.
+ * Calendar Marker — a per-user week calendar designed to feel soft and
+ * calm. One page == one week and the grid fills the viewport. Click any
+ * day to jot a short note and tag it with a pastel colour; marks persist
+ * via /api/calendar (scoped to the signed-in user).
  */
 
 interface Mark {
@@ -22,53 +22,73 @@ interface Mark {
   color: ColorKey;
 }
 
-type ColorKey = "red" | "amber" | "emerald" | "sky" | "violet" | "slate";
+type ColorKey = "rose" | "amber" | "emerald" | "sky" | "violet" | "slate";
 
 const COLORS: Record<
   ColorKey,
-  { label: string; dot: string; cell: string; bar: string; swatch: string }
+  {
+    label: string;
+    dot: string;
+    grad: string;
+    border: string;
+    bar: string;
+    swatch: string;
+    text: string;
+  }
 > = {
-  red: {
-    label: "Red",
-    dot: "bg-magic-red",
-    cell: "bg-magic-red/5 border-magic-red/30",
-    bar: "bg-magic-red",
-    swatch: "bg-magic-red",
+  rose: {
+    label: "Blossom",
+    dot: "bg-rose-400",
+    grad: "from-rose-50 to-pink-50/40",
+    border: "border-rose-200",
+    bar: "bg-rose-300",
+    swatch: "bg-rose-400",
+    text: "text-rose-900/80",
   },
   amber: {
-    label: "Amber",
-    dot: "bg-amber-500",
-    cell: "bg-amber-50 border-amber-300",
-    bar: "bg-amber-500",
-    swatch: "bg-amber-500",
+    label: "Honey",
+    dot: "bg-amber-400",
+    grad: "from-amber-50 to-orange-50/40",
+    border: "border-amber-200",
+    bar: "bg-amber-300",
+    swatch: "bg-amber-400",
+    text: "text-amber-900/80",
   },
   emerald: {
-    label: "Green",
-    dot: "bg-emerald-500",
-    cell: "bg-emerald-50 border-emerald-300",
-    bar: "bg-emerald-500",
-    swatch: "bg-emerald-500",
+    label: "Mint",
+    dot: "bg-emerald-400",
+    grad: "from-emerald-50 to-teal-50/40",
+    border: "border-emerald-200",
+    bar: "bg-emerald-300",
+    swatch: "bg-emerald-400",
+    text: "text-emerald-900/80",
   },
   sky: {
-    label: "Blue",
-    dot: "bg-sky-500",
-    cell: "bg-sky-50 border-sky-300",
-    bar: "bg-sky-500",
-    swatch: "bg-sky-500",
+    label: "Sky",
+    dot: "bg-sky-400",
+    grad: "from-sky-50 to-cyan-50/40",
+    border: "border-sky-200",
+    bar: "bg-sky-300",
+    swatch: "bg-sky-400",
+    text: "text-sky-900/80",
   },
   violet: {
-    label: "Violet",
-    dot: "bg-violet-500",
-    cell: "bg-violet-50 border-violet-300",
-    bar: "bg-violet-500",
-    swatch: "bg-violet-500",
+    label: "Lavender",
+    dot: "bg-violet-400",
+    grad: "from-violet-50 to-purple-50/40",
+    border: "border-violet-200",
+    bar: "bg-violet-300",
+    swatch: "bg-violet-400",
+    text: "text-violet-900/80",
   },
   slate: {
-    label: "Grey",
+    label: "Cloud",
     dot: "bg-slate-400",
-    cell: "bg-slate-50 border-slate-300",
-    bar: "bg-slate-400",
+    grad: "from-slate-50 to-slate-100/40",
+    border: "border-slate-200",
+    bar: "bg-slate-300",
     swatch: "bg-slate-400",
+    text: "text-slate-700",
   },
 };
 
@@ -170,12 +190,18 @@ export default function CalendarMarkerClient() {
   const markedCount = Object.keys(marks).length;
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="relative flex flex-1 flex-col">
+      {/* Soft decorative glow so the page never feels like a blank sheet. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-24 left-1/2 h-72 w-[40rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-rose-200/30 via-violet-200/30 to-sky-200/30 blur-3xl"
+      />
+
       {/* Header */}
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <div className="relative mb-5 flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-magic-red/10 text-magic-red">
-            <CalendarDays className="h-5 w-5" />
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-400 to-magic-red text-white shadow-lg shadow-rose-300/40">
+            <CalendarHeart className="h-6 w-6" />
           </span>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-magic-ink">
@@ -184,40 +210,40 @@ export default function CalendarMarkerClient() {
             <p className="text-sm text-magic-ink/55">
               {rangeLabel}
               {markedCount > 0 && (
-                <span className="ml-2 text-magic-ink/40">
-                  · {markedCount} marked
+                <span className="ml-2 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                  {markedCount} marked
                 </span>
               )}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 rounded-2xl border border-white bg-white/70 p-1 shadow-sm backdrop-blur">
           <button
             onClick={() => setWeekStart((w) => addDays(w, -7))}
             aria-label="Previous week"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-magic-border bg-white text-magic-ink/70 shadow-sm transition-colors hover:bg-magic-soft hover:text-magic-ink"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-magic-ink/60 transition-colors hover:bg-rose-50 hover:text-magic-red"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-5 w-5" />
           </button>
           <button
             onClick={() => setWeekStart(startOfWeek(new Date()))}
-            className="rounded-xl border border-magic-border bg-white px-3.5 py-2 text-sm font-semibold text-magic-ink/80 shadow-sm transition-colors hover:bg-magic-soft"
+            className="rounded-xl px-3.5 py-1.5 text-sm font-semibold text-magic-ink/75 transition-colors hover:bg-rose-50 hover:text-magic-red"
           >
             Today
           </button>
           <button
             onClick={() => setWeekStart((w) => addDays(w, 7))}
             aria-label="Next week"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-magic-border bg-white text-magic-ink/70 shadow-sm transition-colors hover:bg-magic-soft hover:text-magic-ink"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-magic-ink/60 transition-colors hover:bg-rose-50 hover:text-magic-red"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-5 w-5" />
           </button>
         </div>
       </div>
 
       {/* Week grid — fills the remaining height */}
-      <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
+      <div className="relative grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
         {days.map((d) => {
           const key = ymd(d);
           const mark = marks[key];
@@ -228,44 +254,63 @@ export default function CalendarMarkerClient() {
             <button
               key={key}
               onClick={() => setEditing(key)}
-              className={`group relative flex min-h-[8rem] flex-col overflow-hidden rounded-2xl border p-3 text-left shadow-mt-soft transition-all hover:shadow-mt-lift lg:min-h-0 ${
+              className={`group relative flex min-h-[8.5rem] flex-col overflow-hidden rounded-[1.75rem] border p-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-rose-200/40 lg:min-h-0 ${
                 c
-                  ? c.cell
-                  : isWeekend
-                    ? "border-magic-border bg-magic-soft/50"
-                    : "border-magic-border bg-white/80"
+                  ? `bg-gradient-to-br ${c.grad} ${c.border} shadow-md shadow-rose-100/40`
+                  : isToday
+                    ? "border-rose-200 bg-gradient-to-br from-rose-50 to-white shadow-md shadow-rose-200/40 ring-2 ring-rose-300/50"
+                    : isWeekend
+                      ? "border-violet-100 bg-gradient-to-br from-violet-50/50 to-white shadow-sm"
+                      : "border-white bg-gradient-to-br from-white to-slate-50/60 shadow-sm"
               }`}
             >
               {c && (
                 <span
-                  className={`absolute inset-y-0 left-0 w-1.5 ${c.bar}`}
+                  className={`absolute inset-y-3 left-0 w-1.5 rounded-full ${c.bar}`}
                   aria-hidden
                 />
               )}
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-magic-ink/45">
+                <span
+                  className={`text-[11px] font-bold uppercase tracking-widest ${
+                    isToday ? "text-magic-red/70" : "text-magic-ink/40"
+                  }`}
+                >
                   {WEEKDAYS[d.getDay()]}
                 </span>
                 <span
-                  className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-bold ${
+                  className={`inline-flex h-8 min-w-8 items-center justify-center rounded-2xl px-2 text-sm font-bold transition-colors ${
                     isToday
-                      ? "bg-magic-red text-white shadow-sm"
-                      : "text-magic-ink/80"
+                      ? "bg-gradient-to-br from-rose-400 to-magic-red text-white shadow-md shadow-rose-300/50"
+                      : "bg-white/70 text-magic-ink/75"
                   }`}
                 >
                   {d.getDate()}
                 </span>
               </div>
 
-              <div className="mt-2 flex-1">
+              <div className="mt-2.5 flex flex-1 flex-col">
                 {mark ? (
-                  <p className="whitespace-pre-line break-words text-sm leading-snug text-magic-ink/85 line-clamp-6">
-                    {mark.note}
-                  </p>
+                  <div className="flex items-start gap-2">
+                    <span
+                      className={`mt-1 h-2 w-2 shrink-0 rounded-full ${c!.dot}`}
+                      aria-hidden
+                    />
+                    <p
+                      className={`whitespace-pre-line break-words text-sm font-medium leading-snug ${c!.text} line-clamp-6`}
+                    >
+                      {mark.note}
+                    </p>
+                  </div>
                 ) : (
-                  <span className="text-xs text-magic-ink/30 opacity-0 transition-opacity group-hover:opacity-100">
-                    + Add a note
-                  </span>
+                  <div className="flex flex-1 flex-col items-center justify-center gap-2 text-magic-ink/30">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-magic-ink/20 bg-white/60 transition-colors group-hover:border-magic-red/40 group-hover:bg-rose-50 group-hover:text-magic-red">
+                      <Plus className="h-4 w-4" />
+                    </span>
+                    <span className="text-[11px] font-medium opacity-60 transition-opacity group-hover:opacity-100">
+                      Add a note
+                    </span>
+                  </div>
                 )}
               </div>
             </button>
@@ -274,7 +319,9 @@ export default function CalendarMarkerClient() {
       </div>
 
       {loading && (
-        <p className="mt-3 text-center text-xs text-magic-ink/40">Syncing…</p>
+        <p className="relative mt-3 text-center text-xs text-magic-ink/40">
+          Syncing…
+        </p>
       )}
 
       {editing && (
@@ -283,7 +330,7 @@ export default function CalendarMarkerClient() {
           initial={marks[editing]}
           onClose={() => setEditing(null)}
           onSave={save}
-          onDelete={(d) => void save(d, "", "red")}
+          onDelete={(d) => void save(d, "", "rose")}
         />
       )}
     </div>
@@ -304,7 +351,7 @@ function DayEditor({
   onDelete: (date: string) => void;
 }) {
   const [note, setNote] = useState(initial?.note ?? "");
-  const [color, setColor] = useState<ColorKey>(initial?.color ?? "red");
+  const [color, setColor] = useState<ColorKey>(initial?.color ?? "rose");
   const [y, m, d] = dateKey.split("-").map(Number);
   const dateObj = new Date(y, m - 1, d);
   const pretty = `${WEEKDAYS[dateObj.getDay()]}, ${MONTHS[dateObj.getMonth()]} ${d}, ${y}`;
@@ -319,22 +366,22 @@ function DayEditor({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-magic-ink/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-magic-ink/30 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-magic-border bg-white p-5 shadow-2xl"
+        className="w-full max-w-md rounded-[1.75rem] border border-white bg-white/95 p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-3 flex items-start justify-between">
+        <div className="mb-4 flex items-start justify-between">
           <div>
-            <h2 className="text-base font-bold text-magic-ink">{pretty}</h2>
-            <p className="text-xs text-magic-ink/50">Mark this day.</p>
+            <h2 className="text-lg font-bold text-magic-ink">{pretty}</h2>
+            <p className="text-xs text-magic-ink/50">A little note for this day.</p>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-magic-ink/50 hover:bg-magic-soft hover:text-magic-ink"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-magic-ink/50 hover:bg-rose-50 hover:text-magic-red"
           >
             <X className="h-4 w-4" />
           </button>
@@ -345,21 +392,22 @@ function DayEditor({
           rows={4}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="What's happening this day?"
-          className="w-full resize-none rounded-xl border border-magic-border bg-white px-3 py-2.5 text-sm text-magic-ink focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+          placeholder="What's happening this day? ✿"
+          className="w-full resize-none rounded-2xl border border-magic-border bg-rose-50/30 px-4 py-3 text-sm text-magic-ink placeholder:text-magic-ink/35 focus:border-rose-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-200"
         />
 
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-4 flex items-center gap-2.5">
           <span className="text-xs font-semibold text-magic-ink/55">Colour</span>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {(Object.keys(COLORS) as ColorKey[]).map((k) => (
               <button
                 key={k}
                 onClick={() => setColor(k)}
+                title={COLORS[k].label}
                 aria-label={COLORS[k].label}
-                className={`h-6 w-6 rounded-full ${COLORS[k].swatch} transition-transform hover:scale-110 ${
+                className={`h-7 w-7 rounded-full ${COLORS[k].swatch} transition-transform hover:scale-110 ${
                   color === k
-                    ? "ring-2 ring-magic-ink/60 ring-offset-2"
+                    ? "scale-110 ring-2 ring-magic-ink/40 ring-offset-2"
                     : "ring-1 ring-black/5"
                 }`}
               />
@@ -367,11 +415,11 @@ function DayEditor({
           </div>
         </div>
 
-        <div className="mt-5 flex items-center justify-between">
+        <div className="mt-6 flex items-center justify-between">
           {initial ? (
             <button
               onClick={() => onDelete(dateKey)}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-magic-red hover:bg-magic-red/5"
+              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-magic-red hover:bg-rose-50"
             >
               <Trash2 className="h-4 w-4" />
               Clear
@@ -382,13 +430,13 @@ function DayEditor({
           <div className="flex gap-2">
             <button
               onClick={onClose}
-              className="rounded-lg border border-magic-border bg-white px-3.5 py-2 text-sm font-semibold text-magic-ink/70 hover:bg-magic-soft"
+              className="rounded-xl border border-magic-border bg-white px-4 py-2 text-sm font-semibold text-magic-ink/70 hover:bg-magic-soft"
             >
               Cancel
             </button>
             <button
               onClick={() => onSave(dateKey, note, color)}
-              className="rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
+              className="rounded-xl bg-gradient-to-br from-rose-400 to-magic-red px-5 py-2 text-sm font-semibold text-white shadow-md shadow-rose-300/40 transition-transform hover:scale-105"
             >
               Save
             </button>
