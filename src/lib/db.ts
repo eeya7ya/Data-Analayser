@@ -365,6 +365,23 @@ const V13C_FLAG = "v1_3c_execution_reports_2026_05";
  */
 const V13D_FLAG = "v1_3d_sales_module_2026_05";
 
+/**
+ * Personal tools — per-user Calendar Marker + My Notes. Two strictly
+ * private, strictly additive tables available to every signed-in user
+ * regardless of module roles:
+ *
+ *   • `calendar_marks` — one optional mark per (user, day): a short note
+ *     plus a colour tag, surfaced in the week-view calendar. Upserted by
+ *     (user_id, mark_date); clearing the note deletes the row.
+ *   • `user_notes` — the user's own notebook. Each note has a title +
+ *     body, soft-deleted via `deleted_at`, and can be exported to a
+ *     branded PDF client-side.
+ *
+ * Both are owner-isolated by `user_id` and never read by any other
+ * surface, so adding them is invisible to the rest of the app.
+ */
+const USER_TOOLS_FLAG = "user_tools_calendar_notes_v1_2026_05";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -443,6 +460,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let v13bApplied = false;
   let v13cApplied = false;
   let v13dApplied = false;
+  let userToolsApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -456,7 +474,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG},
         ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG},
         ${NOTIFICATION_STATE_FLAG}, ${PROJECT_HANDOFFS_FLAG},
-        ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}
+        ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}, ${USER_TOOLS_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -486,6 +504,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     v13bApplied = keys.has(V13B_FLAG);
     v13cApplied = keys.has(V13C_FLAG);
     v13dApplied = keys.has(V13D_FLAG);
+    userToolsApplied = keys.has(USER_TOOLS_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -517,7 +536,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     projectHandoffsApplied &&
     v13bApplied &&
     v13cApplied &&
-    v13dApplied
+    v13dApplied &&
+    userToolsApplied
   )
     return;
 
@@ -2411,6 +2431,52 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${V13D_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!userToolsApplied) {
+    // Personal Calendar Marker. One optional row per (user, day). The
+    // unique constraint lets the API upsert with ON CONFLICT, and a
+    // colour tag drives the dot/cell accent in the week view. `note` is
+    // short free text; clearing it deletes the row API-side.
+    await q`
+      create table if not exists calendar_marks (
+        id         bigserial primary key,
+        user_id    integer not null references users(id) on delete cascade,
+        mark_date  date not null,
+        note       text not null default '',
+        color      text not null default 'red',
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now(),
+        unique (user_id, mark_date)
+      )
+    `;
+    await q`
+      create index if not exists calendar_marks_user_date_idx
+        on calendar_marks(user_id, mark_date)
+    `;
+
+    // My Notes — the user's private notebook. Soft-deleted via deleted_at
+    // so an accidental delete is recoverable, owner-isolated by user_id.
+    await q`
+      create table if not exists user_notes (
+        id         bigserial primary key,
+        user_id    integer not null references users(id) on delete cascade,
+        title      text not null default 'Untitled note',
+        body       text not null default '',
+        deleted_at timestamptz,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists user_notes_user_idx
+        on user_notes(user_id, deleted_at, updated_at desc)
+    `;
+
+    await q`
+      insert into migration_flags (key) values (${USER_TOOLS_FLAG})
       on conflict (key) do nothing
     `;
   }

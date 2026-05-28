@@ -7,6 +7,8 @@ import {
   LayoutDashboard,
   Building2,
   ShieldCheck,
+  CalendarDays,
+  NotebookPen,
   ChevronDown,
   X,
   type LucideIcon,
@@ -68,9 +70,14 @@ export default function SideNav({
   // CRM is the single hub for the work modules (Sales / Presales /
   // Storage / Projects / Pricing live as tabs inside it), so the drawer
   // intentionally does NOT repeat them — only the top-level surfaces.
+  // Personal tools — available to every signed-in user, each with its own
+  // private data. Kept alongside the primary surfaces (not behind a
+  // separate group) so they're one tap away.
   const primary: NavItem[] = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/crm", label: "CRM", icon: Building2, show: has("crm") || has("projects") },
+    { href: "/calendar", label: "Calendar", icon: CalendarDays, show: true },
+    { href: "/notes", label: "My Notes", icon: NotebookPen, show: true },
   ].filter((i) => i.show);
 
   const legacy = [
