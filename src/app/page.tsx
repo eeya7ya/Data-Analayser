@@ -27,11 +27,10 @@ export default async function DashboardPage() {
   await ensureSchema();
 
   const isAdmin = canReadAll(user);
+  // 1.4A — approvals are sales-only. Only a sales manager (or admin) signs
+  // off and sees the "Awaiting approval" action card; presales never do.
   const isSalesManager =
     isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
-  const isPresalesManager =
-    isAdmin || (await hasModuleRole(user.id, "crm", "presales_manager"));
-  const isManager = isSalesManager || isPresalesManager;
 
   // Role-aware dashboard. A "pure" projects person (technician /
   // engineer / project manager with no sales/presales hat and not an
@@ -184,21 +183,13 @@ export default async function DashboardPage() {
   const kpi = kpiRows[0];
 
   let pendingApprovals = 0;
-  if (isManager) {
-    // Count each pending quotation ONCE. Summing a sales-pending count and
-    // a presales-pending count double-counts every quotation that needs
-    // both sign-offs (and an admin is both managers), which is how this
-    // KPI ballooned past the total quotation count. The OR mirrors the
-    // notifications bell's approval query.
+  if (isSalesManager) {
+    // Quotations awaiting the sales manager's sign-off (sales-only model).
     const rows = (await q`
       select count(*)::int as n from quotations
       where deleted_at is null
         and approved_at is null
         and rejected_at is null
-        and (
-          (${isSalesManager}::boolean and sales_approved_at is null)
-          or (${isPresalesManager}::boolean and presales_approved_at is null)
-        )
     `) as Array<{ n: number }>;
     pendingApprovals = Number(rows[0].n);
   }
@@ -327,7 +318,7 @@ export default async function DashboardPage() {
         <DashboardClient
           data={data}
           greetingName={user.display_name || user.username}
-          isManager={isManager}
+          showApprovals={isSalesManager}
           showOutcomes={isSales}
         />
       </main>

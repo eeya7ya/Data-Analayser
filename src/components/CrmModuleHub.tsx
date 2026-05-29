@@ -33,7 +33,9 @@ export interface CrmHubFlags {
   projects: boolean;
   /** projects.manager — sees the handoff-assignment queue. */
   projectsManager: boolean;
-  /** crm.presales_manager — distributes leads to presales members. */
+  /** crm.sales_manager — sees the Approvals queue (sales-only sign-off). */
+  salesManager: boolean;
+  /** crm.presales_manager — kept for role display; no longer distributes. */
   presalesManager: boolean;
   pricing: boolean;
 }
@@ -104,12 +106,12 @@ const TAB_META: Record<TabId, { label: string; icon: LucideIcon; blurb: string }
   sales: {
     label: "Sales",
     icon: Briefcase,
-    blurb: "Clients, leads, approvals, and converting won deals into projects.",
+    blurb: "Your clients and your sales pipeline.",
   },
   presales: {
     label: "Presales",
     icon: ClipboardList,
-    blurb: "Your assigned leads, clients, and pricing → quotation.",
+    blurb: "The shared lead queue, your clients, and pricing → quotation.",
   },
   storage: {
     label: "Storage",
@@ -196,18 +198,27 @@ export default function CrmModuleHub({
   }, [tab]);
 
   const entryCards: Record<TabId, EntryCard[]> = {
+    // 1.4A — the Sales tab is just the client work + the tracking tool.
+    // Opening an RFQ happens in-context from a client / project, project
+    // handoffs live in the Projects area, and Approvals is a sales-manager
+    // queue (shown only to managers, since approvals are sales-only).
     sales: [
-      { href: "/leads/new", title: "Request for Quotation", desc: "Open an RFQ — presales picks it up and builds the quotation." },
-      { href: "/crm/sales-pipeline", title: "Sales pipeline", desc: "Your Held, Won, and Lost deals — track and analyse outcomes." },
-      { href: "/leads", title: "New leads", desc: "Open new leads and hand them to presales for distribution." },
-      { href: "/inbox/approvals", title: "Approvals", desc: "Review and sign off quotations awaiting approval." },
-      { href: "/projects/handoffs", title: "Project handoffs", desc: "Quotations you converted into projects, and their status." },
+      { href: "/crm/sales-pipeline", title: "Sales pipeline", desc: "Track your Held, Won, and Lost deals." },
+      ...(flags.salesManager
+        ? [
+            {
+              href: "/inbox/approvals",
+              title: "Approvals",
+              desc: "Review and sign off quotations awaiting approval.",
+            },
+          ]
+        : []),
     ],
     presales: [
       {
         href: "/leads",
-        title: "New leads",
-        desc: "Distribute new leads to presales members.",
+        title: "Lead queue",
+        desc: "Claim a lead and turn it into a company, client, project and quotation.",
       },
       { href: "/pricing", title: "Pricing sheets", desc: "Prepare manufacturer pricing, then convert to a quotation." },
     ],

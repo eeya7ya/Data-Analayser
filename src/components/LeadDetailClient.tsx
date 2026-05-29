@@ -15,7 +15,6 @@ interface LeadRow {
   created_by_username: string | null;
   created_by_name: string | null;
   requested_timeline_at: string | null;
-  presales_manager_username: string | null;
   assigned_to_id: number | null;
   assigned_to_username: string | null;
   assigned_to_name: string | null;
@@ -40,12 +39,6 @@ interface LeadEvent {
   actor_name: string | null;
 }
 
-interface UserRef {
-  id: number;
-  username: string;
-  display_name: string;
-}
-
 interface CurrentUser {
   id: number;
   role: string;
@@ -54,7 +47,7 @@ interface CurrentUser {
 
 const STATUS_PILL: Record<string, string> = {
   new: "bg-sky-100 text-sky-800 border-sky-200",
-  distributed: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  in_progress: "bg-emerald-100 text-emerald-800 border-emerald-200",
 };
 
 export default function LeadDetailClient({ leadId }: { leadId: number }) {
@@ -109,7 +102,7 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
       isAdmin || me.module_roles.some((g) => g.module === m && g.role === r);
     return {
       isAdmin,
-      isPresalesManager: has("crm", "presales_manager"),
+      isPresales: has("crm", "presales") || has("crm", "presales_manager"),
     };
   }, [me]);
 
@@ -128,8 +121,10 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
     );
   }
 
-  const canDistribute = flags.isPresalesManager || flags.isAdmin;
   const assigned = lead.assigned_to_name || lead.assigned_to_username;
+  const isOwner = me.id === lead.assigned_to_id;
+  const isUnclaimed = lead.status === "new" || lead.assigned_to_id === null;
+  const canClaim = flags.isPresales || flags.isAdmin;
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -168,13 +163,14 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
                   : "—"
               }
             />
+            <Field label="Working on it" value={assigned || "Unclaimed"} />
             <Field
-              label="Distributed to"
-              value={assigned || "—"}
-            />
-            <Field
-              label="Distributed by"
-              value={lead.presales_manager_username ?? "—"}
+              label="Claimed"
+              value={
+                lead.assigned_at
+                  ? new Date(lead.assigned_at).toLocaleDateString()
+                  : "—"
+              }
             />
           </dl>
 
@@ -251,44 +247,22 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
         </div>
       </div>
 
-      {/* Right rail — distribution is the lead's only action */}
+      {/* Right rail — ownership + the work flow */}
       <div className="space-y-4">
-        <div className="rounded-xl border border-magic-border bg-white p-5 shadow-sm">
-          <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-magic-ink/70">
-            Distribution
-          </h3>
-          {lead.status === "distributed" && (
-            <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-              Distributed to{" "}
-              <span className="font-semibold">{assigned || "a presales member"}</span>
-              {lead.assigned_at && (
-                <> · {new Date(lead.assigned_at).toLocaleDateString()}</>
-              )}
-              . This lead&apos;s job is complete.
-            </p>
-          )}
-          {canDistribute ? (
-            <DistributePanel
-              leadId={lead.id}
-              onChanged={reload}
-              reassign={lead.status === "distributed"}
-            />
-          ) : (
-            lead.status === "new" && (
-              <p className="text-xs italic text-magic-ink/50">
-                Waiting for a presales manager to distribute this lead.
-              </p>
-            )
-          )}
-        </div>
+        <OwnershipPanel
+          lead={lead}
+          assigned={assigned}
+          isOwner={isOwner}
+          isUnclaimed={isUnclaimed}
+          canClaim={canClaim}
+          isAdmin={flags.isAdmin}
+          onChanged={reload}
+        />
 
-        {/* "Work on this lead" belongs to the person the lead was handed
-            to — the assignee — not the manager who distributed it. A
-            manager who passes a lead to another member shouldn't keep a
-            work panel for a client they're not running. Admins keep it as
-            a fill-in. */}
-        {lead.status === "distributed" &&
-          (me.id === lead.assigned_to_id || flags.isAdmin) && (
+        {/* "Work on this lead" belongs to the person who claimed it. Admins
+            keep it as a fill-in. */}
+        {lead.status === "in_progress" &&
+          (isOwner || flags.isAdmin) && (
             <WorkPanel
               leadId={lead.id}
               folderId={lead.folder_id}
@@ -298,6 +272,115 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
             />
           )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The shared-queue ownership control. Replaces the old manager
+ * "Distribute" panel: an unclaimed lead can be claimed by any presales
+ * person; the owner (or an admin) can release it back to the queue.
+ */
+function OwnershipPanel({
+  lead,
+  assigned,
+  isOwner,
+  isUnclaimed,
+  canClaim,
+  isAdmin,
+  onChanged,
+}: {
+  lead: LeadRow;
+  assigned: string | null;
+  isOwner: boolean;
+  isUnclaimed: boolean;
+  canClaim: boolean;
+  isAdmin: boolean;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState<"claim" | "release" | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function act(action: "claim" | "release") {
+    setBusy(action);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      onChanged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-magic-border bg-white p-5 shadow-sm">
+      <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-magic-ink/70">
+        Ownership
+      </h3>
+
+      {isUnclaimed ? (
+        <>
+          <p className="rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-800">
+            This lead is unclaimed and sitting in the shared queue.
+          </p>
+          {canClaim ? (
+            <button
+              type="button"
+              onClick={() => void act("claim")}
+              disabled={busy !== null}
+              className="mt-3 w-full rounded-lg bg-magic-red px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
+            >
+              {busy === "claim" ? "Claiming…" : "Claim this lead"}
+            </button>
+          ) : (
+            <p className="mt-3 text-xs italic text-magic-ink/50">
+              Waiting for a presales person to claim this lead.
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+            {isOwner ? (
+              <>You&apos;re working on this lead.</>
+            ) : (
+              <>
+                Being worked on by{" "}
+                <span className="font-semibold">{assigned || "a presales member"}</span>
+                {lead.assigned_at && (
+                  <> · since {new Date(lead.assigned_at).toLocaleDateString()}</>
+                )}
+                .
+              </>
+            )}
+          </p>
+          {(isOwner || isAdmin) && (
+            <button
+              type="button"
+              onClick={() => void act("release")}
+              disabled={busy !== null}
+              className="mt-3 w-full rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50"
+            >
+              {busy === "release" ? "Releasing…" : "Release back to queue"}
+            </button>
+          )}
+          {!isOwner && !isAdmin && (
+            <p className="mt-2 text-[11px] text-magic-ink/45">
+              Only the person working it can make changes.
+            </p>
+          )}
+        </>
+      )}
+
+      {err && <p className="mt-2 text-xs text-red-700">{err}</p>}
     </div>
   );
 }
@@ -315,16 +398,15 @@ interface FolderOpt {
 }
 
 /**
- * Where the assigned presales engineer turns a distributed lead into real
- * CRM work. The flow mirrors the real process:
+ * Where the presales owner turns a claimed lead into real CRM work. The flow
+ * mirrors the real process:
  *
  *   New client →  pick Company or Individual  →  create the client
  *   Existing   →  pick Company/Individual     →  select the client
  *
- * Either way the lead gets linked to a client folder (owned by the
- * engineer, so they keep access) and the panel then drops them into that
- * client's workspace, where they create a project and start a quotation
- * or pricing.
+ * Either way the lead gets linked to a client folder (owned by the engineer,
+ * so they keep access) and the panel then drops them into that client's
+ * workspace, where they create a project and start a quotation or pricing.
  */
 function WorkPanel({
   leadId,
@@ -711,111 +793,5 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
       </dt>
       <dd className="text-sm text-magic-ink">{value}</dd>
     </div>
-  );
-}
-
-/**
- * Presales manager distributes the lead to a presales member. Posting to
- * the assign route flips the lead to `distributed` — its terminal state.
- */
-function DistributePanel({
-  leadId,
-  onChanged,
-  reassign = false,
-}: {
-  leadId: number;
-  onChanged: () => void;
-  reassign?: boolean;
-}) {
-  const [users, setUsers] = useState<UserRef[]>([]);
-  const [assigneeId, setAssigneeId] = useState<string>("");
-  const [note, setNote] = useState("");
-  const [respondBy, setRespondBy] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/leads/users?role=presales", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: { users?: UserRef[] }) => setUsers(d.users ?? []))
-      .catch(() => setUsers([]));
-  }, []);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    if (!assigneeId) {
-      setErr("Pick a presales member.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/leads/${leadId}/assign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          assignee_id: Number(assigneeId),
-          note: note.trim() || undefined,
-          requested_timeline_at: respondBy || undefined,
-        }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="mt-2 space-y-2">
-      <h4 className="text-xs font-semibold text-magic-ink">
-        {reassign ? "Re-distribute to another member" : "Distribute to a presales member"}
-      </h4>
-      <select
-        value={assigneeId}
-        onChange={(e) => setAssigneeId(e.target.value)}
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      >
-        <option value="">Pick a presales member…</option>
-        {users.map((u) => (
-          <option key={u.id} value={u.id}>
-            {u.display_name || u.username}
-          </option>
-        ))}
-      </select>
-      <textarea
-        rows={2}
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="Optional note to include in the message"
-        className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-      />
-      <div>
-        <label className="block text-[11px] font-semibold uppercase tracking-wide text-magic-ink/55">
-          Response needed by
-        </label>
-        <input
-          type="date"
-          value={respondBy}
-          onChange={(e) => setRespondBy(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-        />
-        <p className="mt-1 text-[10px] text-magic-ink/50">
-          Presales sets its own turnaround — the date this lead should be
-          responded to.
-        </p>
-      </div>
-      {err && <p className="text-xs text-red-700">{err}</p>}
-      <button
-        type="submit"
-        disabled={busy}
-        className="w-full rounded-lg bg-magic-red px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
-      >
-        {busy ? "Sending…" : reassign ? "Re-distribute & notify" : "Distribute & notify"}
-      </button>
-    </form>
   );
 }

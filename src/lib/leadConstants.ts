@@ -9,13 +9,19 @@
  */
 
 /**
- * The lead has exactly one job: intake → distribution. A presales manager
- * distributes (assigns) a new lead to a presales member; that's the whole
- * lifecycle. Once `distributed`, the lead is done — the actual quotation /
- * project work happens in the CRM client area and the handoffs queue, not
- * on the lead.
+ * 1.4A — presales shared queue. A lead is pure information intake: sales
+ * opens it, and it lands in a single shared presales queue. Any presales
+ * person CLAIMS a lead to start working it — there is no manager hand-off /
+ * distribution step. While claimed, the lead shows who is working on it.
+ *
+ *   new          — unclaimed, sitting in the shared presales queue.
+ *   in_progress  — a presales person claimed it (assigned_to_id) and is
+ *                  turning it into a company / client / project.
+ *
+ * The actual quotation / project work continues in the CRM client area; the
+ * lead just records who owns the intake.
  */
-export const LEAD_STATUSES = ["new", "distributed"] as const;
+export const LEAD_STATUSES = ["new", "in_progress"] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 export const LEAD_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
@@ -25,11 +31,11 @@ export const LEAD_MESSAGE_KINDS = ["lead_assigned", "general"] as const;
 export type LeadMessageKind = (typeof LEAD_MESSAGE_KINDS)[number];
 
 export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
-  new: "New",
-  distributed: "Distributed",
+  new: "In queue",
+  in_progress: "In progress",
 };
 
 export const LEAD_STATUS_WAITING_ON: Record<LeadStatus, string> = {
-  new: "Presales manager (distribute)",
-  distributed: "—",
+  new: "Any presales — claim to start",
+  in_progress: "Assigned presales",
 };

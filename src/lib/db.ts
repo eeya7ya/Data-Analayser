@@ -381,6 +381,15 @@ const V13D_FLAG = "v1_3d_sales_module_2026_05";
  * surface, so adding them is invisible to the rest of the app.
  */
 const USER_TOOLS_FLAG = "user_tools_calendar_notes_v1_2026_05";
+// 1.4A — retarget the Sales update note to the sales audience only (so
+// presales no longer sees a sales-module note) and seed a presales-specific
+// note for the new shared-queue lead workflow. Data-only migration; touches
+// `news_posts` rows, never DDL.
+const V14A_FLAG = "v1_4a_update_notes_role_targeting_2026_05";
+// 1.4A — migrate leads to the shared-queue lifecycle. The old model used
+// status 'distributed' for a manager-assigned lead; the new model calls a
+// claimed lead 'in_progress'. Data-only (status rename), no DDL.
+const LEAD_SHARED_QUEUE_FLAG = "lead_shared_queue_v1_4a_2026_05";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
@@ -461,6 +470,8 @@ async function _ensureSchemaOnce(): Promise<void> {
   let v13cApplied = false;
   let v13dApplied = false;
   let userToolsApplied = false;
+  let v14aApplied = false;
+  let leadSharedQueueApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -474,7 +485,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${MODULE_RBAC_REVOKE_FLAG}, ${LEAD_LIFECYCLE_FLAG},
         ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG},
         ${NOTIFICATION_STATE_FLAG}, ${PROJECT_HANDOFFS_FLAG},
-        ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}, ${USER_TOOLS_FLAG}
+        ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}, ${USER_TOOLS_FLAG},
+        ${V14A_FLAG}, ${LEAD_SHARED_QUEUE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -505,6 +517,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     v13cApplied = keys.has(V13C_FLAG);
     v13dApplied = keys.has(V13D_FLAG);
     userToolsApplied = keys.has(USER_TOOLS_FLAG);
+    v14aApplied = keys.has(V14A_FLAG);
+    leadSharedQueueApplied = keys.has(LEAD_SHARED_QUEUE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -537,7 +551,9 @@ async function _ensureSchemaOnce(): Promise<void> {
     v13bApplied &&
     v13cApplied &&
     v13dApplied &&
-    userToolsApplied
+    userToolsApplied &&
+    v14aApplied &&
+    leadSharedQueueApplied
   )
     return;
 
@@ -1880,15 +1896,18 @@ async function _ensureSchemaOnce(): Promise<void> {
     // is touched. Soft-delete (`deleted_at`) on the leads row and FK
     // ON DELETE SET NULL on every link so the lead survives even if its
     // linked company / folder / contact / quotation / file is later
-    // archived. The status text column doubles as the workflow stage — the
-    // lead exists only to be distributed:
+    // archived. The status text column doubles as the workflow stage. Since
+    // 1.4A the lifecycle is a shared presales queue (see /lib/leadConstants):
     //
-    //   new          — opened by a sales / presales user. Presales manager
-    //                  distribution queue.
-    //   distributed  — presales manager handed the lead to a specific
-    //                  presales member. Terminal — the lead's job is done;
-    //                  the actual quotation / project work continues in the
-    //                  CRM client area and the project-handoffs queue.
+    //   new          — opened by sales (the RFQ). Sits unclaimed in the
+    //                  shared presales queue.
+    //   in_progress  — a presales person claimed it (assigned_to_id) and is
+    //                  turning it into a company / client / project. The
+    //                  actual quotation / project work continues in the CRM
+    //                  client area.
+    //
+    // (Pre-1.4A rows used 'distributed'; the V14A lead migration renames
+    //  those to 'in_progress'.)
     //
     // Older deployments may still hold rows in legacy stages (assigned,
     // in_progress, quotation_sent, won, lost, …); the UI renders their raw
@@ -1970,8 +1989,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`create index if not exists lead_events_lead_idx
             on lead_events(lead_id, created_at desc)`;
 
-    // Email-styled in-app messages. Today these only render in the
-    // /leads/inbox surface and the TopBar bell; tomorrow a real
+    // Email-styled in-app messages. Today these surface via the TopBar
+    // bell and lead notifications; tomorrow a real
     // SMTP / API integration can populate `external_message_id` and
     // `delivered_at` without another migration. The matching
     // `users.email` column ships now so the eventual wire-up has
@@ -2412,7 +2431,7 @@ async function _ensureSchemaOnce(): Promise<void> {
       insert into news_posts
         (title, body, audience_modules, audience_roles, pinned, created_by)
       values (
-        ${"V1.3D — Sales module update"},
+        ${"1.4A — Sales module"},
         ${[
           "What changed for Sales in this release:",
           "",
@@ -2422,8 +2441,8 @@ async function _ensureSchemaOnce(): Promise<void> {
           "• Sales pipeline — new Held / Won / Lost tabs in the CRM Sales tool so you can track and analyse your deals.",
           "• Dashboard — toggle your analytics between daily, weekly, and monthly, and see your win/loss/held outcomes at a glance.",
         ].join("\n")},
-        ${["all"]}::text[],
-        ${["all"]}::text[],
+        ${["crm"]}::text[],
+        ${["sales", "sales_manager"]}::text[],
         ${true},
         ${null}
       )
@@ -2477,6 +2496,61 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${USER_TOOLS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!v14aApplied) {
+    // 1.4A — make Update notes role-aware. The original release note was
+    // seeded with an 'all' audience, so presales saw a sales-only note. Retag
+    // it to the sales audience (matched by its old title so existing
+    // databases are corrected; fresh DBs already seed it correctly above).
+    await q`
+      update news_posts
+      set title = ${"1.4A — Sales module"},
+          audience_modules = ${["crm"]}::text[],
+          audience_roles = ${["sales", "sales_manager"]}::text[]
+      where title in (${"V1.3D — Sales module update"}, ${"1.4A — Sales module"})
+    `;
+
+    // Seed a presales-specific note so presales see only what concerns them.
+    // Guarded by NOT EXISTS so re-running never duplicates the row.
+    await q`
+      insert into news_posts
+        (title, body, audience_modules, audience_roles, pinned, created_by)
+      select
+        ${"1.4A — Presales workflow"},
+        ${[
+          "What changed for Presales in this release:",
+          "",
+          "• Shared lead queue — new leads land in one presales queue. Claim a lead to start working it; everyone can see who is currently on each lead.",
+          "• Work a lead end-to-end — from the lead, pick or create the company, the individual or client, then the project. No manager hand-off step.",
+          "• No approvals for presales — your focus is designing and following up on sales requests. Approval sign-off is a sales responsibility.",
+        ].join("\n")},
+        ${["crm"]}::text[],
+        ${["presales", "presales_manager"]}::text[],
+        ${true},
+        ${null}
+      where not exists (
+        select 1 from news_posts where title = ${"1.4A — Presales workflow"}
+      )
+    `;
+
+    await q`
+      insert into migration_flags (key) values (${V14A_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!leadSharedQueueApplied) {
+    // Move pre-1.4A leads onto the shared-queue lifecycle. A lead that was
+    // 'distributed' (manager-assigned) is now 'in_progress' (claimed) — the
+    // assignee is already recorded in assigned_to_id, so this is a pure
+    // status rename. Untouched: 'new' leads stay 'new' (unclaimed).
+    await q`update leads set status = 'in_progress' where status = 'distributed'`;
+
+    await q`
+      insert into migration_flags (key) values (${LEAD_SHARED_QUEUE_FLAG})
       on conflict (key) do nothing
     `;
   }

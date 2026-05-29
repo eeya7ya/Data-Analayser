@@ -12,14 +12,15 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/quotations/reject  — body { id, reason }
  *
- * Stamps rejected_at / rejected_by / rejected_reason. Prior sales /
- * presales approval stamps are LEFT IN PLACE so the audit trail of
- * "was approved, then rejected" survives — the UI can show the order
- * by comparing timestamps. Use POST /api/quotations/unreject (Phase 5)
- * to clear rejected_at when the quotation is fixed and re-submitted;
- * for now a rejected quotation stays rejected.
+ * Stamps rejected_at / rejected_by / rejected_reason. A prior approval
+ * stamp is LEFT IN PLACE so the audit trail of "was approved, then
+ * rejected" survives — the UI can show the order by comparing timestamps.
+ * Use POST /api/quotations/unreject (Phase 5) to clear rejected_at when the
+ * quotation is fixed and re-submitted; for now a rejected quotation stays
+ * rejected.
  *
- * Auth: admin OR crm.sales_manager OR crm.presales_manager.
+ * 1.4A — Auth: admin OR crm.sales_manager. Presales no longer signs off on
+ * quotations.
  *
  * Nothing is deleted.
  */
@@ -48,12 +49,11 @@ export async function POST(req: Request) {
 
     const isManager =
       user.role === "admin" ||
-      (await hasModuleRole(user.id, "crm", "sales_manager")) ||
-      (await hasModuleRole(user.id, "crm", "presales_manager"));
+      (await hasModuleRole(user.id, "crm", "sales_manager"));
 
     if (!isManager) {
       return NextResponse.json(
-        { error: "requires crm.sales_manager or crm.presales_manager" },
+        { error: "requires crm.sales_manager" },
         { status: 403 },
       );
     }

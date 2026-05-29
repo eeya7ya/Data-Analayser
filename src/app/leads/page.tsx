@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { canReadAll, getSessionUser } from "@/lib/auth";
 import { ensureSchema } from "@/lib/db";
-import { canTriageLeads } from "@/lib/leads";
+import { canClaimLead, canCreateLead } from "@/lib/leads";
 import { hasModuleRole } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 import LeadsClient from "@/components/LeadsClient";
@@ -9,16 +9,13 @@ import LeadsClient from "@/components/LeadsClient";
 export const dynamic = "force-dynamic";
 
 /**
- * Leads landing page — role-aware.
+ * Leads landing page — role-aware (1.4A shared queue).
  *
- *   • Presales manager / admin  → the intake & distribution console:
- *     every lead, New / Distributed / All tabs, and lead creation.
- *   • Sales (non-manager)        → the leads they opened, to track
- *     progress, plus "+ New lead".
- *   • Presales engineer          → RECEIVE-only. Just the leads
- *     distributed to them; they open one and do the work (create / pick
- *     the client, project, quotation). No intake, no distribution, no
- *     "+ New lead".
+ *   • Presales (member, manager) / admin → the shared lead queue. Every
+ *     lead, claimed or not, with who is currently working it. Claim an
+ *     unclaimed lead to start; no manager distribution step.
+ *   • Sales (non-presales)                → the leads they opened, to track
+ *     which presales person picked each up, plus "+ New lead" (the RFQ).
  */
 export default async function LeadsPage() {
   const user = await getSessionUser();
@@ -26,15 +23,12 @@ export default async function LeadsPage() {
   await ensureSchema();
 
   const isAdmin = canReadAll(user);
-  const isManager = await canTriageLeads(user); // presales_manager or admin
+  const isPresales = await canClaimLead(user); // any presales role or admin
   const isSales =
     isAdmin ||
     (await hasModuleRole(user.id, "crm", "sales")) ||
     (await hasModuleRole(user.id, "crm", "sales_manager"));
-
-  // Leads are OPENED by sales (and managers/admins). A presales engineer
-  // only receives them, so they don't get lead creation.
-  const canCreate = isManager || isSales;
+  const canCreate = await canCreateLead(user); // any CRM role / admin
 
   return (
     <div className="min-h-screen bg-magic-soft/30">
@@ -42,17 +36,16 @@ export default async function LeadsPage() {
       <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6">
         <header className="mb-5">
           <h1 className="text-2xl font-bold text-magic-ink">
-            {isManager ? "New leads" : "My leads"}
+            {isPresales ? "Lead queue" : "My leads"}
           </h1>
           <p className="mt-1 text-sm text-magic-ink/60">
-            {isManager
-              ? "Intake and distribution. A presales manager distributes each new lead to a presales member — once distributed, the lead's job is done and the work continues in the CRM client area."
-              : "Leads handed to you. Open one to assign it to a company or individual, create or pick the client, then start a project and a quotation or pricing."}
+            {isPresales
+              ? "The shared presales queue. Claim a lead to start working it — everyone can see who's on each one. From the lead you pick or create the company, the client, then the project."
+              : "Requests for quotation you opened. Track which presales person picked each one up and how it's progressing."}
           </p>
         </header>
-        <LeadsClient canCreate={canCreate} isManager={isManager} />
+        <LeadsClient canCreate={canCreate} isPresales={isPresales} userId={user.id} />
       </main>
     </div>
   );
 }
-

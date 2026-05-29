@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { LEAD_STATUS_LABEL } from "@/lib/leadConstants";
 
@@ -11,11 +11,12 @@ interface Lead {
   priority: string;
   status: string;
   created_by_username: string | null;
+  assigned_to_id: number | null;
   assigned_to_username: string | null;
   created_at: string;
 }
 
-type Tab = "new" | "distributed" | "all";
+type Tab = "new" | "in_progress" | "all";
 
 const PRIORITY_PILL: Record<string, string> = {
   urgent: "bg-red-100 text-red-800 border-red-200",
@@ -26,22 +27,28 @@ const PRIORITY_PILL: Record<string, string> = {
 
 const STATUS_PILL: Record<string, string> = {
   new: "bg-sky-100 text-sky-800 border-sky-200",
-  distributed: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  in_progress: "bg-emerald-100 text-emerald-800 border-emerald-200",
 };
 
 export default function LeadsClient({
   canCreate,
-  isManager,
+  isPresales,
+  userId,
 }: {
   canCreate: boolean;
-  isManager: boolean;
+  isPresales: boolean;
+  userId: number;
 }) {
-  // Non-managers don't triage: they just see the leads scoped to them
-  // (assigned / opened) with no New-vs-Distributed framing.
-  const [tab, setTab] = useState<Tab>(isManager ? "new" : "all");
+  // Presales triage the shared queue by claim-state; sales just see their
+  // own opened leads with no tab framing.
+  const [tab, setTab] = useState<Tab>(isPresales ? "new" : "all");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [claiming, setClaiming] = useState<number | null>(null);
+  const [tick, setTick] = useState(0);
+
+  const reload = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,9 +56,7 @@ export default function LeadsClient({
     setError(null);
 
     const params = new URLSearchParams();
-    // Only managers filter by distribution status; everyone else sees
-    // their full scoped list.
-    if (isManager && tab !== "all") params.set("status", tab);
+    if (isPresales && tab !== "all") params.set("status", tab);
 
     fetch(`/api/leads?${params.toString()}`, { cache: "no-store" })
       .then((r) => r.json())
@@ -74,18 +79,40 @@ export default function LeadsClient({
     return () => {
       cancelled = true;
     };
-  }, [tab, isManager]);
+  }, [tab, isPresales, tick]);
+
+  async function claim(leadId: number) {
+    setClaiming(leadId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "claim" }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      reload();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setClaiming(null);
+    }
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {isManager ? (
+        {isPresales ? (
           <div className="inline-flex rounded-xl border border-magic-border bg-white p-1 text-sm shadow-sm">
             <TabButton active={tab === "new"} onClick={() => setTab("new")}>
-              New
+              Unclaimed
             </TabButton>
-            <TabButton active={tab === "distributed"} onClick={() => setTab("distributed")}>
-              Distributed
+            <TabButton
+              active={tab === "in_progress"}
+              onClick={() => setTab("in_progress")}
+            >
+              In progress
             </TabButton>
             <TabButton active={tab === "all"} onClick={() => setTab("all")}>
               All
@@ -119,74 +146,101 @@ export default function LeadsClient({
               <th className="px-3 py-2 font-semibold">Priority</th>
               <th className="px-3 py-2 font-semibold">Status</th>
               <th className="px-3 py-2 font-semibold">Opened by</th>
-              <th className="px-3 py-2 font-semibold">Distributed to</th>
+              <th className="px-3 py-2 font-semibold">Working on it</th>
               <th className="px-3 py-2 font-semibold">Opened</th>
+              {isPresales && <th className="px-3 py-2 font-semibold" />}
             </tr>
           </thead>
           <tbody className="divide-y divide-magic-border/40">
             {loading && (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-magic-ink/50">
+                <td colSpan={isPresales ? 8 : 7} className="px-3 py-6 text-center text-magic-ink/50">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && leads.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-magic-ink/50">
-                  {!isManager
-                    ? "No leads have been handed to you yet."
+                <td colSpan={isPresales ? 8 : 7} className="px-3 py-8 text-center text-magic-ink/50">
+                  {!isPresales
+                    ? "You haven't opened any leads yet."
                     : tab === "new"
-                      ? "No new leads waiting to be distributed."
-                      : tab === "distributed"
-                        ? "No distributed leads yet."
+                      ? "No unclaimed leads — the queue is clear."
+                      : tab === "in_progress"
+                        ? "No leads are being worked right now."
                         : "No leads yet."}
                 </td>
               </tr>
             )}
             {!loading &&
-              leads.map((l) => (
-                <tr key={l.id} className="transition-colors hover:bg-magic-soft/40">
-                  <td className="px-3 py-2 font-mono text-xs text-magic-ink/70">
-                    <Link href={`/leads/${l.id}`} className="hover:text-magic-red">
-                      {l.ref}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Link
-                      href={`/leads/${l.id}`}
-                      className="font-medium text-magic-ink hover:text-magic-red"
-                    >
-                      {l.title}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${PRIORITY_PILL[l.priority] ?? PRIORITY_PILL.normal}`}
-                    >
-                      {l.priority}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_PILL[l.status] ?? "border-slate-200 bg-slate-100 text-slate-700"}`}
-                    >
-                      {LEAD_STATUS_LABEL[l.status as keyof typeof LEAD_STATUS_LABEL] ?? l.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-magic-ink/70">
-                    {l.created_by_username ?? "—"}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-magic-ink/70">
-                    {l.assigned_to_username ?? (
-                      <span className="text-magic-ink/40">not distributed</span>
+              leads.map((l) => {
+                const mine = l.assigned_to_id === userId;
+                return (
+                  <tr key={l.id} className="transition-colors hover:bg-magic-soft/40">
+                    <td className="px-3 py-2 font-mono text-xs text-magic-ink/70">
+                      <Link href={`/leads/${l.id}`} className="hover:text-magic-red">
+                        {l.ref}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Link
+                        href={`/leads/${l.id}`}
+                        className="font-medium text-magic-ink hover:text-magic-red"
+                      >
+                        {l.title}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${PRIORITY_PILL[l.priority] ?? PRIORITY_PILL.normal}`}
+                      >
+                        {l.priority}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_PILL[l.status] ?? "border-slate-200 bg-slate-100 text-slate-700"}`}
+                      >
+                        {LEAD_STATUS_LABEL[l.status as keyof typeof LEAD_STATUS_LABEL] ?? l.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-magic-ink/70">
+                      {l.created_by_username ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-xs">
+                      {l.assigned_to_username ? (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold ${
+                            mine
+                              ? "border-magic-red/30 bg-magic-red/10 text-magic-red"
+                              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          }`}
+                        >
+                          {mine ? "You" : l.assigned_to_username}
+                        </span>
+                      ) : (
+                        <span className="text-magic-ink/40">Unclaimed</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-[11px] text-magic-ink/50">
+                      {new Date(l.created_at).toLocaleDateString()}
+                    </td>
+                    {isPresales && (
+                      <td className="px-3 py-2 text-right">
+                        {!l.assigned_to_id && (
+                          <button
+                            onClick={() => void claim(l.id)}
+                            disabled={claiming === l.id}
+                            className="rounded-lg bg-magic-red px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
+                          >
+                            {claiming === l.id ? "Claiming…" : "Claim"}
+                          </button>
+                        )}
+                      </td>
                     )}
-                  </td>
-                  <td className="px-3 py-2 text-[11px] text-magic-ink/50">
-                    {new Date(l.created_at).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
       </div>

@@ -16,14 +16,13 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET  /api/leads        → role-filtered list of leads.
- *                          Optional ?status=new|distributed to filter.
+ *                          Optional ?status=new|in_progress to filter.
  *
- * POST /api/leads        → create a new lead. Allowed for any CRM user
- *                          (sales / sales_manager / presales /
- *                          presales_manager). The lead lands in `new`
- *                          status, owned by the caller, and an inbox
- *                          message is dispatched to every presales_manager
- *                          so they can triage and assign.
+ * POST /api/leads        → open a new lead (the RFQ). Allowed for sales
+ *                          roles / admin. The lead lands in `new` status
+ *                          (unclaimed) in the shared queue, owned by the
+ *                          caller, and a message is dispatched to the whole
+ *                          presales team so any of them can claim it.
  */
 
 interface LeadRow {
@@ -61,10 +60,9 @@ export async function GET(req: NextRequest) {
     const q = sql();
 
     // Visibility:
-    //   - admin / presales_manager : every lead (the distribution queue)
-    //   - everyone else            : leads they opened OR were distributed
-    //                                to them
-    // Optional ?status filter (new | distributed) applies on top.
+    //   - admin / any presales role : every lead (the shared queue)
+    //   - everyone else (sales)     : leads they opened
+    // Optional ?status filter (new | in_progress) applies on top.
     const rows = (await q`
       select l.id, l.ref, l.title, l.description, l.source, l.priority, l.status,
              l.created_by, cu.username as created_by_username,
@@ -208,27 +206,28 @@ export async function POST(req: NextRequest) {
       requested_timeline_at: requestedTimelineAt,
     });
 
-    // Notify every presales_manager so they see the new entry in their
-    // triage queue. We do this synchronously because there are at most a
-    // handful of managers per org — the fan-out cost is trivial. If a
-    // lead is opened BY a presales_manager they still get the email so
-    // the audit trail is consistent (and a manager may delegate triage
-    // to another manager).
-    const managers = (await q`
-      select user_id
+    // Notify the whole presales team so the lead surfaces in the shared
+    // queue — any of them can claim it. There is no manager triage step.
+    // The fan-out is synchronous because presales teams are small.
+    const presales = (await q`
+      select distinct user_id
       from user_module_roles
-      where module = 'crm' and role = 'presales_manager' and revoked_at is null
+      where module = 'crm'
+        and role in ('presales', 'presales_manager')
+        and revoked_at is null
     `) as Array<{ user_id: number }>;
 
     // Also include legacy admin users so leads are never stuck without a
-    // triager in a fresh deployment.
+    // presales audience in a fresh deployment.
     const admins = (await q`
       select id as user_id from users where role = 'admin'
     `) as Array<{ user_id: number }>;
 
     const recipientIds = new Set<number>();
-    for (const m of managers) recipientIds.add(m.user_id);
+    for (const p of presales) recipientIds.add(p.user_id);
     for (const a of admins) recipientIds.add(a.user_id);
+    // Don't ping the opener about their own lead.
+    recipientIds.delete(user.id);
 
     const subject = `[Lead ${ref}] ${title}`;
     const timelineLine = requestedTimelineAt
@@ -240,7 +239,7 @@ export async function POST(req: NextRequest) {
       `Priority: ${priority}\n` +
       (description ? `Description:\n${description}\n\n` : "\n") +
       timelineLine +
-      `Open the lead to triage and assign a presales engineer.`;
+      `It's in the presales queue — open it and claim it to start working.`;
 
     for (const rid of recipientIds) {
       await sendLeadMessage({

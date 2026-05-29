@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, canReadAll } from "@/lib/auth";
 import { getLeadVisibility, logLeadEvent } from "@/lib/leads";
 
 export const runtime = "nodejs";
@@ -81,7 +81,7 @@ export async function GET(
     // requirement that "sales and presales can see read-only progress
     // of the lead lifecycle".
     const vis = await getLeadVisibility(user);
-    if (!vis.full && !vis.sales && !vis.ownerOnly) {
+    if (!vis.full && !vis.sales) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
@@ -121,10 +121,14 @@ export async function PATCH(
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
 
-    const vis = await getLeadVisibility(user);
+    // Write access is the claimer's: only the creator (sales) or the
+    // presales person who claimed the lead may edit / link it. All presales
+    // now have full READ visibility into the shared queue, so we cannot use
+    // vis.full here — that would let any presales edit a lead someone else
+    // is working. Admins always pass.
     const isOwner =
       lead.created_by === user.id || lead.assigned_to_id === user.id;
-    if (!vis.full && !isOwner) {
+    if (!canReadAll(user) && !isOwner) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
