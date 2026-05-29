@@ -1989,8 +1989,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`create index if not exists lead_events_lead_idx
             on lead_events(lead_id, created_at desc)`;
 
-    // Email-styled in-app messages. Today these only render in the
-    // /leads/inbox surface and the TopBar bell; tomorrow a real
+    // Email-styled in-app messages. Today these surface via the TopBar
+    // bell and lead notifications; tomorrow a real
     // SMTP / API integration can populate `external_message_id` and
     // `delivered_at` without another migration. The matching
     // `users.email` column ships now so the eventual wire-up has
