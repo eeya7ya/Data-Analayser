@@ -242,8 +242,8 @@ export default function CalendarMarkerClient() {
         </div>
       </div>
 
-      {/* Week grid — fills the remaining height */}
-      <div className="relative grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
+      {/* Week grid — 4 cards on top, 3 on the bottom, filling the screen */}
+      <div className="relative grid flex-1 grid-cols-2 gap-3 sm:grid-cols-2 lg:auto-rows-fr lg:grid-cols-4 lg:grid-rows-2">
         {days.map((d) => {
           const key = ymd(d);
           const mark = marks[key];
@@ -254,7 +254,7 @@ export default function CalendarMarkerClient() {
             <button
               key={key}
               onClick={() => setEditing(key)}
-              className={`group relative flex min-h-[8.5rem] flex-col overflow-hidden rounded-[1.75rem] border p-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-rose-200/40 lg:min-h-0 ${
+              className={`group relative flex min-h-[9rem] flex-col overflow-hidden rounded-[1.75rem] border p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-rose-200/40 lg:min-h-0 ${
                 c
                   ? `bg-gradient-to-br ${c.grad} ${c.border} shadow-md shadow-rose-100/40`
                   : isToday
