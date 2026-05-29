@@ -47,6 +47,9 @@ export async function GET() {
     isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
   const isPresales =
     isAdmin || (await hasModuleRole(user.id, "crm", "presales_manager"));
+  // Any presales role (member or manager) — drives the shared lead queue.
+  const isAnyPresales =
+    isPresales || (await hasModuleRole(user.id, "crm", "presales"));
 
   const q = sql();
   const raw: NotificationItem[] = [];
@@ -75,13 +78,12 @@ export async function GET() {
     }
   }
 
-  // New leads awaiting distribution — the presales manager's triage queue.
-  // sendLeadMessage already drops a row in the `notifications` table on
-  // create, but the bell feed is built from derived signals (it doesn't
-  // read that table), so without this a manager never saw new leads in the
-  // bell. Counting status='new' self-clears the moment a lead is
-  // distributed.
-  if (isPresales) {
+  // Unclaimed leads in the shared presales queue. sendLeadMessage already
+  // drops a row in the `notifications` table on create, but the bell feed is
+  // built from derived signals (it doesn't read that table), so without this
+  // presales never saw waiting leads in the bell. Counting status='new'
+  // self-clears the moment someone claims a lead.
+  if (isAnyPresales) {
     const newLeadRows = (await q`
       select count(*)::int as n from leads
       where deleted_at is null and status = 'new'
@@ -89,12 +91,12 @@ export async function GET() {
     const newLeads = newLeadRows[0]?.n ?? 0;
     if (newLeads > 0) {
       raw.push({
-        id: "leads.new_undistributed",
+        id: "leads.unclaimed",
         kind: "alarm",
         severity: "critical",
-        title: `${newLeads} new lead${newLeads === 1 ? "" : "s"} awaiting distribution`,
-        body: "Sales opened these — assign each to a presales engineer.",
-        action: { label: "Open leads", href: "/leads" },
+        title: `${newLeads} lead${newLeads === 1 ? "" : "s"} waiting in the queue`,
+        body: "Sales opened these — claim one to start working it.",
+        action: { label: "Open queue", href: "/leads" },
       });
     }
   }

@@ -103,8 +103,8 @@ export default async function NewLeadPage({
             {isRfq ? "Request for Quotation" : "Open a new lead"}
           </h1>
           <p className="mt-1 text-sm text-magic-ink/60">
-            Once submitted, the presales manager is emailed to triage and assign
-            the lead to a specific presales engineer.
+            Once submitted, it lands in the shared presales queue — a presales
+            person claims it and builds the quotation.
           </p>
         </header>
         <LeadCreateForm context={context} />

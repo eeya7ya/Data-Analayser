@@ -386,6 +386,10 @@ const USER_TOOLS_FLAG = "user_tools_calendar_notes_v1_2026_05";
 // note for the new shared-queue lead workflow. Data-only migration; touches
 // `news_posts` rows, never DDL.
 const V14A_FLAG = "v1_4a_update_notes_role_targeting_2026_05";
+// 1.4A — migrate leads to the shared-queue lifecycle. The old model used
+// status 'distributed' for a manager-assigned lead; the new model calls a
+// claimed lead 'in_progress'. Data-only (status rename), no DDL.
+const LEAD_SHARED_QUEUE_FLAG = "lead_shared_queue_v1_4a_2026_05";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
@@ -467,6 +471,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let v13dApplied = false;
   let userToolsApplied = false;
   let v14aApplied = false;
+  let leadSharedQueueApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -481,7 +486,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG},
         ${NOTIFICATION_STATE_FLAG}, ${PROJECT_HANDOFFS_FLAG},
         ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}, ${USER_TOOLS_FLAG},
-        ${V14A_FLAG}
+        ${V14A_FLAG}, ${LEAD_SHARED_QUEUE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -513,6 +518,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     v13dApplied = keys.has(V13D_FLAG);
     userToolsApplied = keys.has(USER_TOOLS_FLAG);
     v14aApplied = keys.has(V14A_FLAG);
+    leadSharedQueueApplied = keys.has(LEAD_SHARED_QUEUE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -546,7 +552,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     v13cApplied &&
     v13dApplied &&
     userToolsApplied &&
-    v14aApplied
+    v14aApplied &&
+    leadSharedQueueApplied
   )
     return;
 
@@ -1889,15 +1896,18 @@ async function _ensureSchemaOnce(): Promise<void> {
     // is touched. Soft-delete (`deleted_at`) on the leads row and FK
     // ON DELETE SET NULL on every link so the lead survives even if its
     // linked company / folder / contact / quotation / file is later
-    // archived. The status text column doubles as the workflow stage — the
-    // lead exists only to be distributed:
+    // archived. The status text column doubles as the workflow stage. Since
+    // 1.4A the lifecycle is a shared presales queue (see /lib/leadConstants):
     //
-    //   new          — opened by a sales / presales user. Presales manager
-    //                  distribution queue.
-    //   distributed  — presales manager handed the lead to a specific
-    //                  presales member. Terminal — the lead's job is done;
-    //                  the actual quotation / project work continues in the
-    //                  CRM client area and the project-handoffs queue.
+    //   new          — opened by sales (the RFQ). Sits unclaimed in the
+    //                  shared presales queue.
+    //   in_progress  — a presales person claimed it (assigned_to_id) and is
+    //                  turning it into a company / client / project. The
+    //                  actual quotation / project work continues in the CRM
+    //                  client area.
+    //
+    // (Pre-1.4A rows used 'distributed'; the V14A lead migration renames
+    //  those to 'in_progress'.)
     //
     // Older deployments may still hold rows in legacy stages (assigned,
     // in_progress, quotation_sent, won, lost, …); the UI renders their raw
@@ -2528,6 +2538,19 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${V14A_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!leadSharedQueueApplied) {
+    // Move pre-1.4A leads onto the shared-queue lifecycle. A lead that was
+    // 'distributed' (manager-assigned) is now 'in_progress' (claimed) — the
+    // assignee is already recorded in assigned_to_id, so this is a pure
+    // status rename. Untouched: 'new' leads stay 'new' (unclaimed).
+    await q`update leads set status = 'in_progress' where status = 'distributed'`;
+
+    await q`
+      insert into migration_flags (key) values (${LEAD_SHARED_QUEUE_FLAG})
       on conflict (key) do nothing
     `;
   }

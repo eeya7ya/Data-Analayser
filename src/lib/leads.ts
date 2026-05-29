@@ -14,16 +14,16 @@ import type { LeadStatus, LeadMessageKind } from "./leadConstants";
  * must only be imported from server code (route handlers, server
  * components, etc.).
  *
- * The lifecycle is intentionally tiny — a lead exists only to be
- * distributed:
+ * 1.4A — the lifecycle is a shared presales queue, no manager hand-off:
  *
- *   new → distributed (terminal)
+ *   new → in_progress
  *
- * A presales manager distributes (assigns) a new lead to a presales
- * member; that completes the lead's job. Each transition emits one
- * `lead_events` row plus a `lead_messages` to the recipient. The message
- * also creates a `notifications` row so the TopBar bell pings without us
- * having to poll a second feed.
+ * Sales opens a lead (information intake); it lands in the shared queue.
+ * Any presales person CLAIMS it to start working it (self-assign), which
+ * moves it to `in_progress` and records who owns the intake. Each
+ * transition emits one `lead_events` row plus a `lead_messages` /
+ * `notifications` row so the TopBar bell pings without polling a second
+ * feed.
  */
 
 // Re-export the constants so existing server callers keep working.
@@ -38,16 +38,29 @@ export type { LeadStatus, LeadPriority, LeadMessageKind } from "./leadConstants"
 
 // ── Role gates ────────────────────────────────────────────────────────────
 
-/** True for anyone holding a CRM role — both sales and presales can open leads. */
+/**
+ * Leads are opened by sales as their CRM work cycle (the RFQ). Presales
+ * receive the information off the shared queue rather than authoring leads,
+ * so lead creation is gated to sales roles (admins always pass).
+ */
 export async function canCreateLead(user: SessionUser): Promise<boolean> {
   if (user.role === "admin") return true;
-  return hasModule(user.id, "crm");
+  return (
+    (await hasModuleRole(user.id, "crm", "sales")) ||
+    (await hasModuleRole(user.id, "crm", "sales_manager"))
+  );
 }
 
-/** Only presales_manager distributes the queue. Admins always pass. */
-export async function canTriageLeads(user: SessionUser): Promise<boolean> {
+/**
+ * Anyone on presales (member or manager) can claim and work a lead off the
+ * shared queue — there is no separate distribution role. Admins always pass.
+ */
+export async function canClaimLead(user: SessionUser): Promise<boolean> {
   if (user.role === "admin") return true;
-  return hasModuleRole(user.id, "crm", "presales_manager");
+  return (
+    (await hasModuleRole(user.id, "crm", "presales")) ||
+    (await hasModuleRole(user.id, "crm", "presales_manager"))
+  );
 }
 
 // ── REF generator ─────────────────────────────────────────────────────────
@@ -147,8 +160,8 @@ export async function sendLeadMessage(args: {
  * a lead past a stage that other users haven't seen yet.
  */
 const ALLOWED_NEXT: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
-  new: ["distributed"],
-  distributed: [],
+  new: ["in_progress"],
+  in_progress: ["new"], // a claimed lead can be released back to the queue
 };
 
 export function canTransition(from: LeadStatus, to: LeadStatus): boolean {
@@ -158,29 +171,35 @@ export function canTransition(from: LeadStatus, to: LeadStatus): boolean {
 // ── Visibility scope ──────────────────────────────────────────────────────
 
 export interface LeadVisibility {
-  /** Admin or presales_manager — sees and distributes every lead. */
+  /**
+   * Sees the entire shared queue — admin or ANY presales role. Presales
+   * need to see every lead (claimed or not, and by whom) so the queue is
+   * truly shared and "who's working on it" is visible to the whole team.
+   */
   full: boolean;
-  /** Sales / sales_manager — sees leads they opened. */
+  /** Sales / sales_manager — sees the leads they opened, to track them. */
   sales: boolean;
-  /** Presales (non-manager) — sees leads distributed TO them or opened by them. */
-  ownerOnly: boolean;
+  /** True for any presales role (member or manager). */
+  presales: boolean;
   /** Effective user id used for assigned_to / created_by filters. */
   userId: number;
 }
 
 export async function getLeadVisibility(user: SessionUser): Promise<LeadVisibility> {
   const isAdmin = canReadAll(user);
-  const isPresalesManager =
-    isAdmin || (await hasModuleRole(user.id, "crm", "presales_manager"));
-  const isSalesManager =
-    isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
-  const isSales = isSalesManager || (await hasModuleRole(user.id, "crm", "sales"));
-  const isPresales = isPresalesManager || (await hasModuleRole(user.id, "crm", "presales"));
+  const isPresales =
+    isAdmin ||
+    (await hasModuleRole(user.id, "crm", "presales")) ||
+    (await hasModuleRole(user.id, "crm", "presales_manager"));
+  const isSales =
+    isAdmin ||
+    (await hasModuleRole(user.id, "crm", "sales")) ||
+    (await hasModuleRole(user.id, "crm", "sales_manager"));
 
   return {
-    full: isAdmin || isPresalesManager,
+    full: isAdmin || isPresales,
     sales: isSales,
-    ownerOnly: isPresales,
+    presales: isPresales,
     userId: user.id,
   };
 }

@@ -109,7 +109,7 @@ const TAB_META: Record<TabId, { label: string; icon: LucideIcon; blurb: string }
   presales: {
     label: "Presales",
     icon: ClipboardList,
-    blurb: "Your assigned leads, clients, and pricing → quotation.",
+    blurb: "The shared lead queue, your clients, and pricing → quotation.",
   },
   storage: {
     label: "Storage",
@@ -206,8 +206,8 @@ export default function CrmModuleHub({
     presales: [
       {
         href: "/leads",
-        title: "New leads",
-        desc: "Distribute new leads to presales members.",
+        title: "Lead queue",
+        desc: "Claim a lead and turn it into a company, client, project and quotation.",
       },
       { href: "/pricing", title: "Pricing sheets", desc: "Prepare manufacturer pricing, then convert to a quotation." },
     ],
