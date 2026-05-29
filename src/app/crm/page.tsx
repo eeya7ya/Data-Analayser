@@ -56,6 +56,7 @@ export default async function CrmLandingPage({
     storage: isAdmin || hasRole("storage"),
     projects: isAdmin || hasRole("projects"),
     projectsManager: isAdmin || hasRole("projects", "manager"),
+    salesManager: isAdmin || hasRole("crm", "sales_manager"),
     presalesManager: isAdmin || hasRole("crm", "presales_manager"),
     pricing: isAdmin || hasRole("pricing"),
   };

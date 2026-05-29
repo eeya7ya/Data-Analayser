@@ -54,16 +54,14 @@ export async function GET() {
   const q = sql();
   const raw: NotificationItem[] = [];
 
-  if (isSales || isPresales) {
+  // 1.4A — sales-only approval. Only sales managers get the approval alarm;
+  // presales never sign off on quotations.
+  if (isSales) {
     const approvalRows = (await q`
       select count(*)::int as n from quotations
       where deleted_at is null
         and approved_at is null
         and rejected_at is null
-        and (
-          (${isSales}::boolean and sales_approved_at is null)
-          or (${isPresales}::boolean and presales_approved_at is null)
-        )
     `) as Array<{ n: number }>;
     const pending = approvalRows[0]?.n ?? 0;
     if (pending > 0) {

@@ -61,12 +61,16 @@ const STATUS_COLORS = ["#06B6D4", "#6366F1", "#f59e0b", "#22c55e", "#ef4444", "#
 export default function DashboardClient({
   data,
   greetingName,
-  isManager,
+  showApprovals,
   showOutcomes,
 }: {
   data: DashboardData;
   greetingName: string;
-  isManager: boolean;
+  /**
+   * Approvals are sales-only (1.4A). True only for sales managers / admin —
+   * gates the "Awaiting approval" action card so presales never see it.
+   */
+  showApprovals: boolean;
   /** "Sales outcomes" (Won/Lost/Held) is a sales-only scoreboard. */
   showOutcomes: boolean;
 }) {
@@ -95,18 +99,25 @@ export default function DashboardClient({
         </p>
       </div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      {/* KPI strip — the "Awaiting approval" card is a sales-manager action
+          item, so it's hidden for everyone else (presales, plain sales). */}
+      <div
+        className={`grid grid-cols-2 gap-3 md:grid-cols-3 ${
+          showApprovals ? "xl:grid-cols-5" : "xl:grid-cols-4"
+        }`}
+      >
         <Kpi label="Quotations" value={kpis.quotations} icon={FileText} tone="red" />
         <Kpi label="Clients" value={kpis.clients} icon={Users} tone="indigo" />
         <Kpi label="Companies" value={kpis.companies} icon={Building2} tone="cyan" />
         <Kpi label="Projects" value={kpis.projects} icon={FolderKanban} tone="violet" />
-        <Kpi
-          label="Awaiting approval"
-          value={kpis.pendingApprovals}
-          icon={Clock}
-          tone="amber"
-        />
+        {showApprovals && (
+          <Kpi
+            label="Awaiting approval"
+            value={kpis.pendingApprovals}
+            icon={Clock}
+            tone="amber"
+          />
+        )}
       </div>
 
       {/* Charts + inbox */}
@@ -210,7 +221,7 @@ export default function DashboardClient({
 
             <Panel
               title="Approval funnel"
-              subtitle={isManager ? "Across your team" : "Your quotations"}
+              subtitle={showApprovals ? "Across your team" : "Your quotations"}
             >
               {approvalData.length === 0 ? (
                 <EmptyChart />

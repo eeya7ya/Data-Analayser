@@ -94,20 +94,7 @@ export default function ProjectQuotationsList({
                   <span className="rounded-full bg-amber-50 text-amber-800 border border-amber-300 px-1.5 py-0.5">
                     rejected
                   </span>
-                ) : (
-                  <>
-                    {row.sales_approved_at && (
-                      <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 px-1.5 py-0.5">
-                        sales ✓
-                      </span>
-                    )}
-                    {row.presales_approved_at && (
-                      <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 px-1.5 py-0.5">
-                        presales ✓
-                      </span>
-                    )}
-                  </>
-                )}
+                ) : null}
               </div>
             </li>
           ))}

@@ -9,11 +9,10 @@ export const dynamic = "force-dynamic";
 /**
  * Lightweight count endpoint for the TopBar approval badge.
  *
- * Returns the number of quotations waiting on this user's signoff,
- * split by side. Sales-only managers see needs_sales; presales-only
- * see needs_presales; admins / both-side managers see both. A 200 is
- * always returned — non-managers just get zeros so the badge silently
- * stays off rather than the TopBar fetch erroring loudly.
+ * 1.4A — sales-only approval. Returns the number of quotations awaiting the
+ * sales manager's sign-off (not approved, not rejected). Non-sales-managers
+ * get zero so the badge silently stays off. `needs_presales` is retained as
+ * an always-zero field for any older client still reading it.
  */
 export async function GET() {
   const user = await getSessionUser();
@@ -24,37 +23,23 @@ export async function GET() {
 
   const isAdmin = canReadAll(user);
   const isSales = isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
-  const isPresales =
-    isAdmin || (await hasModuleRole(user.id, "crm", "presales_manager"));
 
-  if (!isSales && !isPresales) {
+  if (!isSales) {
     return NextResponse.json({ needs_sales: 0, needs_presales: 0, total: 0 });
   }
 
   const q = sql();
   const counts = (await q`
-    select
-      (case when ${isSales}
-            then (select count(*) from quotations
-                  where deleted_at is null
-                    and sales_approved_at is null
-                    and rejected_at is null
-                    and approved_at is null)
-            else 0 end) as needs_sales,
-      (case when ${isPresales}
-            then (select count(*) from quotations
-                  where deleted_at is null
-                    and presales_approved_at is null
-                    and rejected_at is null
-                    and approved_at is null)
-            else 0 end) as needs_presales
-  `) as Array<{ needs_sales: number; needs_presales: number }>;
+    select count(*)::int as n from quotations
+    where deleted_at is null
+      and approved_at is null
+      and rejected_at is null
+  `) as Array<{ n: number }>;
 
-  const needsSales = Number(counts[0].needs_sales);
-  const needsPresales = Number(counts[0].needs_presales);
+  const needsSales = Number(counts[0].n);
   return NextResponse.json({
     needs_sales: needsSales,
-    needs_presales: needsPresales,
-    total: needsSales + needsPresales,
+    needs_presales: 0,
+    total: needsSales,
   });
 }

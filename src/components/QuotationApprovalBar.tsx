@@ -82,19 +82,20 @@ export default function QuotationApprovalBar({
     isAdmin ||
     !!me?.module_roles.some((r) => r.module === module && r.role === role);
 
-  const canApprovePresales = hasRole("crm", "presales_manager");
-  const canReject = canApprovePresales || hasRole("crm", "sales_manager");
+  // 1.4A — sales-only approval. Presales does not sign off on quotations.
+  const canApproveSales = hasRole("crm", "sales_manager");
+  const canReject = canApproveSales;
   const canConvert =
     isAdmin || hasRole("crm", "sales") || hasRole("crm", "sales_manager");
 
-  async function approve(side: "sales" | "presales") {
+  async function approve() {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/quotations/approve", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: quotationId, side }),
+        body: JSON.stringify({ id: quotationId }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -201,9 +202,9 @@ export default function QuotationApprovalBar({
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="font-semibold text-magic-ink/70">Approval:</span>
           {fullyApproved ? (
-            <Pill tone="strong">Approved by presales manager</Pill>
+            <Pill tone="strong">Approved by sales manager</Pill>
           ) : (
-            <Pill tone="muted">Awaiting presales manager sign-off</Pill>
+            <Pill tone="muted">Awaiting sales manager sign-off</Pill>
           )}
           {accepted && <Pill tone="strong">Client accepted</Pill>}
           {rejected && (
@@ -215,9 +216,9 @@ export default function QuotationApprovalBar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {canApprovePresales && !fullyApproved && (
+          {canApproveSales && !fullyApproved && (
             <button
-              onClick={() => void approve("presales")}
+              onClick={() => void approve()}
               disabled={busy}
               className="px-3 py-1 text-xs font-semibold rounded border border-magic-red text-magic-red hover:bg-magic-red hover:text-white disabled:opacity-50 transition-colors"
             >
