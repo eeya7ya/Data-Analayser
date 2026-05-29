@@ -116,7 +116,7 @@ const TAB_META: Record<TabId, { label: string; icon: LucideIcon; blurb: string }
   storage: {
     label: "Storage",
     icon: Boxes,
-    blurb: "Inventory, locations, and incoming stock-check requests.",
+    blurb: "The product catalogue and stock management.",
   },
   projects: {
     label: "Projects",
@@ -223,7 +223,7 @@ export default function CrmModuleHub({
       { href: "/pricing", title: "Pricing sheets", desc: "Prepare manufacturer pricing, then convert to a quotation." },
     ],
     storage: [
-      { href: "/storage", title: "Storage workspace", desc: "Inventory, locations, and incoming stock-check requests." },
+      { href: "/crm/storage", title: "Storage workspace", desc: "Browse the product catalogue and manage stock." },
     ],
     projects: [
       {
