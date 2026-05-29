@@ -29,8 +29,16 @@ const STATUS_PILL: Record<string, string> = {
   distributed: "bg-emerald-100 text-emerald-800 border-emerald-200",
 };
 
-export default function LeadsClient({ canCreate }: { canCreate: boolean }) {
-  const [tab, setTab] = useState<Tab>("new");
+export default function LeadsClient({
+  canCreate,
+  isManager,
+}: {
+  canCreate: boolean;
+  isManager: boolean;
+}) {
+  // Non-managers don't triage: they just see the leads scoped to them
+  // (assigned / opened) with no New-vs-Distributed framing.
+  const [tab, setTab] = useState<Tab>(isManager ? "new" : "all");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +49,9 @@ export default function LeadsClient({ canCreate }: { canCreate: boolean }) {
     setError(null);
 
     const params = new URLSearchParams();
-    if (tab !== "all") params.set("status", tab);
+    // Only managers filter by distribution status; everyone else sees
+    // their full scoped list.
+    if (isManager && tab !== "all") params.set("status", tab);
 
     fetch(`/api/leads?${params.toString()}`, { cache: "no-store" })
       .then((r) => r.json())
@@ -64,22 +74,26 @@ export default function LeadsClient({ canCreate }: { canCreate: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [tab]);
+  }, [tab, isManager]);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex rounded-xl border border-magic-border bg-white p-1 text-sm shadow-sm">
-          <TabButton active={tab === "new"} onClick={() => setTab("new")}>
-            New
-          </TabButton>
-          <TabButton active={tab === "distributed"} onClick={() => setTab("distributed")}>
-            Distributed
-          </TabButton>
-          <TabButton active={tab === "all"} onClick={() => setTab("all")}>
-            All
-          </TabButton>
-        </div>
+        {isManager ? (
+          <div className="inline-flex rounded-xl border border-magic-border bg-white p-1 text-sm shadow-sm">
+            <TabButton active={tab === "new"} onClick={() => setTab("new")}>
+              New
+            </TabButton>
+            <TabButton active={tab === "distributed"} onClick={() => setTab("distributed")}>
+              Distributed
+            </TabButton>
+            <TabButton active={tab === "all"} onClick={() => setTab("all")}>
+              All
+            </TabButton>
+          </div>
+        ) : (
+          <span />
+        )}
         {canCreate && (
           <Link
             href="/leads/new"
@@ -120,11 +134,13 @@ export default function LeadsClient({ canCreate }: { canCreate: boolean }) {
             {!loading && leads.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-3 py-8 text-center text-magic-ink/50">
-                  {tab === "new"
-                    ? "No new leads waiting to be distributed."
-                    : tab === "distributed"
-                      ? "No distributed leads yet."
-                      : "No leads yet."}
+                  {!isManager
+                    ? "No leads have been handed to you yet."
+                    : tab === "new"
+                      ? "No new leads waiting to be distributed."
+                      : tab === "distributed"
+                        ? "No distributed leads yet."
+                        : "No leads yet."}
                 </td>
               </tr>
             )}
