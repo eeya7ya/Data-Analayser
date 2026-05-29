@@ -130,12 +130,6 @@ export default async function CompanyClientFolderPage({
                 company_id: folder.company_id,
               }}
             />
-            <Link
-              href={`/leads/new?folder=${folder.id}&company=${folder.company_id ?? companyId}`}
-              className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
-            >
-              Request for Quotation
-            </Link>
           </div>
           <div className="mt-1 text-xs text-magic-ink/60 flex flex-wrap gap-x-4 gap-y-1">
             {folder.client_email && <span>{folder.client_email}</span>}
