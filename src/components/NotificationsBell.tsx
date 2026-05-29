@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { NotificationItem } from "@/app/api/notifications/route";
 import {
   isPushSupported,
@@ -20,6 +20,9 @@ import {
  * without hammering the DB. The dropdown closes on click-outside
  * and on Escape — mouse-leave dismiss is wrong here because the
  * panel has actionable links the user might pass over.
+ *
+ * Opening a notification clears it and jumps to its page (see
+ * `dismissAndGo`). Read items never show in the bell — they're "done".
  */
 
 const SEVERITY_STYLES: Record<
@@ -47,6 +50,7 @@ export default function NotificationsBell() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const router = useRouter();
   // Push state: "on" = subscribed, "off" = supported but not subscribed,
   // "denied" = browser-blocked, "unsupported"/"unconfigured" = hide.
   const [pushState, setPushState] = useState<
@@ -125,7 +129,10 @@ export default function NotificationsBell() {
         const res = await fetch("/api/notifications", { cache: "no-store" });
         if (!res.ok) return;
         const data = (await res.json()) as { items?: NotificationItem[] };
-        if (!cancelled && Array.isArray(data.items)) setItems(data.items);
+        if (!cancelled && Array.isArray(data.items)) {
+          // Read items are "done" — keep them out of the bell entirely.
+          setItems(data.items.filter((i) => !i.read));
+        }
       } catch {
         // soft-fail — the bell goes quiet rather than throwing
       }
@@ -154,6 +161,31 @@ export default function NotificationsBell() {
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  // Opening a notification clears it and jumps to its page. Messages
+  // (news / lead notes) are one-off, so we persist them as read and they
+  // stay gone. Alarms are derived from live counts and self-clear when the
+  // underlying work is done, so we only dismiss them from the current view
+  // (no persisted read) — they return on the next poll if still relevant,
+  // which keeps critical alarms like "leads waiting" from being lost.
+  function dismissAndGo(n: NotificationItem, href: string | null) {
+    setOpen(false);
+    if (n.kind === "message") {
+      void fetch("/api/notifications", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key: n.id, status: "read" }),
+      }).catch(() => {
+        // best-effort — the optimistic removal already cleared it locally
+      });
+    }
+    setItems((prev) => prev.filter((x) => x.id !== n.id));
+    if (href) router.push(href);
+  }
+  const openNotif = (n: NotificationItem) =>
+    dismissAndGo(n, n.action?.href ?? n.secondary?.href ?? null);
+  const openSecondary = (n: NotificationItem) =>
+    dismissAndGo(n, n.secondary?.href ?? null);
 
   const count = items.length;
   const hasCritical = items.some((i) => i.severity === "critical");
@@ -216,47 +248,58 @@ export default function NotificationsBell() {
               {items.map((n) => {
                 const s = SEVERITY_STYLES[n.severity];
                 return (
-                  <li
-                    key={n.id}
-                    className="px-3 py-2 hover:bg-magic-soft/60 transition-colors"
-                  >
-                    <div className="flex items-start gap-2">
-                      <span
-                        className={`mt-1.5 inline-block h-1.5 w-1.5 rounded-full shrink-0 ${s.dot}`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={`text-xs font-semibold leading-snug ${s.title}`}
-                        >
-                          {n.title}
-                        </p>
-                        {n.body && (
-                          <p className="mt-0.5 text-[11px] text-magic-ink/60 leading-snug">
-                            {n.body}
+                  <li key={n.id}>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openNotif(n)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openNotif(n);
+                        }
+                      }}
+                      className="cursor-pointer px-3 py-2 hover:bg-magic-soft/60 focus:bg-magic-soft/60 focus:outline-none transition-colors"
+                    >
+                      <div className="flex items-start gap-2">
+                        <span
+                          className={`mt-1.5 inline-block h-1.5 w-1.5 rounded-full shrink-0 ${s.dot}`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`text-xs font-semibold leading-snug ${s.title}`}
+                          >
+                            {n.title}
                           </p>
-                        )}
-                        {(n.action || n.secondary) && (
-                          <div className="mt-1.5 flex flex-wrap gap-1.5">
-                            {n.action && (
-                              <Link
-                                href={n.action.href}
-                                onClick={() => setOpen(false)}
-                                className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold ${s.chip} hover:opacity-80 transition-opacity`}
-                              >
-                                {n.action.label} →
-                              </Link>
-                            )}
-                            {n.secondary && (
-                              <Link
-                                href={n.secondary.href}
-                                onClick={() => setOpen(false)}
-                                className="inline-flex items-center rounded-md border border-magic-border bg-white px-2 py-0.5 text-[10px] font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
-                              >
-                                {n.secondary.label}
-                              </Link>
-                            )}
-                          </div>
-                        )}
+                          {n.body && (
+                            <p className="mt-0.5 text-[11px] text-magic-ink/60 leading-snug">
+                              {n.body}
+                            </p>
+                          )}
+                          {(n.action || n.secondary) && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {n.action && (
+                                <span
+                                  className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold ${s.chip}`}
+                                >
+                                  {n.action.label} →
+                                </span>
+                              )}
+                              {n.secondary && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openSecondary(n);
+                                  }}
+                                  className="inline-flex items-center rounded-md border border-magic-border bg-white px-2 py-0.5 text-[10px] font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
+                                >
+                                  {n.secondary.label}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </li>
