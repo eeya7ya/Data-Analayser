@@ -27,7 +27,11 @@ export type LeadStatus = (typeof LEAD_STATUSES)[number];
 export const LEAD_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type LeadPriority = (typeof LEAD_PRIORITIES)[number];
 
-export const LEAD_MESSAGE_KINDS = ["lead_assigned", "general"] as const;
+export const LEAD_MESSAGE_KINDS = [
+  "lead_assigned",
+  "general",
+  "file_uploaded",
+] as const;
 export type LeadMessageKind = (typeof LEAD_MESSAGE_KINDS)[number];
 
 export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {

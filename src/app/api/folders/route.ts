@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
-import { requireModuleAllowLegacy } from "@/lib/modules";
+import { requireModuleAllowLegacy, requireCrmOrProjectsRead } from "@/lib/modules";
+import { assignedFolderIds } from "@/lib/projectAccess";
 import { ensureDefaultProject } from "@/lib/projects";
 import { findCrossKindConflicts } from "@/lib/crmNames";
 
@@ -25,7 +26,9 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
-    await requireModuleAllowLegacy(user, "crm");
+    // Projects users (technicians) read this to reach the individual clients
+    // behind their assigned projects; sales / presales reach it via `crm`.
+    await requireCrmOrProjectsRead(user);
     await ensureSchema();
     const { searchParams } = new URL(req.url);
     const companyIdParam = searchParams.get("company_id");
@@ -37,7 +40,8 @@ export async function GET(req: NextRequest) {
         : null;
     const q = sql();
     const isAdmin = canReadAll(user);
-    const ownerFilter = isAdmin ? null : user.id;
+    // "Assigned work" scope: folders holding a project assigned to this user.
+    const assignedFolders = isAdmin ? [] : await assignedFolderIds(user.id);
     const kindFilter = kind === "unclassified" ? null : kind;
     const kindIsExplicit = kind !== null;
     // Single query with filters and per-row counts. The counts use
@@ -63,7 +67,7 @@ export async function GET(req: NextRequest) {
       left join users u on u.id = f.owner_id
       left join companies c on c.id = f.company_id and c.deleted_at is null
       where f.deleted_at is null
-        and (${ownerFilter}::int is null or f.owner_id = ${ownerFilter})
+        and (${isAdmin}::boolean or f.owner_id = ${user.id} or f.id = any(${assignedFolders}::int[]))
         and (${companyId}::int is null or f.company_id = ${companyId})
         and (
           ${!kindIsExplicit}::boolean

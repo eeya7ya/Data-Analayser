@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
-import { requireModuleAllowLegacy } from "@/lib/modules";
+import { requireModuleAllowLegacy, requireCrmOrProjectsRead } from "@/lib/modules";
+import { assignedProjectIds } from "@/lib/projectAccess";
 import { ensureFolderProjectCoverage } from "@/lib/projects";
 
 export const runtime = "nodejs";
@@ -35,8 +36,13 @@ type ProjectRow = {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
-    await requireModuleAllowLegacy(user, "crm");
+    // Projects users (technicians) read their assigned projects through the
+    // same CRM drill-down; sales / presales reach it via `crm`.
+    await requireCrmOrProjectsRead(user);
     await ensureSchema();
+    const isAdmin = canReadAll(user);
+    // "Assigned work" scope: the projects this user is assigned to.
+    const assignedProjects = isAdmin ? [] : await assignedProjectIds(user.id);
     const { searchParams } = new URL(req.url);
     const idParam = searchParams.get("id");
     const folderIdParam = searchParams.get("folder_id");
@@ -55,7 +61,7 @@ export async function GET(req: NextRequest) {
       `) as ProjectRow[];
       const row = rows[0];
       if (!row) return NextResponse.json({ project: null });
-      if (user.role !== "admin" && row.owner_id !== user.id) {
+      if (!isAdmin && row.owner_id !== user.id && !assignedProjects.includes(id)) {
         return NextResponse.json({ error: "forbidden" }, { status: 403 });
       }
       return NextResponse.json({ project: row });
@@ -95,7 +101,7 @@ export async function GET(req: NextRequest) {
               select id, folder_id, owner_id, name, description, status, created_at, updated_at
               from projects
               where folder_id = ${folderId}
-                and owner_id = ${user.id}
+                and (owner_id = ${user.id} or id = any(${assignedProjects}::int[]))
                 and deleted_at is null
               order by name asc
             `) as ProjectRow[]);
@@ -114,7 +120,7 @@ export async function GET(req: NextRequest) {
         : ((await q`
             select id, folder_id, owner_id, name, description, status, created_at, updated_at
             from projects
-            where owner_id = ${user.id}
+            where (owner_id = ${user.id} or id = any(${assignedProjects}::int[]))
               and deleted_at is null
             order by id desc
             limit 200

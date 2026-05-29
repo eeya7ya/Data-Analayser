@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser, canReadAll } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
+import { assignedFolderIds } from "@/lib/projectAccess";
 import TopBar from "@/components/TopBar";
 import ClientListClient, {
   type ClientFolderRow,
@@ -49,6 +50,9 @@ export default async function IndividualListPage({
       ? requested
       : null
     : user.id;
+  // Projects users (technicians) also see the individual clients behind
+  // their assigned projects — and nothing else.
+  const assignedFolders = isAdmin ? [] : await assignedFolderIds(user.id);
   const q = sql();
 
   // An individual is a folder with kind='individual' AND no link to a
@@ -73,7 +77,11 @@ export default async function IndividualListPage({
     where cf.deleted_at is null
       and cf.kind = 'individual'
       and cf.company_id is null
-      and (${scopeOwnerId}::int is null or cf.owner_id = ${scopeOwnerId})
+      and (
+        ${scopeOwnerId}::int is null
+        or cf.owner_id = ${scopeOwnerId}
+        or cf.id = any(${assignedFolders}::int[])
+      )
       and not exists (
         select 1 from contacts ct
         where ct.folder_id = cf.id

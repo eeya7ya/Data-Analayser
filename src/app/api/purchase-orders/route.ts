@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
+import { notifyPresalesOfProjectUpload } from "@/lib/leads";
 
 export const runtime = "nodejs";
 
@@ -261,6 +262,22 @@ export async function POST(req: NextRequest) {
                 client_name, project_name, amount, currency, status, notes,
                 issued_at, expected_at, created_at, updated_at
     `) as PoRow[];
+
+    // Route the PO to the presales handling this project's RFQ (manager
+    // fallback). Best-effort — never fail the PO over a notification.
+    if (prefillProjectId) {
+      try {
+        await notifyPresalesOfProjectUpload({
+          projectId: prefillProjectId,
+          uploaderId: user.id,
+          label: "PO",
+          filename: poNumber,
+        });
+      } catch {
+        // ignore — PO already created
+      }
+    }
+
     return NextResponse.json({ purchaseOrder: rows[0] });
   } catch (err) {
     const msg = (err as Error).message;

@@ -34,11 +34,12 @@ interface NavItem {
  * default and opened from the TopBar toggle. Overlays content (no
  * reflow) so every page keeps its existing layout. Admin lives here
  * (bottom section) rather than in the top bar, per the V1.3a chrome
- * spec. The cross-client quotation surfaces (All quotations, Catalogue,
- * Purchase orders) live in a collapsed "Quotation tools" group so they
- * stay reachable without cluttering the primary nav. The Designer / AI
- * Designer are reached in-context from the CRM flow, so they're not nav
- * entries.
+ * spec. The cross-client quotation surfaces (All quotations, Purchase
+ * orders) live in a collapsed "Quotation tools" group so they stay
+ * reachable without cluttering the primary nav. The Catalogue now lives
+ * inside the CRM → Storage workspace (a Storage-people surface), so it
+ * is no longer listed here. The Designer / AI Designer are reached
+ * in-context from the CRM flow, so they're not nav entries.
  */
 export default function SideNav({
   open,
@@ -89,7 +90,6 @@ export default function SideNav({
   // too; this group just keeps the global lists one tap away for CRM users.
   const quotationTools = [
     { href: "/quotation", label: "All quotations" },
-    { href: "/catalog", label: "Catalogue" },
     { href: "/purchase-orders", label: "Purchase orders" },
   ];
 

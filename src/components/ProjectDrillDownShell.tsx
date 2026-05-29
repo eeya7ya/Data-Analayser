@@ -1,6 +1,7 @@
 import Link from "next/link";
 import TopBar from "@/components/TopBar";
 import RequestStockButton from "@/components/RequestStockButton";
+import RequestQuotationButton from "@/components/RequestQuotationButton";
 import ProjectTabStrip from "@/components/ProjectTabStrip";
 import type { SessionUser } from "@/lib/auth";
 
@@ -75,7 +76,13 @@ export default function ProjectDrillDownShell({
                 </p>
               )}
             </div>
-            <RequestStockButton projectId={project.id} />
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <RequestQuotationButton
+                projectId={project.id}
+                projectName={project.name}
+              />
+              <RequestStockButton projectId={project.id} />
+            </div>
           </div>
         </div>
 

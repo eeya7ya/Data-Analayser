@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSessionUser, canReadAll } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import { syncCompanyPeopleAndFolders } from "@/lib/crmPeople";
+import { assignedCompanyIds, assignedFolderIds } from "@/lib/projectAccess";
 import TopBar from "@/components/TopBar";
 import ContactsPanel, { type ContactRow } from "@/components/ContactsPanel";
 import { EditCompanyButton } from "@/components/EditCompanyDialog";
@@ -79,7 +80,11 @@ export default async function CompanyDetailPage({
   const company = cRows[0];
 
   const isAdmin = canReadAll(user);
-  if (!isAdmin && company.owner_id !== user.id) {
+  const ownsCompany = isAdmin || company.owner_id === user.id;
+  // A technician reaches a company only through a project assigned to them,
+  // and then sees just the people/clients behind those assigned projects.
+  const assignedCo = isAdmin ? [] : await assignedCompanyIds(user.id);
+  if (!ownsCompany && !assignedCo.includes(companyId)) {
     return (
       <div className="min-h-screen bg-magic-soft/40">
         <TopBar user={user} />
@@ -100,16 +105,21 @@ export default async function CompanyDetailPage({
       </div>
     );
   }
+  // Folders this user is assigned to — used to narrow the people list for a
+  // technician who only has assigned-work access (empty for owners/admins).
+  const assignedFolders = ownsCompany ? [] : await assignedFolderIds(user.id);
 
-  // Reconcile contacts ↔ folders so the unified "People at this
-  // company" list shows every person and every legacy client folder.
-  // A company with no people is left empty — the panel below offers
-  // "+ New contact" instead of auto-creating a placeholder client.
-  await syncCompanyPeopleAndFolders({
-    companyId,
-    userId: user.id,
-    isAdmin,
-  });
+  // Reconcile contacts ↔ folders so the unified "People at this company"
+  // list shows every person and every legacy client folder. Only the owner
+  // (or an admin) runs the sync — a technician's read-only visit must never
+  // re-own folders; the owner's visits keep the data reconciled.
+  if (ownsCompany) {
+    await syncCompanyPeopleAndFolders({
+      companyId,
+      userId: user.id,
+      isAdmin,
+    });
+  }
 
   const contactRows = (await q`
     select c.id, c.owner_id, c.folder_id, c.company_id,
@@ -121,6 +131,7 @@ export default async function CompanyDetailPage({
               where qq.folder_id = c.folder_id and qq.deleted_at is null), 0)::int as quotation_count
     from contacts c
     where c.company_id = ${companyId} and c.deleted_at is null
+      and (${ownsCompany}::boolean or c.folder_id = any(${assignedFolders}::int[]))
     order by coalesce(c.last_name, ''), coalesce(c.first_name, '')
     limit 200
   `) as ContactRow[];

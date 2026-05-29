@@ -41,6 +41,7 @@ interface LeadRow {
   company_id: number | null;
   folder_id: number | null;
   contact_id: number | null;
+  project_id: number | null;
   quotation_id: number | null;
   outcome: string | null;
   outcome_at: string | null;
@@ -56,6 +57,13 @@ export async function GET(req: NextRequest) {
     const vis = await getLeadVisibility(user);
     const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get("status");
+    // Per-project filter powers the "Request for Quotation" status chip on
+    // the project page (one open RFQ per project).
+    const projectIdParam = searchParams.get("project_id");
+    const projectId =
+      projectIdParam && Number.isFinite(Number(projectIdParam))
+        ? Number(projectIdParam)
+        : null;
 
     const q = sql();
 
@@ -68,13 +76,14 @@ export async function GET(req: NextRequest) {
              l.created_by, cu.username as created_by_username,
              l.requested_timeline_at,
              l.assigned_to_id, au.username as assigned_to_username,
-             l.company_id, l.folder_id, l.contact_id, l.quotation_id,
+             l.company_id, l.folder_id, l.contact_id, l.project_id, l.quotation_id,
              l.outcome, l.outcome_at, l.created_at, l.updated_at
       from leads l
       left join users cu on cu.id = l.created_by
       left join users au on au.id = l.assigned_to_id
       where l.deleted_at is null
         and (${statusFilter}::text is null or l.status = ${statusFilter})
+        and (${projectId}::int is null or l.project_id = ${projectId})
         and (
           ${vis.full}::boolean
           or l.created_by = ${vis.userId}
@@ -124,6 +133,10 @@ export async function POST(req: NextRequest) {
       company_id?: number | null;
       folder_id?: number | null;
       contact_id?: number | null;
+      // 1.4B — RFQ is opened per project. When present, the project is the
+      // authoritative link: its folder + company override the loose ids
+      // above, and only one open RFQ is allowed per project.
+      project_id?: number | null;
     };
 
     const title = String(body.title ?? "").trim();
@@ -189,13 +202,70 @@ export async function POST(req: NextRequest) {
       if (ctr.length > 0) contactId = ctr[0].id;
     }
 
+    // Project link (the RFQ's authoritative anchor). Resolve it against a
+    // live project the caller can reach — their own, or one in a folder
+    // they own — and inherit the project's folder + company so the lead is
+    // always tied to the right account. Admins may attach to any project.
+    let projectId: number | null = null;
+    if (Number.isInteger(body.project_id) && Number(body.project_id) > 0) {
+      const pr = (await q`
+        select p.id, p.folder_id, p.owner_id as project_owner_id,
+               cf.company_id, cf.owner_id as folder_owner_id
+        from projects p
+        join client_folders cf on cf.id = p.folder_id and cf.deleted_at is null
+        where p.id = ${Number(body.project_id)} and p.deleted_at is null
+        limit 1
+      `) as Array<{
+        id: number;
+        folder_id: number;
+        project_owner_id: number | null;
+        company_id: number | null;
+        folder_owner_id: number | null;
+      }>;
+      if (
+        pr.length > 0 &&
+        (ownerScope === null ||
+          pr[0].project_owner_id === user.id ||
+          pr[0].folder_owner_id === user.id)
+      ) {
+        projectId = pr[0].id;
+        folderId = pr[0].folder_id;
+        companyId = pr[0].company_id;
+      }
+    }
+
+    // One open RFQ per project. An existing lead for this project that is
+    // still being worked (new / in_progress) blocks a duplicate; resolved
+    // ones don't, so a fresh request is allowed once the prior is done.
+    if (projectId !== null) {
+      const open = (await q`
+        select id, ref, status from leads
+        where project_id = ${projectId}
+          and deleted_at is null
+          and status in ('new', 'in_progress')
+        order by created_at desc
+        limit 1
+      `) as Array<{ id: number; ref: string; status: string }>;
+      if (open.length > 0) {
+        return NextResponse.json(
+          {
+            error: "This project already has an open quotation request.",
+            existing: open[0],
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const inserted = (await q`
       insert into leads
         (ref, title, description, source, priority, status,
-         created_by, requested_timeline_at, company_id, folder_id, contact_id)
+         created_by, requested_timeline_at, company_id, folder_id, contact_id,
+         project_id)
       values
         (${ref}, ${title}, ${description}, ${source}, ${priority}, 'new',
-         ${user.id}, ${requestedTimelineAt}, ${companyId}, ${folderId}, ${contactId})
+         ${user.id}, ${requestedTimelineAt}, ${companyId}, ${folderId}, ${contactId},
+         ${projectId})
       returning id, ref
     `) as Array<{ id: number; ref: string }>;
     const leadId = inserted[0].id;

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { canReadAll, getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import { userHasLeadAccessToFolder } from "@/lib/leads";
+import { userHasAssignedProjectInFolder } from "@/lib/projectAccess";
 import TopBar from "@/components/TopBar";
 import FolderProjectsClient from "@/components/FolderProjectsClient";
 import { EditFolderButton } from "@/components/EditFolderDialog";
@@ -74,7 +75,8 @@ export default async function IndividualClientPage({
   if (
     !canReadAll(user) &&
     folder.owner_id !== user.id &&
-    !(await userHasLeadAccessToFolder(user.id, folderId))
+    !(await userHasLeadAccessToFolder(user.id, folderId)) &&
+    !(await userHasAssignedProjectInFolder(user.id, folderId))
   ) {
     return (
       <div className="min-h-screen bg-magic-soft/40">
@@ -146,12 +148,6 @@ export default async function IndividualClientPage({
                 company_id: folder.company_id,
               }}
             />
-            <Link
-              href={`/leads/new?folder=${folder.id}`}
-              className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
-            >
-              Request for Quotation
-            </Link>
           </div>
           <div className="mt-1 text-xs text-magic-ink/60 flex flex-wrap gap-x-4 gap-y-1">
             {folder.client_email && <span>{folder.client_email}</span>}

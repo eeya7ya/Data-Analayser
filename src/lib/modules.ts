@@ -169,6 +169,44 @@ export async function requireModuleAllowLegacy(
   throw new Error("FORBIDDEN");
 }
 
+/**
+ * Read gate for the CRM client drill-down (companies / folders / projects
+ * list endpoints). Sales & presales reach it through the `crm` module;
+ * projects-module users (technicians / engineers / managers) reach the same
+ * client → project tree to find the projects assigned to them. So either
+ * module — or the legacy no-grants bypass — passes. The listing queries
+ * still scope rows to "owned OR assigned", so this only governs whether the
+ * endpoint can be hit, not what data comes back.
+ */
+export async function requireCrmOrProjectsRead(user: SessionUser): Promise<void> {
+  if (canReadAll(user)) return;
+  if (await hasModule(user.id, "crm")) return;
+  if (await hasModule(user.id, "projects")) return;
+
+  // Legacy bypass — mirror requireModuleAllowLegacy: a user with NO module
+  // grants at all is allowed (and audited) during the V2 transition.
+  const q = sql();
+  const anyRoles = (await q`
+    select 1 as ok from user_module_roles
+    where user_id = ${user.id} and revoked_at is null
+    limit 1
+  `) as Array<{ ok: number }>;
+  if (anyRoles.length === 0) {
+    try {
+      await q`
+        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        values (${user.id}, 'module_access', 0, 'legacy_bypass',
+                ${JSON.stringify({ module: "crm_or_projects" })}::jsonb)
+      `;
+    } catch {
+      // never block a request because audit logging failed
+    }
+    return;
+  }
+
+  throw new Error("FORBIDDEN");
+}
+
 /** Throw FORBIDDEN unless the user holds (module, role). Admin override applies. */
 export async function requireModuleRole(
   user: SessionUser,
