@@ -3,6 +3,7 @@ import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
 import { hasModule } from "@/lib/modules";
 import { normalizeFileKind } from "@/lib/storage";
+import { notifyPresalesOfProjectUpload } from "@/lib/leads";
 
 export const runtime = "nodejs";
 
@@ -203,6 +204,23 @@ export async function POST(req: NextRequest) {
       returning id, project_id, owner_id, kind, filename, mime, size_bytes,
                 storage_path, shared_to_projects, created_at
     `) as FileRow[];
+
+    // Route the upload to the presales handling this project's RFQ (with a
+    // presales-manager fallback). Best-effort — a notification hiccup must
+    // never fail the upload the user just made.
+    const fk = rows[0].kind;
+    const label = fk === "boq" ? "BOQ" : fk === "po" ? "PO" : "file";
+    try {
+      await notifyPresalesOfProjectUpload({
+        projectId,
+        uploaderId: user.id,
+        label,
+        filename,
+      });
+    } catch {
+      // ignore — upload already succeeded
+    }
+
     return NextResponse.json({ file: rows[0] });
   } catch (err) {
     return NextResponse.json(

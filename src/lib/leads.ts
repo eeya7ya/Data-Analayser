@@ -149,6 +149,89 @@ export async function sendLeadMessage(args: {
   return messageId;
 }
 
+/**
+ * Route a project upload (PO / BOQ / file) to the presales side.
+ *
+ * The RFQ lead anchored to the project tells us who owns the presales
+ * work: if it's already claimed, ping that person; if it's still
+ * unclaimed, fan out to the presales manager(s) so they can forward it
+ * (or claim it). Uploads on a project with no RFQ are left alone — there
+ * is no presales relationship to route them to. Callers wrap this in
+ * try/catch so a notification hiccup never fails the upload itself.
+ */
+export async function notifyPresalesOfProjectUpload(args: {
+  projectId: number;
+  uploaderId: number;
+  /** Human label for the artifact: "PO", "BOQ", or "file". */
+  label: string;
+  filename?: string | null;
+}): Promise<void> {
+  const { projectId, uploaderId, label } = args;
+  if (!Number.isFinite(projectId) || projectId <= 0) return;
+  const q = sql();
+
+  const leadRows = (await q`
+    select id, ref, assigned_to_id
+    from leads
+    where project_id = ${projectId} and deleted_at is null
+    order by created_at desc
+    limit 1
+  `) as Array<{ id: number; ref: string; assigned_to_id: number | null }>;
+  const lead = leadRows[0];
+  if (!lead) return; // no RFQ → nothing to route to presales
+
+  const projRows = (await q`
+    select p.name, p.folder_id, cf.company_id
+    from projects p
+    join client_folders cf on cf.id = p.folder_id
+    where p.id = ${projectId}
+    limit 1
+  `) as Array<{ name: string; folder_id: number; company_id: number | null }>;
+  const proj = projRows[0];
+  const projectName = proj?.name ?? `project #${projectId}`;
+  const link = proj
+    ? proj.company_id
+      ? `/crm/company/${proj.company_id}/clients/${proj.folder_id}/${projectId}/quotations`
+      : `/crm/individual/${proj.folder_id}/${projectId}/quotations`
+    : undefined;
+  const fileBit = args.filename ? ` (${args.filename})` : "";
+
+  // Claimed → straight to the presales person working this RFQ.
+  if (lead.assigned_to_id) {
+    if (lead.assigned_to_id === uploaderId) return; // their own upload
+    await sendLeadMessage({
+      leadId: lead.id,
+      senderId: uploaderId,
+      recipientId: lead.assigned_to_id,
+      kind: "file_uploaded",
+      subject: `${label} uploaded · ${projectName}`,
+      body: `A new ${label}${fileBit} was uploaded for ${projectName}.\n\nRFQ: ${lead.ref}`,
+      link,
+    });
+    return;
+  }
+
+  // Still unclaimed → ask the presales manager(s) to forward / claim it.
+  const managers = (await q`
+    select distinct user_id from user_module_roles
+    where module = 'crm' and role = 'presales_manager' and revoked_at is null
+  `) as Array<{ user_id: number }>;
+  for (const m of managers) {
+    if (m.user_id === uploaderId) continue;
+    await sendLeadMessage({
+      leadId: lead.id,
+      senderId: uploaderId,
+      recipientId: m.user_id,
+      kind: "file_uploaded",
+      subject: `${label} needs a presales owner · ${projectName}`,
+      body:
+        `A new ${label}${fileBit} was uploaded for ${projectName}, but no ` +
+        `presales has claimed it yet. Forward it to someone — or claim it.\n\nRFQ: ${lead.ref}`,
+      link,
+    });
+  }
+}
+
 // ── Status transition guard ───────────────────────────────────────────────
 
 /**
