@@ -28,7 +28,7 @@ export default async function LeadsPage() {
     isAdmin ||
     (await hasModuleRole(user.id, "crm", "sales")) ||
     (await hasModuleRole(user.id, "crm", "sales_manager"));
-  const canCreate = await canCreateLead(user); // sales roles / admin
+  const canCreate = await canCreateLead(user); // any CRM role / admin
 
   return (
     <div className="min-h-screen bg-magic-soft/30">

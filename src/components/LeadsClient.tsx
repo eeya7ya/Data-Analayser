@@ -154,14 +154,14 @@ export default function LeadsClient({
           <tbody className="divide-y divide-magic-border/40">
             {loading && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-magic-ink/50">
+                <td colSpan={isPresales ? 8 : 7} className="px-3 py-6 text-center text-magic-ink/50">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && leads.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-magic-ink/50">
+                <td colSpan={isPresales ? 8 : 7} className="px-3 py-8 text-center text-magic-ink/50">
                   {!isPresales
                     ? "You haven't opened any leads yet."
                     : tab === "new"

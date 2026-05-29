@@ -39,16 +39,14 @@ export type { LeadStatus, LeadPriority, LeadMessageKind } from "./leadConstants"
 // ── Role gates ────────────────────────────────────────────────────────────
 
 /**
- * Leads are opened by sales as their CRM work cycle (the RFQ). Presales
- * receive the information off the shared queue rather than authoring leads,
- * so lead creation is gated to sales roles (admins always pass).
+ * Any CRM user can OPEN a lead (the information intake / RFQ): sales as
+ * their work cycle, and presales when they capture an inbound enquiry
+ * themselves. Either way it lands in the shared queue for a presales
+ * person to claim. Admins always pass.
  */
 export async function canCreateLead(user: SessionUser): Promise<boolean> {
   if (user.role === "admin") return true;
-  return (
-    (await hasModuleRole(user.id, "crm", "sales")) ||
-    (await hasModuleRole(user.id, "crm", "sales_manager"))
-  );
+  return hasModule(user.id, "crm");
 }
 
 /**
