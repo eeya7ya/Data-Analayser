@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
-import { requireModuleAllowLegacy } from "@/lib/modules";
+import { requireModuleAllowLegacy, requireCrmOrProjectsRead } from "@/lib/modules";
+import { assignedCompanyIds } from "@/lib/projectAccess";
 import { findCrossKindConflicts } from "@/lib/crmNames";
 
 export const runtime = "nodejs";
@@ -43,13 +44,19 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    await requireModuleAllowLegacy(user, "crm");
+    // Sales / presales reach this via `crm`; projects users (technicians)
+    // reach it to find companies holding a project assigned to them.
+    await requireCrmOrProjectsRead(user);
 
     const { searchParams } = new URL(req.url);
     const idParam = searchParams.get("id");
     const search = (searchParams.get("q") ?? "").trim();
     const includeArchived = searchParams.get("include_archived") === "1";
     const isAdmin = canReadAll(user);
+    // "Assigned work" scope: companies that hold a project assigned to this
+    // user. Combined with ownership below so a technician sees only the
+    // companies behind their assigned projects (and nothing else).
+    const assignedCo = isAdmin ? [] : await assignedCompanyIds(user.id);
     const q = sql();
 
     // Single-row fetch for the company detail page.
@@ -79,7 +86,7 @@ export async function GET(req: NextRequest) {
       `) as CompanyRow[];
       const row = rows[0];
       if (!row) return NextResponse.json({ company: null });
-      if (!isAdmin && row.owner_id !== user.id) {
+      if (!isAdmin && row.owner_id !== user.id && !assignedCo.includes(id)) {
         return NextResponse.json({ error: "forbidden" }, { status: 403 });
       }
       return NextResponse.json({ company: row });
@@ -95,7 +102,6 @@ export async function GET(req: NextRequest) {
     // was inverted so the default request only returned archived rows,
     // which wiped the SSR-rendered list on client re-fetch.
     const activeOnly = includeArchived ? null : true;
-    const ownerFilter = isAdmin ? null : user.id;
     const rows = (await q`
       select c.id, c.name, c.website, c.industry, c.size_bucket, c.notes,
              c.owner_id, u.username as owner_username,
@@ -114,7 +120,7 @@ export async function GET(req: NextRequest) {
       from companies c
       left join users u on u.id = c.owner_id
       where (${activeOnly}::boolean is null or (c.deleted_at is null) = ${activeOnly})
-        and (${ownerFilter}::int is null or c.owner_id = ${ownerFilter})
+        and (${isAdmin}::boolean or c.owner_id = ${user.id} or c.id = any(${assignedCo}::int[]))
         and (
           ${search} = ''
           or c.name ilike ${"%" + search + "%"}

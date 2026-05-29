@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser, canReadAll } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
+import { assignedCompanyIds } from "@/lib/projectAccess";
 import TopBar from "@/components/TopBar";
 import CompanyListClient from "@/components/CompanyListClient";
 import UserScopePicker from "@/components/UserScopePicker";
@@ -68,6 +69,9 @@ export default async function CompanyListPage({
       ? requested
       : null
     : user.id;
+  // Projects users (technicians) see the companies behind their assigned
+  // projects in addition to any they own — and nothing else.
+  const assignedCo = isAdmin ? [] : await assignedCompanyIds(user.id);
   const q = sql();
   // Counts must also follow `contacts.company_id → contacts.folder_id`,
   // not just `client_folders.company_id`. Post-refactor a person can be
@@ -110,7 +114,11 @@ export default async function CompanyListPage({
            c.deleted_at
     from companies c
     where c.deleted_at is null
-      and (${scopeOwnerId}::int is null or c.owner_id = ${scopeOwnerId})
+      and (
+        ${scopeOwnerId}::int is null
+        or c.owner_id = ${scopeOwnerId}
+        or c.id = any(${assignedCo}::int[])
+      )
     order by c.name
   `) as CompanyListRow[];
 

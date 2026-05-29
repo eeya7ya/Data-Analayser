@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { canReadAll, getSessionUser } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import { userHasLeadAccessToFolder } from "@/lib/leads";
+import { userHasAssignedProjectInFolder } from "@/lib/projectAccess";
 import TopBar from "@/components/TopBar";
 import FolderProjectsClient from "@/components/FolderProjectsClient";
 import { EditFolderButton } from "@/components/EditFolderDialog";
@@ -74,7 +75,8 @@ export default async function IndividualClientPage({
   if (
     !canReadAll(user) &&
     folder.owner_id !== user.id &&
-    !(await userHasLeadAccessToFolder(user.id, folderId))
+    !(await userHasLeadAccessToFolder(user.id, folderId)) &&
+    !(await userHasAssignedProjectInFolder(user.id, folderId))
   ) {
     return (
       <div className="min-h-screen bg-magic-soft/40">
