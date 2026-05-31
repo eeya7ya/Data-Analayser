@@ -821,6 +821,15 @@ export async function POST(req: NextRequest) {
     const mode: QuotationMode =
       body.mode === "draft" || body.mode === "review" ? body.mode : "active";
 
+    // Creating any quotation here — a priced active record, a draft, or a
+    // presales review snapshot — is restricted to presales, presales
+    // managers, and admins. Sales never author quotations; they raise a
+    // Request for Quotation from the project header, which goes through
+    // POST /api/leads (one open RFQ per project is enforced there).
+    if (!(await canAuthorQuotation(user))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
     const useD1 = false; // D1 paused — see GET above
     const q = useD1 ? null : sql();
 
