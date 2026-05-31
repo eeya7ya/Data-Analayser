@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
-import { requireModuleAllowLegacy, isSalesEditLocked } from "@/lib/modules";
+import {
+  requireModuleAllowLegacy,
+  isSalesEditLocked,
+  canAuthorQuotation,
+} from "@/lib/modules";
 import { ensureDefaultProject } from "@/lib/projects";
 import { d1Query } from "@/lib/db-d1";
 import { resolveR2OverflowsInRows } from "@/lib/r2";

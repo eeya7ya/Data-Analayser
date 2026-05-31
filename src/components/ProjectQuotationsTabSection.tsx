@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { sql } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+import { canAuthorQuotation } from "@/lib/modules";
 import ProjectQuotationsList, {
   type ProjectQuotationRow,
 } from "@/components/ProjectQuotationsList";
@@ -29,6 +31,12 @@ export default async function ProjectQuotationsTabSection({
     limit 200
   `) as ProjectQuotationRow[];
 
+  // Only presales / presales managers / admins author quotations here.
+  // Sales request a quotation from the project header instead, so we hide
+  // the Designer / AI / Catalogue entry points from them entirely.
+  const user = await getSessionUser();
+  const canCreate = user ? await canAuthorQuotation(user) : false;
+
   return (
     <section className="rounded-2xl border border-magic-border bg-white p-5">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -44,26 +52,28 @@ export default async function ProjectQuotationsTabSection({
             Designer / Catalogue to compose new ones.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Link
-            href={`${base}/quotations/new`}
-            className="rounded-lg bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-magic-red/90 transition-colors"
-          >
-            + Designer
-          </Link>
-          <Link
-            href={`${base}/quotations/ai`}
-            className="rounded-lg border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors"
-          >
-            AI Designer
-          </Link>
-          <Link
-            href={`${base}/quotations/catalogue`}
-            className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
-          >
-            Catalogue
-          </Link>
-        </div>
+        {canCreate && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Link
+              href={`${base}/quotations/new`}
+              className="rounded-lg bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-magic-red/90 transition-colors"
+            >
+              + Designer
+            </Link>
+            <Link
+              href={`${base}/quotations/ai`}
+              className="rounded-lg border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors"
+            >
+              AI Designer
+            </Link>
+            <Link
+              href={`${base}/quotations/catalogue`}
+              className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
+            >
+              Catalogue
+            </Link>
+          </div>
+        )}
       </div>
 
       <ProjectQuotationsList rows={rows} base={base} />
