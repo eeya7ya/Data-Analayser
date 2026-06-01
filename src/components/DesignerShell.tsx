@@ -160,6 +160,7 @@ export default function DesignerShell({
         folder_id: row.folder_id ? Number(row.folder_id) : null,
         contact_id: row.contact_id ? Number(row.contact_id) : null,
         project_id: row.project_id ? Number(row.project_id) : null,
+        updated_at: (row.updated_at as string | null) ?? null,
         items_json: itemsArray,
         config_json: configObject,
       });
