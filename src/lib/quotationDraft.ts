@@ -315,6 +315,15 @@ export interface EditModeDraft {
   taxPercent: number;
   /** Selected brand variant id (logo + cover + about-us bundle). */
   brandVariantId?: string;
+  /**
+   * `updated_at` of the saved quotation row this draft was branched from.
+   * The hydration path compares it against the freshly-fetched row: if the
+   * quotation has since been changed through another session / device /
+   * path, the draft is stale and must NOT override the newer DB data.
+   * Absent on legacy drafts written before this field existed — those are
+   * treated as stale so they yield to the server snapshot.
+   */
+  baseUpdatedAt?: string | null;
 }
 
 export function loadEditDraft(id: number): EditModeDraft | null {

@@ -50,6 +50,12 @@ export interface ExistingQuotation {
   folder_id: number | null;
   contact_id: number | null;
   project_id?: number | null;
+  /**
+   * Server `updated_at` of this row. Used to validate the per-id edit
+   * draft on hydration — a draft branched from an older revision is stale
+   * and must not mask the fresher DB data.
+   */
+  updated_at?: string | null;
   items_json: QuotationItem[];
   config_json: {
     showPictures?: boolean;
@@ -465,7 +471,25 @@ export default function Designer({
       // session would show up at full SI price next to already-divided
       // existing rows, and flipping the toggle back would multiply them
       // by 1.16 a second time.
-      const editDraft = loadEditDraft(existing.id);
+      // Per-id edit draft, but only if it's still fresh. A draft is stale
+      // when the quotation has been saved through another session / device
+      // / path since the draft was branched (its pinned `baseUpdatedAt` no
+      // longer matches the freshly-fetched row's `updated_at`). A stale
+      // draft used to silently mask the newer DB data: the viewer showed
+      // the up-to-date row while pressing Edit reloaded the old localStorage
+      // buffer. We drop such drafts so edit mode always reflects the latest
+      // save. Legacy drafts with no `baseUpdatedAt` are also treated as
+      // stale. Drafts with no server `updated_at` to compare against are
+      // kept (offline-first safety) rather than discarded blindly.
+      const rawEditDraft = loadEditDraft(existing.id);
+      const draftIsStale =
+        rawEditDraft != null &&
+        existing.updated_at != null &&
+        rawEditDraft.baseUpdatedAt !== existing.updated_at;
+      if (rawEditDraft && draftIsStale) {
+        clearEditDraft(existing.id);
+      }
+      const editDraft = draftIsStale ? null : rawEditDraft;
       const willBeTaxInclusive = editDraft
         ? Boolean(editDraft.taxInclusive)
         : Boolean(existing.config_json?.taxInclusive);
@@ -961,6 +985,9 @@ export default function Designer({
       showPictures,
       taxPercent,
       brandVariantId,
+      // Pin the draft to the DB revision it was branched from so a later
+      // open can tell whether the quotation changed underneath it.
+      baseUpdatedAt: existing.updated_at ?? null,
     });
   }, [
     hydrated,

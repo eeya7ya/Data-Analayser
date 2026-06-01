@@ -241,6 +241,31 @@ export async function isSalesEditLocked(user: SessionUser): Promise<boolean> {
 }
 
 /**
+ * V2.x — authoritative "may author a priced quotation" gate.
+ *
+ * Authoring (creating/pricing a quotation in the Designer, AI Designer or
+ * Catalogue) is restricted to presales, presales managers, and admins.
+ * Everyone else in CRM — plain sales, sales managers, and legacy users
+ * with no module grants — may only file a Request for Quotation
+ * (mode=review) for presales to pick up. This is a positive allow-list
+ * (not the inverse of the sales lock) so it deliberately excludes
+ * sales_manager and the legacy no-grants bypass that `isSalesEditLocked`
+ * lets through.
+ *
+ * Note: `viewer` is intentionally excluded even though `canReadAll`
+ * covers it — viewers are read-only and must never mutate.
+ */
+export async function canAuthorQuotation(user: SessionUser): Promise<boolean> {
+  if (user.role === "admin") return true;
+  const grants = await getUserModuleRoles(user.id);
+  return grants.some(
+    (g) =>
+      g.module === "crm" &&
+      (g.role === "presales" || g.role === "presales_manager"),
+  );
+}
+
+/**
  * True when the user holds any role in `module` whose name ends in
  * `_manager` (e.g. sales_manager, presales_manager, manager). Phase 3
  * uses this to widen visibility scope to team-member rows.
