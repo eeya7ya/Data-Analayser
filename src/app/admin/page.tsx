@@ -16,7 +16,7 @@ export default async function AdminPage() {
   const settingsPromise = getAppSettings({ fresh: true });
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (!canReadAll(user)) redirect("/quotation");
+  if (!canReadAll(user)) redirect("/crm");
   const readOnly = user.role !== "admin";
   const settings = await settingsPromise;
   return (

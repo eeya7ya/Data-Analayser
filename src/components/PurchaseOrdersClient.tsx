@@ -78,15 +78,8 @@ function formatDate(value: string | null): string {
 
 export default function PurchaseOrdersClient({
   isAdmin,
-  prefillQuotationId,
 }: {
   isAdmin: boolean;
-  /**
-   * Optional quotation id to preselect in the create form. Supplied by the
-   * server page when the user clicks "Convert to PO" on the quotation
-   * viewer — that deep-links to `/purchase-orders?quotation=<id>`.
-   */
-  prefillQuotationId?: string | null;
 }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,16 +163,6 @@ export default function PurchaseOrdersClient({
     if (!formClient.trim()) setFormClient(q.client_name || "");
     if (!formProject.trim()) setFormProject(q.project_name || "");
   }, [formQuotationId, quotations, formClient, formProject]);
-
-  // Honor `/purchase-orders?quotation=<id>` deep-links coming from the
-  // "Convert to PO" button in the quotation viewer. We open the create
-  // form with the quotation preselected so the user only has to type the
-  // PO number + supplier.
-  useEffect(() => {
-    if (!prefillQuotationId) return;
-    setShowCreate(true);
-    setFormQuotationId(prefillQuotationId);
-  }, [prefillQuotationId]);
 
   function resetForm() {
     setFormPoNumber("");

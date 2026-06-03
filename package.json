@@ -1,6 +1,6 @@
 {
   "name": "magictech-quotation-designer",
-  "version": "1.3.2",
+  "version": "1.4.3",
   "private": true,
   "description": "MagicTech AI Quotation Designer — Next.js 15 + Vercel 2026 + Supabase Postgres + Groq",
   "scripts": {

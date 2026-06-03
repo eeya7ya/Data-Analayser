@@ -4,6 +4,7 @@ import { isSalesEditLocked } from "@/lib/modules";
 import Designer from "@/components/Designer";
 import DesignerShell from "@/components/DesignerShell";
 import TopBar from "@/components/TopBar";
+import BackButton from "@/components/BackButton";
 import { getAppSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -118,6 +119,16 @@ export default async function DesignerPage({
             quotationId={quotationId}
             appSettings={appSettings}
           />
+          {/* Bottom "back to previous page" affordance — returns the user to
+              wherever they drilled in from (the quotations list / project),
+              falling back to the CRM hub when there's no history to pop. */}
+          <div className="no-print mt-8 flex justify-center border-t border-magic-border/60 pt-5">
+            <BackButton
+              fallbackHref="/crm"
+              fallbackLabel="Back to previous page"
+              className="rounded-lg border border-magic-border px-4 py-2 hover:bg-magic-soft"
+            />
+          </div>
         </main>
       </div>
     );
@@ -168,6 +179,14 @@ export default async function DesignerPage({
           initialProjectId={initialProjectId}
           appSettings={await settingsPromise}
         />
+        {/* Bottom "back to previous page" affordance for the create flow. */}
+        <div className="no-print mt-8 flex justify-center border-t border-magic-border/60 pt-5">
+          <BackButton
+            fallbackHref="/crm"
+            fallbackLabel="Back to previous page"
+            className="rounded-lg border border-magic-border px-4 py-2 hover:bg-magic-soft"
+          />
+        </div>
       </main>
     </div>
   );

@@ -57,10 +57,10 @@ export default async function ApprovalsInboxPage() {
             Modules tab if you should have it.
           </p>
           <Link
-            href="/quotation"
+            href="/crm"
             className="inline-block mt-4 rounded-lg border border-magic-border px-3 py-1.5 text-sm font-semibold hover:bg-magic-soft"
           >
-            Back to quotations
+            Back to CRM
           </Link>
         </main>
       </div>

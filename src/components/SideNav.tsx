@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,7 +10,6 @@ import {
   CalendarDays,
   NotebookPen,
   Megaphone,
-  ChevronDown,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -34,12 +33,14 @@ interface NavItem {
  * default and opened from the TopBar toggle. Overlays content (no
  * reflow) so every page keeps its existing layout. Admin lives here
  * (bottom section) rather than in the top bar, per the V1.3a chrome
- * spec. The cross-client quotation surfaces (All quotations, Purchase
- * orders) live in a collapsed "Quotation tools" group so they stay
- * reachable without cluttering the primary nav. The Catalogue now lives
- * inside the CRM → Storage workspace (a Storage-people surface), so it
- * is no longer listed here. The Designer / AI Designer are reached
- * in-context from the CRM flow, so they're not nav entries.
+ * spec. The old legacy cross-client quotation surfaces (the "Quotation
+ * tools" group: All quotations + Purchase orders) were retired in
+ * V1.4C — those flat lists are superseded by the CRM drill-down
+ * (Company → Client → Project → Quotations), so they're no longer in
+ * the nav. The Catalogue now lives inside the CRM → Storage workspace
+ * (a Storage-people surface), so it is no longer listed here. The
+ * Designer / AI Designer are reached in-context from the CRM flow, so
+ * they're not nav entries.
  */
 export default function SideNav({
   open,
@@ -53,7 +54,6 @@ export default function SideNav({
   moduleRoles: ModuleRole[] | null;
 }) {
   const pathname = usePathname();
-  const [toolsOpen, setToolsOpen] = useState(false);
 
   // Close on Escape for keyboard users.
   useEffect(() => {
@@ -85,13 +85,6 @@ export default function SideNav({
     { href: "/notes", label: "My Notes", icon: NotebookPen, show: true },
     { href: "/updates", label: "Updates", icon: Megaphone, show: true },
   ].filter((i) => i.show);
-
-  // Cross-client quotation surfaces. Reached contextually from the CRM flow
-  // too; this group just keeps the global lists one tap away for CRM users.
-  const quotationTools = [
-    { href: "/quotation", label: "All quotations" },
-    { href: "/purchase-orders", label: "Purchase orders" },
-  ];
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -152,36 +145,6 @@ export default function SideNav({
               );
             })}
           </ul>
-
-          {/* Cross-client quotation tools — collapsed, out of the way. */}
-          {has("crm") && (
-            <div className="mt-3">
-              <button
-                onClick={() => setToolsOpen((v) => !v)}
-                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-magic-ink/40 hover:text-magic-ink/70 transition-colors"
-              >
-                Quotation tools
-                <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform ${toolsOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-              {toolsOpen && (
-                <ul className="space-y-0.5 pb-1">
-                  {quotationTools.map((item) => (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        onClick={onClose}
-                        className="block rounded-lg px-3 py-2 text-sm text-magic-ink/65 hover:bg-magic-soft hover:text-magic-red transition-colors"
-                      >
-                        {item.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
         </nav>
 
         {/* Admin — the LHS toggle entry, gated to admins. */}

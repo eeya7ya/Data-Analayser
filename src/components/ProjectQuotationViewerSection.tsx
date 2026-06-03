@@ -1,13 +1,16 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { sql } from "@/lib/db";
 import { getAppSettings } from "@/lib/settings";
 import QuotationViewer from "@/components/QuotationViewer";
 
 /**
- * Verifies a quotation belongs to the given project, then renders
- * the existing QuotationViewer inside the drill-down shell. If the
- * quotation moved projects, we hand off to the legacy viewer rather
- * than 404 so the URL still resolves to the correct document.
+ * Verifies a quotation exists, then renders the existing QuotationViewer
+ * inside the drill-down shell. We intentionally do NOT bounce a quotation
+ * whose project moved back to `/quotation?id=` — that route is now a thin
+ * compatibility shim that forwards id-only links straight back into this CRM
+ * viewer, so redirecting to it would loop. Rendering the viewer here for any
+ * existing quotation is safe: the viewer's own `/api/quotations` fetch still
+ * enforces per-user access.
  */
 export default async function ProjectQuotationViewerSection({
   projectId,
@@ -22,14 +25,11 @@ export default async function ProjectQuotationViewerSection({
 
   const q = sql();
   const rows = (await q`
-    select id, project_id from quotations
+    select id from quotations
     where id = ${quotationId} and deleted_at is null
     limit 1
-  `) as Array<{ id: number; project_id: number | null }>;
+  `) as Array<{ id: number }>;
   if (rows.length === 0) notFound();
-  if (rows[0].project_id !== projectId) {
-    redirect(`/quotation?id=${quotationId}`);
-  }
 
   const appSettings = await getAppSettings();
   return (

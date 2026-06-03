@@ -7,14 +7,17 @@ import PurchaseOrdersClient from "@/components/PurchaseOrdersClient";
 export const dynamic = "force-dynamic";
 
 interface SearchParams {
-  quotation?: string;
+  id?: string;
+  project?: string;
 }
 
 /**
- * Purchase Orders landing page. Each quotation can evolve into one or more
- * POs once the client signs off, and this surface lets the user list /
- * create / edit them in one place. The client component does its own fetch
- * so the page shell streams immediately — no server-preload round-trip.
+ * Purchase Orders surface. V1.4C retired the standalone cross-client PO list
+ * (it used to sit in the nav) and the quotation→PO conversion. POs now live
+ * inside the CRM: this page is reached from a CRM project's "Purchase Orders"
+ * tab via `?project=<id>` (manage that project's POs) or `?id=<id>` (open a
+ * specific PO). Reaching it without that context — the old flat list, or the
+ * retired `?quotation=` convert deep-link — forwards into the CRM.
  */
 export default async function PurchaseOrdersPage({
   searchParams,
@@ -29,6 +32,11 @@ export default async function PurchaseOrdersPage({
   if (!user) redirect("/login");
 
   const sp = await searchParams;
+  // No project / PO context = the old cross-client list (or the retired
+  // convert link). The flat list is gone — send the user into the CRM.
+  if (!sp.id && !sp.project) {
+    redirect("/crm");
+  }
 
   return (
     <div className="min-h-screen bg-magic-soft/40">
@@ -37,10 +45,7 @@ export default async function PurchaseOrdersPage({
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-magic-ink">Purchase Orders</h1>
         </div>
-        <PurchaseOrdersClient
-          isAdmin={canReadAll(user)}
-          prefillQuotationId={sp.quotation ?? null}
-        />
+        <PurchaseOrdersClient isAdmin={canReadAll(user)} />
       </main>
     </div>
   );

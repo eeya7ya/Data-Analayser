@@ -196,10 +196,10 @@ export default function DesignerShell({
             Retry
           </button>
           <button
-            onClick={() => router.push("/quotation")}
+            onClick={() => router.push("/crm")}
             className="rounded-md border border-magic-border px-3 py-1.5 text-xs font-semibold hover:bg-magic-soft"
           >
-            Back to list
+            Back to CRM
           </button>
         </div>
       </div>

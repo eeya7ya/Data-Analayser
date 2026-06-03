@@ -62,6 +62,7 @@ export default async function IndividualListPage({
   const folderRows = (await q`
     select cf.id, cf.name, cf.kind, cf.company_id,
            cf.client_email, cf.client_phone, cf.client_company,
+           cf.created_at,
            u.username as owner_username,
            (select count(*) from projects p
               where p.folder_id = cf.id and p.deleted_at is null) as project_count,

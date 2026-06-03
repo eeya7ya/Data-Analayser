@@ -178,7 +178,7 @@ export async function GET() {
       severity: "info",
       title: `Storage answered ${recent} stock check${recent === 1 ? "" : "s"}`,
       body: "Open the quotation to see the per-item checklist.",
-      action: { label: "View quotations", href: "/quotation" },
+      action: { label: "Open CRM", href: "/crm" },
     });
   }
 
@@ -195,7 +195,7 @@ export async function GET() {
       severity: "warning",
       title: `${openChangeReqs} change request${openChangeReqs === 1 ? "" : "s"} on your quotations`,
       body: "Sales asked for updates. Open the quotation, edit it, and save to resend.",
-      action: { label: "View quotations", href: "/quotation" },
+      action: { label: "Open CRM", href: "/crm" },
     });
   }
 
