@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   computeQuotationTotals,
   effectiveMergedValue,
@@ -646,6 +647,12 @@ export default function QuotationPreview({
   const [undoHintCount, setUndoHintCount] = useState(0);
   const [undoFlash, setUndoFlash] = useState<string | null>(null);
 
+  // The print footer is a position:fixed band portaled to <body> (a direct
+  // body child is the placement Chrome repeats reliably on every printed page).
+  // `mounted` gates the portal so SSR + first client render match.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   function pushUndo(item: QuotationItem, index: number) {
     deletedRowsRef.current.push({ item, index, stamp: Date.now() });
     // Cap so a runaway paste-delete loop can't eat memory.
@@ -1125,6 +1132,7 @@ export default function QuotationPreview({
   const systemPages = groups.length > 0 ? groups : [];
 
   return (
+    <>
     <div className="quotation-doc">
       {/* Undo feedback toast — shown briefly after Ctrl/Cmd+Z restores a
           row (or fails to, when the stack is empty). Hidden in print. */}
@@ -1362,6 +1370,16 @@ export default function QuotationPreview({
         </QuotationPage>
       )}
     </div>
+    {mounted &&
+      createPortal(
+        <div className="print-running-footer" aria-hidden="true">
+          <div className="footer-address whitespace-pre-wrap">
+            {resolvedFooterText}
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
