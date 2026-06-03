@@ -1361,17 +1361,6 @@ export default function QuotationPreview({
           />
         </QuotationPage>
       )}
-
-      {/* Fixed print footer — rendered once, pinned to the bottom of every
-          printed page via @media print (position:fixed). On screen it's hidden
-          (each sheet keeps its own <tfoot> address bar); in print the per-sheet
-          tfoots are hidden and this single band shows on every page, so the
-          footer also lands at the bottom of a short last page. */}
-      <div className="print-running-footer" aria-hidden="true">
-        <div className="footer-address whitespace-pre-wrap">
-          {resolvedFooterText}
-        </div>
-      </div>
     </div>
   );
 }

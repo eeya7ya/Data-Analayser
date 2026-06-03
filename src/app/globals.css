@@ -235,8 +235,7 @@ body > * {
   box-shadow: inset 0 2px 0 0 var(--mt-red);
 }
 
-.quotation-sheet .footer-address,
-.print-running-footer .footer-address {
+.quotation-sheet .footer-address {
   background: var(--mt-header);
   color: var(--mt-red);
   text-align: center;
@@ -245,12 +244,6 @@ body > * {
   border: 1px solid #cfbebc;
   font-size: 10.5px;
   line-height: 1.4;
-}
-
-/* The fixed print footer band is print-only — on screen each sheet keeps its
- * own <tfoot> address bar, so this standalone copy stays hidden. */
-.print-running-footer {
-  display: none;
 }
 
 /* On-screen only: pin the address footer to the very bottom of each A4
@@ -438,9 +431,7 @@ body > * {
    * banners, totals highlight) to actually print. Chrome drops element
    * backgrounds in print output unless print-color-adjust is set to exact. */
   .quotation-sheet,
-  .quotation-sheet *,
-  .print-running-footer,
-  .print-running-footer * {
+  .quotation-sheet * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -505,11 +496,6 @@ body > * {
     height: 297mm;
     min-height: 0;
     overflow: hidden;
-    /* Stack above the fixed footer band (z-index 20) with an opaque backing so
-     * the address bar never bleeds through the full-bleed cover / about art. */
-    position: relative;
-    z-index: 30;
-    background: #ffffff;
   }
   .quotation-sheet.full-bleed img {
     display: block !important;
@@ -522,58 +508,43 @@ body > * {
     display: none !important;
   }
 
-  /* ---- 5. Page-frame table (running header) + fixed footer ----------------
+  /* ---- 5. Page-frame table — running header (thead) + running footer (tfoot)
    * The outer .sheet-layout table is the spine of every printed page. Its
-   * <thead> carries the brand strip and repeats at the top of every physical
-   * page (table-header-group), which keeps the full-bleed cover / about-us
-   * sheets header-free (they're separate sheets with no table). The <tbody>
-   * holds the page body and fragments across pages.
+   * <thead> carries the brand strip and repeats at the top of every page; its
+   * <tfoot> carries the address bar and repeats at the bottom. This keeps the
+   * full-bleed cover / about-us sheets header/footer-free (separate sheets, no
+   * table) and is the browser-RELIABLE way to repeat them. A position:fixed
+   * footer was tried but is flaky in Chrome's print engine — it landed at the
+   * TOP of the following page — so we stick with the table running groups.
    *
-   * The FOOTER is NOT a running <tfoot> — a table footer can't pin to the
-   * bottom of a SHORT last page; it floats up under the content (the reported
-   * bug on the page right before Final Totals). Instead a single position:fixed
-   * `.print-running-footer` (further down) sits in the @page bottom margin and
-   * therefore lands at the bottom of EVERY physical page, partial ones
-   * included. The cover/about sheets are stacked above it (z-index) so it never
-   * shows over the artwork. */
+   * The body cell carries a `height` floor (treated as a MINIMUM) so a short /
+   * single-page sheet is padded out and the running footer drops to the bottom
+   * of the page instead of floating up under the content; a long items table
+   * grows past it and fragments, with the footer reserved + repeated per page.
+   * (On the last, partial page of a very long multi-page system the footer
+   * still sits just under the content — a known limit of a table running footer
+   * that can't be padded per fragment in pure CSS.) */
   .quotation-sheet > table.sheet-layout {
     width: 100%;
+    height: 100%;
     border-collapse: collapse;
     table-layout: fixed;
   }
   .quotation-sheet > table.sheet-layout > thead {
     display: table-header-group;
   }
-  /* Running <tfoot> hidden in print — replaced by the fixed footer below. It
-   * still renders on screen (its @media screen rule) so the preview keeps a
-   * footer per sheet. */
   .quotation-sheet > table.sheet-layout > tfoot {
-    display: none;
+    display: table-footer-group;
   }
-  /* Body cell: top-align content. No forced height — the footer is a fixed
-   * band now, so the body doesn't need padding to push a running tfoot down. */
   .quotation-sheet > table.sheet-layout > tbody > tr > td.sheet-body-cell {
     vertical-align: top;
+    height: 228mm;
   }
-  /* Keep the running header band from splitting across a page boundary. */
-  .quotation-sheet > table.sheet-layout > thead > tr > td {
+  /* Keep the running header / footer bands from splitting across a page edge. */
+  .quotation-sheet > table.sheet-layout > thead > tr > td,
+  .quotation-sheet > table.sheet-layout > tfoot > tr > td {
     break-inside: avoid;
     page-break-inside: avoid;
-  }
-
-  /* ---- 5b. Fixed footer band ----------------------------------------------
-   * One address bar, pinned to the bottom of every printed page via the @page
-   * bottom margin (Chrome repeats position:fixed elements on each page). Sits
-   * inside the side margins so it lines up with the content width. The
-   * cover/about sheets carry a higher z-index (below) so the bar never shows
-   * over the full-bleed artwork. */
-  .print-running-footer {
-    display: block;
-    position: fixed;
-    left: 12mm;
-    right: 12mm;
-    bottom: 5mm;
-    z-index: 20;
   }
 
   /* ---- 6. Inner items table (per system) ---------------------------------
