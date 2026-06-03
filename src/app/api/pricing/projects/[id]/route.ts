@@ -99,8 +99,34 @@ export async function GET(_req: Request, { params }: Ctx) {
 
     return NextResponse.json({
       project: result,
-      constants: constantsRows[0] ?? null,
-      productLines: lines,
+      // Map snake_case DB columns to the camelCase shape the pricing sheet
+      // reads. Without this the client gets `currency_rate` but looks for
+      // `currencyRate` (→ undefined → NaN), and `item_model` / `price_usd`
+      // come back blank — the project appeared to "lose" everything but the
+      // quantity (which happens to share the same key) on every reload.
+      constants: constantsRows[0]
+        ? {
+            currencyRate: constantsRows[0].currency_rate,
+            shippingRate: constantsRows[0].shipping_rate,
+            customsRate: constantsRows[0].customs_rate,
+            profitMargin: constantsRows[0].profit_margin,
+            taxRate: constantsRows[0].tax_rate,
+            targetCurrency: constantsRows[0].target_currency,
+            sourceCurrency: constantsRows[0].source_currency,
+          }
+        : null,
+      productLines: lines.map((l) => ({
+        id: l.id,
+        position: l.position,
+        itemModel: l.item_model,
+        priceUsd: l.price_usd,
+        quantity: l.quantity,
+        shippingOverride: l.shipping_override,
+        customsOverride: l.customs_override,
+        shippingRateOverride: l.shipping_rate_override,
+        customsRateOverride: l.customs_rate_override,
+        profitRateOverride: l.profit_rate_override,
+      })),
     });
   } catch (err) {
     const msg = (err as Error).message;
