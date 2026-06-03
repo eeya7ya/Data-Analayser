@@ -185,6 +185,72 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
     setTimeout(() => setCopiedCol(null), 1500);
   };
 
+  // Import a tab-separated block (Item Model / USD Price / Qty per line),
+  // appending new rows and skipping models that already exist. Shared by
+  // every column paste button so pasting a multi-column spreadsheet
+  // selection always lands in the right columns.
+  const pasteBlock = (lines: string[]) => {
+    const updated = [...rows];
+    const existingKeys = new Set(
+      updated.map((r) => r.itemModel.trim().toLowerCase()).filter((k) => k !== "")
+    );
+    const seenInPaste = new Set<string>();
+    const duplicates: string[] = [];
+    const added: string[] = [];
+    let idSeed = Date.now();
+
+    lines.forEach((line) => {
+      const cells = line.split("\t");
+      const model = (cells[0] ?? "").trim();
+      if (model === "") return;
+      const price = parseFloat((cells[1] ?? "").replace(/[^0-9.]/g, "")) || 0;
+      const qty = parseInt((cells[2] ?? "").replace(/[^0-9]/g, ""), 10) || 1;
+      const key = model.toLowerCase();
+      if (existingKeys.has(key) || seenInPaste.has(key)) {
+        duplicates.push(model);
+        return;
+      }
+      seenInPaste.add(key);
+      const emptyIdx = updated.findIndex((r) => r.itemModel.trim() === "");
+      if (emptyIdx !== -1) {
+        updated[emptyIdx] = {
+          ...updated[emptyIdx],
+          itemModel: model,
+          priceUsd: price,
+          quantity: qty,
+        };
+      } else {
+        updated.push({
+          id: idSeed++,
+          position: updated.length + 1,
+          itemModel: model,
+          priceUsd: price,
+          quantity: qty,
+        });
+      }
+      existingKeys.add(key);
+      added.push(model);
+    });
+
+    onChange(updated.map((r, i) => ({ ...r, position: i + 1 })));
+
+    if (duplicates.length > 0) {
+      showNotice({
+        kind: "warn",
+        title:
+          added.length > 0
+            ? `Added ${added.length} item${added.length === 1 ? "" : "s"}, skipped ${duplicates.length} duplicate${duplicates.length === 1 ? "" : "s"}`
+            : `Skipped ${duplicates.length} duplicate${duplicates.length === 1 ? "" : "s"} — all pasted items already exist`,
+        details: duplicates.map((d) => `Item model "${d}" has been repeated`),
+      });
+    } else if (added.length > 0) {
+      showNotice({
+        kind: "info",
+        title: `Added ${added.length} new item${added.length === 1 ? "" : "s"}`,
+      });
+    }
+  };
+
   const pasteColumn = async (field: InputField) => {
     let text: string;
     try {
@@ -199,6 +265,20 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
       });
       return;
     }
+
+    // If the clipboard holds a tab-separated block (a multi-column
+    // selection copied straight from Excel/Sheets), import the WHOLE block
+    // — Item Model / USD Price / Qty — no matter which column button was
+    // clicked. Otherwise a multi-column paste would dump tabs + numbers
+    // into a single column (e.g. the item model becoming "MAG180\t341.35").
+    const blockLines = text
+      .split(/\r?\n/)
+      .filter((l) => l.trim() !== "");
+    if (blockLines.some((l) => l.includes("\t"))) {
+      pasteBlock(blockLines);
+      return;
+    }
+
     const values = text
       .split(/\r?\n/)
       .map((v) => v.trim())
