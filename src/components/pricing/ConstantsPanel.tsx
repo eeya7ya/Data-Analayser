@@ -110,6 +110,9 @@ export function ConstantsPanel({
 
   const displayValue = (field: ConstantField) => {
     const v = constants[field.key];
+    // Never surface a literal "NaN" in the box — show it blank so the user
+    // can just type a value instead of staring at NaN.
+    if (!Number.isFinite(v)) return "";
     return field.isRate ? (v * 100).toFixed(2) : v.toFixed(4);
   };
 
@@ -123,7 +126,8 @@ export function ConstantsPanel({
   const beginEdit = (field: ConstantField) => {
     const v = constants[field.key];
     const raw = field.isRate ? v * 100 : v;
-    const text = Number.isFinite(raw) ? String(parseFloat(raw.toFixed(6))) : "";
+    const text =
+      Number.isFinite(raw) ? String(parseFloat((raw as number).toFixed(6))) : "";
     setEditing((e) => ({ ...e, [field.key]: text }));
   };
 
