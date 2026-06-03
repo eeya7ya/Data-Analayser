@@ -255,10 +255,10 @@ export default function QuotationViewer({
             Retry
           </button>
           <button
-            onClick={() => router.push("/quotation")}
+            onClick={() => router.push("/crm")}
             className="rounded-md border border-magic-border px-3 py-1.5 text-xs font-semibold hover:bg-magic-soft"
           >
-            Back to list
+            Back to CRM
           </button>
         </div>
       </div>
@@ -395,15 +395,6 @@ export default function QuotationViewer({
             Edit
           </button>
         )}
-        <button
-          onClick={() =>
-            router.push(`/purchase-orders?quotation=${id}`)
-          }
-          title="Create a purchase order linked to this quotation"
-          className="rounded-md border border-magic-border px-4 py-2 text-sm font-semibold hover:bg-magic-soft"
-        >
-          Convert to PO
-        </button>
         <button
           onClick={() => runPrint(false)}
           className="rounded-md bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700"

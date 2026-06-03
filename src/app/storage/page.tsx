@@ -41,10 +41,10 @@ export default async function StoragePage() {
             access to view inventory. Ask an admin in the Modules tab.
           </p>
           <Link
-            href="/quotation"
+            href="/crm"
             className="inline-block mt-4 rounded-lg border border-magic-border px-3 py-1.5 text-sm font-semibold hover:bg-magic-soft"
           >
-            Back to quotations
+            Back to CRM
           </Link>
         </main>
       </div>
