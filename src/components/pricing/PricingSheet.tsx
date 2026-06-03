@@ -285,7 +285,12 @@ export function PricingSheet({
   // We save any unsaved edits first so the quotation matches what the
   // user is currently seeing on screen.
   const handleConvertToQuotation = useCallback(
-    async (folderId: number | null, projectId: number | null) => {
+    async (
+      folderId: number | null,
+      projectId: number | null,
+      kind: "company" | "individual",
+      companyId: number | null,
+    ) => {
       if (!selectedProjectId || converting) return;
       setConverting(true);
       try {
@@ -321,8 +326,24 @@ export function PricingSheet({
           alert(err?.error ?? "Failed to convert to quotation");
           return;
         }
-        const data = (await res.json()) as { redirectTo: string };
-        window.location.href = data.redirectTo;
+        const data = (await res.json()) as {
+          quotationId: number;
+          redirectTo: string;
+        };
+        // Land the user on the CRM drill-down for the company/client/project
+        // the quotation was filed under — that view carries the breadcrumb
+        // (Dashboard → CRM → Companies → …) so the new company and quotation
+        // are easy to find. Fall back to the bare viewer when we don't have
+        // enough context to build the drill-down URL.
+        let target = data.redirectTo;
+        if (folderId != null && projectId != null && data.quotationId) {
+          if (kind === "company" && companyId != null) {
+            target = `/crm/company/${companyId}/clients/${folderId}/${projectId}/quotations/${data.quotationId}`;
+          } else if (kind === "individual") {
+            target = `/crm/individual/${folderId}/${projectId}/quotations/${data.quotationId}`;
+          }
+        }
+        window.location.href = target;
       } finally {
         setConverting(false);
       }
@@ -703,8 +724,8 @@ export function PricingSheet({
         open={showConvertDialog}
         converting={converting}
         onClose={() => setShowConvertDialog(false)}
-        onConfirm={({ folderId, projectId }) => {
-          void handleConvertToQuotation(folderId, projectId);
+        onConfirm={({ folderId, projectId, kind, companyId }) => {
+          void handleConvertToQuotation(folderId, projectId, kind, companyId);
         }}
       />
     </div>
