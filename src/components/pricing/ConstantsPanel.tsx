@@ -100,22 +100,56 @@ export function ConstantsPanel({
 }: Props) {
   const [fetchingRate, setFetchingRate] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
+  // Raw text held while a field is being edited, so typing doesn't get
+  // reformatted (e.g. "72." snapping back to "72.0000") on every keystroke.
+  const [editing, setEditing] = useState<Partial<Record<keyof Constants, string>>>(
+    {},
+  );
 
   const CONSTANT_FIELDS = buildConstantFields(sourceCurrency, targetCurrency);
-
-  const handleChange = (key: keyof Constants, raw: string) => {
-    const parsed = parseFloat(raw);
-    if (!isNaN(parsed)) {
-      const value = CONSTANT_FIELDS.find((f) => f.key === key)?.isRate
-        ? parsed / 100
-        : parsed;
-      onChange({ ...constants, [key]: value });
-    }
-  };
 
   const displayValue = (field: ConstantField) => {
     const v = constants[field.key];
     return field.isRate ? (v * 100).toFixed(2) : v.toFixed(4);
+  };
+
+  // What the input shows: the user's in-progress text while focused,
+  // otherwise the tidy formatted value.
+  const fieldText = (field: ConstantField) =>
+    editing[field.key] !== undefined ? editing[field.key]! : displayValue(field);
+
+  // On focus, seed the editable text with a compact, trailing-zero-free
+  // version of the current value so it's quick to retype.
+  const beginEdit = (field: ConstantField) => {
+    const v = constants[field.key];
+    const raw = field.isRate ? v * 100 : v;
+    const text = Number.isFinite(raw) ? String(parseFloat(raw.toFixed(6))) : "";
+    setEditing((e) => ({ ...e, [field.key]: text }));
+  };
+
+  // While typing: keep the raw text verbatim and, when it parses to a
+  // number, push the value up live so the table/charts update as you type.
+  const editChange = (field: ConstantField, raw: string) => {
+    // Allow only digits and a single decimal point (plus empty) so the
+    // field stays numeric but every in-progress value ("", "72", "72.")
+    // is accepted.
+    if (!/^\d*\.?\d*$/.test(raw)) return;
+    setEditing((e) => ({ ...e, [field.key]: raw }));
+    const parsed = parseFloat(raw);
+    if (!isNaN(parsed)) {
+      const value = field.isRate ? parsed / 100 : parsed;
+      onChange({ ...constants, [field.key]: value });
+    }
+  };
+
+  // On blur, drop the editing text so the field falls back to the tidy
+  // formatted display (and a blank field reverts to its last good value).
+  const endEdit = (field: ConstantField) => {
+    setEditing((e) => {
+      const next = { ...e };
+      delete next[field.key];
+      return next;
+    });
   };
 
   const handleCurrencySelect = (code: string) => {
@@ -242,11 +276,12 @@ export function ConstantsPanel({
             </label>
             <div className="relative">
               <input
-                type="number"
-                step="any"
-                min="0"
-                value={displayValue(field)}
-                onChange={(e) => handleChange(field.key, e.target.value)}
+                type="text"
+                inputMode="decimal"
+                value={fieldText(field)}
+                onFocus={() => beginEdit(field)}
+                onChange={(e) => editChange(field, e.target.value)}
+                onBlur={() => endEdit(field)}
                 className={cn(
                   "w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-3 pr-7 text-sm font-mono font-medium",
                   "focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400/30",
