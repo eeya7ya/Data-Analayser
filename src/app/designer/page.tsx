@@ -93,6 +93,11 @@ export default async function DesignerPage({
         </div>
         <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10 print-main">
           <header className="mb-6 no-print">
+            <BackButton
+              fallbackHref="/crm"
+              fallbackLabel="Back"
+              className="mb-2"
+            />
             <h1 className="text-2xl font-bold text-magic-ink">
               Editing quotation #{quotationId}
             </h1>
@@ -164,6 +169,11 @@ export default async function DesignerPage({
       </div>
       <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10 print-main">
         <header className="mb-6 no-print">
+          <BackButton
+            fallbackHref="/crm"
+            fallbackLabel="Back"
+            className="mb-2"
+          />
           <h1 className="text-2xl font-bold text-magic-ink">
             Quotation Designer
           </h1>
