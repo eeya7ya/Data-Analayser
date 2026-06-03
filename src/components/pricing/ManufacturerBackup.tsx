@@ -92,13 +92,18 @@ export function ManufacturerBackup({
         throw new Error("Selected file is not valid JSON");
       }
 
-      // Quick sanity-check before hitting the server.
-      const pl = payload as { projects?: unknown };
-      if (!pl || typeof pl !== "object" || !Array.isArray(pl.projects)) {
+      // Quick sanity-check before hitting the server. Accept both the full
+      // backup envelope ({ projects: [...] }) and a bare array of projects.
+      const projectsArr = Array.isArray(payload)
+        ? payload
+        : payload && typeof payload === "object"
+          ? (payload as { projects?: unknown }).projects
+          : undefined;
+      if (!Array.isArray(projectsArr)) {
         throw new Error("Backup file is missing a 'projects' array");
       }
 
-      const projectsCount = pl.projects.length;
+      const projectsCount = projectsArr.length;
       const confirmMsg =
         projectsCount === 0
           ? "The backup file contains no projects. Continue anyway?"

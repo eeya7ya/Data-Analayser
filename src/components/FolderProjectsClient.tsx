@@ -731,6 +731,97 @@ function QuotationsTab({
   // originally produced in Excel and just need a home under the project,
   // alongside the ones designed in-app.
   const [files, setFiles] = useState<FileRow[]>([]);
+  // Per-row "make a copy" state. `copyingId` disables the row's button
+  // while its POST is in flight; `reloadToken` re-runs the load effect
+  // once a copy lands so the new quotation appears without a refresh.
+  const [copyingId, setCopyingId] = useState<number | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  // Duplicate a quotation into THIS project. Creates a brand-new active
+  // quotation (fresh QY-ref) from the source's items / config / totals and
+  // client fields, so the original is never touched — the copy is a clean
+  // starting point the user can edit independently.
+  const duplicateQuotation = useCallback(
+    async (id: number) => {
+      setCopyingId(id);
+      setCopyError(null);
+      try {
+        const srcRes = await fetch(`/api/quotations?id=${id}`, {
+          cache: "no-store",
+        });
+        if (!srcRes.ok) {
+          throw new Error(`Failed to load quotation (${srcRes.status})`);
+        }
+        const srcData = (await srcRes.json()) as {
+          quotation: Record<string, unknown> | null;
+        };
+        const src = srcData.quotation;
+        if (!src) throw new Error("Quotation not found.");
+
+        // jsonb columns can come back as strings on legacy rows — normalise
+        // the same way the Designer and DuplicateQuotation do.
+        const parseJson = (v: unknown, fallback: unknown) => {
+          if (typeof v === "string") {
+            try {
+              return JSON.parse(v);
+            } catch {
+              return fallback;
+            }
+          }
+          return v ?? fallback;
+        };
+        const items = parseJson(src.items_json, []);
+        const config = parseJson(src.config_json, {});
+        const totals = parseJson(src.totals_json, {});
+
+        // Omit `ref` so the server mints a fresh QY-number; pin folder_id /
+        // project_id to the current project so the copy lands right here.
+        const payload = {
+          project_name: src.project_name
+            ? `${String(src.project_name)} (copy)`
+            : "Untitled Quotation (copy)",
+          client_name: (src.client_name as string) || undefined,
+          client_email: (src.client_email as string) || undefined,
+          client_phone: (src.client_phone as string) || undefined,
+          sales_engineer: (src.sales_engineer as string) || undefined,
+          prepared_by: (src.prepared_by as string) || undefined,
+          site_name: (src.site_name as string) || "SITE",
+          tax_percent: Number(src.tax_percent ?? 16),
+          folder_id: project.folder_id,
+          project_id: project.id,
+          items: Array.isArray(items) ? items : [],
+          totals:
+            totals && typeof totals === "object" && !Array.isArray(totals)
+              ? totals
+              : {},
+          config:
+            config && typeof config === "object" && !Array.isArray(config)
+              ? config
+              : {},
+        };
+
+        const res = await fetch("/api/quotations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = (await res.json()) as {
+          quotation?: { id: number; ref: string };
+          error?: string;
+        };
+        if (!res.ok || !data.quotation) {
+          throw new Error(data.error || "Failed to copy quotation.");
+        }
+        setReloadToken((t) => t + 1);
+      } catch (err) {
+        setCopyError((err as Error).message || "Failed to copy quotation.");
+      } finally {
+        setCopyingId(null);
+      }
+    },
+    [project.id, project.folder_id],
+  );
 
   const loadFiles = useCallback(async () => {
     try {
@@ -768,7 +859,7 @@ function QuotationsTab({
     return () => {
       cancelled = true;
     };
-  }, [project.id, refreshKey, loadFiles]);
+  }, [project.id, refreshKey, reloadToken, loadFiles]);
 
   if (error) {
     return (
@@ -828,12 +919,31 @@ function QuotationsTab({
                   {row.project_name || "—"}
                 </span>
               </div>
-              <span className="text-[10px] uppercase text-magic-ink/50">
-                {row.status || "active"}
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  draggable={false}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void duplicateQuotation(row.id);
+                  }}
+                  disabled={copyingId === row.id}
+                  className="rounded-md border border-magic-border px-2 py-0.5 text-[11px] font-medium text-magic-ink/70 transition-colors hover:border-magic-red hover:text-magic-red disabled:opacity-50"
+                  title="Make an editable copy of this quotation in this project — the original is left untouched"
+                >
+                  {copyingId === row.id ? "Copying…" : "Copy"}
+                </button>
+                <span className="text-[10px] uppercase text-magic-ink/50">
+                  {row.status || "active"}
+                </span>
+              </div>
             </li>
           ))}
         </ul>
+      )}
+      {copyError && (
+        <p className="mt-2 text-xs text-red-600">{copyError}</p>
       )}
 
       <div className="mt-5 border-t border-magic-border/60 pt-4">

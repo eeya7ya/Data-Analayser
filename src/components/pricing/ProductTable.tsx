@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   calculateRow,
   calculateTotals,
@@ -399,7 +400,7 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
           </div>
         </div>
       )}
-      <div className="table-container rounded-xl border border-gray-200 bg-white">
+      <div className="table-container max-w-full overflow-x-auto rounded-xl border border-gray-200 bg-white">
       <table className="w-full border-collapse text-xs">
         <thead>
           <tr className="border-b border-gray-200">
@@ -784,13 +785,59 @@ function RowRateOverrides({
   hasOverride,
 }: RowRateOverridesProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  // The table now lives inside an `overflow-x-auto` scroll container, which
+  // would clip an absolutely-positioned popover. Render it into a portal on
+  // document.body with a fixed position computed from the button's rect so
+  // it escapes the scroll container entirely.
+  const [mounted, setMounted] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setPos(null);
+      return;
+    }
+    const update = () => {
+      const btn = buttonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      const menuWidth = 288; // w-72
+      const menuHeight = 240; // approximate; only used for off-screen clamps
+      const viewportW = typeof window !== "undefined" ? window.innerWidth : 1024;
+      const viewportH = typeof window !== "undefined" ? window.innerHeight : 768;
+      // Prefer opening to the right of the button; flip left if it would
+      // run off-screen.
+      let left = rect.right + 8;
+      if (left + menuWidth > viewportW - 8) {
+        left = Math.max(8, rect.left - menuWidth - 8);
+      }
+      let top = rect.top;
+      if (top + menuHeight > viewportH - 8) {
+        top = Math.max(8, viewportH - menuHeight - 8);
+      }
+      setPos({ top, left });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
     const handleClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onClose();
-      }
+      const t = e.target as Node;
+      if (popoverRef.current?.contains(t)) return;
+      if (buttonRef.current?.contains(t)) return;
+      onClose();
     };
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -858,26 +905,13 @@ function RowRateOverrides({
     onUpdate("profitRateOverride", null);
   };
 
-  return (
-    <div className="relative">
-      <button
-        title={hasOverride ? "Custom rates set — click to edit" : "Set per-row rate overrides"}
-        onClick={isOpen ? onClose : onOpen}
-        className={cn(
-          "rounded p-1 transition-colors",
-          hasOverride
-            ? "text-amber-600 hover:bg-amber-50"
-            : "text-gray-300 opacity-0 hover:bg-gray-100 hover:text-gray-600 group-hover:opacity-100"
-        )}
+  const popover =
+    isOpen && pos ? (
+      <div
+        ref={popoverRef}
+        style={{ top: pos.top, left: pos.left, width: 288 }}
+        className="fixed z-[1000] rounded-xl border border-gray-200 bg-white p-3 shadow-xl"
       >
-        <Settings2 size={12} />
-      </button>
-
-      {isOpen && (
-        <div
-          ref={popoverRef}
-          className="absolute left-8 top-0 z-30 w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-xl"
-        >
           <div className="mb-2 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-gray-700">Per-row rates</p>
@@ -951,8 +985,25 @@ function RowRateOverrides({
           <p className="mt-3 border-t border-gray-100 pt-2 text-[10px] text-gray-400">
             Leave blank to use the global project rate.
           </p>
-        </div>
-      )}
+      </div>
+    ) : null;
+
+  return (
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        title={hasOverride ? "Custom rates set — click to edit" : "Set per-row rate overrides"}
+        onClick={isOpen ? onClose : onOpen}
+        className={cn(
+          "rounded p-1 transition-colors",
+          hasOverride
+            ? "text-amber-600 hover:bg-amber-50"
+            : "text-gray-300 opacity-0 hover:bg-gray-100 hover:text-gray-600 group-hover:opacity-100"
+        )}
+      >
+        <Settings2 size={12} />
+      </button>
+      {mounted && popover ? createPortal(popover, document.body) : null}
     </div>
   );
 }
