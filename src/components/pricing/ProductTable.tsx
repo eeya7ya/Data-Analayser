@@ -99,6 +99,63 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
     onChange(updated);
   };
 
+  // Order of the editable input columns, used to map a pasted 2D block onto rows.
+  const FIELD_ORDER: InputField[] = ["itemModel", "priceUsd", "quantity"];
+
+  const parseCell = (field: InputField, val: string): string | number => {
+    const t = val.trim();
+    if (field === "priceUsd") {
+      return parseFloat(t.replace(/[^0-9.]/g, "")) || 0;
+    }
+    if (field === "quantity") {
+      return parseInt(t.replace(/[^0-9]/g, ""), 10) || 1;
+    }
+    return t; // itemModel
+  };
+
+  // Spreadsheet-style paste: dropping a clipboard block into a cell fills down
+  // (one value per row) and across (tab-separated columns), anchored at the
+  // pasted cell. Appends new rows when the block is taller than the table.
+  const pasteIntoCell = (startIndex: number, anchorField: InputField, raw: string) => {
+    const lines = raw.replace(/\r\n?/g, "\n").split("\n");
+    // Drop a single trailing empty line (Excel/Sheets append one on copy).
+    while (lines.length > 1 && lines[lines.length - 1].trim() === "") lines.pop();
+    const grid = lines.map((line) => line.split("\t"));
+
+    // Single scalar value → simple cell update, no row juggling.
+    if (grid.length === 1 && grid[0].length === 1) {
+      updateRow(startIndex, anchorField, parseCell(anchorField, grid[0][0]));
+      return;
+    }
+
+    const anchorCol = FIELD_ORDER.indexOf(anchorField);
+    const updated = [...rows];
+    let idSeed = Date.now();
+
+    grid.forEach((cells, r) => {
+      const rowIndex = startIndex + r;
+      if (rowIndex >= updated.length) {
+        updated.push({
+          id: idSeed++,
+          position: updated.length + 1,
+          itemModel: "",
+          priceUsd: 0,
+          quantity: 1,
+        });
+      }
+      cells.forEach((cellVal, c) => {
+        const field = FIELD_ORDER[anchorCol + c];
+        if (!field) return; // beyond the known input columns
+        updated[rowIndex] = {
+          ...updated[rowIndex],
+          [field]: parseCell(field, cellVal),
+        };
+      });
+    });
+
+    onChange(updated.map((r, i) => ({ ...r, position: i + 1 })));
+  };
+
   const toggleOverride = (index: number, field: OverrideField, currentCalculatedValue: number) => {
     const row = rows[index];
     const currentOverride = row[field];
@@ -128,7 +185,19 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
   };
 
   const pasteColumn = async (field: InputField) => {
-    const text = await navigator.clipboard.readText();
+    let text: string;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      showNotice({
+        kind: "warn",
+        title: "Couldn't read the clipboard",
+        details: [
+          "Your browser blocked clipboard access. Click a cell and press Ctrl/Cmd+V to paste directly instead.",
+        ],
+      });
+      return;
+    }
     const values = text
       .split(/\r?\n/)
       .map((v) => v.trim())
@@ -481,6 +550,14 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
                   placeholder="Item model…"
                   value={row.itemModel}
                   onChange={(e) => updateRow(i, "itemModel", e.target.value)}
+                  onPaste={(e) => {
+                    const raw = e.clipboardData.getData("text");
+                    // Only intercept multi-cell pastes; let plain text paste normally.
+                    if (/[\n\r\t]/.test(raw.trim())) {
+                      e.preventDefault();
+                      pasteIntoCell(i, "itemModel", raw);
+                    }
+                  }}
                   className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-center text-gray-800 placeholder-gray-300 transition-colors focus:border-gray-300 focus:bg-gray-50 focus:outline-none"
                 />
               </td>
@@ -497,9 +574,7 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
                   }
                   onPaste={(e) => {
                     e.preventDefault();
-                    const raw = e.clipboardData.getData("text");
-                    const clean = raw.replace(/[^0-9.]/g, "");
-                    updateRow(i, "priceUsd", parseFloat(clean) || 0);
+                    pasteIntoCell(i, "priceUsd", e.clipboardData.getData("text"));
                   }}
                   className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-center font-mono text-gray-800 placeholder-gray-300 transition-colors focus:border-gray-300 focus:bg-gray-50 focus:outline-none"
                 />
@@ -520,9 +595,7 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
                   }
                   onPaste={(e) => {
                     e.preventDefault();
-                    const raw = e.clipboardData.getData("text");
-                    const clean = raw.replace(/[^0-9]/g, "");
-                    updateRow(i, "quantity", parseInt(clean) || 1);
+                    pasteIntoCell(i, "quantity", e.clipboardData.getData("text"));
                   }}
                   className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-center font-mono text-gray-800 transition-colors focus:border-gray-300 focus:bg-gray-50 focus:outline-none"
                 />
