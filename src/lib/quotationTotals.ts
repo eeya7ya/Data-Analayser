@@ -78,6 +78,37 @@ export function taxDivisor(taxPercent: number, taxInclusive: boolean): number {
 }
 
 /**
+ * A discount applied to the subtotal *before* tax. The user enters either
+ * a percentage of the subtotal (which tracks the subtotal as items change)
+ * or a fixed JOD amount that overrides the percentage. `mode` decides which
+ * of the two is authoritative — both values are kept so toggling the mode
+ * in the Designer is lossless.
+ */
+export interface QuotationDiscount {
+  mode: "percent" | "amount";
+  percent: number;
+  amount: number;
+}
+
+/**
+ * Resolves a discount spec to an actual JOD figure against a given
+ * subtotal. Clamped to [0, subtotal] so a discount can never push the net
+ * below zero (e.g. a stray 150% or an amount larger than the order).
+ */
+export function resolveDiscountValue(
+  subtotal: number,
+  discount?: QuotationDiscount | null,
+): number {
+  if (!discount) return 0;
+  const raw =
+    discount.mode === "amount"
+      ? Number(discount.amount) || 0
+      : subtotal * ((Number(discount.percent) || 0) / 100);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.min(raw, subtotal);
+}
+
+/**
  * Computes subtotal / tax / total the same way the preview renders
  * them: group items by system, resolve the effective unit price for
  * every row inside each group, and sum. Keeps the saved totals and the
@@ -95,14 +126,25 @@ export function computeQuotationTotals(
   items: QuotationItem[],
   taxPercent: number,
   _taxInclusive: boolean = false,
-): { subtotal: number; tax: number; total: number } {
+  discount?: QuotationDiscount | null,
+): {
+  subtotal: number;
+  discount: number;
+  net: number;
+  tax: number;
+  total: number;
+} {
   let subtotal = 0;
   for (const group of groupBySystem(items)) {
     for (let i = 0; i < group.length; i++) {
       subtotal += effectiveRowTotal(group, i);
     }
   }
+  // Discount is applied to the subtotal before tax, so tax is charged on
+  // the discounted net amount.
+  const discountValue = resolveDiscountValue(subtotal, discount);
+  const net = subtotal - discountValue;
   const rate = (Number(taxPercent) || 0) / 100;
-  const tax = subtotal * rate;
-  return { subtotal, tax, total: subtotal + tax };
+  const tax = net * rate;
+  return { subtotal, discount: discountValue, net, tax, total: net + tax };
 }

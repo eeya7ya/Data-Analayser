@@ -68,6 +68,9 @@ export interface ExistingQuotation {
     manualFactor?: number;
     includeTax?: boolean;
     taxInclusive?: boolean;
+    discountMode?: "percent" | "amount";
+    discountPercent?: number;
+    discountAmount?: number;
     /**
      * Brand variant id whose logo / cover / about-us artwork this
      * quotation should render. Legacy rows (no value stored) fall back
@@ -193,6 +196,14 @@ export default function Designer({
   const [manualFactorText, setManualFactorText] = useState<string>("1");
   const [includeTax, setIncludeTax] = useState(true);
   const [taxInclusive, setTaxInclusive] = useState(false);
+  // Discount applied to the subtotal before tax. The user enters a % of
+  // the subtotal or toggles to a fixed JOD amount; both values are kept so
+  // switching mode is lossless. `discountMode` decides which one is live.
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [discountMode, setDiscountMode] = useState<"percent" | "amount">(
+    "percent",
+  );
   const [brandVariantId, setBrandVariantId] = useState<string>(
     DEFAULT_BRAND_VARIANT_ID,
   );
@@ -682,6 +693,19 @@ export default function Designer({
       setTaxInclusive(
         editDraft ? Boolean(editDraft.taxInclusive) : Boolean(existing.config_json?.taxInclusive),
       );
+      setDiscountMode(
+        (editDraft?.discountMode ??
+          existing.config_json?.discountMode ??
+          "percent") === "amount"
+          ? "amount"
+          : "percent",
+      );
+      setDiscountPercent(
+        Number(editDraft?.discountPercent ?? existing.config_json?.discountPercent ?? 0) || 0,
+      );
+      setDiscountAmount(
+        Number(editDraft?.discountAmount ?? existing.config_json?.discountAmount ?? 0) || 0,
+      );
       setBrandVariantId(
         getBrandVariant(
           editDraft?.brandVariantId ??
@@ -777,6 +801,9 @@ export default function Designer({
     }
     setIncludeTax(d.includeTax !== false);
     setTaxInclusive(Boolean(d.taxInclusive));
+    setDiscountMode(d.discountMode === "amount" ? "amount" : "percent");
+    setDiscountPercent(Number(d.discountPercent) || 0);
+    setDiscountAmount(Number(d.discountAmount) || 0);
     setBrandVariantId(
       getBrandVariant(d.brandVariantId || DEFAULT_BRAND_VARIANT_ID).id,
     );
@@ -925,6 +952,9 @@ export default function Designer({
       manualFactor,
       includeTax,
       taxInclusive,
+      discountPercent,
+      discountAmount,
+      discountMode,
       folderId,
       brandVariantId,
     });
@@ -951,6 +981,9 @@ export default function Designer({
     manualFactor,
     includeTax,
     taxInclusive,
+    discountPercent,
+    discountAmount,
+    discountMode,
     folderId,
     brandVariantId,
   ]);
@@ -980,6 +1013,9 @@ export default function Designer({
       manualFactor,
       includeTax,
       taxInclusive,
+      discountPercent,
+      discountAmount,
+      discountMode,
       projectName,
       siteName,
       showPictures,
@@ -1002,6 +1038,9 @@ export default function Designer({
     manualFactor,
     includeTax,
     taxInclusive,
+    discountPercent,
+    discountAmount,
+    discountMode,
     projectName,
     siteName,
     showPictures,
@@ -1168,7 +1207,12 @@ export default function Designer({
         // Sync back so the UI and subsequent saves use the smaller copies.
         setItems(compressedItems);
       }
-      const totals = computeQuotationTotals(compressedItems, includeTax ? taxPercent : 0, includeTax && taxInclusive);
+      const totals = computeQuotationTotals(
+        compressedItems,
+        includeTax ? taxPercent : 0,
+        includeTax && taxInclusive,
+        { mode: discountMode, percent: discountPercent, amount: discountAmount },
+      );
       // Snapshot payloads deliberately omit `ref` so the server mints a
       // fresh QX…D<m> / QX…R<m> from the parent. The regular save path
       // keeps the current refCode so edits don't churn the number.
@@ -1200,6 +1244,9 @@ export default function Designer({
           manualFactor,
           includeTax,
           taxInclusive,
+          discountMode,
+          discountPercent,
+          discountAmount,
           brandVariantId,
           // Stamped on every save so the legacy migration in the
           // hydration effect only runs once per quotation.
@@ -1401,7 +1448,12 @@ export default function Designer({
     const totalCols = itemColumnTitles.length;
     const lastColIdx = totalCols - 1;
 
-    const totals = computeQuotationTotals(items, taxPercent, taxInclusive);
+    const totals = computeQuotationTotals(
+      items,
+      includeTax ? taxPercent : 0,
+      includeTax && taxInclusive,
+      { mode: discountMode, percent: discountPercent, amount: discountAmount },
+    );
     const currencyFmt = '"JOD" #,##0.00';
 
     // We build the worksheet via aoa_to_sheet so we have full control
@@ -1559,10 +1611,20 @@ export default function Designer({
       currencyCells.push(XLSX.utils.encode_cell({ r, c: 7 }));
     };
     pushTotalRow("Grand Total Cost (Subtotal)", totals.subtotal);
+    if (totals.discount > 0) {
+      const discountLabel =
+        discountMode === "percent" && discountPercent > 0
+          ? `Discount (${discountPercent}%)`
+          : "Discount";
+      pushTotalRow(discountLabel, -totals.discount);
+      if (includeTax) {
+        pushTotalRow("Net After Discount", totals.net);
+      }
+    }
     if (includeTax) {
       pushTotalRow(`TAX (${taxPercent}%)`, totals.tax);
     }
-    pushTotalRow("Total Cost", includeTax ? totals.total : totals.subtotal);
+    pushTotalRow("Total Cost", totals.total);
 
     // ── 5) Materialise the worksheet ──────────────────────────────────
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -1730,6 +1792,41 @@ export default function Designer({
                   title={taxInclusive ? "Prices shown are tax-excluded" : "Click to exclude tax from prices"}
                 >
                   {taxInclusive ? "Excl. Tax" : "Incl. Tax"}
+                </button>
+              </div>
+            </div>
+            {/* Discount applied to the subtotal before tax. Toggle the
+                trailing button to switch between a % of the subtotal and a
+                fixed JOD amount; the field below it edits the live mode. */}
+            <div>
+              <label className="block text-[10px] font-semibold uppercase text-magic-ink/60">
+                Discount
+              </label>
+              <div className="flex items-center gap-1.5 mt-1">
+                <input
+                  type="number"
+                  min="0"
+                  value={discountMode === "amount" ? discountAmount : discountPercent}
+                  onChange={(e) => {
+                    const v = Math.max(0, Number(e.target.value) || 0);
+                    if (discountMode === "amount") setDiscountAmount(v);
+                    else setDiscountPercent(v);
+                  }}
+                  className="w-20 rounded-md border border-magic-border px-2 py-1 text-sm"
+                  title={
+                    discountMode === "amount"
+                      ? "Fixed discount amount (JOD), applied to the subtotal before tax"
+                      : "Discount as a percentage of the subtotal, applied before tax"
+                  }
+                />
+                <button
+                  onClick={() =>
+                    setDiscountMode(discountMode === "amount" ? "percent" : "amount")
+                  }
+                  className="rounded-md px-2.5 py-1 text-[11px] font-semibold bg-gray-300 text-magic-ink/70 transition-colors hover:bg-gray-400"
+                  title="Switch between a % of the subtotal and a fixed JOD amount"
+                >
+                  {discountMode === "amount" ? "JOD" : "%"}
                 </button>
               </div>
             </div>
@@ -1920,6 +2017,9 @@ export default function Designer({
                 date: new Date().toLocaleDateString("en-GB"),
                 extra_columns: extraColumns,
                 scope_intro: scopeIntro,
+                discount_mode: discountMode,
+                discount_percent: discountPercent,
+                discount_amount: discountAmount,
               }}
               items={items}
               setItems={setItems}
