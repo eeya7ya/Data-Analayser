@@ -545,11 +545,25 @@ body > * {
   .quotation-sheet > table.sheet-layout > tfoot {
     display: table-footer-group;
   }
-  /* Body cell: top-align content. Deliberately NO `height: 100%` here or on
-   * the row — forcing it is what let content cross the running footer. */
+  /* Body cell: top-align content, and reserve most of the printable page so
+   * the running footer (<tfoot>) is pushed down to the BOTTOM of the page on
+   * short / single-page sheets instead of floating up under the content.
+   *
+   * A table cell's `height` is treated as a MINIMUM: short content is padded
+   * out to ~228mm (so the footer lands near the page bottom), while a long
+   * items table simply grows past it and the page-frame table fragments to the
+   * next page — the footer is reserved + repeated per page, so content still
+   * never crosses it. We deliberately do NOT use `height: 100%` (it resolves
+   * against an auto-height parent in print and silently collapses — which is
+   * what let the footer float up). 228mm = A4 print area (≈265mm) minus the
+   * brand-strip header and address footer, with a safety margin so a single
+   * sheet never spills onto a blank trailing page. */
   .quotation-sheet > table.sheet-layout > tbody > tr > td.sheet-body-cell {
     vertical-align: top;
+    height: 228mm;
   }
+  /* The final sheet (Final Totals + Terms) and the per-system pages share this
+   * floor, so the footer pins to the bottom of every content page. */
   /* Treat the header / footer as solid page bands: never split them across a
    * page boundary, and force their brand tints to render on paper (Chrome
    * drops element backgrounds in print unless told otherwise). */

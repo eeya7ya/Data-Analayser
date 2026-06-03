@@ -1,7 +1,6 @@
 import Link from "next/link";
 import TopBar from "@/components/TopBar";
-import RequestStockButton from "@/components/RequestStockButton";
-import RequestQuotationButton from "@/components/RequestQuotationButton";
+import ProjectHeaderActions from "@/components/ProjectHeaderActions";
 import ProjectTabStrip from "@/components/ProjectTabStrip";
 import type { SessionUser } from "@/lib/auth";
 
@@ -44,10 +43,16 @@ export default function ProjectDrillDownShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-magic-soft/40">
-      <TopBar user={user} />
-      <main className="max-w-6xl mx-auto px-6 py-6 lg:px-10 space-y-5">
-        <div>
+    // `print-root` / `print-main` + `no-print` on the chrome let the @media
+    // print reset (globals.css) strip the project shell when a quotation under
+    // this project is printed, so only the quotation document hits the page —
+    // no TopBar / breadcrumb / header / tab strip leaking into the PDF.
+    <div className="min-h-screen bg-magic-soft/40 print-root">
+      <div className="no-print">
+        <TopBar user={user} />
+      </div>
+      <main className="max-w-6xl mx-auto px-6 py-6 lg:px-10 space-y-5 print-main">
+        <div className="no-print">
           <div className="text-xs text-magic-ink/50">
             {breadcrumb.map((c, i) => (
               <span key={`${i}:${c.label}`}>
@@ -76,17 +81,16 @@ export default function ProjectDrillDownShell({
                 </p>
               )}
             </div>
-            <div className="flex flex-col items-end gap-2 shrink-0">
-              <RequestQuotationButton
-                projectId={project.id}
-                projectName={project.name}
-              />
-              <RequestStockButton projectId={project.id} />
-            </div>
+            <ProjectHeaderActions
+              projectId={project.id}
+              projectName={project.name}
+            />
           </div>
         </div>
 
-        <ProjectTabStrip base={base} />
+        <div className="no-print">
+          <ProjectTabStrip base={base} />
+        </div>
 
         {children}
       </main>
