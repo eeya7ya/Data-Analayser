@@ -158,12 +158,20 @@ export function PricingSheet({
         }
 
         if (data.constants) {
+          // Coerce defensively: a poisoned row (a numeric column that ended
+          // up storing the SQL special value NaN) must not propagate NaN
+          // into the constants — which would cascade NaN through every
+          // calculated cell and total. Fall back to the sensible defaults.
+          const numOr = (v: unknown, fallback: number) => {
+            const n = parseFloat(String(v));
+            return Number.isFinite(n) ? n : fallback;
+          };
           setConstants({
-            currencyRate: parseFloat(data.constants.currencyRate),
-            shippingRate: parseFloat(data.constants.shippingRate),
-            customsRate: parseFloat(data.constants.customsRate),
-            profitMargin: parseFloat(data.constants.profitMargin),
-            taxRate: parseFloat(data.constants.taxRate),
+            currencyRate: numOr(data.constants.currencyRate, DEFAULT_CONSTANTS.currencyRate),
+            shippingRate: numOr(data.constants.shippingRate, DEFAULT_CONSTANTS.shippingRate),
+            customsRate: numOr(data.constants.customsRate, DEFAULT_CONSTANTS.customsRate),
+            profitMargin: numOr(data.constants.profitMargin, DEFAULT_CONSTANTS.profitMargin),
+            taxRate: numOr(data.constants.taxRate, DEFAULT_CONSTANTS.taxRate),
           });
           setTargetCurrency(data.constants.targetCurrency ?? "JOD");
           setSourceCurrency(data.constants.sourceCurrency ?? "USD");
@@ -171,18 +179,21 @@ export function PricingSheet({
 
         if (data.productLines) {
           setRows(
-            data.productLines.map((l: any) => ({
-              id: l.id,
-              position: l.position,
-              itemModel: l.itemModel,
-              priceUsd: parseFloat(l.priceUsd),
-              quantity: l.quantity,
-              shippingOverride: l.shippingOverride != null ? parseFloat(l.shippingOverride) : null,
-              customsOverride: l.customsOverride != null ? parseFloat(l.customsOverride) : null,
-              shippingRateOverride: l.shippingRateOverride != null ? parseFloat(l.shippingRateOverride) : null,
-              customsRateOverride: l.customsRateOverride != null ? parseFloat(l.customsRateOverride) : null,
-              profitRateOverride: l.profitRateOverride != null ? parseFloat(l.profitRateOverride) : null,
-            }))
+            data.productLines.map((l: any) => {
+              const price = parseFloat(l.priceUsd);
+              return {
+                id: l.id,
+                position: l.position,
+                itemModel: l.itemModel,
+                priceUsd: Number.isFinite(price) ? price : 0,
+                quantity: l.quantity,
+                shippingOverride: l.shippingOverride != null ? parseFloat(l.shippingOverride) : null,
+                customsOverride: l.customsOverride != null ? parseFloat(l.customsOverride) : null,
+                shippingRateOverride: l.shippingRateOverride != null ? parseFloat(l.shippingRateOverride) : null,
+                customsRateOverride: l.customsRateOverride != null ? parseFloat(l.customsRateOverride) : null,
+                profitRateOverride: l.profitRateOverride != null ? parseFloat(l.profitRateOverride) : null,
+              };
+            })
           );
         }
       } finally {

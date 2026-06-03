@@ -101,14 +101,20 @@ export async function POST(
       profit_margin: string;
       tax_rate: string;
     }>;
+    // Coerce defensively — a poisoned constants row (SQL numeric NaN) would
+    // otherwise produce a quotation full of NaN prices. Fall back per-field.
+    const numOr = (v: unknown, fallback: number) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    };
     const cRow = constantsRows[0];
     const constants: Constants = cRow
       ? {
-          currencyRate: Number(cRow.currency_rate),
-          shippingRate: Number(cRow.shipping_rate),
-          customsRate: Number(cRow.customs_rate),
-          profitMargin: Number(cRow.profit_margin),
-          taxRate: Number(cRow.tax_rate),
+          currencyRate: numOr(cRow.currency_rate, DEFAULT_CONSTANTS.currencyRate),
+          shippingRate: numOr(cRow.shipping_rate, DEFAULT_CONSTANTS.shippingRate),
+          customsRate: numOr(cRow.customs_rate, DEFAULT_CONSTANTS.customsRate),
+          profitMargin: numOr(cRow.profit_margin, DEFAULT_CONSTANTS.profitMargin),
+          taxRate: numOr(cRow.tax_rate, DEFAULT_CONSTANTS.taxRate),
         }
       : DEFAULT_CONSTANTS;
 

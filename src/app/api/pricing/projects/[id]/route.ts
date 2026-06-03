@@ -173,14 +173,28 @@ export async function PUT(req: Request, { params }: Ctx) {
       `;
     }
 
+    // Coerce any value to a finite-number string, or a fallback. Critical
+    // for numeric columns: Postgres `numeric` accepts the special value
+    // 'NaN', so a stray NaN/undefined from the client would silently poison
+    // the row and cascade NaN through every calculation on reload.
+    const numStr = (v: unknown, fallback: number): string => {
+      const n = Number(v);
+      return Number.isFinite(n) ? String(n) : String(fallback);
+    };
+    const numStrOrNull = (v: unknown): string | null => {
+      if (v == null) return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? String(n) : null;
+    };
+
     if (body.constants !== undefined) {
       await q`
         update pricing_project_constants
-        set currency_rate   = ${String(body.constants.currencyRate)},
-            shipping_rate   = ${String(body.constants.shippingRate)},
-            customs_rate    = ${String(body.constants.customsRate)},
-            profit_margin   = ${String(body.constants.profitMargin)},
-            tax_rate        = ${String(body.constants.taxRate)},
+        set currency_rate   = ${numStr(body.constants.currencyRate, 0.71)},
+            shipping_rate   = ${numStr(body.constants.shippingRate, 0.15)},
+            customs_rate    = ${numStr(body.constants.customsRate, 0.12)},
+            profit_margin   = ${numStr(body.constants.profitMargin, 0.25)},
+            tax_rate        = ${numStr(body.constants.taxRate, 0.16)},
             target_currency = ${body.constants.targetCurrency ?? "JOD"},
             source_currency = ${body.constants.sourceCurrency ?? "USD"}
         where project_id = ${projectId}
@@ -198,28 +212,13 @@ export async function PUT(req: Request, { params }: Ctx) {
           project_id: projectId,
           position: idx + 1,
           item_model: line.itemModel ?? "",
-          price_usd: String(line.priceUsd ?? 0),
-          quantity: line.quantity ?? 1,
-          shipping_override:
-            line.shippingOverride != null
-              ? String(line.shippingOverride)
-              : null,
-          customs_override:
-            line.customsOverride != null
-              ? String(line.customsOverride)
-              : null,
-          shipping_rate_override:
-            line.shippingRateOverride != null
-              ? String(line.shippingRateOverride)
-              : null,
-          customs_rate_override:
-            line.customsRateOverride != null
-              ? String(line.customsRateOverride)
-              : null,
-          profit_rate_override:
-            line.profitRateOverride != null
-              ? String(line.profitRateOverride)
-              : null,
+          price_usd: numStr(line.priceUsd, 0),
+          quantity: Number.isFinite(Number(line.quantity)) ? line.quantity : 1,
+          shipping_override: numStrOrNull(line.shippingOverride),
+          customs_override: numStrOrNull(line.customsOverride),
+          shipping_rate_override: numStrOrNull(line.shippingRateOverride),
+          customs_rate_override: numStrOrNull(line.customsRateOverride),
+          profit_rate_override: numStrOrNull(line.profitRateOverride),
         }));
         await q`insert into pricing_product_lines ${q(rows)}`;
       }
