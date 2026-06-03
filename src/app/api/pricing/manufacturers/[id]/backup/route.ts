@@ -247,13 +247,19 @@ export async function POST(req: Request, { params }: Ctx) {
         ? requestedOwnerId
         : user.id;
 
-    const body = (await req.json().catch(() => null)) as
-      | Partial<BackupPayload>
-      | null;
+    const body = (await req.json().catch(() => null)) as unknown;
     if (!body || typeof body !== "object") {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
-    if (!Array.isArray(body.projects)) {
+    // Accept both the full backup envelope ({ projects: [...] }) and a bare
+    // array of projects, so a hand-edited or partial file still restores
+    // instead of being rejected outright.
+    const projects: BackupProject[] | null = Array.isArray(body)
+      ? (body as BackupProject[])
+      : Array.isArray((body as Partial<BackupPayload>).projects)
+        ? ((body as BackupPayload).projects)
+        : null;
+    if (!projects) {
       return NextResponse.json(
         { error: "Payload missing 'projects' array" },
         { status: 400 },
@@ -266,7 +272,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const failures: { name: string; error: string }[] = [];
     let skipped = 0;
 
-    for (const bp of body.projects) {
+    for (const bp of projects) {
       if (!bp || typeof bp !== "object" || typeof bp.name !== "string" || !bp.name.trim()) {
         skipped++;
         continue;
