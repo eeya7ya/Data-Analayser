@@ -1,16 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
-import {
-  appendItem,
-  loadDraft,
-  loadEditingContext,
-  loadEditDraft,
-  type EditingContext,
-} from "@/lib/quotationDraft";
-import type { QuotationItem } from "@/components/QuotationPreview";
 import { compressDataUrl } from "@/components/QuotationPreview";
 
 // Belt-and-braces upload cap. The compressDataUrl pass usually lands well
@@ -83,40 +74,6 @@ const DISPLAY_COLUMNS: Array<{
   { key: "specifications", label: "Specifications", width: "12%", wrap: true },
 ];
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function toQuotationItem(p: Product, qty: number): QuotationItem {
-  return {
-    no: 0,
-    system: `${p.vendor} ${p.system}`.trim(),
-    brand: p.vendor,
-    model: p.model,
-    description: p.description || p.fast_view || `${p.category} ${p.sub_category}`.trim(),
-    quantity: qty,
-    unit_price: Number(p.price_si) || 0,
-    delivery: "Available",
-    picture_hint: p.category,
-    // Carry the catalogue thumbnail straight onto the quotation item so
-    // the Designer's PictureCell shows it without the user re-uploading.
-    // Missing pictures leave the field undefined and the existing
-    // PictureCell upload UX still allows per-item overrides.
-    picture_url: p.picture_url || undefined,
-    price_si: Number(p.price_si) || 0,
-  };
-}
-
-// ─── Suggested page names ───────────────────────────────────────────────────
-
-const PAGE_SUGGESTIONS = [
-  "CCTV",
-  "Sound System",
-  "Networking",
-  "Access Control",
-  "Intercom",
-  "Cabling",
-  "Display & Video Wall",
-];
-
 // ─── Main component ─────────────────────────────────────────────────────────
 
 export default function CatalogBrowser({
@@ -133,11 +90,12 @@ export default function CatalogBrowser({
    */
   initialSystems?: SystemInfo[];
 }) {
-  const router = useRouter();
-  // Admins get the inline edit pencil on every row + the delete option.
-  // Regular users never see those controls and the API enforces the same
-  // rule server-side (PATCH / DELETE require admin).
-  const canEdit = user.role === "admin";
+  // This page is the Catalogue Modifier, gated to storage + admin, so every
+  // user who reaches it may edit the catalogue. The API enforces the same
+  // (admin or storage) on PATCH / DELETE / upload. `user` is still accepted so
+  // the server page can pass it.
+  void user;
+  const canEdit = true;
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   // ── System list ──────────────────────────────────────────────────────────
@@ -178,43 +136,6 @@ export default function CatalogBrowser({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [globalMode, setGlobalMode] = useState(false);
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
-
-  // ── Page-picker modal ───────────────────────────────────────────────────
-  const [pendingItem, setPendingItem] = useState<Product | null>(null);
-  const [lastUsedPage, setLastUsedPage] = useState("");
-
-  // ── Draft summary ──────────────────────────────────────────────────────
-  const [draftCount, setDraftCount] = useState(0);
-  const [existingPages, setExistingPages] = useState<string[]>([]);
-  const [editing, setEditing] = useState<EditingContext | null>(null);
-
-  const refreshDraftSummary = useCallback(() => {
-    const d = loadDraft();
-    setDraftCount(d.items.length);
-    const set = new Set<string>();
-    for (const it of d.items) {
-      if (it.system) set.add(it.system);
-    }
-    // When editing a saved quotation, also include pages from the
-    // per-quotation edit draft so the picker shows pages like
-    // "CCTV/GF/RIGHT" that exist in the saved quotation but not
-    // in the temporary catalog draft.
-    const ctx = loadEditingContext();
-    if (ctx && Number.isFinite(ctx.id)) {
-      const editDraft = loadEditDraft(ctx.id);
-      if (editDraft && Array.isArray(editDraft.items)) {
-        for (const it of editDraft.items) {
-          if (it.system) set.add(it.system);
-        }
-      }
-    }
-    setExistingPages([...set]);
-    setEditing(ctx);
-  }, []);
-
-  useEffect(() => {
-    refreshDraftSummary();
-  }, [refreshDraftSummary]);
 
   // ── Debounce ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -295,22 +216,6 @@ export default function CatalogBrowser({
       setSortDir("asc");
     }
   }
-
-  // ── Page picker ───────────────────────────────────────────────────────────
-  const confirmAddToPage = useCallback(
-    (pageName: string, qty: number) => {
-      if (!pendingItem) return;
-      const trimmed = pageName.trim();
-      if (!trimmed) return;
-      const item = toQuotationItem(pendingItem, qty);
-      item.system = trimmed;
-      appendItem(item);
-      setLastUsedPage(trimmed);
-      setPendingItem(null);
-      refreshDraftSummary();
-    },
-    [pendingItem, refreshDraftSummary],
-  );
 
   // ── Systems grouped by vendor ─────────────────────────────────────────────
   const systemsByVendor = useMemo(() => {
@@ -403,106 +308,12 @@ export default function CatalogBrowser({
           />
         </div>
 
-        <div className="pt-5">
-          <button
-            onClick={() => {
-              // Three shapes to handle, matching EditingContext in
-              // lib/quotationDraft.ts:
-              //   • id > 0             → an already-saved quotation is open
-              //                          in the Designer; go back to
-              //                          /designer?id=<n>.
-              //   • id === 0 + folder  → a brand-new quotation is being
-              //                          composed against a client folder;
-              //                          bounce to /designer?folder=<n>&new=1
-              //                          so the page gate doesn't redirect
-              //                          us to /quotation.
-              //   • no context         → raw /catalog visit; fall back to
-              //                          the existing "Open designer"
-              //                          behaviour (requires at least one
-              //                          queued draft item — enforced by
-              //                          the disabled attribute below).
-              if (editing?.id && editing.id > 0) {
-                router.push(`/designer?id=${editing.id}`);
-              } else if (editing?.folderId) {
-                router.push(`/designer?folder=${editing.folderId}&new=1`);
-              } else {
-                router.push("/designer");
-              }
-            }}
-            disabled={!editing && draftCount === 0}
-            className="relative rounded-lg bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
-            title={
-              editing?.id && editing.id > 0
-                ? `Return to editing ${editing.ref}`
-                : editing?.folderId
-                  ? "Return to the new quotation you were composing"
-                  : draftCount === 0
-                    ? "Select at least one product first"
-                    : "Finish and open the designer"
-            }
-          >
-            {editing ? "Back to editor" : "Open designer"}
-            {draftCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-white text-magic-red border border-magic-red text-[10px] rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                {draftCount}
-              </span>
-            )}
-          </button>
-        </div>
       </div>
 
-      {editing && (
-        <div className="-mt-2 flex items-center justify-between gap-3 rounded-lg border border-magic-red/40 bg-magic-red/5 px-3 py-2 text-[11px] text-magic-ink">
-          <div>
-            {editing.id && editing.id > 0 ? (
-              <>
-                <b>Editing {editing.ref}</b>
-                {editing.projectName && (
-                  <span className="text-magic-ink/60">
-                    {" "}
-                    — {editing.projectName}
-                  </span>
-                )}
-                .
-              </>
-            ) : (
-              <b>Composing a new quotation</b>
-            )}{" "}
-            <span className="text-magic-ink/70">
-              Products you pick here will be appended to that quotation
-              {draftCount > 0 && (
-                <>
-                  {" "}
-                  — <b>{draftCount}</b> queued
-                </>
-              )}
-              .
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              if (editing.id && editing.id > 0) {
-                router.push(`/designer?id=${editing.id}`);
-              } else if (editing.folderId) {
-                router.push(`/designer?folder=${editing.folderId}&new=1`);
-              } else {
-                router.push("/designer");
-              }
-            }}
-            className="shrink-0 rounded-md border border-magic-red bg-white px-3 py-1 text-[11px] font-semibold text-magic-red hover:bg-magic-red hover:text-white"
-          >
-            Back to editor →
-          </button>
-        </div>
-      )}
-
-      <p className="text-[11px] text-magic-ink/60 -mt-2">
-        Pick a system to browse its full catalogue, or just type in the search
-        box to find products across <b>every vendor</b>. Click <b>+</b> on any
-        product to add it to a quotation page. You stay on the catalogue while
-        you select — when you&apos;re done, click{" "}
-        <b>{editing ? "Back to editor" : "Open designer"}</b> to review and
-        edit the quotation.
+      <p className="text-[11px] text-magic-ink/60 -mt-1">
+        Pick a vendor / system to browse its full catalogue, or search across
+        <b> every vendor</b>. Changes you make here update the live catalogue
+        that presales pick from in the quotation designer.
       </p>
 
       {/* ── Product table ── */}
@@ -527,17 +338,6 @@ export default function CatalogBrowser({
               No products found{search ? ` for "${search}"` : ""}.
             </div>
           )}
-
-        {pendingItem && (
-          <PagePickerModal
-            product={pendingItem}
-            existingPages={existingPages}
-            suggestions={PAGE_SUGGESTIONS}
-            defaultPage={lastUsedPage}
-            onCancel={() => setPendingItem(null)}
-            onConfirm={confirmAddToPage}
-          />
-        )}
 
         {editingProduct && (
           <EditProductModal
@@ -608,26 +408,6 @@ export default function CatalogBrowser({
                     >
                       <td className="px-2 py-1.5">
                         <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setPendingItem(p)}
-                            title="Add to quotation"
-                            aria-label="Add product to quotation"
-                            className="w-7 h-7 rounded-full bg-magic-red text-white flex items-center justify-center shadow-sm shadow-magic-red/30 hover:bg-red-700 hover:scale-110 hover:shadow-md hover:shadow-magic-red/40 active:scale-95 focus:outline-none focus:ring-2 focus:ring-magic-red/40 focus:ring-offset-1 transition-all duration-150"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                              className="w-4 h-4"
-                              aria-hidden="true"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          </button>
                           {canEdit && (
                             <button
                               onClick={() => setEditingProduct(p)}
@@ -749,170 +529,6 @@ export default function CatalogBrowser({
             </div>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Page picker modal ───────────────────────────────────────────────────────
-
-function PagePickerModal({
-  product,
-  existingPages,
-  suggestions,
-  defaultPage,
-  onCancel,
-  onConfirm,
-}: {
-  product: Product;
-  existingPages: string[];
-  suggestions: string[];
-  defaultPage: string;
-  onCancel: () => void;
-  onConfirm: (pageName: string, qty: number) => void;
-}) {
-  const seeded = defaultPage || existingPages[0] || "";
-  const [selected, setSelected] = useState(seeded);
-  const [custom, setCustom] = useState("");
-  const [qty, setQty] = useState(1);
-
-  const quickOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const out: Array<{ name: string; existing: boolean }> = [];
-    for (const p of existingPages) {
-      if (!seen.has(p)) {
-        seen.add(p);
-        out.push({ name: p, existing: true });
-      }
-    }
-    for (const p of suggestions) {
-      if (!seen.has(p)) {
-        seen.add(p);
-        out.push({ name: p, existing: false });
-      }
-    }
-    return out;
-  }, [existingPages, suggestions]);
-
-  const resolvedName = custom.trim() || selected;
-  const canSubmit = resolvedName.length > 0 && qty > 0;
-
-  function submit() {
-    if (!canSubmit) return;
-    onConfirm(resolvedName, qty);
-  }
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onCancel();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onCancel}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-lg font-bold text-magic-ink">Add to which page?</h2>
-        <p className="mt-1 text-xs text-magic-ink/60">
-          <b>{product.model || "Product"}</b> will be added to the page you
-          pick. You&apos;ll stay on the catalogue so you can keep selecting.
-        </p>
-
-        <div className="mt-4">
-          <div className="text-[10px] font-semibold uppercase text-magic-ink/60 mb-2">
-            Pick a page
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {quickOptions.length === 0 && (
-              <div className="text-[11px] text-magic-ink/40">
-                No pages yet — type a name below.
-              </div>
-            )}
-            {quickOptions.map((opt) => {
-              const active = !custom && selected === opt.name;
-              return (
-                <button
-                  key={opt.name}
-                  type="button"
-                  onClick={() => {
-                    setSelected(opt.name);
-                    setCustom("");
-                  }}
-                  className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                    active
-                      ? "bg-magic-red text-white border-magic-red"
-                      : "bg-white border-magic-border hover:bg-magic-soft"
-                  }`}
-                >
-                  {opt.name}
-                  {opt.existing && (
-                    <span
-                      className={`ml-1 text-[9px] ${
-                        active ? "text-white/80" : "text-magic-ink/40"
-                      }`}
-                    >
-                      (existing)
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
-            Or type a new page name
-          </label>
-          <input
-            autoFocus
-            value={custom}
-            onChange={(e) => setCustom(e.target.value)}
-            placeholder="e.g. Main Lobby CCTV"
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submit();
-            }}
-          />
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
-            Quantity
-          </label>
-          <input
-            type="number"
-            min={1}
-            value={qty}
-            onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
-            className="w-24 rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div className="mt-6 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg px-4 py-2 text-sm text-magic-ink/70 hover:bg-magic-soft"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!canSubmit}
-            className="rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Add to page
-          </button>
-        </div>
       </div>
     </div>
   );

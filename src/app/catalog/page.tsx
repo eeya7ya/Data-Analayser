@@ -120,7 +120,9 @@ export default async function CatalogPage() {
             builders add products from the in-designer catalogue picker.)
           </p>
         </header>
-        {user.role === "admin" && <CatalogUploadSection />}
+        {/* Page is gated to storage + admin, both of whom may modify the
+            catalogue, so the upload / export tools show for everyone here. */}
+        <CatalogUploadSection />
         <CatalogBrowser user={user} initialSystems={initialSystems} />
       </main>
     </div>

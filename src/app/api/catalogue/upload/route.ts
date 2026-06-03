@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
+import { requireModule } from "@/lib/modules";
 import { sql, ensureSchema } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -43,7 +44,9 @@ function sanitizePictureUrl(value: unknown): string | null {
  */
 export async function POST(req: NextRequest) {
   try {
-    await requireAdmin();
+    // Catalogue Modifier write: admins and storage-module users (the page is
+    // gated to the same set).
+    await requireModule(await requireUser(), "storage");
     await ensureSchema();
 
     const body = (await req.json()) as { rows?: UploadRow[] };
