@@ -10,6 +10,7 @@ import {
   CalendarDays,
   NotebookPen,
   Megaphone,
+  Library,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -71,6 +72,11 @@ export default function SideNav({
     moduleRoles === null ||
     moduleRoles.length === 0 ||
     moduleRoles.some((r) => r.module === m);
+  // STRICT storage check for the Catalogue Modifier — unlike `has()`, this does
+  // NOT fall open when role data is null/empty, so a storage/admin-only surface
+  // never flashes for everyone else.
+  const hasStorage =
+    isAdmin || (moduleRoles?.some((r) => r.module === "storage") ?? false);
 
   // CRM is the single hub for the work modules (Sales / Presales /
   // Storage / Projects / Pricing live as tabs inside it), so the drawer
@@ -81,6 +87,12 @@ export default function SideNav({
   const primary: NavItem[] = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/crm", label: "CRM", icon: Building2, show: has("crm") || has("projects") },
+    {
+      href: "/catalog",
+      label: "Catalogue Modifier",
+      icon: Library,
+      show: hasStorage,
+    },
     { href: "/calendar", label: "Calendar", icon: CalendarDays, show: true },
     { href: "/notes", label: "My Notes", icon: NotebookPen, show: true },
     { href: "/updates", label: "Updates", icon: Megaphone, show: true },

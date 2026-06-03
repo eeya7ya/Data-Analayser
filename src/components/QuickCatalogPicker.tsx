@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { QuotationItem } from "@/components/QuotationPreview";
 
-interface Product {
+export interface Product {
   id: number;
   vendor: string;
   system: string;
@@ -31,7 +31,11 @@ interface Props {
   className?: string;
 }
 
-function toQuotationItem(p: Product, qty: number, page: string): QuotationItem {
+export function toQuotationItem(
+  p: Product,
+  qty: number,
+  page: string,
+): QuotationItem {
   return {
     no: 0,
     system: page.trim() || `${p.vendor} ${p.system}`.trim() || "General",
