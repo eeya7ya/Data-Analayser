@@ -427,6 +427,14 @@ body > * {
     margin: 0;
     width: auto;
   }
+  /* Force every brand tint (header band, footer band, system / section
+   * banners, totals highlight) to actually print. Chrome drops element
+   * backgrounds in print output unless print-color-adjust is set to exact. */
+  .quotation-sheet,
+  .quotation-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 
   /* ---- 4. Page sheet ------------------------------------------------------
    * Plain block layout in print — NO flex chrome from the screen view, NO
@@ -469,8 +477,7 @@ body > * {
   .quotation-sheet:last-child {
     min-height: 0;
   }
-  .quotation-sheet:last-child > table.sheet-layout,
-  .quotation-sheet:last-child > table.sheet-layout > tbody > tr {
+  .quotation-sheet:last-child > table.sheet-layout {
     height: auto;
   }
 
@@ -501,21 +508,31 @@ body > * {
     display: none !important;
   }
 
-  /* ---- 5. Page-frame table — running header / footer ----------------------
+  /* ---- 5. Page-frame table — running (fixed) header / footer --------------
    * The outer .sheet-layout table is the spine of every printed page. Its
-   * <thead> carries the brand strip and is repeated at the top of every
-   * physical page; its <tfoot> carries the address bar and is repeated at
-   * the bottom of every physical page.
+   * <thead> carries the brand strip (the FIXED HEADER) and repeats at the top
+   * of every physical page; its <tfoot> carries the address bar (the FIXED
+   * FOOTER) and repeats at the bottom of every physical page. This
+   * <thead>/<tfoot> running-group technique is the only browser-native way to
+   * (a) repeat a header/footer on every page, (b) RESERVE their vertical space
+   * so body content can never paint over them, and (c) still keep the
+   * full-bleed cover / about-us sheets header/footer-free (those are separate
+   * sheets with no table). A position:fixed header/footer would satisfy (a)
+   * but not (b), and would leak onto the cover pages.
    *
-   * The table's `height: 100%` (parent `.quotation-sheet` is at least
-   * `100vh` tall in print) makes the table fill the full printable area
-   * even when the items table is short — without this the natural-flow
-   * <tfoot> would render right under the items rather than at the bottom
-   * of the page. The single tbody row has `height: 100%` so it eats every
-   * leftover pixel of vertical space, pushing the <tfoot> down. When the
-   * items table overflows the page, the body row grows past 100% and the
-   * outer table fragments cleanly across pages, with thead/tfoot
-   * automatically repeating on each fragment. */
+   * "Split to the next page before crossing the footer": the print engine
+   * reserves the <tfoot> height at the bottom of every page fragment, so when
+   * the items table grows past the page it breaks onto the next page instead
+   * of running underneath the footer band.
+   *
+   * NOTE — the earlier build also forced `height: 100%` on the single body
+   * <tr> AND the body <td>. Because that 100% resolves against a table that is
+   * itself overflowing, it over-constrained the row and Chrome mis-placed the
+   * repeated <tfoot> on continuation pages, letting content cross into the
+   * footer band (the reported bug). We now keep `height: 100%` on the TABLE
+   * only: that distributes spare vertical space to the body row on short pages
+   * (so the footer still sits at the bottom) WITHOUT over-constraining a row
+   * that needs to fragment across pages. */
   .quotation-sheet > table.sheet-layout {
     width: 100%;
     height: 100%;
@@ -528,12 +545,18 @@ body > * {
   .quotation-sheet > table.sheet-layout > tfoot {
     display: table-footer-group;
   }
-  .quotation-sheet > table.sheet-layout > tbody > tr {
-    height: 100%;
-  }
+  /* Body cell: top-align content. Deliberately NO `height: 100%` here or on
+   * the row — forcing it is what let content cross the running footer. */
   .quotation-sheet > table.sheet-layout > tbody > tr > td.sheet-body-cell {
     vertical-align: top;
-    height: 100%;
+  }
+  /* Treat the header / footer as solid page bands: never split them across a
+   * page boundary, and force their brand tints to render on paper (Chrome
+   * drops element backgrounds in print unless told otherwise). */
+  .quotation-sheet > table.sheet-layout > thead > tr > td,
+  .quotation-sheet > table.sheet-layout > tfoot > tr > td {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   /* ---- 6. Inner items table (per system) ---------------------------------
@@ -556,6 +579,16 @@ body > * {
   .quotation-sheet .sheet-body-cell table tr {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+  /* A system banner ("Sound System") or section divider ("Outdoor Cameras")
+   * must not be stranded at the very bottom of a page with its rows pushed to
+   * the next one. Keep each banner glued to the content that follows it. */
+  .quotation-sheet .site-banner,
+  .quotation-sheet .section-row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    break-after: avoid;
+    page-break-after: avoid;
   }
 
   /* ---- 7. Cells ----------------------------------------------------------- */

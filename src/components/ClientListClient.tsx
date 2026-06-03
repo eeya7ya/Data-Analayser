@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { EditFolderDialog } from "@/components/EditFolderDialog";
 import { useNameConflicts } from "@/components/useNameConflicts";
+import { LIST_SORT_OPTIONS, sortList, type ListSortKey } from "@/lib/listSort";
 
 /**
  * Reusable client (folder) list with search + "+ New client".
@@ -32,6 +33,7 @@ export interface ClientFolderRow {
   project_count: number;
   quotation_count: number;
   file_count: number;
+  created_at: string | null;
   latest_quotation_at: string | null;
 }
 
@@ -58,6 +60,7 @@ export default function ClientListClient({
 }) {
   const [items, setItems] = useState<ClientFolderRow[]>(initial);
   const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<ListSortKey>("name-asc");
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<ClientFolderRow | null>(null);
@@ -81,21 +84,23 @@ export default function ClientListClient({
 
   const visible = useMemo(() => {
     const lc = query.trim().toLowerCase();
-    if (!lc) return items;
-    return items.filter((f) => {
-      const hay = [
-        f.name,
-        f.client_email,
-        f.client_phone,
-        f.client_company,
-        f.owner_username,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(lc);
-    });
-  }, [items, query]);
+    const filtered = !lc
+      ? items
+      : items.filter((f) => {
+          const hay = [
+            f.name,
+            f.client_email,
+            f.client_phone,
+            f.client_company,
+            f.owner_username,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return hay.includes(lc);
+        });
+    return sortList(filtered, sortKey);
+  }, [items, query, sortKey]);
 
   useEffect(() => {
     // First mount uses `initial`; this keeps it fresh if the user
@@ -135,6 +140,21 @@ export default function ClientListClient({
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1 min-w-0 rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
         />
+        <label className="flex items-center gap-1.5 text-xs text-magic-ink/60">
+          <span className="hidden sm:inline">Sort</span>
+          <select
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as ListSortKey)}
+            aria-label="Sort clients"
+            className="rounded-lg border border-magic-border bg-white px-2 py-2 text-sm text-magic-ink"
+          >
+            {LIST_SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <Link
           href={`/crm/trash${backTool}`}
           className="rounded-lg border border-magic-border px-3 py-2 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft transition-colors"
@@ -304,6 +324,7 @@ function NewClientModal({
         project_count: 0,
         quotation_count: 0,
         file_count: 0,
+        created_at: data.folder.created_at ?? new Date().toISOString(),
         latest_quotation_at: null,
       });
     } catch (err) {
