@@ -247,7 +247,7 @@ body > * {
   line-height: 1.4;
 }
 
-/* The fixed print footer band is print-only — on screen each sheet keeps its
+/* The portaled fixed footer band is print-only — on screen each sheet keeps its
  * own <tfoot> address bar, so this standalone copy stays hidden. */
 .print-running-footer {
   display: none;
@@ -438,9 +438,7 @@ body > * {
    * banners, totals highlight) to actually print. Chrome drops element
    * backgrounds in print output unless print-color-adjust is set to exact. */
   .quotation-sheet,
-  .quotation-sheet *,
-  .print-running-footer,
-  .print-running-footer * {
+  .quotation-sheet * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -522,20 +520,17 @@ body > * {
     display: none !important;
   }
 
-  /* ---- 5. Page-frame table (running header) + fixed footer ----------------
-   * The outer .sheet-layout table is the spine of every printed page. Its
-   * <thead> carries the brand strip and repeats at the top of every physical
-   * page (table-header-group), which keeps the full-bleed cover / about-us
-   * sheets header-free (they're separate sheets with no table). The <tbody>
-   * holds the page body and fragments across pages.
-   *
-   * The FOOTER is NOT a running <tfoot> — a table footer can't pin to the
-   * bottom of a SHORT last page; it floats up under the content (the reported
-   * bug on the page right before Final Totals). Instead a single position:fixed
-   * `.print-running-footer` (further down) sits in the @page bottom margin and
-   * therefore lands at the bottom of EVERY physical page, partial ones
-   * included. The cover/about sheets are stacked above it (z-index) so it never
-   * shows over the artwork. */
+  /* ---- 5. Running header (thead) + fixed footer (portaled to <body>) -------
+   * The <thead> brand strip repeats at the top of every page (table-header-
+   * group), keeping the cover / about-us sheets header-free. The address FOOTER
+   * must sit at the bottom of EVERY page — including the short last page of a
+   * long system, which a running <tfoot> can't do — so the <tfoot> is hidden in
+   * print and the footer is drawn by `.print-running-footer`, a position:fixed
+   * band that QuotationPreview PORTALS to <body>. A direct <body> child is the
+   * placement Chrome repeats reliably; the earlier attempt buried it deep in
+   * the paginating content, which made it mis-anchor to the top of the next
+   * page. @page's bottom margin reserves the band's height; the cover/about
+   * sheets carry a higher z-index so it never shows over the artwork. */
   .quotation-sheet > table.sheet-layout {
     width: 100%;
     border-collapse: collapse;
@@ -544,36 +539,33 @@ body > * {
   .quotation-sheet > table.sheet-layout > thead {
     display: table-header-group;
   }
-  /* Running <tfoot> hidden in print — replaced by the fixed footer below. It
-   * still renders on screen (its @media screen rule) so the preview keeps a
-   * footer per sheet. */
   .quotation-sheet > table.sheet-layout > tfoot {
     display: none;
   }
-  /* Body cell: top-align content. No forced height — the footer is a fixed
-   * band now, so the body doesn't need padding to push a running tfoot down. */
   .quotation-sheet > table.sheet-layout > tbody > tr > td.sheet-body-cell {
     vertical-align: top;
   }
-  /* Keep the running header band from splitting across a page boundary. */
+  /* Keep the running header band from splitting across a page edge. */
   .quotation-sheet > table.sheet-layout > thead > tr > td {
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  /* ---- 5b. Fixed footer band ----------------------------------------------
-   * One address bar, pinned to the bottom of every printed page via the @page
-   * bottom margin (Chrome repeats position:fixed elements on each page). Sits
-   * inside the side margins so it lines up with the content width. The
-   * cover/about sheets carry a higher z-index (below) so the bar never shows
-   * over the full-bleed artwork. */
+  /* Fixed footer band — portaled to <body> by QuotationPreview, repeated at
+   * the bottom of every printed page. */
   .print-running-footer {
     display: block;
     position: fixed;
     left: 12mm;
     right: 12mm;
-    bottom: 5mm;
+    bottom: 4mm;
     z-index: 20;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-running-footer * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   /* ---- 6. Inner items table (per system) ---------------------------------
