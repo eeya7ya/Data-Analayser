@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Save, Plus, Trash2, Download, FileSpreadsheet, Printer, FolderMinus, GitBranch, FileSignature } from "lucide-react";
+import { Save, Plus, Trash2, Download, FileSpreadsheet, Printer, FolderMinus, GitBranch, FileSignature, ClipboardPaste } from "lucide-react";
 import { ProjectSelector } from "./ProjectSelector";
 import { ConstantsPanel } from "./ConstantsPanel";
 import { ProductTable } from "./ProductTable";
@@ -61,6 +61,9 @@ export function PricingSheet({
   const [targetCurrency, setTargetCurrency] = useState("JOD");
   const [sourceCurrency, setSourceCurrency] = useState("USD");
   const [rows, setRows] = useState<ProductRow[]>([]);
+  // Transient feedback for the bulk-paste affordances (count pasted, or a
+  // hint to use Ctrl/Cmd+V when the browser blocks clipboard reads).
+  const [pasteHint, setPasteHint] = useState("");
   // Start in a loading state so we don't flash the "No project selected"
   // empty state on first paint while the projects list is still in-flight.
   const [projectsLoading, setProjectsLoading] = useState(true);
@@ -364,6 +367,59 @@ export function PricingSheet({
     ]);
   }, []);
 
+  // Bulk paste: turn a clipboard block (one item per line, optionally
+  // tab-separated Item Model / USD Price / Qty columns straight out of
+  // Excel or Sheets) into product rows and append them. This is the only
+  // way to populate a brand-new sheet by paste, since the ProductTable —
+  // and its per-column paste buttons — only render once a row exists.
+  const pasteRowsFromText = useCallback((text: string) => {
+    if (!text || !text.trim()) return;
+    setRows((prev) => {
+      const lines = text.replace(/\r\n?/g, "\n").split("\n");
+      while (lines.length > 1 && lines[lines.length - 1].trim() === "") lines.pop();
+      const idSeed = Date.now();
+      const added = lines.reduce<ProductRow[]>((acc, line) => {
+        const cells = line.split("\t");
+        const itemModel = (cells[0] ?? "").trim();
+        const priceRaw = (cells[1] ?? "").replace(/[^0-9.]/g, "");
+        const qtyRaw = (cells[2] ?? "").replace(/[^0-9]/g, "");
+        // Skip blank lines so a trailing newline doesn't add an empty row.
+        if (itemModel === "" && priceRaw === "" && qtyRaw === "") return acc;
+        acc.push({
+          id: idSeed + acc.length,
+          position: prev.length + acc.length + 1,
+          itemModel,
+          priceUsd: parseFloat(priceRaw) || 0,
+          quantity: parseInt(qtyRaw, 10) || 1,
+        });
+        return acc;
+      }, []);
+      if (added.length === 0) return prev;
+      setPasteHint(
+        `Pasted ${added.length} row${added.length === 1 ? "" : "s"}`,
+      );
+      return [...prev, ...added].map((r, i) => ({ ...r, position: i + 1 }));
+    });
+  }, []);
+
+  const pasteRowsFromClipboard = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      pasteRowsFromText(text);
+    } catch {
+      setPasteHint(
+        "Couldn't read the clipboard — click the sheet and press Ctrl/Cmd+V instead.",
+      );
+    }
+  }, [pasteRowsFromText]);
+
+  // Clear the paste feedback after a few seconds so it doesn't linger.
+  useEffect(() => {
+    if (!pasteHint) return;
+    const t = setTimeout(() => setPasteHint(""), 5000);
+    return () => clearTimeout(t);
+  }, [pasteHint]);
+
   const handleClearRows = useCallback(() => {
     setRows((prev) => {
       if (prev.length === 0) return prev;
@@ -576,6 +632,14 @@ export function PricingSheet({
                   </button>
                 )}
                 <button
+                  onClick={pasteRowsFromClipboard}
+                  title="Paste rows from clipboard — one item per line, optionally tab-separated Item Model / USD Price / Qty"
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-600"
+                >
+                  <ClipboardPaste className="h-3 w-3" />
+                  Paste
+                </button>
+                <button
                   onClick={handleAddRow}
                   className="flex items-center gap-1.5 rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-cyan-400"
                 >
@@ -584,17 +648,40 @@ export function PricingSheet({
                 </button>
               </div>
             </div>
+            {pasteHint && (
+              <p className="mb-2 text-xs text-cyan-600">{pasteHint}</p>
+            )}
             {rows.length === 0 ? (
-              <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-gray-200">
+              <div
+                tabIndex={0}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  pasteRowsFromText(e.clipboardData.getData("text"));
+                }}
+                className="flex h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 outline-none transition-colors focus:border-cyan-300 focus:bg-cyan-50/30"
+              >
                 <div className="text-center">
                   <p className="text-sm text-gray-400">No products yet</p>
-                  <button
-                    onClick={handleAddRow}
-                    className="mt-2 flex items-center gap-1.5 mx-auto rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-cyan-400"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add Row
-                  </button>
+                  <p className="mt-1 text-xs text-gray-400">
+                    Click here and press Ctrl/Cmd+V to paste a list —
+                    columns: Item Model, USD Price, Qty
+                  </p>
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    <button
+                      onClick={pasteRowsFromClipboard}
+                      className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-600"
+                    >
+                      <ClipboardPaste className="h-3.5 w-3.5" />
+                      Paste from clipboard
+                    </button>
+                    <button
+                      onClick={handleAddRow}
+                      className="flex items-center gap-1.5 rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-cyan-400"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Row
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
