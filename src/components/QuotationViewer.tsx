@@ -21,6 +21,9 @@ interface SavedConfig {
   designEng?: string;
   includeTax?: boolean;
   taxInclusive?: boolean;
+  discountMode?: "percent" | "amount";
+  discountPercent?: number;
+  discountAmount?: number;
   brandVariantId?: string;
 }
 
@@ -323,6 +326,12 @@ export default function QuotationViewer({
       ? config.extraColumns
       : [],
     scope_intro: config.scopeIntro || "",
+    discount_mode:
+      config.discountMode === "amount"
+        ? ("amount" as const)
+        : ("percent" as const),
+    discount_percent: Number(config.discountPercent) || 0,
+    discount_amount: Number(config.discountAmount) || 0,
   };
 
   // All three print buttons (Print / PDF, Print Draft, Print BOQ) funnel

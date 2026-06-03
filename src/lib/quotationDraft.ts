@@ -72,6 +72,14 @@ export interface QuotationDraft {
   /** Whether entered prices already include tax (back-calculate base). */
   taxInclusive: boolean;
   /**
+   * Discount applied to the subtotal before tax. `discountMode` picks
+   * whether the percentage or the fixed JOD amount is authoritative; both
+   * are stored so toggling the mode in the Designer never loses a value.
+   */
+  discountMode: "percent" | "amount";
+  discountPercent: number;
+  discountAmount: number;
+  /**
    * Client folder id selected in the Designer. Persisting this means the
    * user's client selection survives a page refresh — without it the
    * Designer drops back into its "pick a client" hero every time the
@@ -211,6 +219,9 @@ export function emptyDraft(): QuotationDraft {
     manualFactor: 1,
     includeTax: true,
     taxInclusive: false,
+    discountMode: "percent",
+    discountPercent: 0,
+    discountAmount: 0,
     folderId: null,
     brandVariantId: DEFAULT_BRAND_VARIANT_ID,
   };
@@ -309,6 +320,9 @@ export interface EditModeDraft {
   manualFactor: number;
   includeTax: boolean;
   taxInclusive: boolean;
+  discountMode?: "percent" | "amount";
+  discountPercent?: number;
+  discountAmount?: number;
   projectName: string;
   siteName: string;
   showPictures: boolean;

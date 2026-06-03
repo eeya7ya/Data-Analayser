@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   computeQuotationTotals,
   effectiveMergedValue,
+  type QuotationDiscount,
 } from "@/lib/quotationTotals";
 import {
   getBrandVariant,
@@ -98,6 +99,16 @@ export interface QuotationHeader {
   extra_columns?: QuotationExtraColumn[];
   /** Optional custom scope intro that appears above the Final Totals table. */
   scope_intro?: string;
+  /**
+   * Optional discount applied to the subtotal before tax. `discount_mode`
+   * selects whether `discount_percent` (a % of the subtotal) or
+   * `discount_amount` (a fixed JOD figure) is authoritative. Absent on
+   * quotations saved before discounts existed, which render with no
+   * discount line at all.
+   */
+  discount_mode?: "percent" | "amount";
+  discount_percent?: number;
+  discount_amount?: number;
 }
 
 interface Props {
@@ -502,10 +513,16 @@ export default function QuotationPreview({
   // preview no longer applies any divisor — everything is displayed and
   // summed at face value.
   const effectiveTaxPercent = includeTax ? (header.tax_percent || 0) : 0;
-  const { subtotal, tax, total } = computeQuotationTotals(
+  const discountSpec: QuotationDiscount = {
+    mode: header.discount_mode === "amount" ? "amount" : "percent",
+    percent: Number(header.discount_percent) || 0,
+    amount: Number(header.discount_amount) || 0,
+  };
+  const { subtotal, discount, net, tax, total } = computeQuotationTotals(
     items,
     effectiveTaxPercent,
     taxInclusive,
+    discountSpec,
   );
 
   function update(i: number, patch: Partial<QuotationItem>) {
@@ -1303,6 +1320,24 @@ export default function QuotationPreview({
                     <td style={{ width: "75%" }}>Grand Total Cost (Subtotal)</td>
                     <td>{money(subtotal)}</td>
                   </tr>
+                  {discount > 0 && (
+                    <tr className="totals-row">
+                      <td>
+                        Discount
+                        {discountSpec.mode === "percent" &&
+                        discountSpec.percent > 0
+                          ? ` (${discountSpec.percent}%)`
+                          : ""}
+                      </td>
+                      <td>− {money(discount)}</td>
+                    </tr>
+                  )}
+                  {discount > 0 && includeTax && (
+                    <tr className="totals-row">
+                      <td>Net After Discount</td>
+                      <td>{money(net)}</td>
+                    </tr>
+                  )}
                   {includeTax && (
                     <tr className="totals-row">
                       <td>TAX ({header.tax_percent}%)</td>
