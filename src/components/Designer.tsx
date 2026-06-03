@@ -26,6 +26,7 @@ import {
   type PricingCategory,
 } from "@/lib/quotationDraft";
 import QuickCatalogPicker from "./QuickCatalogPicker";
+import CataloguePickerModal from "./CataloguePickerModal";
 import ExcelImportModal from "./ExcelImportModal";
 import {
   BRAND_VARIANTS,
@@ -241,6 +242,10 @@ export default function Designer({
   // Whether the Excel-import modal is currently visible. Triggered from
   // the toolbar "Import Excel" button.
   const [excelImportOpen, setExcelImportOpen] = useState(false);
+  // Full catalogue PICKER overlay — opened from "+ Add from Catalogue" so the
+  // user browses/searches the whole catalogue and drops products into this
+  // quotation without leaving the Designer (replaces the old /catalog round-trip).
+  const [cataloguePickerOpen, setCataloguePickerOpen] = useState(false);
   // Hydration status is tracked as a state (not a ref) so the persist
   // effects can depend on it. A ref would flip mid-effect and let the
   // save effects run on the same tick as hydration — with React's
@@ -1900,8 +1905,8 @@ export default function Designer({
               {quickPickerOpen ? "Hide picker" : "Show picker"}
             </button>
             <button
-              onClick={() => router.push("/catalog")}
-              title="Browse the full product catalogue (opens the Catalogue page)"
+              onClick={() => setCataloguePickerOpen(true)}
+              title="Browse and search the full product catalogue without leaving the editor"
               className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors"
             >
               + Add from Catalogue
@@ -2083,6 +2088,13 @@ export default function Designer({
           existingPages={existingPageNames}
           onCancel={() => setExcelImportOpen(false)}
           onImport={applyImportedItems}
+        />
+      )}
+      {cataloguePickerOpen && (
+        <CataloguePickerModal
+          existingPages={existingPageNames}
+          onAdd={addCatalogItem}
+          onClose={() => setCataloguePickerOpen(false)}
         />
       )}
     </div>

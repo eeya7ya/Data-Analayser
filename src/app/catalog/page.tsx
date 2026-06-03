@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
+import { requireModule } from "@/lib/modules";
 import CatalogBrowser from "@/components/CatalogBrowser";
 import TopBar from "@/components/TopBar";
 import CatalogUploadSection from "./CatalogUploadSection";
@@ -93,6 +94,17 @@ async function loadSystems(): Promise<SystemInfo[]> {
 export default async function CatalogPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  // Catalogue Modifier is the storage/admin surface for editing the catalogue
+  // (upload / export / per-row edits). Everyone else uses the read-only in-
+  // designer picker overlay instead. `requireModule` lets admins through and
+  // anyone holding the `storage` module; others are bounced to the dashboard.
+  let allowed = true;
+  try {
+    await requireModule(user, "storage");
+  } catch {
+    allowed = false;
+  }
+  if (!allowed) redirect("/");
   const initialSystems = await loadSystems();
   return (
     <div className="min-h-screen bg-magic-soft/40">
@@ -100,11 +112,12 @@ export default async function CatalogPage() {
       <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
         <header className="mb-6">
           <h1 className="text-2xl font-bold text-magic-ink">
-            Product Catalogue
+            Catalogue Modifier
           </h1>
           <p className="text-sm text-magic-ink/70">
-            Pick a system, browse every product with full specs, sort by any
-            column, and build a quotation manually.
+            Manage the product catalogue — upload / export, browse every product
+            with full specs, and edit prices, models and pictures. (Quotation
+            builders add products from the in-designer catalogue picker.)
           </p>
         </header>
         {user.role === "admin" && <CatalogUploadSection />}

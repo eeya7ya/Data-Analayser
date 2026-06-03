@@ -10,6 +10,7 @@ import {
   CalendarDays,
   NotebookPen,
   Megaphone,
+  Library,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -71,6 +72,11 @@ export default function SideNav({
     moduleRoles === null ||
     moduleRoles.length === 0 ||
     moduleRoles.some((r) => r.module === m);
+  // STRICT storage check for the Catalogue Modifier — unlike `has()`, this does
+  // NOT fall open when role data is null/empty, so a storage/admin-only surface
+  // never flashes for everyone else.
+  const hasStorage =
+    isAdmin || (moduleRoles?.some((r) => r.module === "storage") ?? false);
 
   // CRM is the single hub for the work modules (Sales / Presales /
   // Storage / Projects / Pricing live as tabs inside it), so the drawer
@@ -81,6 +87,12 @@ export default function SideNav({
   const primary: NavItem[] = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/crm", label: "CRM", icon: Building2, show: has("crm") || has("projects") },
+    {
+      href: "/catalog",
+      label: "Catalogue Modifier",
+      icon: Library,
+      show: hasStorage,
+    },
     { href: "/calendar", label: "Calendar", icon: CalendarDays, show: true },
     { href: "/notes", label: "My Notes", icon: NotebookPen, show: true },
     { href: "/updates", label: "Updates", icon: Megaphone, show: true },
@@ -91,21 +103,24 @@ export default function SideNav({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — a plain dim layer (no backdrop-blur: blurring the whole
+          page every frame while the drawer slides is what made the open feel
+          laggy). */}
       <div
         aria-hidden={!open}
         onClick={onClose}
-        className={`fixed inset-0 z-50 bg-magic-ink/40 backdrop-blur-sm transition-opacity duration-200 ${
+        className={`fixed inset-0 z-50 bg-magic-ink/40 transition-opacity duration-200 ${
           open ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
 
-      {/* Drawer */}
+      {/* Drawer — solid background + GPU-promoted transform (no backdrop-blur)
+          so the slide-in is smooth instead of janky. */}
       <aside
         role="dialog"
         aria-label="Navigation"
         aria-hidden={!open}
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-white/50 bg-white/85 backdrop-blur-2xl shadow-2xl transition-transform duration-200 ease-out ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-magic-border/60 bg-white shadow-2xl transition-transform duration-200 ease-out will-change-transform ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
