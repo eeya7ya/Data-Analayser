@@ -62,6 +62,9 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
   const [copiedCol, setCopiedCol] = useState<InputField | "usdTotal" | null>(null);
   const [copiedCalcCol, setCopiedCalcCol] = useState<string | null>(null);
   const [openRatesRowId, setOpenRatesRowId] = useState<number | null>(null);
+  // When the clipboard can't be read on click, the paste button opens a
+  // focused paste box for this column instead.
+  const [pastePrompt, setPastePrompt] = useState<InputField | null>(null);
   const [notice, setNotice] = useState<{
     kind: "info" | "warn";
     title: string;
@@ -252,20 +255,27 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
   };
 
   const pasteColumn = async (field: InputField) => {
-    let text: string;
+    // Prefer reading the clipboard directly (one click). Some browsers —
+    // notably Firefox, and any non-HTTPS / permission-blocked context —
+    // refuse navigator.clipboard.readText() even on a user gesture, so fall
+    // back to a focused paste box the user can Ctrl/Cmd+V into. That keeps
+    // the button working everywhere instead of silently failing.
+    let text: string | null = null;
     try {
       text = await navigator.clipboard.readText();
     } catch {
-      showNotice({
-        kind: "warn",
-        title: "Couldn't read the clipboard",
-        details: [
-          "Your browser blocked clipboard access. Click a cell and press Ctrl/Cmd+V to paste directly instead.",
-        ],
-      });
-      return;
+      text = null;
     }
+    if (text != null && text.trim() !== "") {
+      applyPaste(field, text);
+    } else {
+      setPastePrompt(field);
+    }
+  };
 
+  // Parse pasted clipboard text into the table for a given column. Shared by
+  // the column paste button (direct read) and the paste-box fallback.
+  const applyPaste = (field: InputField, text: string) => {
     // If the clipboard holds a tab-separated block (a multi-column
     // selection copied straight from Excel/Sheets), import the WHOLE block
     // — Item Model / USD Price / Qty — no matter which column button was
@@ -420,8 +430,61 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
     </span>
   );
 
+  const pastePromptLabel =
+    pastePrompt === "itemModel"
+      ? "item models"
+      : pastePrompt === "priceUsd"
+        ? "USD prices"
+        : "quantities";
+
   return (
     <div className="relative">
+      {pastePrompt &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/30 p-4"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setPastePrompt(null);
+            }}
+          >
+            <div className="w-96 max-w-full rounded-xl border border-gray-200 bg-white p-4 shadow-xl">
+              <p className="text-sm font-semibold text-gray-800">
+                Paste {pastePromptLabel}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Press <kbd className="rounded border px-1">Ctrl</kbd>/
+                <kbd className="rounded border px-1">⌘</kbd>+
+                <kbd className="rounded border px-1">V</kbd> in the box below.
+                One value per line — or paste a full Excel block (Item Model,
+                Price, Qty) to fill every column at once.
+              </p>
+              <textarea
+                autoFocus
+                onPaste={(e) => {
+                  e.preventDefault();
+                  const t = e.clipboardData.getData("text");
+                  const field = pastePrompt;
+                  setPastePrompt(null);
+                  if (field) applyPaste(field, t);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setPastePrompt(null);
+                }}
+                placeholder="Paste here…"
+                className="mt-3 h-28 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+              />
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={() => setPastePrompt(null)}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
       {notice && (
         <div
           className={cn(

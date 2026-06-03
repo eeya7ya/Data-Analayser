@@ -16,6 +16,7 @@ interface Folder {
   id: number;
   name: string;
   kind: string | null;
+  company_id?: number | null;
 }
 
 interface Project {
@@ -33,12 +34,14 @@ interface Props {
   converting: boolean;
   onClose: () => void;
   /** Called with the resolved client folder + project to file the new
-   *  quotation under. Either may be null (host falls back to Unfiled /
-   *  Default Project), but the dialog always resolves both for the two
-   *  supported paths. */
+   *  quotation under, plus the company context so the caller can land the
+   *  user on the CRM drill-down (with breadcrumb) afterwards instead of a
+   *  bare quotation page they can't navigate back from. */
   onConfirm: (args: {
     folderId: number | null;
     projectId: number | null;
+    kind: Kind;
+    companyId: number | null;
   }) => void;
 }
 
@@ -160,7 +163,13 @@ export function ConvertToQuotationDialog({
         setError("Pick a client first.");
         return;
       }
-      onConfirm({ folderId: selectedFolderId, projectId: selectedProjectId });
+      const selectedFolder = folders.find((f) => f.id === selectedFolderId);
+      onConfirm({
+        folderId: selectedFolderId,
+        projectId: selectedProjectId,
+        kind,
+        companyId: kind === "company" ? selectedFolder?.company_id ?? null : null,
+      });
       return;
     }
 
@@ -228,7 +237,7 @@ export function ConvertToQuotationDialog({
         projectId = (pls.projects?.[0]?.id as number) ?? null;
       }
 
-      onConfirm({ folderId, projectId });
+      onConfirm({ folderId, projectId, kind, companyId });
     } catch (e) {
       setError((e as Error).message);
     } finally {
