@@ -472,13 +472,15 @@ export default function QuotationViewer({
         </div>
       )}
       {/* The QuotationPreview is hard-coded to A4 width (210mm) so the
-          printed page matches the production template exactly. On
-          narrower screens that overflows the parent card and pushes
-          everything sideways; the no-print wrapper here keeps the
-          fixed-width sheet inside a horizontally scrollable box so
-          the surrounding chrome stays put. Print CSS bypasses .no-print
-          ancestors entirely, so paper output is unaffected. */}
-      <div className="no-print overflow-x-auto">
+          printed page matches the production template exactly. On narrower
+          screens that overflows the parent card, so we keep it in a
+          horizontally scrollable box. This wrapper must NOT be `.no-print`:
+          a `display:none` ancestor removes its whole subtree from the print
+          output (which previously printed a blank page). The `@media print`
+          reset in globals.css forces `overflow: visible` on this wrapper, so
+          the scrollbox only affects on-screen layout — paper output shows
+          the full sheet. */}
+      <div className="overflow-x-auto print:overflow-x-visible">
         <QuotationPreview
           header={header}
           items={items}
