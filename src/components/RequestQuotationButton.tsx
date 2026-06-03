@@ -5,16 +5,18 @@ import { LEAD_PRIORITIES } from "@/lib/leadConstants";
 
 /**
  * Per-project "Request for Quotation" affordance shown in the project
- * drill-down header. Sales open ONE RFQ per project and track it right
- * here — no bounce into the presales /leads queue:
+ * drill-down header. This is a SALES action — a salesperson asks presales to
+ * build a quote against a project, and tracks it right here:
  *
  *   • No open RFQ  → "Request for Quotation" button → inline dialog → POST.
  *   • Open RFQ     → a live status chip (waiting / in progress + who).
  *
- * Capability mirrors the server (`canCreateLead`): admins and any CRM
- * role. Everyone else (e.g. a projects technician) sees nothing — the
- * component renders null. The server still re-validates and enforces the
- * one-open-per-project rule (409), so a stale tab can't double-open.
+ * Visibility is intentionally SALES-ONLY (crm role `sales` / `sales_manager`).
+ * Presales BUILD quotations — they fulfil RFQs from the /leads queue, they
+ * don't request them — so they (and a plain admin acting in a quotation-
+ * building capacity) never see this. The server still re-validates and
+ * enforces the one-open-per-project rule (409), so a stale tab can't
+ * double-open.
  */
 
 interface OpenRfq {
@@ -69,12 +71,20 @@ export default function RequestQuotationButton({
           (r) => r.json(),
         )) as {
           user?: { role?: string } | null;
-          module_roles?: Array<{ module: string }>;
+          module_roles?: Array<{ module: string; role: string }>;
         };
         if (cancelled) return;
-        const isAdmin = me.user?.role === "admin";
-        const hasCrm = (me.module_roles ?? []).some((r) => r.module === "crm");
-        const cap = isAdmin || hasCrm;
+        // SALES-ONLY. "Request for Quotation" is a sales action (sales ask
+        // presales to build a quote). Gate it to sales-side CRM roles only —
+        // presales BUILD quotes (they fulfil RFQs from the /leads queue, they
+        // don't request them), and a plain admin viewing/building a quotation
+        // here is acting in that same presales capacity. Anyone without a
+        // sales role sees nothing (the component renders null below).
+        const crmRoles = (me.module_roles ?? [])
+          .filter((r) => r.module === "crm")
+          .map((r) => r.role);
+        const cap =
+          crmRoles.includes("sales") || crmRoles.includes("sales_manager");
         setCanRequest(cap);
         if (cap) await refresh();
       } catch {
