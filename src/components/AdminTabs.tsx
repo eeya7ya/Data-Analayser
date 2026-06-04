@@ -6,12 +6,14 @@ import AdminSettings from "./AdminSettings";
 import AdminQuotationExport from "./AdminQuotationExport";
 import FolderClassificationPanel from "./FolderClassificationPanel";
 import NewsAdminPanel from "./NewsAdminPanel";
+import EmailAdminPanel from "./EmailAdminPanel";
 import type { AppSettings } from "@/lib/settings";
 
 type Tab =
   | "users"
   | "folders"
   | "news"
+  | "email"
   | "settings"
   | "database"
   | "export";
@@ -41,6 +43,9 @@ export default function AdminTabs({
         </TabButton>
         <TabButton active={tab === "news"} onClick={() => setTab("news")}>
           News
+        </TabButton>
+        <TabButton active={tab === "email"} onClick={() => setTab("email")}>
+          Email
         </TabButton>
         <TabButton
           active={tab === "settings"}
@@ -86,6 +91,15 @@ export default function AdminTabs({
             Dashboard announcements
           </h2>
           <NewsAdminPanel />
+        </section>
+      )}
+
+      {tab === "email" && (
+        <section>
+          <h2 className="text-lg font-semibold text-magic-ink mb-3">
+            Email — server &amp; user mailboxes
+          </h2>
+          <EmailAdminPanel />
         </section>
       )}
 

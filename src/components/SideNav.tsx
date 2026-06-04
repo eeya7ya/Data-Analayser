@@ -11,6 +11,7 @@ import {
   NotebookPen,
   Megaphone,
   Library,
+  Mail,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -94,6 +95,7 @@ export default function SideNav({
       show: hasStorage,
     },
     { href: "/calendar", label: "Calendar", icon: CalendarDays, show: true },
+    { href: "/email", label: "Email", icon: Mail, show: true },
     { href: "/notes", label: "My Notes", icon: NotebookPen, show: true },
     { href: "/updates", label: "Updates", icon: Megaphone, show: true },
   ].filter((i) => i.show);

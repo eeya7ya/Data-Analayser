@@ -2500,6 +2500,38 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
   }
 
+  // ── Email integration (V1.4C+) ─────────────────────────────────────────────
+  // Shared mail-server config (one row, admin-managed) + per-user mailbox
+  // credentials. Passwords are stored AES-256-GCM encrypted (see emailCrypto),
+  // never plaintext. Idempotent so they self-heal on every boot.
+  await q`
+    create table if not exists email_server_config (
+      id          integer primary key default 1,
+      imap_host   text not null default '',
+      imap_port   integer not null default 993,
+      smtp_host   text not null default '',
+      smtp_port   integer not null default 465,
+      encryption  text not null default 'ssl_tls',
+      updated_at  timestamptz not null default now(),
+      updated_by  integer references users(id) on delete set null,
+      constraint email_server_config_singleton check (id = 1)
+    )
+  `;
+  await q`
+    create table if not exists user_email_accounts (
+      user_id         integer primary key references users(id) on delete cascade,
+      email_address   text not null,
+      username        text not null,
+      password_enc    text not null,
+      enabled         boolean not null default true,
+      last_test_ok    boolean,
+      last_tested_at  timestamptz,
+      last_test_error text,
+      created_at      timestamptz not null default now(),
+      updated_at      timestamptz not null default now()
+    )
+  `;
+
   if (!v14aApplied) {
     // 1.4A — make Update notes role-aware. The original release note was
     // seeded with an 'all' audience, so presales saw a sales-only note. Retag
