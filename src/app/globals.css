@@ -616,3 +616,19 @@ body > * {
     resize: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Brand loader keyframes (breathing 3×3 grid of dots).
+ *
+ * These live in global CSS — NOT injected at runtime via useEffect — so the
+ * animation is available on the very first paint. The previous approach
+ * injected a <style> tag from a useEffect, which only runs after React
+ * hydration, so the loader's dots sat static until JS loaded (the "loader
+ * renders late" weak point). With the keyframes global, the inline
+ * `animation` styles on Spinner / PageLoader fire immediately, even inside
+ * server-rendered loading.tsx skeletons before any client JS executes.
+ * ------------------------------------------------------------------------- */
+@keyframes mt-loader-grid {
+  0%, 100% { transform: scale(0.6); opacity: 0.4; }
+  50%      { transform: scale(1);   opacity: 1;   }
+}

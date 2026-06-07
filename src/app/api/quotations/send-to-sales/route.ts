@@ -107,6 +107,21 @@ export async function POST(req: Request) {
       where id = ${id}
     `;
 
+    // 1.4D — once presales sends the quotation to sales, the lead's presales
+    // work is done: stamp it so it drops out of the presales queue. Re-sends
+    // keep it done. The ball is now in sales' court (review / accept /
+    // request changes), tracked on the quotation itself, not the lead queue.
+    if (leadId) {
+      await q`
+        update leads
+        set quotation_id      = ${id},
+            quotation_sent_at = now(),
+            completed_at      = now(),
+            updated_at        = now()
+        where id = ${leadId}
+      `;
+    }
+
     await q`
       insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
       values (${user.id}, 'quotation', ${id}, 'send_to_sales',

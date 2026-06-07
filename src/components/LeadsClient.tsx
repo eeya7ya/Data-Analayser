@@ -7,25 +7,24 @@ import { LEAD_STATUS_LABEL } from "@/lib/leadConstants";
 import PageLoader from "@/components/PageLoader";
 
 /**
- * Leads list — master / detail layout (V1.4D).
+ * Leads list — master / detail (V1.4D).
  *
- * Two design rules drive this page:
- *   1. NO AUTO-ROUTING. Clicking a row never navigates somewhere else.
- *      It just selects the row; the lead's data renders in the right
- *      pane (or below, on narrow screens). Sales sees their own; presales
- *      sees the shared queue.
- *   2. NO SILENT CLAIM. The "Claim & file" button is the only path to
- *      ownership and it goes to the dedicated /leads/:id/assign page,
- *      which forces the Company / Individual → Client → Project tree
- *      before the lead is taken off the queue. No more single-click
- *      claim that strands an unfiled lead.
+ * Design rules:
+ *   1. NO AUTO-ROUTING. Clicking a row only selects it; the lead renders
+ *      inline in the right pane. The full timeline page is an explicit
+ *      "Open full lead" link.
+ *   2. NO SILENT CLAIM. "Claim & file" routes to /leads/:id/assign, the
+ *      dedicated page that forces a manual Company/Individual → Client →
+ *      Project selection before the lead is taken off the queue.
+ *   3. RESTRAINED PALETTE. White cards, one red accent, neutral greys.
+ *      Priority is a thin left bar + small dot; status is muted text.
+ *      No rainbow pills.
+ *   4. DONE LEADS LEAVE. Once a quotation is sent to sales the lead is
+ *      `completed_at`-stamped server-side and excluded from this queue
+ *      (the ball is now in sales' court, tracked on the quotation).
  *
- * Backend: powered by /api/leads with all the data we need to render
- * inline (title, description, priority, status, opened-by, working-on,
- * created_at, updated_at, requested_timeline_at, project_id). Lead
- * detail and timeline still live at /leads/[id] for users who want the
- * full history; this page links to it as "Open full lead" rather than
- * making it a side-effect of clicking a row.
+ * Toolbar: status tabs (presales), an age filter (Today / This week /
+ * Older / All), a sort selector, and free-text search.
  */
 
 interface Lead {
@@ -49,25 +48,30 @@ interface Lead {
 }
 
 type Tab = "new" | "in_progress" | "all";
+type AgeFilter = "all" | "today" | "week" | "older";
+type SortKey = "newest" | "oldest" | "priority" | "updated";
 
-const PRIORITY_BAR: Record<string, string> = {
+const PRIORITY_RANK: Record<string, number> = {
+  urgent: 0,
+  high: 1,
+  normal: 2,
+  low: 3,
+};
+
+// Priority accent — a single small dot / thin bar, not a full pill, so the
+// list reads calm. Greys for body, red only for the active selection.
+const PRIORITY_DOT: Record<string, string> = {
   urgent: "bg-red-500",
-  high: "bg-orange-400",
-  normal: "bg-sky-400",
+  high: "bg-amber-500",
+  normal: "bg-slate-400",
   low: "bg-slate-300",
 };
 
-const PRIORITY_PILL: Record<string, string> = {
-  urgent: "bg-red-100 text-red-800 border-red-200",
-  high: "bg-orange-100 text-orange-800 border-orange-200",
-  normal: "bg-slate-100 text-slate-800 border-slate-200",
-  low: "bg-slate-50 text-slate-500 border-slate-200",
-};
-
-const STATUS_PILL: Record<string, string> = {
-  new: "bg-sky-100 text-sky-800 border-sky-200",
-  in_progress: "bg-emerald-100 text-emerald-800 border-emerald-200",
-};
+function startOfToday(): number {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
 
 function relative(iso: string | null): string {
   if (!iso) return "—";
@@ -109,6 +113,8 @@ export default function LeadsClient({
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(isPresales ? "new" : "all");
+  const [age, setAge] = useState<AgeFilter>("all");
+  const [sort, setSort] = useState<SortKey>("newest");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -132,15 +138,7 @@ export default function LeadsClient({
           setLeads([]);
           setSelectedId(null);
         } else {
-          const list = data.leads ?? [];
-          setLeads(list);
-          // Preserve selection across re-fetches when the lead is still
-          // in the list; otherwise default to the first one so the right
-          // pane is never empty when there's something to show.
-          setSelectedId((prev) => {
-            if (prev && list.some((l) => l.id === prev)) return prev;
-            return list[0]?.id ?? null;
-          });
+          setLeads(data.leads ?? []);
         }
       })
       .catch((e: Error) => {
@@ -155,39 +153,73 @@ export default function LeadsClient({
     };
   }, [tab, isPresales]);
 
-  // Client-side text filter — small queue so a SQL trip per keystroke
-  // would be wasteful.
+  // Filter (search + age) then sort — all client-side over a small queue.
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return leads;
-    return leads.filter(
-      (l) =>
-        l.ref.toLowerCase().includes(q) ||
-        l.title.toLowerCase().includes(q) ||
-        (l.description ?? "").toLowerCase().includes(q) ||
-        (l.created_by_username ?? "").toLowerCase().includes(q) ||
-        (l.assigned_to_username ?? "").toLowerCase().includes(q),
-    );
-  }, [leads, query]);
+    const todayStart = startOfToday();
+    const weekStart = todayStart - 6 * 24 * 60 * 60 * 1000;
 
-  // Smart counts for the tab strip — driven by the same fetch result
-  // for the "all" tab so the numbers are exact. For "new" /
-  // "in_progress" we only have the filtered list so we count what we've
-  // got (the SQL already scopes by status).
-  const stats = useMemo(() => {
-    const unclaimed = leads.filter((l) => l.status === "new").length;
-    const inProgress = leads.filter((l) => l.status === "in_progress").length;
-    const mine = leads.filter(
-      (l) => l.assigned_to_id === userId && l.status === "in_progress",
-    ).length;
-    const stale = leads.filter((l) => {
-      if (l.status !== "new") return false;
+    let list = leads.filter((l) => {
+      if (q) {
+        const hay = `${l.ref} ${l.title} ${l.description ?? ""} ${l.created_by_username ?? ""} ${l.assigned_to_username ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (age !== "all") {
+        const t = Date.parse(l.created_at);
+        if (!Number.isFinite(t)) return age === "older";
+        if (age === "today" && t < todayStart) return false;
+        if (age === "week" && t < weekStart) return false;
+        if (age === "older" && t >= weekStart) return false;
+      }
+      return true;
+    });
+
+    list = [...list].sort((a, b) => {
+      switch (sort) {
+        case "oldest":
+          return Date.parse(a.created_at) - Date.parse(b.created_at);
+        case "updated":
+          return Date.parse(b.updated_at) - Date.parse(a.updated_at);
+        case "priority": {
+          const pa = PRIORITY_RANK[a.priority] ?? 9;
+          const pb = PRIORITY_RANK[b.priority] ?? 9;
+          if (pa !== pb) return pa - pb;
+          return Date.parse(b.created_at) - Date.parse(a.created_at);
+        }
+        case "newest":
+        default:
+          return Date.parse(b.created_at) - Date.parse(a.created_at);
+      }
+    });
+    return list;
+  }, [leads, query, age, sort]);
+
+  // Keep a valid selection as the filtered list changes.
+  useEffect(() => {
+    setSelectedId((prev) => {
+      if (prev && visible.some((l) => l.id === prev)) return prev;
+      return visible[0]?.id ?? null;
+    });
+  }, [visible]);
+
+  const counts = useMemo(() => {
+    const todayStart = startOfToday();
+    const weekStart = todayStart - 6 * 24 * 60 * 60 * 1000;
+    let today = 0;
+    let week = 0;
+    let older = 0;
+    for (const l of leads) {
       const t = Date.parse(l.created_at);
-      if (!Number.isFinite(t)) return false;
-      return Date.now() - t > 24 * 60 * 60 * 1000;
-    }).length;
-    return { unclaimed, inProgress, mine, stale, total: leads.length };
-  }, [leads, userId]);
+      if (!Number.isFinite(t)) {
+        older++;
+        continue;
+      }
+      if (t >= todayStart) today++;
+      if (t >= weekStart) week++;
+      else older++;
+    }
+    return { today, week, older, total: leads.length };
+  }, [leads]);
 
   const selected = useMemo(
     () => visible.find((l) => l.id === selectedId) ?? null,
@@ -196,73 +228,65 @@ export default function LeadsClient({
 
   return (
     <div className="space-y-4">
-      {/* ── Stats strip ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard
-          label={isPresales ? "Unclaimed" : "Open"}
-          value={stats.unclaimed}
-          tone="sky"
-        />
-        <StatCard
-          label={isPresales ? "In progress" : "Being worked"}
-          value={stats.inProgress}
-          tone="emerald"
-        />
-        <StatCard
-          label={isPresales ? "Yours" : "Total opened"}
-          value={isPresales ? stats.mine : stats.total}
-          tone="rose"
-        />
-        <StatCard
-          label="Stale > 24h"
-          value={stats.stale}
-          tone={stats.stale > 0 ? "amber" : "slate"}
-        />
-      </div>
-
-      {/* ── Filter row ──────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {isPresales ? (
-          <div className="inline-flex rounded-xl border border-magic-border bg-white p-1 text-sm shadow-sm">
-            <TabButton active={tab === "new"} onClick={() => setTab("new")}>
-              Unclaimed
-              {tab !== "new" && stats.unclaimed > 0 && (
-                <span className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-magic-red px-1 text-[10px] font-bold text-white">
-                  {stats.unclaimed}
-                </span>
-              )}
-            </TabButton>
-            <TabButton
-              active={tab === "in_progress"}
-              onClick={() => setTab("in_progress")}
-            >
-              In progress
-            </TabButton>
-            <TabButton active={tab === "all"} onClick={() => setTab("all")}>
-              All
-            </TabButton>
-          </div>
-        ) : (
-          <span />
-        )}
-
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search ref, title, owner…"
-            className="w-56 rounded-lg border border-magic-border bg-white px-3 py-1.5 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
-          />
-          {canCreate && (
-            <Link
-              href="/leads/new"
-              className="rounded-lg bg-magic-red px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-magic-red/90"
-            >
-              + New lead
-            </Link>
+      {/* ── Toolbar ─────────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {isPresales ? (
+            <SegTabs
+              value={tab}
+              onChange={(v) => setTab(v as Tab)}
+              options={[
+                { value: "new", label: "Unclaimed" },
+                { value: "in_progress", label: "In progress" },
+                { value: "all", label: "All" },
+              ]}
+            />
+          ) : (
+            <span />
           )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search ref, title, owner…"
+              className="w-52 rounded-lg border border-magic-border bg-white px-3 py-1.5 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+            />
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className="rounded-lg border border-magic-border bg-white px-2.5 py-1.5 text-sm text-magic-ink/80 focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
+              title="Sort"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="priority">Priority</option>
+              <option value="updated">Recently updated</option>
+            </select>
+            {canCreate && (
+              <Link
+                href="/leads/new"
+                className="rounded-lg bg-magic-red px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-magic-red/90"
+              >
+                + New lead
+              </Link>
+            )}
+          </div>
         </div>
+
+        {/* Age filter — Today / This week / Older / All */}
+        <SegTabs
+          value={age}
+          onChange={(v) => setAge(v as AgeFilter)}
+          subtle
+          options={[
+            { value: "all", label: "All", badge: counts.total },
+            { value: "today", label: "Today", badge: counts.today },
+            { value: "week", label: "This week", badge: counts.week },
+            { value: "older", label: "Older", badge: counts.older },
+          ]}
+        />
       </div>
 
       {error && (
@@ -271,9 +295,8 @@ export default function LeadsClient({
         </div>
       )}
 
-      {/* ── Master + detail grid ────────────────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
-        {/* List */}
+      {/* ── Master + detail ─────────────────────────────────────────── */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,400px)]">
         <div className="space-y-2">
           {loading ? (
             <div className="rounded-2xl border border-magic-border bg-white p-6 shadow-sm">
@@ -282,6 +305,7 @@ export default function LeadsClient({
           ) : visible.length === 0 ? (
             <EmptyState
               tab={tab}
+              age={age}
               isPresales={isPresales}
               hasQuery={query.trim().length > 0}
             />
@@ -298,7 +322,6 @@ export default function LeadsClient({
           )}
         </div>
 
-        {/* Detail pane */}
         <div className="lg:sticky lg:top-4 lg:self-start">
           {selected ? (
             <LeadDetailPane
@@ -334,73 +357,61 @@ function LeadRowCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`group flex w-full items-stretch gap-3 overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition-all ${
+      className={`group flex w-full items-stretch gap-3 overflow-hidden rounded-xl border bg-white text-left transition-all ${
         selected
-          ? "border-magic-red shadow-md ring-2 ring-magic-red/20"
-          : "border-magic-border hover:border-magic-red/40 hover:shadow-md"
+          ? "border-magic-red shadow-sm ring-1 ring-magic-red/20"
+          : "border-magic-border hover:border-magic-ink/20 hover:shadow-sm"
       }`}
     >
       <span
-        className={`w-1.5 flex-shrink-0 ${PRIORITY_BAR[lead.priority] ?? PRIORITY_BAR.normal}`}
+        className={`w-1 flex-shrink-0 ${PRIORITY_DOT[lead.priority] ?? PRIORITY_DOT.normal}`}
       />
-      <div className="flex flex-1 flex-col gap-1.5 px-3 py-3">
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className="font-mono text-[11px] font-semibold text-magic-red">
+      <div className="flex flex-1 flex-col gap-1 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[11px] font-semibold text-magic-ink/55">
             {lead.ref}
           </span>
-          <span
-            className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${PRIORITY_PILL[lead.priority] ?? PRIORITY_PILL.normal}`}
-          >
+          <span className="inline-flex items-center gap-1 text-[11px] text-magic-ink/55">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${PRIORITY_DOT[lead.priority] ?? PRIORITY_DOT.normal}`}
+            />
             {lead.priority}
           </span>
-          <span
-            className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_PILL[lead.status] ?? "border-slate-200 bg-slate-100 text-slate-700"}`}
-          >
+          <span className="text-magic-ink/30">·</span>
+          <span className="text-[11px] text-magic-ink/55">
             {LEAD_STATUS_LABEL[lead.status as keyof typeof LEAD_STATUS_LABEL] ?? lead.status}
           </span>
           <span className="ml-auto text-[10px] text-magic-ink/40">
-            Opened {relative(lead.created_at)}
-            {updated ? ` · updated ${relative(lead.updated_at)}` : ""}
+            {relative(lead.created_at)}
+            {updated ? ` · upd ${relative(lead.updated_at)}` : ""}
           </span>
         </div>
         <div className="text-sm font-semibold text-magic-ink">
           {lead.title}
         </div>
         {lead.description && (
-          <p className="line-clamp-1 text-xs text-magic-ink/60">
+          <p className="line-clamp-1 text-xs text-magic-ink/55">
             {lead.description}
           </p>
         )}
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-magic-ink/60">
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-magic-ink/55">
           <span className="inline-flex items-center gap-1.5">
-            <Avatar
-              name={lead.created_by_username}
-              tone="slate"
-              title={`Opened by ${lead.created_by_username ?? "—"}`}
-            />
+            <Avatar name={lead.created_by_username} muted />
             <span>{lead.created_by_username ?? "—"}</span>
           </span>
           <span className="text-magic-ink/30">→</span>
           {lead.assigned_to_username ? (
             <span className="inline-flex items-center gap-1.5">
-              <Avatar
-                name={lead.assigned_to_username}
-                tone={mine ? "rose" : "emerald"}
-                title={`Working on it: ${lead.assigned_to_username}`}
-              />
-              <span
-                className={`font-semibold ${mine ? "text-magic-red" : "text-emerald-700"}`}
-              >
+              <Avatar name={lead.assigned_to_username} accent={mine} />
+              <span className={mine ? "font-semibold text-magic-red" : ""}>
                 {mine ? "You" : lead.assigned_to_username}
               </span>
             </span>
           ) : (
-            <span className="rounded-full border border-dashed border-magic-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-magic-ink/45">
-              Unclaimed
-            </span>
+            <span className="text-magic-ink/40">Unclaimed</span>
           )}
           {lead.requested_timeline_at && (
-            <span className="ml-auto inline-flex items-center rounded-full border border-magic-border bg-magic-soft/50 px-2 py-0.5 text-[10px]">
+            <span className="ml-auto text-[10px] text-magic-ink/45">
               Needed by{" "}
               {new Date(lead.requested_timeline_at).toLocaleDateString()}
             </span>
@@ -426,24 +437,24 @@ function LeadDetailPane({
   const claimable = isPresales && lead.status === "new" && !lead.assigned_to_id;
   return (
     <div className="rounded-2xl border border-magic-border bg-white shadow-sm">
-      <div className="border-b border-magic-border/60 bg-gradient-to-br from-magic-soft/60 via-white to-white px-5 py-4">
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className="font-mono text-[11px] font-semibold text-magic-red">
+      <div className="border-b border-magic-border/60 px-5 py-4">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[11px] font-semibold text-magic-ink/55">
             {lead.ref}
           </span>
-          <span
-            className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_PILL[lead.status] ?? "border-slate-200 bg-slate-100 text-slate-700"}`}
-          >
-            {LEAD_STATUS_LABEL[lead.status as keyof typeof LEAD_STATUS_LABEL] ?? lead.status}
-          </span>
-          <span
-            className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${PRIORITY_PILL[lead.priority] ?? PRIORITY_PILL.normal}`}
-          >
+          <span className="inline-flex items-center gap-1 text-[11px] text-magic-ink/55">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${PRIORITY_DOT[lead.priority] ?? PRIORITY_DOT.normal}`}
+            />
             {lead.priority}
+          </span>
+          <span className="text-magic-ink/30">·</span>
+          <span className="text-[11px] text-magic-ink/55">
+            {LEAD_STATUS_LABEL[lead.status as keyof typeof LEAD_STATUS_LABEL] ?? lead.status}
           </span>
         </div>
         <h3 className="mt-1 text-lg font-bold text-magic-ink">{lead.title}</h3>
-        <p className="mt-1 text-[11px] text-magic-ink/45">
+        <p className="mt-0.5 text-[11px] text-magic-ink/45">
           Opened {relative(lead.created_at)}
           {updated ? ` · updated ${relative(lead.updated_at)}` : ""}
         </p>
@@ -461,10 +472,7 @@ function LeadDetailPane({
         )}
 
         <dl className="grid grid-cols-2 gap-3 text-sm">
-          <DetailField
-            label="Opened by"
-            value={lead.created_by_username ?? "—"}
-          />
+          <DetailField label="Opened by" value={lead.created_by_username ?? "—"} />
           <DetailField
             label="Working on it"
             value={
@@ -487,14 +495,14 @@ function LeadDetailPane({
         </dl>
 
         {(lead.company_id || lead.folder_id || lead.project_id) && (
-          <div className="rounded-xl border border-dashed border-magic-border/80 bg-magic-soft/30 px-3 py-2.5">
+          <div className="rounded-xl border border-dashed border-magic-border bg-magic-soft/30 px-3 py-2.5">
             <div className="text-[10px] font-semibold uppercase tracking-wide text-magic-ink/55">
               {lead.project_id ? "Presales filing" : "Quick reference (from sales)"}
             </div>
-            <p className="mt-1 text-xs text-magic-ink/75">
+            <p className="mt-1 text-xs text-magic-ink/70">
               {lead.project_id
-                ? "This lead is already filed under a presales project. Open the workspace to keep working."
-                : "Sales attached these hints when opening the lead — they're for context only. The presales tree is set when you claim & file."}
+                ? "Filed under a presales project. Open the workspace to keep working."
+                : "Sales attached these hints when opening the lead — context only. The presales tree is set when you claim & file."}
             </p>
           </div>
         )}
@@ -506,7 +514,7 @@ function LeadDetailPane({
               onClick={onAssign}
               className="rounded-lg bg-magic-red px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
             >
-              Claim & file →
+              Claim &amp; file →
             </button>
           )}
           {isPresales && mine && lead.folder_id && (
@@ -529,50 +537,23 @@ function LeadDetailPane({
   );
 }
 
-function StatCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "sky" | "emerald" | "rose" | "amber" | "slate";
-}) {
-  const tones: Record<typeof tone, string> = {
-    sky: "border-sky-200 bg-sky-50/70 text-sky-900",
-    emerald: "border-emerald-200 bg-emerald-50/70 text-emerald-900",
-    rose: "border-magic-red/30 bg-magic-red/5 text-magic-red",
-    amber: "border-amber-300 bg-amber-50 text-amber-900",
-    slate: "border-magic-border bg-white text-magic-ink/70",
-  };
-  return (
-    <div className={`rounded-2xl border px-4 py-3 shadow-sm ${tones[tone]}`}>
-      <div className="text-[10px] font-semibold uppercase tracking-wide opacity-80">
-        {label}
-      </div>
-      <div className="mt-1 text-2xl font-bold leading-none">{value}</div>
-    </div>
-  );
-}
-
 function Avatar({
   name,
-  tone,
-  title,
+  muted,
+  accent,
 }: {
   name: string | null | undefined;
-  tone: "slate" | "rose" | "emerald";
-  title?: string;
+  muted?: boolean;
+  accent?: boolean;
 }) {
-  const tones: Record<typeof tone, string> = {
-    slate: "bg-slate-200 text-slate-700",
-    rose: "bg-magic-red/15 text-magic-red",
-    emerald: "bg-emerald-100 text-emerald-800",
-  };
+  const tone = accent
+    ? "bg-magic-red/15 text-magic-red"
+    : muted
+      ? "bg-slate-100 text-slate-600"
+      : "bg-slate-100 text-slate-600";
   return (
     <span
-      title={title}
-      className={`flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold ${tones[tone]}`}
+      className={`flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold ${tone}`}
     >
       {initials(name)}
     </span>
@@ -598,22 +579,26 @@ function DetailField({
 
 function EmptyState({
   tab,
+  age,
   isPresales,
   hasQuery,
 }: {
   tab: Tab;
+  age: AgeFilter;
   isPresales: boolean;
   hasQuery: boolean;
 }) {
   const msg = hasQuery
     ? "Nothing matches that search."
-    : !isPresales
-      ? "You haven't opened any leads yet."
-      : tab === "new"
-        ? "No unclaimed leads — the queue is clear."
-        : tab === "in_progress"
-          ? "No leads are being worked right now."
-          : "No leads yet.";
+    : age !== "all"
+      ? `No leads in this time range.`
+      : !isPresales
+        ? "You haven't opened any leads yet."
+        : tab === "new"
+          ? "No unclaimed leads — the queue is clear."
+          : tab === "in_progress"
+            ? "No leads are being worked right now."
+            : "No leads yet.";
   return (
     <div className="rounded-2xl border border-dashed border-magic-border bg-white p-10 text-center text-sm text-magic-ink/55">
       {msg}
@@ -621,25 +606,51 @@ function EmptyState({
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
+function SegTabs({
+  value,
+  onChange,
+  options,
+  subtle = false,
 }: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ value: string; label: string; badge?: number }>;
+  subtle?: boolean;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
-        active
-          ? "bg-magic-ink text-white shadow-sm"
-          : "text-magic-ink/70 hover:bg-magic-soft"
-      }`}
+    <div
+      className={`inline-flex items-center gap-1 rounded-xl border border-magic-border bg-white p-1 ${subtle ? "" : "shadow-sm"}`}
     >
-      {children}
-    </button>
+      {options.map((o) => {
+        const active = value === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+              active
+                ? subtle
+                  ? "bg-magic-soft text-magic-ink"
+                  : "bg-magic-ink text-white shadow-sm"
+                : "text-magic-ink/65 hover:bg-magic-soft"
+            }`}
+          >
+            {o.label}
+            {typeof o.badge === "number" && (
+              <span
+                className={`inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold ${
+                  active && !subtle
+                    ? "bg-white/20 text-white"
+                    : "bg-magic-soft text-magic-ink/60"
+                }`}
+              >
+                {o.badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }

@@ -45,6 +45,8 @@ interface LeadRow {
   quotation_id: number | null;
   outcome: string | null;
   outcome_at: string | null;
+  completed_at: string | null;
+  quotation_sent_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +66,13 @@ export async function GET(req: NextRequest) {
       projectIdParam && Number.isFinite(Number(projectIdParam))
         ? Number(projectIdParam)
         : null;
+    // 1.4D — once a quotation is sent to sales the lead is `completed_at`
+    // stamped and drops out of the presales queue. Default view hides them;
+    // `?include=done` brings the finished ones back (e.g. for an archive
+    // tab). The per-project lookup always includes them so the RFQ chip can
+    // still find the (now-completed) request.
+    const includeDone =
+      searchParams.get("include") === "done" || projectId !== null;
 
     const q = sql();
 
@@ -77,13 +86,15 @@ export async function GET(req: NextRequest) {
              l.requested_timeline_at,
              l.assigned_to_id, au.username as assigned_to_username,
              l.company_id, l.folder_id, l.contact_id, l.project_id, l.quotation_id,
-             l.outcome, l.outcome_at, l.created_at, l.updated_at
+             l.outcome, l.outcome_at, l.completed_at, l.quotation_sent_at,
+             l.created_at, l.updated_at
       from leads l
       left join users cu on cu.id = l.created_by
       left join users au on au.id = l.assigned_to_id
       where l.deleted_at is null
         and (${statusFilter}::text is null or l.status = ${statusFilter})
         and (${projectId}::int is null or l.project_id = ${projectId})
+        and (${includeDone}::boolean = true or l.completed_at is null)
         and (
           ${vis.full}::boolean
           or l.created_by = ${vis.userId}

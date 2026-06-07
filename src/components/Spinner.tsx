@@ -1,17 +1,14 @@
-"use client";
-
-import { useEffect } from "react";
-
 /**
- * Brand loader — a breathing 3×3 grid of dots. Same visual is used
- * everywhere in the app: inline inside buttons, in card / tab panels,
- * and on the full-page route loaders (via PageLoader). The grid scales
- * with `size` so a tiny 12-px button indicator and an 84-px hero loader
- * are visibly the same component.
+ * Inline brand loader — a breathing 3×3 grid of dots that scales with
+ * `size`. Used inside buttons, panels, and tab bodies.
+ *
+ * No "use client", no runtime style injection: the `mt-loader-grid`
+ * keyframes live in globals.css so the animation runs on first paint
+ * (server-rendered too) instead of waiting for React to hydrate and run
+ * a useEffect — that delay was the "loader renders late" problem.
  *
  *   <Spinner />                          — bare 16-px indicator.
- *   <Spinner size={48} />                — medium panel loader.
- *   <Spinner size={84} label="Loading…"/>— big with text on the right.
+ *   <Spinner size={20} label="Loading…"/>— with text on the right.
  */
 export default function Spinner({
   size = 16,
@@ -22,23 +19,6 @@ export default function Spinner({
   className?: string;
   label?: string;
 }) {
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (document.getElementById("mt-loader-styles")) return;
-    const el = document.createElement("style");
-    el.id = "mt-loader-styles";
-    el.textContent = `
-      @keyframes mt-loader-grid {
-        0%, 100% { transform: scale(0.6); opacity: 0.4; }
-        50%      { transform: scale(1);   opacity: 1;   }
-      }
-    `;
-    document.head.appendChild(el);
-  }, []);
-
-  // The reference grid is 16-px dots with 9-px gap. We scale both
-  // proportionally so the same component reads cleanly at 12 px and at
-  // 200 px without changing layout.
   const dot = Math.max(3, Math.round(size / 3.2));
   const gap = Math.max(2, Math.round(size / 5.5));
   const radius = Math.max(1, Math.round(dot / 3));
