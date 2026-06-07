@@ -72,6 +72,12 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Once the POST succeeds we render a success card (no auto-routing).
+  // `folder_id` is the freshly-filed presales folder so the success card
+  // can offer a "Open workspace" link the user picks deliberately.
+  const [done, setDone] = useState<
+    { folder_id: number | null; project_id: number | null } | null
+  >(null);
 
   // Load the lead summary so the user can keep its title / description /
   // sales hint in view while picking the tree.
@@ -199,17 +205,20 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
       const data = (await res.json()) as {
         error?: string;
         folder_id?: number;
+        project_id?: number;
       };
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      // Land the user in the workspace where the next step (start a
-      // quotation / add a BOQ) actually lives.
-      if (data.folder_id) {
-        router.push(`/folder/${data.folder_id}`);
-      } else {
-        router.push("/leads");
-      }
+      // NO auto-routing. We stay on this page and switch to a success
+      // card so the user picks where to go next themselves. The previous
+      // version did router.push("/folder/<id>") which is exactly the
+      // auto-routing the user explicitly told us not to do.
+      setDone({
+        folder_id: data.folder_id ?? null,
+        project_id: data.project_id ?? null,
+      });
     } catch (e) {
       setErr((e as Error).message);
+    } finally {
       setBusy(false);
     }
   }
@@ -225,6 +234,59 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
     return (
       <div className="rounded-2xl border border-magic-border bg-white p-8 shadow-sm">
         <PageLoader label="Loading lead…" />
+      </div>
+    );
+  }
+
+  // Success card. We deliberately do NOT auto-navigate after filing —
+  // the user picks where to go next.
+  if (done) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-5 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+              ✓
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-emerald-900">
+                {lead.ref} is filed and claimed.
+              </h3>
+              <p className="mt-1 text-sm text-emerald-900/80">
+                The lead now lives under your presales tree. The sales
+                requester has been notified that you picked it up.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-magic-border bg-white p-5 shadow-sm">
+          <p className="text-sm text-magic-ink/70">Where would you like to go?</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {done.folder_id && (
+              <button
+                type="button"
+                onClick={() => router.push(`/folder/${done.folder_id}`)}
+                className="rounded-lg bg-magic-red px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
+              >
+                Open client workspace →
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => router.push("/leads")}
+              className="rounded-lg border border-magic-border px-3 py-2 text-sm font-semibold text-magic-ink/70 hover:bg-magic-soft"
+            >
+              Back to leads list
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push(`/leads/${leadId}`)}
+              className="rounded-lg border border-magic-border px-3 py-2 text-sm font-semibold text-magic-ink/70 hover:bg-magic-soft"
+            >
+              Open this lead
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
