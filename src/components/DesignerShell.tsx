@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
 import type { AppSettings } from "@/lib/settings";
 import Designer, { type ExistingQuotation } from "./Designer";
+import PageLoader from "./PageLoader";
 
 /**
  * Client-side loader for an existing quotation on /designer?id=<N>.
@@ -176,9 +177,8 @@ export default function DesignerShell({
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-magic-border bg-white p-10 text-center text-sm text-magic-ink/60">
-        <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-magic-red/30 border-t-magic-red" />
-        Loading quotation #{quotationId}…
+      <div className="rounded-2xl border border-magic-border bg-white p-8">
+        <PageLoader label={`Loading quotation #${quotationId}…`} />
       </div>
     );
   }

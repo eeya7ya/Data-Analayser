@@ -11,6 +11,7 @@ import type { AppSettings } from "@/lib/settings";
 import { runQuotationPrint } from "@/lib/printQuotation";
 import QuotationApprovalBar from "./QuotationApprovalBar";
 import QuotationStockCheckPanel from "./QuotationStockCheckPanel";
+import PageLoader from "./PageLoader";
 
 interface SavedConfig {
   showPictures?: boolean;
@@ -235,9 +236,8 @@ export default function QuotationViewer({
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-magic-border bg-white p-10 text-center text-sm text-magic-ink/60">
-        <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-magic-red/30 border-t-magic-red" />
-        Loading quotation #{quotationId}…
+      <div className="rounded-2xl border border-magic-border bg-white p-8">
+        <PageLoader label={`Loading quotation #${quotationId}…`} />
       </div>
     );
   }

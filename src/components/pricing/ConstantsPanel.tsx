@@ -4,6 +4,7 @@ import { useState } from "react";
 import { type Constants } from "@/lib/pricing/calculations";
 import { cn } from "@/lib/pricing/utils";
 import { RefreshCw } from "lucide-react";
+import Spinner from "@/components/Spinner";
 
 export interface Currency {
   code: string;
@@ -254,9 +255,11 @@ export function ConstantsPanel({
               "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           >
-            <RefreshCw
-              className={cn("h-3.5 w-3.5", fetchingRate && "animate-spin")}
-            />
+            {fetchingRate ? (
+              <Spinner size={12} />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
             {fetchingRate ? "Fetching…" : "Live Rate"}
           </button>
         )}
