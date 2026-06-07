@@ -96,15 +96,23 @@ export async function POST(
         { status: 403 },
       );
     }
-    if (lead.assigned_to_id === user.id) {
-      return NextResponse.json({ ok: true, status: "in_progress" });
-    }
-    // Someone else is already on it — block unless an admin is taking over.
-    if (lead.assigned_to_id && !isAdmin) {
+    // 1.4D — the silent self-claim path is deprecated. Non-admin claims
+    // MUST go through POST /api/leads/:id/assign-and-claim so the lead is
+    // filed under a Company / Individual → Client → Project before it
+    // leaves the queue. Admins retain the silent path for emergency
+    // overrides; everyone else gets bounced back to the assign page.
+    if (!isAdmin) {
       return NextResponse.json(
-        { error: "this lead is already being worked by someone else" },
+        {
+          error:
+            "Use the assignment page to claim this lead — silent claims are no longer allowed.",
+          assign_url: `/leads/${leadId}/assign`,
+        },
         { status: 409 },
       );
+    }
+    if (lead.assigned_to_id === user.id) {
+      return NextResponse.json({ ok: true, status: "in_progress" });
     }
     if (lead.status === "new" && !canTransition("new", "in_progress")) {
       return NextResponse.json({ error: "transition not allowed" }, { status: 409 });
