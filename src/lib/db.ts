@@ -368,7 +368,7 @@ const V13C_FLAG = "v1_3c_execution_reports_2026_05";
 // flag value must change to force the (idempotent) block to re-run once on
 // databases that already had the original v1.3D migration applied. Without
 // the bump those columns never get created and /send-to-sales 500s.
-const V13D_FLAG = "v1_3d_sales_module_2026_05_v2";
+const V13D_FLAG = "v1_3d_sales_module_2026_05_v3";
 
 /**
  * Personal tools — per-user Calendar Marker + My Notes. Two strictly
@@ -390,7 +390,11 @@ const USER_TOOLS_FLAG = "user_tools_calendar_notes_v1_2026_05";
 // presales no longer sees a sales-module note) and seed a presales-specific
 // note for the new shared-queue lead workflow. Data-only migration; touches
 // `news_posts` rows, never DDL.
-const V14A_FLAG = "v1_4a_update_notes_role_targeting_2026_05";
+// Bumped to _v2 for 1.4D: this block now PURGES the seeded release notes
+// (Update notes is manual-only). Old DBs already past the original flag
+// would otherwise keep the legacy rows; the flag bump re-runs the block
+// once so the cleanup actually happens.
+const V14A_FLAG = "v1_4a_update_notes_role_targeting_2026_05_v2";
 // 1.4A — migrate leads to the shared-queue lifecycle. The old model used
 // status 'distributed' for a manager-assigned lead; the new model calls a
 // claimed lead 'in_progress'. Data-only (status rename), no DDL.
@@ -2452,29 +2456,15 @@ async function _ensureSchemaOnce(): Promise<void> {
         where sales_outcome = 'held' and transferred_at is null
     `;
 
-    // Seed one pinned update note so the new CRM "Update notes" panel has
-    // something to show on first load. created_by is null (system) — the
-    // FK is on delete set null and nullable. Guarded by the once-per-DB
-    // flag so it never double-inserts.
+    // V1.4D — Update notes is now manual-only: the seeded release notes
+    // (1.4A Sales / 1.4A Presales) were autopinned and showing up forever
+    // even when admins didn't want them. Purge them once so the panel
+    // starts empty; admins add announcements from the News admin panel.
     await q`
-      insert into news_posts
-        (title, body, audience_modules, audience_roles, pinned, created_by)
-      values (
-        ${"1.4A — Sales module"},
-        ${[
-          "What changed for Sales in this release:",
-          "",
-          "• Request for Quotation — open an RFQ straight from a client or project; the company and client are smart-assigned for you, presales picks it up and builds the quotation.",
-          "• Quotation outcome — mark an approved quotation Accepted, Rejected, or Held for Execution right on the quotation page.",
-          "• Held for Execution — set a transfer time and the deal moves to the projects team automatically (or push it manually), with notifications along the way.",
-          "• Sales pipeline — new Held / Won / Lost tabs in the CRM Sales tool so you can track and analyse your deals.",
-          "• Dashboard — toggle your analytics between daily, weekly, and monthly, and see your win/loss/held outcomes at a glance.",
-        ].join("\n")},
-        ${["crm"]}::text[],
-        ${["sales", "sales_manager"]}::text[],
-        ${true},
-        ${null}
-      )
+      delete from news_posts
+      where title in (${"1.4A — Sales module"},
+                      ${"1.4A — Presales workflow"},
+                      ${"V1.3D — Sales module update"})
     `;
 
     await q`
@@ -2562,39 +2552,15 @@ async function _ensureSchemaOnce(): Promise<void> {
   `;
 
   if (!v14aApplied) {
-    // 1.4A — make Update notes role-aware. The original release note was
-    // seeded with an 'all' audience, so presales saw a sales-only note. Retag
-    // it to the sales audience (matched by its old title so existing
-    // databases are corrected; fresh DBs already seed it correctly above).
+    // V1.4D — Update notes is manual-only. Remove the auto-seeded 1.4A
+    // notes if they're still around so the panel doesn't keep showing
+    // stale release announcements forever; admins add news from the
+    // News admin panel.
     await q`
-      update news_posts
-      set title = ${"1.4A — Sales module"},
-          audience_modules = ${["crm"]}::text[],
-          audience_roles = ${["sales", "sales_manager"]}::text[]
-      where title in (${"V1.3D — Sales module update"}, ${"1.4A — Sales module"})
-    `;
-
-    // Seed a presales-specific note so presales see only what concerns them.
-    // Guarded by NOT EXISTS so re-running never duplicates the row.
-    await q`
-      insert into news_posts
-        (title, body, audience_modules, audience_roles, pinned, created_by)
-      select
-        ${"1.4A — Presales workflow"},
-        ${[
-          "What changed for Presales in this release:",
-          "",
-          "• Shared lead queue — new leads land in one presales queue. Claim a lead to start working it; everyone can see who is currently on each lead.",
-          "• Work a lead end-to-end — from the lead, pick or create the company, the individual or client, then the project. No manager hand-off step.",
-          "• No approvals for presales — your focus is designing and following up on sales requests. Approval sign-off is a sales responsibility.",
-        ].join("\n")},
-        ${["crm"]}::text[],
-        ${["presales", "presales_manager"]}::text[],
-        ${true},
-        ${null}
-      where not exists (
-        select 1 from news_posts where title = ${"1.4A — Presales workflow"}
-      )
+      delete from news_posts
+      where title in (${"1.4A — Sales module"},
+                      ${"1.4A — Presales workflow"},
+                      ${"V1.3D — Sales module update"})
     `;
 
     await q`
