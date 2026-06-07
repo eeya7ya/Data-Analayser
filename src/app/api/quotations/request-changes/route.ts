@@ -3,6 +3,7 @@ import { sql, ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 import { sendPushToUsers } from "@/lib/push";
+import { logLeadEvent, sendLeadMessage } from "@/lib/leads";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     const q = sql();
     const rows = (await q`
-      select id, ref, owner_id, project_name from quotations
+      select id, ref, owner_id, project_name, project_id from quotations
       where id = ${id} and deleted_at is null
       limit 1
     `) as Array<{
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
       ref: string;
       owner_id: number | null;
       project_name: string;
+      project_id: number | null;
     }>;
     if (rows.length === 0) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -69,12 +71,48 @@ export async function POST(req: NextRequest) {
     `;
 
     if (target) {
+      // Anchor the message on the project's live lead when there is one so
+      // the presales author can flip back to the RFQ context. With no lead
+      // (legacy ad-hoc quotation), the message + push are still delivered;
+      // the lead anchor is just nice-to-have.
+      let leadId: number | null = null;
+      if (quotation.project_id) {
+        const leadRows = (await q`
+          select id from leads
+          where project_id = ${quotation.project_id} and deleted_at is null
+          order by created_at desc
+          limit 1
+        `) as Array<{ id: number }>;
+        if (leadRows.length > 0) leadId = leadRows[0].id;
+      }
+      const requester = user.display_name || user.username;
+      const subject = `[${quotation.ref}] Change requested`;
+      await sendLeadMessage({
+        leadId,
+        senderId: user.id,
+        recipientId: target,
+        kind: "quotation_change_requested",
+        subject,
+        body:
+          `${requester} requested a change on ${quotation.ref}` +
+          `${quotation.project_name ? ` — ${quotation.project_name}` : ""}.\n\n${note.slice(0, 1000)}`,
+        link: `/quotation?id=${id}`,
+      });
       void sendPushToUsers([target], {
         title: `Change requested on ${quotation.ref}`,
         body: note.slice(0, 140),
         url: `/quotation?id=${id}`,
         tag: `change-request-${id}`,
       });
+      if (leadId) {
+        await logLeadEvent(
+          leadId,
+          user.id,
+          "quotation_change_requested",
+          `${requester} requested a change on ${quotation.ref}`,
+          { quotation_id: id, note: note.slice(0, 200) },
+        );
+      }
     }
 
     return NextResponse.json({ ok: true });

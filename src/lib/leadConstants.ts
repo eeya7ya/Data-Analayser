@@ -31,6 +31,14 @@ export const LEAD_MESSAGE_KINDS = [
   "lead_assigned",
   "general",
   "file_uploaded",
+  // 1.4C — RFQ → Quotation handoff between presales and sales.
+  // `quotation_sent_to_sales`  — presales finished and pushed the quotation
+  //                              to the salesperson who raised the RFQ.
+  // `quotation_accepted`       — sales requester accepted the proposal.
+  // `quotation_change_requested` — sales asked presales for a revision.
+  "quotation_sent_to_sales",
+  "quotation_accepted",
+  "quotation_change_requested",
 ] as const;
 export type LeadMessageKind = (typeof LEAD_MESSAGE_KINDS)[number];
 

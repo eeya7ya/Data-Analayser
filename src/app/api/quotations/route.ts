@@ -228,13 +228,13 @@ export async function GET(req: NextRequest) {
           rows = await resolveR2OverflowsInRows(rows, ["items_json"]);
         }
       } else {
+        // `select *` so every approval / handoff / outcome column flows to
+        // QuotationViewer's approval bar. The earlier hand-rolled column
+        // list silently dropped sales_approved_at / sent_to_sales_at and
+        // friends, leaving the bar stuck on its initial "Awaiting sales
+        // manager sign-off" state even after they were stamped.
         rows = (await q!`
-          select id, ref, owner_id, project_name, client_name, client_email,
-                 client_phone, sales_engineer, prepared_by, tax_percent,
-                 site_name, items_json, config_json, folder_id, contact_id,
-                 project_id,
-                 status, parent_ref, created_at, updated_at, deleted_at
-          from quotations
+          select * from quotations
           where id = ${Number(id)}
           limit 1
         `) as Array<Record<string, unknown>>;

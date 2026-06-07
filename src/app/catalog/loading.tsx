@@ -1,38 +1,12 @@
 import TopBarSkeleton from "@/components/TopBarSkeleton";
-import Spinner from "@/components/Spinner";
+import PageLoader from "@/components/PageLoader";
 
 export default function CatalogLoading() {
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBarSkeleton />
       <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
-        <header className="mb-6">
-          <div className="flex items-center gap-3">
-            <div className="h-7 w-56 rounded bg-magic-soft animate-pulse" />
-            <Spinner size={16} label="Loading catalog…" />
-          </div>
-          <div className="mt-2 h-4 w-[32rem] max-w-full rounded bg-magic-soft animate-pulse" />
-        </header>
-        <div className="rounded-2xl border border-magic-border bg-white p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-56 rounded bg-magic-soft animate-pulse" />
-            <div className="h-9 w-40 rounded bg-magic-soft animate-pulse" />
-            <div className="ml-auto h-9 w-28 rounded bg-magic-soft animate-pulse" />
-          </div>
-          <div className="mt-4 overflow-hidden rounded-xl border border-magic-border">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="flex items-center gap-4 border-b border-magic-border px-3 py-2 last:border-b-0"
-              >
-                <div className="h-4 w-20 rounded bg-magic-soft animate-pulse" />
-                <div className="h-4 w-40 rounded bg-magic-soft animate-pulse" />
-                <div className="h-4 flex-1 rounded bg-magic-soft animate-pulse" />
-                <div className="h-4 w-16 rounded bg-magic-soft animate-pulse" />
-              </div>
-            ))}
-          </div>
-        </div>
+        <PageLoader fullScreen label="Loading the product catalogue…" />
       </main>
     </div>
   );

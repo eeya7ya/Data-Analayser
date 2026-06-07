@@ -2415,6 +2415,30 @@ async function _ensureSchemaOnce(): Promise<void> {
       alter table quotations
         add column if not exists transferred_at timestamptz
     `;
+    // 1.4C — presales → sales handoff for an RFQ-anchored quotation. The
+    // pair (sent_to_sales_at, sent_to_sales_by) stamps when presales
+    // finished the quotation and pushed it to the salesperson who raised
+    // the RFQ; (sales_accepted_at, sales_accepted_by) records the sales
+    // requester accepting the proposal. Both are independent of the
+    // sales_manager sign-off (`sales_approved_at` / `approved_at`) and the
+    // final client outcome (`sales_outcome`) — they sit between RFQ-claim
+    // and manager approval, so a manager still has the last word.
+    await q`
+      alter table quotations
+        add column if not exists sent_to_sales_at timestamptz
+    `;
+    await q`
+      alter table quotations
+        add column if not exists sent_to_sales_by integer references users(id) on delete set null
+    `;
+    await q`
+      alter table quotations
+        add column if not exists sales_accepted_at timestamptz
+    `;
+    await q`
+      alter table quotations
+        add column if not exists sales_accepted_by integer references users(id) on delete set null
+    `;
     // Partial index for the hold sweep: it only ever scans held, not-yet
     // transferred rows that carry a schedule, so this stays tiny.
     await q`

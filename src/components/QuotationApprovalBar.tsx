@@ -32,6 +32,12 @@ interface ApprovalState {
   sales_outcome_reason: string | null;
   hold_transfer_at: string | null;
   transferred_at: string | null;
+  // 1.4C — RFQ handoff between presales and sales.
+  sent_to_sales_at: string | null;
+  sent_to_sales_by: number | null;
+  sales_accepted_at: string | null;
+  sales_accepted_by: number | null;
+  owner_id: number | null;
 }
 
 interface MeResponse {
@@ -88,11 +94,78 @@ export default function QuotationApprovalBar({
   const canConvert =
     isAdmin || hasRole("crm", "sales") || hasRole("crm", "sales_manager");
 
+  // 1.4C — presales → sales handoff. The author (or an admin) presses
+  // "Send to sales" once the quotation is ready, and the sales person who
+  // raised the RFQ either accepts or files a change request.
+  const isOwner =
+    !!me?.user?.id && state.owner_id !== null && me.user.id === state.owner_id;
+  const isPresalesAuthor =
+    isAdmin || isOwner || hasRole("crm", "presales") || hasRole("crm", "presales_manager");
+  const canSendToSales = isPresalesAuthor && (isAdmin || isOwner);
+  const sentToSales = !!state.sent_to_sales_at;
+  const salesAccepted = !!state.sales_accepted_at;
+  // The endpoint enforces "must be the lead creator", but the role check
+  // here hides the button for users who have no chance of being it.
+  const canSalesAccept =
+    sentToSales &&
+    !salesAccepted &&
+    (isAdmin || hasRole("crm", "sales") || hasRole("crm", "sales_manager"));
+
   async function approve() {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/quotations/approve", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: quotationId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      await refetch();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendToSales() {
+    if (
+      sentToSales &&
+      !window.confirm(
+        "Re-send the quotation to sales? The previous acceptance (if any) will be cleared so they re-review the latest version.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/quotations/send-to-sales", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: quotationId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      await refetch();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function salesAccept() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/quotations/sales-accept", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: quotationId }),
@@ -201,6 +274,14 @@ export default function QuotationApprovalBar({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="font-semibold text-magic-ink/70">Approval:</span>
+          {sentToSales ? (
+            <Pill tone={salesAccepted ? "ok" : "muted"}>
+              Sent to sales{salesAccepted ? "" : " · awaiting review"}
+            </Pill>
+          ) : (
+            isPresalesAuthor && <Pill tone="muted">Not yet sent to sales</Pill>
+          )}
+          {salesAccepted && <Pill tone="ok">Sales accepted</Pill>}
           {fullyApproved ? (
             <Pill tone="strong">Approved by sales manager</Pill>
           ) : (
@@ -216,6 +297,30 @@ export default function QuotationApprovalBar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {canSendToSales && (
+            <button
+              onClick={() => void sendToSales()}
+              disabled={busy}
+              title={
+                sentToSales
+                  ? "Re-send the latest version to the salesperson who raised the RFQ"
+                  : "Hand the quotation back to the salesperson who raised the RFQ"
+              }
+              className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+            >
+              {sentToSales ? "Re-send to sales" : "Send to sales"}
+            </button>
+          )}
+          {canSalesAccept && (
+            <button
+              onClick={() => void salesAccept()}
+              disabled={busy}
+              title="Accept the quotation — presales gets a notification and it moves on to the sales manager"
+              className="px-3 py-1 text-xs font-semibold rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
+            >
+              Approve quotation
+            </button>
+          )}
           {canApproveSales && !fullyApproved && (
             <button
               onClick={() => void approve()}
