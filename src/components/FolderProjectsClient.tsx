@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Spinner from "@/components/Spinner";
 import QuotationRowActions from "@/components/QuotationRowActions";
+import RequestQuotationButton from "@/components/RequestQuotationButton";
 
 interface Project {
   id: number;
@@ -63,19 +64,41 @@ function formatBytes(n: number): string {
 }
 
 /**
- * Mirrors `canAuthorQuotation` from src/lib/modules.ts so the client can
- * hide quotation authoring affordances (the in-app Designer entry point
- * and the "Upload existing quotation" file uploader) for plain sales /
- * sales_manager users. Sales raise an RFQ via RequestQuotationButton —
- * they don't design or upload quotations. The server-side /api/quotations
- * POST and /api/project-files endpoints re-enforce the same rule, so
- * this is purely a UI affordance and a stale tab can't smuggle either.
+ * Resolves the CRM role capabilities the project view needs to gate its
+ * affordances. One /api/auth/me fetch per mount, results memoised in a
+ * single state object so each consumer can read the bit it cares about
+ * without re-fetching.
  *
- * Returns null while loading so callers can show a skeleton; true /
- * false once /api/auth/me has resolved.
+ *   canAuthorQuotation  — mirrors `canAuthorQuotation` in src/lib/modules.ts.
+ *                         Presales / presales_manager / admin can design,
+ *                         upload, and send quotations. Plain sales raise
+ *                         an RFQ instead.
+ *   canRequestQuotation — sales / sales_manager. The "Request for
+ *                         Quotation" header chip.
+ *   canSeeFinancialOffer — sales / sales_manager / presales /
+ *                         presales_manager / admin. Both sides share the
+ *                         deal economics view.
+ *   canSeeTechnicalProposal — presales / presales_manager / admin only.
+ *
+ * `loaded === false` means the request is still in flight — callers hide
+ * gated affordances optimistically to avoid a flash of an unusable button.
  */
-function useCanAuthorQuotation(): boolean | null {
-  const [canAuthor, setCanAuthor] = useState<boolean | null>(null);
+interface CrmCaps {
+  loaded: boolean;
+  canAuthorQuotation: boolean;
+  canRequestQuotation: boolean;
+  canSeeFinancialOffer: boolean;
+  canSeeTechnicalProposal: boolean;
+}
+
+function useCrmCaps(): CrmCaps {
+  const [caps, setCaps] = useState<CrmCaps>({
+    loaded: false,
+    canAuthorQuotation: false,
+    canRequestQuotation: false,
+    canSeeFinancialOffer: false,
+    canSeeTechnicalProposal: false,
+  });
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -86,23 +109,30 @@ function useCanAuthorQuotation(): boolean | null {
           module_roles?: Array<{ module: string; role: string }>;
         };
         if (cancelled) return;
-        if (data.user?.role === "admin") {
-          setCanAuthor(true);
-          return;
-        }
+        const isAdmin = data.user?.role === "admin";
         const crm = (data.module_roles ?? [])
           .filter((r) => r.module === "crm")
           .map((r) => r.role);
-        setCanAuthor(crm.includes("presales") || crm.includes("presales_manager"));
+        const hasPresales =
+          crm.includes("presales") || crm.includes("presales_manager");
+        const hasSales =
+          crm.includes("sales") || crm.includes("sales_manager");
+        setCaps({
+          loaded: true,
+          canAuthorQuotation: isAdmin || hasPresales,
+          canRequestQuotation: hasSales,
+          canSeeFinancialOffer: isAdmin || hasPresales || hasSales,
+          canSeeTechnicalProposal: isAdmin || hasPresales,
+        });
       } catch {
-        if (!cancelled) setCanAuthor(false);
+        if (!cancelled) setCaps((prev) => ({ ...prev, loaded: true }));
       }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
-  return canAuthor;
+  return caps;
 }
 
 /**
@@ -525,6 +555,14 @@ function NewProjectButton({
   );
 }
 
+type ProjectTab =
+  | "quotations"
+  | "pos"
+  | "boq"
+  | "files"
+  | "financial"
+  | "technical";
+
 function ProjectPanel({
   project,
   refreshKey,
@@ -540,25 +578,37 @@ function ProjectPanel({
   onProjectUpdate: (p: Project) => void;
   onProjectDelete: (id: number) => void;
 }) {
-  const [tab, setTab] = useState<"quotations" | "pos" | "boq" | "files">(
-    "quotations",
-  );
+  const [tab, setTab] = useState<ProjectTab>("quotations");
+  const caps = useCrmCaps();
+  const tabs = useMemo(() => {
+    const base: Array<[ProjectTab, string]> = [
+      ["quotations", "Quotations"],
+      ["pos", "Purchase Orders"],
+      ["boq", "BOQ"],
+      ["files", "Files"],
+    ];
+    if (caps.canSeeFinancialOffer) base.push(["financial", "Financial Offer"]);
+    if (caps.canSeeTechnicalProposal) base.push(["technical", "Technical Proposal"]);
+    return base;
+  }, [caps.canSeeFinancialOffer, caps.canSeeTechnicalProposal]);
+
+  // If the active tab is hidden by a role change mid-session (or a stale
+  // initial state), fall back to Quotations so the panel never renders
+  // an empty body.
+  useEffect(() => {
+    if (!tabs.some(([k]) => k === tab)) setTab("quotations");
+  }, [tabs, tab]);
+
   return (
     <div className="rounded-2xl border border-magic-border bg-white">
       <ProjectHeader
         project={project}
         onProjectUpdate={onProjectUpdate}
         onProjectDelete={onProjectDelete}
+        canRequestQuotation={caps.canRequestQuotation}
       />
       <div className="border-b border-magic-border px-2 sm:px-4 flex gap-1 overflow-x-auto">
-        {(
-          [
-            ["quotations", "Quotations"],
-            ["pos", "Purchase Orders"],
-            ["boq", "BOQ"],
-            ["files", "Files"],
-          ] as const
-        ).map(([key, label]) => {
+        {tabs.map(([key, label]) => {
           const isActive = tab === key;
           return (
             <button
@@ -611,6 +661,12 @@ function ProjectPanel({
             variant="media"
           />
         )}
+        {tab === "financial" && caps.canSeeFinancialOffer && (
+          <FinancialOfferTab project={project} />
+        )}
+        {tab === "technical" && caps.canSeeTechnicalProposal && (
+          <TechnicalProposalTab project={project} />
+        )}
       </div>
     </div>
   );
@@ -620,10 +676,12 @@ function ProjectHeader({
   project,
   onProjectUpdate,
   onProjectDelete,
+  canRequestQuotation,
 }: {
   project: Project;
   onProjectUpdate: (p: Project) => void;
   onProjectDelete: (id: number) => void;
+  canRequestQuotation: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(project.name);
@@ -739,6 +797,12 @@ function ProjectHeader({
         )}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
+        {canRequestQuotation && (
+          <RequestQuotationButton
+            projectId={project.id}
+            projectName={project.name}
+          />
+        )}
         <button
           type="button"
           onClick={() => setEditing(true)}
@@ -828,10 +892,10 @@ function QuotationsTab({
   // Plain sales (and sales_manager) raise an RFQ from the project header —
   // they don't design quotations in-app and they can't upload an existing
   // quotation file either. Hide both affordances; presales / admins still
-  // see them. `null` means we're still resolving the role, so we hide
-  // optimistically to avoid a flash of an unusable button.
-  const canAuthor = useCanAuthorQuotation();
-  const showAuthoring = canAuthor === true;
+  // see them. While the role is loading we hide optimistically to avoid
+  // a flash of an unusable button.
+  const caps = useCrmCaps();
+  const showAuthoring = caps.canAuthorQuotation;
 
   return (
     <div>
@@ -1426,5 +1490,76 @@ function FileRowItem({
         </button>
       </div>
     </li>
+  );
+}
+
+/**
+ * Financial Offer — deal economics view shared by Sales and Presales.
+ *
+ * Reserved tab: the full implementation will pull together the priced
+ * quotation totals, margins, payment terms, and the related PO ledger so
+ * both sides see the same numbers. For now we render a stable empty
+ * shell so the tab strip and route shape are locked in; downstream work
+ * fills the body in without renaming anything.
+ */
+function FinancialOfferTab({ project }: { project: Project }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-magic-ink">
+          Financial Offer
+        </h3>
+        <p className="text-xs text-magic-ink/60">
+          Deal economics for{" "}
+          <span className="font-medium">{project.name}</span> — visible to
+          sales and presales.
+        </p>
+      </div>
+      <div className="rounded-lg border border-dashed border-magic-border bg-magic-soft/30 px-4 py-6 text-center">
+        <div className="text-sm font-semibold text-magic-ink/80">
+          Coming soon
+        </div>
+        <div className="mt-1 text-xs text-magic-ink/60">
+          This tab will summarise the priced quotation, margins, payment
+          terms, and the PO ledger for this project. The layout is being
+          reserved so links and bookmarks stay valid.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Technical Proposal — presales-only deliverable view.
+ *
+ * Reserved tab: will collect the system narrative, BOQ summary, scope
+ * boundaries, and any technical diagrams that go out to the client
+ * alongside the priced quotation. Hidden from sales because the artefact
+ * is owned by presales engineering.
+ */
+function TechnicalProposalTab({ project }: { project: Project }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-magic-ink">
+          Technical Proposal
+        </h3>
+        <p className="text-xs text-magic-ink/60">
+          Presales engineering deliverable for{" "}
+          <span className="font-medium">{project.name}</span>.
+        </p>
+      </div>
+      <div className="rounded-lg border border-dashed border-magic-border bg-magic-soft/30 px-4 py-6 text-center">
+        <div className="text-sm font-semibold text-magic-ink/80">
+          Coming soon
+        </div>
+        <div className="mt-1 text-xs text-magic-ink/60">
+          This tab will host the system narrative, BOQ summary, scope
+          boundaries, and any technical diagrams that ship with the
+          quotation. The layout is being reserved so links and bookmarks
+          stay valid.
+        </div>
+      </div>
+    </div>
   );
 }
