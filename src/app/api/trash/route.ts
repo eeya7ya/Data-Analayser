@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
+import { cascadeRestoreFolder, cascadeRestoreCompany } from "@/lib/cascade";
 
 export const runtime = "nodejs";
 
@@ -151,19 +152,12 @@ export async function POST(req: NextRequest) {
         set deleted_at = null, updated_at = now()
         where id = ${body.id}
       `;
-      // Cascade-restore the quotations that were soft-deleted alongside the
-      // folder. We look for rows whose deleted_at is within 2 seconds of the
-      // folder's to avoid restoring quotations that were trashed on their
-      // own before the folder went to the bin.
-      if (body.cascade !== false) {
-        await q`
-          update quotations
-          set deleted_at = null, updated_at = now()
-          where folder_id = ${body.id}
-            and deleted_at is not null
-            and deleted_at >= ${rows[0].deleted_at}::timestamptz - interval '2 seconds'
-            and deleted_at <= ${rows[0].deleted_at}::timestamptz + interval '2 seconds'
-        `;
+      // Cascade-restore the whole subtree (projects, quotations, leads,
+      // POs, files) that was soft-deleted alongside the folder, matched on
+      // a ±2s window around the folder's timestamp so rows trashed on their
+      // own beforehand aren't resurrected.
+      if (body.cascade !== false && rows[0].deleted_at) {
+        await cascadeRestoreFolder(q, body.id, rows[0].deleted_at);
       }
       return NextResponse.json({ ok: true });
     }
@@ -204,16 +198,26 @@ export async function POST(req: NextRequest) {
 
     if (body.type === "company") {
       const rows = (await q`
-        select id, owner_id, name
+        select id, owner_id, name, deleted_at
         from companies
         where id = ${body.id} and deleted_at is not null
         limit 1
-      `) as Array<{ id: number; owner_id: number | null; name: string }>;
+      `) as Array<{
+        id: number;
+        owner_id: number | null;
+        name: string;
+        deleted_at: string | null;
+      }>;
       if (rows.length === 0) {
         return NextResponse.json({ error: "company not in trash" }, { status: 404 });
       }
       if (user.role !== "admin" && rows[0].owner_id !== user.id) {
         return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+      // Re-light the subtree that went down with the company first, then
+      // clear the company's own stamp.
+      if (body.cascade !== false && rows[0].deleted_at) {
+        await cascadeRestoreCompany(q, body.id, rows[0].deleted_at);
       }
       await q`
         update companies

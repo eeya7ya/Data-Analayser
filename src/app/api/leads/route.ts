@@ -47,6 +47,7 @@ interface LeadRow {
   outcome_at: string | null;
   completed_at: string | null;
   quotation_sent_at: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +74,9 @@ export async function GET(req: NextRequest) {
     // still find the (now-completed) request.
     const includeDone =
       searchParams.get("include") === "done" || projectId !== null;
+    // `?view=junk` lists the junked (soft-deleted) leads so presales can
+    // restore or permanently delete them. Anything else is the live queue.
+    const junkView = searchParams.get("view") === "junk";
 
     const q = sql();
 
@@ -87,14 +91,17 @@ export async function GET(req: NextRequest) {
              l.assigned_to_id, au.username as assigned_to_username,
              l.company_id, l.folder_id, l.contact_id, l.project_id, l.quotation_id,
              l.outcome, l.outcome_at, l.completed_at, l.quotation_sent_at,
-             l.created_at, l.updated_at
+             l.deleted_at, l.created_at, l.updated_at
       from leads l
       left join users cu on cu.id = l.created_by
       left join users au on au.id = l.assigned_to_id
-      where l.deleted_at is null
+      where (
+          (${junkView}::boolean = true and l.deleted_at is not null)
+          or (${junkView}::boolean = false and l.deleted_at is null)
+        )
         and (${statusFilter}::text is null or l.status = ${statusFilter})
         and (${projectId}::int is null or l.project_id = ${projectId})
-        and (${includeDone}::boolean = true or l.completed_at is null)
+        and (${junkView}::boolean = true or ${includeDone}::boolean = true or l.completed_at is null)
         and (
           ${vis.full}::boolean
           or l.created_by = ${vis.userId}

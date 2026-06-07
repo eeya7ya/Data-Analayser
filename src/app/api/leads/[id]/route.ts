@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
-import { getLeadVisibility, logLeadEvent } from "@/lib/leads";
+import { getLeadVisibility, logLeadEvent, canClaimLead } from "@/lib/leads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -186,6 +186,89 @@ export async function PATCH(
     }
 
     return NextResponse.json({ ok: true, changed: changes });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "UNKNOWN";
+    const status =
+      msg === "UNAUTHENTICATED" ? 401 : msg === "FORBIDDEN" ? 403 : 500;
+    return NextResponse.json({ error: msg }, { status });
+  }
+}
+
+/**
+ * DELETE /api/leads/:id — move a lead to junk (soft-delete).
+ *
+ * Presales can junk a lead that's noise / a duplicate / spam straight from
+ * the queue. Allowed for: any presales role (they triage the shared
+ * queue), the lead's creator (the salesperson who opened it), and admins.
+ * The row is only stamped `deleted_at` so it drops out of every active
+ * list but can be restored from Trash, or permanently deleted there.
+ */
+export async function DELETE(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  try {
+    const user = await requireUser();
+    await ensureSchema();
+    const { id } = await ctx.params;
+    const leadId = Number(id);
+    if (!Number.isFinite(leadId) || leadId <= 0) {
+      return NextResponse.json({ error: "invalid id" }, { status: 400 });
+    }
+    // `?purge=1` permanently removes a lead that's already in junk.
+    const purge = new URL(req.url).searchParams.get("purge") === "1";
+
+    const q = sql();
+    const rows = (await q`
+      select id, ref, created_by, assigned_to_id, deleted_at
+      from leads
+      where id = ${leadId}
+      limit 1
+    `) as Array<{
+      id: number;
+      ref: string;
+      created_by: number | null;
+      assigned_to_id: number | null;
+      deleted_at: string | null;
+    }>;
+    if (rows.length === 0) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    const lead = rows[0];
+
+    // Presales (queue triage), the creator, or admin may junk a lead.
+    const isOwner =
+      lead.created_by === user.id || lead.assigned_to_id === user.id;
+    if (!canReadAll(user) && !isOwner && !(await canClaimLead(user))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    if (purge) {
+      // Permanent delete — only from junk, never straight from the queue.
+      if (!lead.deleted_at) {
+        return NextResponse.json(
+          { error: "move the lead to junk before deleting it permanently" },
+          { status: 409 },
+        );
+      }
+      // lead_events / lead_messages FK on delete cascade, so this is clean.
+      await q`delete from leads where id = ${leadId}`;
+      return NextResponse.json({ ok: true, purged: true });
+    }
+
+    if (lead.deleted_at) {
+      // Already junked — idempotent.
+      return NextResponse.json({ ok: true, alreadyJunked: true });
+    }
+
+    await q`
+      update leads
+      set deleted_at = now(), updated_at = now()
+      where id = ${leadId}
+    `;
+    await logLeadEvent(leadId, user.id, "junked", "Moved to junk", {});
+
+    return NextResponse.json({ ok: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "UNKNOWN";
     const status =
