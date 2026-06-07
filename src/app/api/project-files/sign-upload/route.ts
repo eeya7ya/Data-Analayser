@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { canAuthorQuotation } from "@/lib/modules";
 import {
   buildStoragePath,
   createSignedUploadUrl,
@@ -52,6 +53,12 @@ export async function POST(req: NextRequest) {
         { error: "project_id, filename and size_bytes are required" },
         { status: 400 },
       );
+    }
+    // Mirrors POST /api/quotations: only presales / presales_manager / admin
+    // may bring a priced quotation into the project (designed in-app OR
+    // uploaded as an old Excel/PDF). Plain sales raise an RFQ instead.
+    if (normalizeFileKind(body.kind) === "quotation" && !(await canAuthorQuotation(user))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     const cap = maxBytesForMime(mime, filename);
     if (size > cap) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
-import { hasModule } from "@/lib/modules";
+import { canAuthorQuotation, hasModule } from "@/lib/modules";
 import { normalizeFileKind } from "@/lib/storage";
 import { notifyPresalesOfProjectUpload } from "@/lib/leads";
 
@@ -175,6 +175,13 @@ export async function POST(req: NextRequest) {
     const q = sql();
     const tier = await projectFileAccess(q, projectId, user);
     if (tier !== "full") {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    // Mirrors POST /api/quotations and /sign-upload: registering a
+    // quotation-kind file (an old Excel / PDF priced quote) is authoring
+    // and restricted to presales / presales_manager / admin. Plain sales
+    // raise an RFQ via POST /api/leads instead.
+    if (normalizeFileKind(body.kind) === "quotation" && !(await canAuthorQuotation(user))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     // Belt-and-braces: the path the browser hands back must start with
