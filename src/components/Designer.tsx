@@ -236,9 +236,12 @@ export default function Designer({
   // untouched when the print dialog closes.
   const [boqMode, setBoqMode] = useState(false);
   // Controls the Quick Catalogue picker sidebar shown beside the preview.
-  // Open by default so the empty RHS area on a blank draft immediately
-  // offers an actionable search-and-add surface.
-  const [quickPickerOpen, setQuickPickerOpen] = useState(true);
+  // Open by default in CREATE mode so the empty RHS area on a blank draft
+  // immediately offers an actionable search-and-add surface. In EDIT mode
+  // the toggle is replaced by "Return to view page", so we start the
+  // picker closed (the full catalogue is still one click away via
+  // "+ Add from Catalogue") and give the preview the full width.
+  const [quickPickerOpen, setQuickPickerOpen] = useState(!editMode);
   // Whether the Excel-import modal is currently visible. Triggered from
   // the toolbar "Import Excel" button.
   const [excelImportOpen, setExcelImportOpen] = useState(false);
@@ -1896,21 +1899,37 @@ export default function Designer({
                 {saveStatus}
               </span>
             )}
-            <button
-              onClick={() => setQuickPickerOpen((v) => !v)}
-              title={
-                quickPickerOpen
-                  ? "Hide the quick catalogue picker sidebar"
-                  : "Show the quick catalogue picker sidebar"
-              }
-              className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                quickPickerOpen
-                  ? "bg-magic-red text-white border-magic-red hover:bg-red-700"
-                  : "border-magic-red text-magic-red hover:bg-magic-red hover:text-white"
-              }`}
-            >
-              {quickPickerOpen ? "Hide picker" : "Show picker"}
-            </button>
+            {editMode && existing ? (
+              /* In edit mode the obvious next move after editing is to go
+                 back to the read-only quotation view — where Edit, Print,
+                 Print Draft and Print BOQ live — not to toggle a sidebar.
+                 So we surface a clear "Return to view page" here instead of
+                 the picker toggle (the picker can still be controlled from
+                 the create flow). */
+              <button
+                onClick={() => router.push(`/quotation?id=${existing.id}`)}
+                title="Go back to the quotation view page (print / edit again without editing here)"
+                className="rounded-md border border-magic-red bg-magic-red px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-700"
+              >
+                ← Return to view page
+              </button>
+            ) : (
+              <button
+                onClick={() => setQuickPickerOpen((v) => !v)}
+                title={
+                  quickPickerOpen
+                    ? "Hide the quick catalogue picker sidebar"
+                    : "Show the quick catalogue picker sidebar"
+                }
+                className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  quickPickerOpen
+                    ? "bg-magic-red text-white border-magic-red hover:bg-red-700"
+                    : "border-magic-red text-magic-red hover:bg-magic-red hover:text-white"
+                }`}
+              >
+                {quickPickerOpen ? "Hide picker" : "Show picker"}
+              </button>
+            )}
             <button
               onClick={() => setCataloguePickerOpen(true)}
               title="Browse and search the full product catalogue without leaving the editor"

@@ -53,19 +53,19 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
 
   const [kind, setKind] = useState<"company" | "individual">("individual");
   const [companies, setCompanies] = useState<CompanyOpt[]>([]);
-  const [companyMode, setCompanyMode] = useState<"existing" | "new">("new");
+  const [companyMode, setCompanyMode] = useState<"existing" | "new">("existing");
   const [companySel, setCompanySel] = useState<string>("");
   const [newCompanyName, setNewCompanyName] = useState("");
 
   const [folders, setFolders] = useState<FolderOpt[]>([]);
-  const [folderMode, setFolderMode] = useState<"existing" | "new">("new");
+  const [folderMode, setFolderMode] = useState<"existing" | "new">("existing");
   const [folderSel, setFolderSel] = useState<string>("");
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderEmail, setNewFolderEmail] = useState("");
   const [newFolderPhone, setNewFolderPhone] = useState("");
 
   const [projects, setProjects] = useState<ProjectOpt[]>([]);
-  const [projectMode, setProjectMode] = useState<"existing" | "new">("new");
+  const [projectMode, setProjectMode] = useState<"existing" | "new">("existing");
   const [projectSel, setProjectSel] = useState<string>("");
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
@@ -288,8 +288,8 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
                 value={companyMode}
                 onChange={(v) => setCompanyMode(v as "existing" | "new")}
                 options={[
-                  { value: "new", label: "New company" },
-                  { value: "existing", label: "Existing" },
+                  { value: "existing", label: "Select existing" },
+                  { value: "new", label: "Create new" },
                 ]}
               />
               {companyMode === "existing" ? (
@@ -328,8 +328,8 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
               value={folderMode}
               onChange={(v) => setFolderMode(v as "existing" | "new")}
               options={[
-                { value: "new", label: "New client" },
-                { value: "existing", label: "Existing" },
+                { value: "existing", label: "Select existing" },
+                { value: "new", label: "Create new" },
               ]}
             />
             {folderMode === "existing" ? (
@@ -395,8 +395,8 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
               value={projectMode}
               onChange={(v) => setProjectMode(v as "existing" | "new")}
               options={[
-                { value: "new", label: "New project" },
-                { value: "existing", label: "Existing" },
+                { value: "existing", label: "Select existing" },
+                { value: "new", label: "Create new" },
               ]}
             />
             {projectMode === "existing" ? (

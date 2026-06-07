@@ -363,7 +363,12 @@ const V13C_FLAG = "v1_3c_execution_reports_2026_05";
  * pinned "update notes" post so the new CRM Update Notes panel isn't
  * empty on first load. Strictly additive.
  */
-const V13D_FLAG = "v1_3d_sales_module_2026_05";
+// Bumped to _v2 for 1.4C/1.4D: the presales→sales handoff columns
+// (sent_to_sales_at/by, sales_accepted_at/by) live inside this block, so the
+// flag value must change to force the (idempotent) block to re-run once on
+// databases that already had the original v1.3D migration applied. Without
+// the bump those columns never get created and /send-to-sales 500s.
+const V13D_FLAG = "v1_3d_sales_module_2026_05_v2";
 
 /**
  * Personal tools — per-user Calendar Marker + My Notes. Two strictly
