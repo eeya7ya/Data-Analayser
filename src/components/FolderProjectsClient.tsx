@@ -801,6 +801,7 @@ function ProjectHeader({
           <RequestQuotationButton
             projectId={project.id}
             projectName={project.name}
+            canRequestHint
           />
         )}
         <button
