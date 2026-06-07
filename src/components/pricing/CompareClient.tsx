@@ -18,6 +18,7 @@ import {
   type Constants,
 } from "@/lib/pricing/calculations";
 import { cn } from "@/lib/pricing/utils";
+import PageLoader from "@/components/PageLoader";
 import { GitCompare, Factory, ArrowRight } from "lucide-react";
 
 interface ProductLine {
@@ -171,9 +172,7 @@ export default function ComparePage() {
       </div>
 
       {loading ? (
-        <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-cyan-500" />
-        </div>
+        <PageLoader label="Loading comparison…" />
       ) : data.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 py-20 text-center">
           <Factory className="mb-4 h-10 w-10 text-gray-300" />

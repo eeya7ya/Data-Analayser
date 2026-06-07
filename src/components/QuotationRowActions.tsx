@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, Copy, Trash2, Loader2 } from "lucide-react";
+import { ChevronRight, Copy, Trash2 } from "lucide-react";
+import Spinner from "@/components/Spinner";
 
 interface FolderLite {
   id: number;
@@ -304,7 +305,7 @@ export default function QuotationRowActions({
             This project · {currentProjectName || "Current"}
           </span>
           {copyingTarget === currentProjectId && (
-            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            <Spinner size={12} className="shrink-0" />
           )}
         </button>
 
@@ -312,7 +313,7 @@ export default function QuotationRowActions({
 
         {folders === null ? (
           <div className="flex items-center gap-2 px-3 py-2 text-xs text-magic-ink/50">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+            <Spinner size={12} /> Loading…
           </div>
         ) : foldersError ? (
           <div className="px-3 py-2 text-xs text-red-600">{foldersError}</div>
@@ -363,7 +364,7 @@ export default function QuotationRowActions({
                           <div>
                             {loadingFolder === f.id && !projects ? (
                               <div className="flex items-center gap-2 py-1 pl-12 pr-3 text-xs text-magic-ink/50">
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <Spinner size={10} />
                                 Loading…
                               </div>
                             ) : projects && projects.length > 0 ? (
@@ -376,7 +377,7 @@ export default function QuotationRowActions({
                                 >
                                   <span className="truncate">{p.name}</span>
                                   {copyingTarget === p.id && (
-                                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                                    <Spinner size={12} className="shrink-0" />
                                   )}
                                 </button>
                               ))
@@ -437,7 +438,7 @@ export default function QuotationRowActions({
         title="Delete this quotation (moves it to the trash)"
       >
         {deleting ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <Spinner size={10} />
         ) : (
           <Trash2 className="h-3 w-3" />
         )}

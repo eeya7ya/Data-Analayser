@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Download, Upload, Loader2, Check, AlertTriangle } from "lucide-react";
+import { Download, Upload, Check, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/pricing/utils";
+import Spinner from "@/components/Spinner";
 
 interface Props {
   manufacturerId: number;
@@ -175,7 +176,7 @@ export function ManufacturerBackup({
         className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 disabled:opacity-60"
       >
         {exporting ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Spinner size={12} />
         ) : (
           <Download className="h-3.5 w-3.5" />
         )}
@@ -189,7 +190,7 @@ export function ManufacturerBackup({
         className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-60"
       >
         {importing ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Spinner size={12} />
         ) : (
           <Upload className="h-3.5 w-3.5" />
         )}

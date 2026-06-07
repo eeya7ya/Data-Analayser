@@ -3,27 +3,22 @@
 import { useEffect } from "react";
 
 /**
- * Hero-screen brand loader. Designed for `loading.tsx` skeletons and
- * full-card / full-tab empty states where the user is waiting for the
- * page to come up.
+ * Hero-screen loader. Renders the same breathing 3×3 grid of dots as
+ * <Spinner /> but at full hero size with the message stacked below.
+ * Used by every `loading.tsx` route skeleton and any full-card /
+ * full-tab "still fetching" state.
  *
- * The visual is a soft morphing red blob, optionally wrapped in a halo
- * ring, with the message stacked below — same animation system as
- * <Spinner /> but big and centered.
- *
- *   <PageLoader />                              — defaults (84-px blob).
+ *   <PageLoader />                              — defaults (16-px dots).
  *   <PageLoader label="Building your deal…" />  — custom message.
  *   <PageLoader fullScreen />                   — pads the loader to the
  *                                                 viewport for a top-of-
  *                                                 the-tree route loader.
  */
 export default function PageLoader({
-  size = 84,
   label = "Hang tight, almost there…",
   fullScreen = false,
   className = "",
 }: {
-  size?: number;
   label?: string;
   fullScreen?: boolean;
   className?: string;
@@ -34,52 +29,63 @@ export default function PageLoader({
     const el = document.createElement("style");
     el.id = "mt-loader-styles";
     el.textContent = `
-      @keyframes mt-loader-morph {
-        0%, 100% { border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; }
-        50%      { border-radius: 67% 33% 38% 62% / 60% 63% 37% 40%; }
-      }
-      @keyframes mt-loader-spin { to { transform: rotate(360deg); } }
-      @keyframes mt-loader-pulse {
-        0%, 100% { opacity: 0.85; transform: scale(1); }
-        50%      { opacity: 1;    transform: scale(1.04); }
-      }
-      @keyframes mt-loader-halo {
-        0%, 100% { opacity: 0.45; transform: scale(1); }
-        50%      { opacity: 0.20; transform: scale(1.18); }
+      @keyframes mt-loader-grid {
+        0%, 100% { transform: scale(0.6); opacity: 0.4; }
+        50%      { transform: scale(1);   opacity: 1;   }
       }
     `;
     document.head.appendChild(el);
   }, []);
 
-  const haloSize = Math.round(size * 1.35);
   const wrapperClass = fullScreen
     ? `flex min-h-[60vh] w-full flex-col items-center justify-center gap-7 ${className}`
     : `flex w-full flex-col items-center justify-center gap-6 py-10 ${className}`;
 
-  const blobStyle: React.CSSProperties = {
-    width: size,
-    height: size,
-    background:
-      "linear-gradient(135deg, #FF6B6B 0%, #E2231A 55%, #9E1B45 100%)",
-    boxShadow: "0 18px 40px rgba(226, 35, 26, 0.35)",
-    animation:
-      "mt-loader-morph 4s ease-in-out infinite, mt-loader-spin 9s linear infinite, mt-loader-pulse 3s ease-in-out infinite",
-  };
-  const haloStyle: React.CSSProperties = {
-    width: haloSize,
-    height: haloSize,
-    border: "2px solid rgba(226, 35, 26, 0.35)",
-    borderRadius: "9999px",
-    animation: "mt-loader-halo 3.4s ease-in-out infinite",
-  };
-
   return (
-    <div role="status" aria-live="polite" className={wrapperClass}>
-      <div className="relative flex items-center justify-center">
-        <span aria-hidden="true" className="absolute" style={haloStyle} />
-        <span aria-hidden="true" style={blobStyle} />
+    <div
+      role="status"
+      aria-live="polite"
+      className={wrapperClass}
+      style={{
+        fontFamily: "'Quicksand', ui-rounded, 'Segoe UI', sans-serif",
+        background: "transparent",
+      }}
+    >
+      <div
+        aria-hidden="true"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 16px)",
+          gap: 9,
+        }}
+      >
+        {Array.from({ length: 9 }).map((_, i) => {
+          const row = Math.floor(i / 3);
+          const col = i % 3;
+          return (
+            <span
+              key={i}
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: 5,
+                background: "#EF476F",
+                animation: "mt-loader-grid 1.3s ease-in-out infinite",
+                animationDelay: `${(row + col) * 0.1}s`,
+              }}
+            />
+          );
+        })}
       </div>
-      <p className="m-0 text-center text-sm font-semibold tracking-wide text-magic-ink/75">
+      <p
+        style={{
+          margin: 0,
+          fontSize: "1.18rem",
+          fontWeight: 600,
+          color: "#9E1B45",
+          textAlign: "center",
+        }}
+      >
         {label}
       </p>
     </div>

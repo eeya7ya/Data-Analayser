@@ -3,15 +3,15 @@
 import { useEffect } from "react";
 
 /**
- * Inline brand loader — drops into existing call sites in place of the
- * original spin-ring SVG. The visual is a small soft-morphing red blob
- * paired with an optional label on the right, so layouts that placed
- * the spinner next to a heading or skeleton bar still flow horizontally.
- *
- * For full-screen / hero loading states use <PageLoader /> instead.
+ * Brand loader — a breathing 3×3 grid of dots. Same visual is used
+ * everywhere in the app: inline inside buttons, in card / tab panels,
+ * and on the full-page route loaders (via PageLoader). The grid scales
+ * with `size` so a tiny 12-px button indicator and an 84-px hero loader
+ * are visibly the same component.
  *
  *   <Spinner />                          — bare 16-px indicator.
- *   <Spinner size={20} label="Loading…"/>— with text on the right.
+ *   <Spinner size={48} />                — medium panel loader.
+ *   <Spinner size={84} label="Loading…"/>— big with text on the right.
  */
 export default function Spinner({
   size = 16,
@@ -28,30 +28,20 @@ export default function Spinner({
     const el = document.createElement("style");
     el.id = "mt-loader-styles";
     el.textContent = `
-      @keyframes mt-loader-morph {
-        0%, 100% { border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; }
-        50%      { border-radius: 67% 33% 38% 62% / 60% 63% 37% 40%; }
-      }
-      @keyframes mt-loader-spin { to { transform: rotate(360deg); } }
-      @keyframes mt-loader-pulse {
-        0%, 100% { opacity: 0.85; transform: scale(1); }
-        50%      { opacity: 1;    transform: scale(1.04); }
+      @keyframes mt-loader-grid {
+        0%, 100% { transform: scale(0.6); opacity: 0.4; }
+        50%      { transform: scale(1);   opacity: 1;   }
       }
     `;
     document.head.appendChild(el);
   }, []);
 
-  const glow = Math.max(2, Math.round(size * 0.18));
-  const blobStyle: React.CSSProperties = {
-    width: size,
-    height: size,
-    background:
-      "linear-gradient(135deg, #FF4E4E 0%, #E2231A 55%, #9E1B45 100%)",
-    boxShadow: `0 ${glow}px ${glow * 2}px rgba(226, 35, 26, 0.30)`,
-    animation:
-      "mt-loader-morph 4s ease-in-out infinite, mt-loader-spin 9s linear infinite, mt-loader-pulse 3s ease-in-out infinite",
-    flexShrink: 0,
-  };
+  // The reference grid is 16-px dots with 9-px gap. We scale both
+  // proportionally so the same component reads cleanly at 12 px and at
+  // 200 px without changing layout.
+  const dot = Math.max(3, Math.round(size / 3.2));
+  const gap = Math.max(2, Math.round(size / 5.5));
+  const radius = Math.max(1, Math.round(dot / 3));
 
   return (
     <span
@@ -59,7 +49,33 @@ export default function Spinner({
       aria-live="polite"
       className={`inline-flex items-center gap-2 text-magic-ink/70 ${className}`}
     >
-      <span aria-hidden="true" style={blobStyle} />
+      <span
+        aria-hidden="true"
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(3, ${dot}px)`,
+          gap: `${gap}px`,
+          flexShrink: 0,
+        }}
+      >
+        {Array.from({ length: 9 }).map((_, i) => {
+          const row = Math.floor(i / 3);
+          const col = i % 3;
+          return (
+            <span
+              key={i}
+              style={{
+                width: dot,
+                height: dot,
+                borderRadius: radius,
+                background: "#EF476F",
+                animation: "mt-loader-grid 1.3s ease-in-out infinite",
+                animationDelay: `${(row + col) * 0.1}s`,
+              }}
+            />
+          );
+        })}
+      </span>
       {label && (
         <span className="text-xs font-medium text-magic-ink/70">{label}</span>
       )}

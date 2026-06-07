@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Factory, BarChart3, AlertCircle, Loader2 } from "lucide-react";
+import { Plus, Factory, BarChart3, AlertCircle } from "lucide-react";
+import PageLoader from "@/components/PageLoader";
 import { ManufacturerCard } from "@/components/pricing/ManufacturerCard";
 import { cn } from "@/lib/pricing/utils";
 import { useAuth } from "@/lib/pricing/authContext";
@@ -254,9 +255,7 @@ export default function DashboardPage() {
 
       {/* Content */}
       {showSpinner ? (
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
-        </div>
+        <PageLoader label="Loading manufacturers…" />
       ) : visibleItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-gray-200 bg-gray-50 py-24 text-center">
           <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gray-100 ring-1 ring-gray-200">

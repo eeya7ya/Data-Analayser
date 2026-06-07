@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Save, Plus, Trash2, Download, FileSpreadsheet, Printer, FolderMinus, GitBranch, FileSignature, ClipboardPaste } from "lucide-react";
+import PageLoader from "@/components/PageLoader";
 import { ProjectSelector } from "./ProjectSelector";
 import { ConstantsPanel } from "./ConstantsPanel";
 import { ProductTable } from "./ProductTable";
@@ -622,9 +623,7 @@ export function PricingSheet({
       </div>
 
       {projectsLoading || loading ? (
-        <div className="flex h-48 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-cyan-500" />
-        </div>
+        <PageLoader label="Loading pricing sheet…" />
       ) : !selectedProjectId ? (
         <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-gray-300">
           <div className="text-center">

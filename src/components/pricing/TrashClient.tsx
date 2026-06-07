@@ -12,6 +12,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/pricing/utils";
+import PageLoader from "@/components/PageLoader";
 
 interface DeletedManufacturer {
   id: number;
@@ -159,9 +160,7 @@ export default function TrashPage() {
       </div>
 
       {loading ? (
-        <div className="flex h-48 items-center justify-center">
-          <div className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-rose-400" />
-        </div>
+        <PageLoader label="Loading trash…" />
       ) : tab === "manufacturers" ? (
         <div className="space-y-3">
           {data.manufacturers.length === 0 ? (

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Loader2, Globe, X, Factory } from "lucide-react";
+import { Search, Globe, X, Factory } from "lucide-react";
+import Spinner from "@/components/Spinner";
 import { cn } from "@/lib/pricing/utils";
 
 interface SearchHit {
@@ -139,7 +140,9 @@ export function GlobalProjectSearch({
           className="w-64 rounded-lg border border-gray-200 bg-white py-2 pl-8 pr-8 text-sm text-gray-700 placeholder-gray-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
         />
         {loading ? (
-          <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-gray-400" />
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2">
+            <Spinner size={12} />
+          </span>
         ) : query ? (
           <button
             onClick={() => {

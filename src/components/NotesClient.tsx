@@ -7,8 +7,8 @@ import {
   Trash2,
   Download,
   Check,
-  Loader2,
 } from "lucide-react";
+import Spinner from "@/components/Spinner";
 
 /**
  * My Notes — a per-user notebook. A sidebar lists the user's notes; the
@@ -243,7 +243,7 @@ export default function NotesClient({ authorName }: { authorName: string }) {
                 <div className="flex items-center gap-2 text-xs text-magic-ink/45">
                   {saveState === "saving" ? (
                     <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+                      <Spinner size={12} /> Saving…
                     </>
                   ) : saveState === "saved" ? (
                     <>

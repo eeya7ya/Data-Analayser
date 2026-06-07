@@ -5,12 +5,12 @@ import {
   X,
   Building2,
   User,
-  Loader2,
   FolderOpen,
   Plus,
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/pricing/utils";
+import Spinner from "@/components/Spinner";
 
 interface Folder {
   id: number;
@@ -332,7 +332,7 @@ export function ConvertToQuotationDialog({
                 </label>
                 {foldersLoading ? (
                   <div className="flex h-10 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm text-gray-400">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Spinner size={12} />
                     Loading…
                   </div>
                 ) : folders.length === 0 ? (
@@ -367,7 +367,7 @@ export function ConvertToQuotationDialog({
                   </label>
                   {projectsLoading ? (
                     <div className="flex h-10 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm text-gray-400">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Spinner size={12} />
                       Loading…
                     </div>
                   ) : (
@@ -458,7 +458,7 @@ export function ConvertToQuotationDialog({
             className="flex items-center gap-1.5 rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-magic-red/90 disabled:opacity-60"
           >
             {busy ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Spinner size={12} />
             ) : (
               <Check className="h-3.5 w-3.5" />
             )}
