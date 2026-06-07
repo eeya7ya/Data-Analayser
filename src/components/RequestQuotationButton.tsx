@@ -34,13 +34,24 @@ const STATUS_TEXT: Record<string, string> = {
 export default function RequestQuotationButton({
   projectId,
   projectName,
+  canRequestHint,
 }: {
   projectId: number;
   projectName: string;
+  /**
+   * Set by callers that already resolved /api/auth/me (e.g. via
+   * useCrmCaps in FolderProjectsClient). When `true`, we skip the
+   * button's own auth/me round-trip and render the affordance right
+   * away. Without it the button used to chain three sequential fetches
+   * (parent /api/auth/me → child /api/auth/me → /api/leads) which made
+   * the button take ~5 s to appear on a cold pooler.
+   */
+  canRequestHint?: boolean;
 }) {
-  const [canRequest, setCanRequest] = useState<boolean | null>(null);
+  const [canRequest, setCanRequest] = useState<boolean | null>(
+    canRequestHint === undefined ? null : canRequestHint,
+  );
   const [rfq, setRfq] = useState<OpenRfq | null>(null);
-  const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -63,7 +74,11 @@ export default function RequestQuotationButton({
     }
   }, [projectId]);
 
+  // Only run the auth/me probe when the caller couldn't tell us — sales
+  // callers (FolderProjectsClient) already did this work upstream, and
+  // re-doing it here is exactly the latency the user complained about.
   useEffect(() => {
+    if (canRequest !== null) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -74,31 +89,31 @@ export default function RequestQuotationButton({
           module_roles?: Array<{ module: string; role: string }>;
         };
         if (cancelled) return;
-        // SALES-ONLY. "Request for Quotation" is a sales action (sales ask
-        // presales to build a quote). Gate it to sales-side CRM roles only —
-        // presales BUILD quotes (they fulfil RFQs from the /leads queue, they
-        // don't request them), and a plain admin viewing/building a quotation
-        // here is acting in that same presales capacity. Anyone without a
-        // sales role sees nothing (the component renders null below).
         const crmRoles = (me.module_roles ?? [])
           .filter((r) => r.module === "crm")
           .map((r) => r.role);
         const cap =
           crmRoles.includes("sales") || crmRoles.includes("sales_manager");
         setCanRequest(cap);
-        if (cap) await refresh();
       } catch {
         if (!cancelled) setCanRequest(false);
-      } finally {
-        if (!cancelled) setReady(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  if (!ready || !canRequest) return null;
+  // Look up the open RFQ once we know we can request. The button shell
+  // renders before this resolves — the status chip just swaps in when
+  // an open RFQ is found, instead of gating the whole button on a fetch.
+  useEffect(() => {
+    if (canRequest !== true) return;
+    void refresh();
+  }, [canRequest, refresh]);
+
+  if (canRequest !== true) return null;
 
   if (rfq) {
     const tone =
