@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { LEAD_STATUS_LABEL } from "@/lib/leadConstants";
 import PageLoader from "@/components/PageLoader";
 
@@ -13,11 +14,12 @@ import PageLoader from "@/components/PageLoader";
  *      now shown as a clearly-labelled "Quick reference (from sales)"
  *      box — they exist for orientation, not as the presales tree.
  *   2. The single "Claim this lead" button used to do an instant
- *      claim with no choices. Now it opens <ClaimAssignmentDialog>,
- *      which forces the presales author to pick (or create) the
- *      Company-or-Individual → Client → Project tree the lead will be
- *      filed under. The whole assignment lands in one round-trip via
- *      POST /api/leads/:id/assign-and-claim so there are no half-states.
+ *      claim with no choices. Now it routes to the dedicated
+ *      /leads/:id/assign page, which forces the presales author to
+ *      pick (or create) the Company-or-Individual → Client → Project
+ *      tree the lead will be filed under before the claim happens.
+ *      No modal, no silent claim — one explicit page, one round-trip
+ *      via POST /api/leads/:id/assign-and-claim, atomic on the server.
  */
 
 interface LeadRow {
@@ -62,22 +64,6 @@ interface CurrentUser {
   id: number;
   role: string;
   module_roles: Array<{ module: string; role: string }>;
-}
-
-interface CompanyOpt {
-  id: number;
-  name: string;
-}
-interface FolderOpt {
-  id: number;
-  name: string;
-  kind: "company" | "individual" | null;
-  company_id: number | null;
-  company_name?: string | null;
-}
-interface ProjectOpt {
-  id: number;
-  name: string;
 }
 
 const PRIORITY_TONE: Record<string, string> = {
@@ -136,13 +122,17 @@ function relative(iso: string): string {
 }
 
 export default function LeadDetailClient({ leadId }: { leadId: number }) {
+  const router = useRouter();
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [events, setEvents] = useState<LeadEvent[]>([]);
   const [me, setMe] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
-  const [claimOpen, setClaimOpen] = useState(false);
+  const goToAssign = useCallback(
+    () => router.push(`/leads/${leadId}/assign`),
+    [router, leadId],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -396,36 +386,21 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
           canClaim={canClaim}
           isAdmin={flags.isAdmin}
           onChanged={reload}
-          onClaimRequested={() => setClaimOpen(true)}
+          onClaimRequested={goToAssign}
         />
 
         {lead.status === "in_progress" && (isOwner || flags.isAdmin) && (
-          <PresalesFilingPanel
-            lead={lead}
-            onReassign={() => setClaimOpen(true)}
-          />
+          <PresalesFilingPanel lead={lead} onReassign={goToAssign} />
         )}
       </div>
-
-      {claimOpen && (
-        <ClaimAssignmentDialog
-          lead={lead}
-          presetKind={lead.folder_name ? undefined : undefined}
-          onClose={() => setClaimOpen(false)}
-          onDone={() => {
-            setClaimOpen(false);
-            reload();
-          }}
-        />
-      )}
     </div>
   );
 }
 
 /**
  * Ownership card. The "Claim this lead" button no longer talks to the API
- * directly — it opens the ClaimAssignmentDialog so the presales author
- * has to pick a tree before the claim is recorded. Release still goes
+ * directly — it routes to /leads/:id/assign so the presales author has to
+ * pick a tree before the claim is recorded. Release still goes
  * straight through (releasing back to the queue doesn't need a tree).
  */
 function OwnershipPanel({
@@ -625,479 +600,6 @@ function ReferenceItem({
       <div className="truncate text-sm font-medium text-magic-ink/90">
         {value}
       </div>
-    </div>
-  );
-}
-
-/**
- * Forced claim assignment dialog. Replaces the old "claim, then maybe
- * link a client" two-step flow. Presales picks the kind, the company
- * (when applicable), the client folder, and the project — all in one
- * place, with the lead context shown at the top so they don't have to
- * scroll back and forth.
- *
- * The whole assignment is submitted via POST
- * /api/leads/:id/assign-and-claim which creates any missing records,
- * stamps the lead, and notifies the salesperson — atomically, so the
- * lead is never half-assigned.
- */
-function ClaimAssignmentDialog({
-  lead,
-  onClose,
-  onDone,
-}: {
-  lead: LeadRow;
-  presetKind?: "company" | "individual";
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const [kind, setKind] = useState<"company" | "individual">("individual");
-
-  // Company branch
-  const [companies, setCompanies] = useState<CompanyOpt[]>([]);
-  const [companyMode, setCompanyMode] = useState<"existing" | "new">("new");
-  const [companySel, setCompanySel] = useState<string>("");
-  const [newCompanyName, setNewCompanyName] = useState("");
-
-  // Folder (client) branch
-  const [folders, setFolders] = useState<FolderOpt[]>([]);
-  const [folderMode, setFolderMode] = useState<"existing" | "new">("new");
-  const [folderSel, setFolderSel] = useState<string>("");
-  const [newFolderName, setNewFolderName] = useState("");
-  const [newFolderEmail, setNewFolderEmail] = useState("");
-  const [newFolderPhone, setNewFolderPhone] = useState("");
-
-  // Project branch
-  const [projects, setProjects] = useState<ProjectOpt[]>([]);
-  const [projectMode, setProjectMode] = useState<"existing" | "new">("new");
-  const [projectSel, setProjectSel] = useState<string>("");
-  const [newProjectName, setNewProjectName] = useState(
-    lead.title || "Initial project",
-  );
-  const [newProjectDescription, setNewProjectDescription] = useState("");
-
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  // Load companies once for the company branch.
-  useEffect(() => {
-    if (kind !== "company") return;
-    fetch("/api/companies", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: { companies?: CompanyOpt[] }) => setCompanies(d.companies ?? []))
-      .catch(() => setCompanies([]));
-  }, [kind]);
-
-  // Load folders matching the current branch.
-  useEffect(() => {
-    let url = "/api/folders";
-    if (kind === "individual") url += "?kind=individual";
-    else if (companyMode === "existing" && companySel)
-      url += `?company_id=${companySel}`;
-    else {
-      setFolders([]);
-      return;
-    }
-    fetch(url, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: { folders?: FolderOpt[] }) => setFolders(d.folders ?? []))
-      .catch(() => setFolders([]));
-  }, [kind, companyMode, companySel]);
-
-  // Load projects under the selected existing folder.
-  useEffect(() => {
-    if (folderMode !== "existing" || !folderSel) {
-      setProjects([]);
-      return;
-    }
-    fetch(`/api/projects?folder_id=${folderSel}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: { projects?: ProjectOpt[] }) => setProjects(d.projects ?? []))
-      .catch(() => setProjects([]));
-  }, [folderMode, folderSel]);
-
-  // Switching kind or company mode invalidates downstream selections.
-  useEffect(() => {
-    setFolderMode("new");
-    setFolderSel("");
-    setProjectMode("new");
-    setProjectSel("");
-  }, [kind, companyMode, companySel]);
-  useEffect(() => {
-    setProjectMode("new");
-    setProjectSel("");
-  }, [folderMode, folderSel]);
-
-  async function submit() {
-    setBusy(true);
-    setErr(null);
-    try {
-      // Build payload per branch.
-      const payload: {
-        kind: "company" | "individual";
-        company?: { id?: number; name?: string };
-        folder: { id?: number; name?: string; email?: string; phone?: string };
-        project: { id?: number; name?: string; description?: string };
-      } = {
-        kind,
-        folder: {},
-        project: {},
-      };
-
-      if (kind === "company") {
-        if (companyMode === "existing") {
-          if (!companySel) throw new Error("Pick a company.");
-          payload.company = { id: Number(companySel) };
-        } else {
-          const name = newCompanyName.trim();
-          if (!name) throw new Error("Enter a name for the new company.");
-          payload.company = { name };
-        }
-      }
-
-      if (folderMode === "existing") {
-        if (!folderSel) throw new Error("Pick a client folder.");
-        payload.folder = { id: Number(folderSel) };
-      } else {
-        const name = newFolderName.trim();
-        if (!name) throw new Error("Enter a name for the new client.");
-        payload.folder = {
-          name,
-          email: newFolderEmail.trim() || undefined,
-          phone: newFolderPhone.trim() || undefined,
-        };
-      }
-
-      if (projectMode === "existing") {
-        if (!projectSel) throw new Error("Pick a project.");
-        payload.project = { id: Number(projectSel) };
-      } else {
-        const name = newProjectName.trim();
-        if (!name) throw new Error("Enter a name for the new project.");
-        payload.project = {
-          name,
-          description: newProjectDescription.trim() || undefined,
-        };
-      }
-
-      const res = await fetch(`/api/leads/${lead.id}/assign-and-claim`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      onDone();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const fieldCls =
-    "w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red";
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-magic-ink/40 px-4 py-6"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
-      >
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-base font-bold text-magic-ink">
-              File this lead under a presales tree
-            </h3>
-            <p className="mt-1 text-xs text-magic-ink/60">
-              Pick the Company / Individual → Client → Project the work
-              belongs under. The presales filing is separate from any
-              loose hints sales attached.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-magic-ink/50 hover:text-magic-ink"
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
-
-        {/* Lead summary — visible while filing so the presales author
-            doesn't have to scroll back. */}
-        <div className="mb-5 rounded-xl border border-magic-border bg-magic-soft/40 px-4 py-3 text-xs text-magic-ink/80">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <span className="font-mono font-semibold text-magic-red">
-              {lead.ref}
-            </span>
-            <span className="text-magic-ink/40">·</span>
-            <span className="font-semibold text-magic-ink">{lead.title}</span>
-            <span className="ml-auto inline-flex items-center rounded-full border border-magic-border bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-magic-ink/60">
-              {lead.priority}
-            </span>
-          </div>
-          {lead.description && (
-            <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-magic-ink/70">
-              {lead.description}
-            </p>
-          )}
-          {(lead.company_name || lead.folder_name) && (
-            <p className="mt-2 text-[11px] text-magic-ink/45">
-              Sales hint:{" "}
-              {[lead.company_name, lead.folder_name].filter(Boolean).join(" · ")}
-            </p>
-          )}
-        </div>
-
-        {/* Kind toggle */}
-        <Segmented
-          value={kind}
-          onChange={(v) => setKind(v as "individual" | "company")}
-          options={[
-            { value: "individual", label: "Individual" },
-            { value: "company", label: "Company" },
-          ]}
-        />
-
-        <div className="mt-4 space-y-5">
-          {/* Company step — only for company branch */}
-          {kind === "company" && (
-            <Section title="Company" subtitle="Pick an existing one or create a new entry.">
-              <Segmented
-                value={companyMode}
-                onChange={(v) => setCompanyMode(v as "existing" | "new")}
-                options={[
-                  { value: "new", label: "New company" },
-                  { value: "existing", label: "Existing" },
-                ]}
-              />
-              {companyMode === "existing" ? (
-                <select
-                  value={companySel}
-                  onChange={(e) => setCompanySel(e.target.value)}
-                  className={`${fieldCls} mt-2`}
-                >
-                  <option value="">Select a company…</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  value={newCompanyName}
-                  onChange={(e) => setNewCompanyName(e.target.value)}
-                  placeholder="New company name"
-                  className={`${fieldCls} mt-2`}
-                />
-              )}
-            </Section>
-          )}
-
-          {/* Client folder step */}
-          <Section
-            title={kind === "company" ? "Client / contact" : "Client"}
-            subtitle={
-              kind === "company"
-                ? "The person or team at the company you'll be working with."
-                : "The individual this work is for."
-            }
-          >
-            <Segmented
-              value={folderMode}
-              onChange={(v) => setFolderMode(v as "existing" | "new")}
-              options={[
-                { value: "new", label: "New client" },
-                { value: "existing", label: "Existing" },
-              ]}
-            />
-            {folderMode === "existing" ? (
-              <select
-                value={folderSel}
-                onChange={(e) => setFolderSel(e.target.value)}
-                className={`${fieldCls} mt-2`}
-                disabled={
-                  kind === "company" &&
-                  companyMode === "existing" &&
-                  !companySel
-                }
-              >
-                <option value="">
-                  {kind === "company" &&
-                  companyMode === "existing" &&
-                  !companySel
-                    ? "Pick a company first…"
-                    : "Select the client…"}
-                </option>
-                {folders.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                    {f.company_name ? ` · ${f.company_name}` : ""}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="mt-2 space-y-2">
-                <input
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  placeholder={
-                    kind === "company"
-                      ? "Contact / client name"
-                      : "Client full name"
-                  }
-                  className={fieldCls}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    value={newFolderEmail}
-                    onChange={(e) => setNewFolderEmail(e.target.value)}
-                    placeholder="Email (optional)"
-                    className={fieldCls}
-                  />
-                  <input
-                    value={newFolderPhone}
-                    onChange={(e) => setNewFolderPhone(e.target.value)}
-                    placeholder="Phone (optional)"
-                    className={fieldCls}
-                  />
-                </div>
-              </div>
-            )}
-          </Section>
-
-          {/* Project step */}
-          <Section
-            title="Project"
-            subtitle="The bucket that quotations, POs, and BOQs will live under."
-          >
-            <Segmented
-              value={projectMode}
-              onChange={(v) => setProjectMode(v as "existing" | "new")}
-              options={[
-                { value: "new", label: "New project" },
-                { value: "existing", label: "Existing" },
-              ]}
-            />
-            {projectMode === "existing" ? (
-              <select
-                value={projectSel}
-                onChange={(e) => setProjectSel(e.target.value)}
-                className={`${fieldCls} mt-2`}
-                disabled={folderMode !== "existing" || !folderSel}
-              >
-                <option value="">
-                  {folderMode !== "existing" || !folderSel
-                    ? "Pick an existing client first…"
-                    : "Select the project…"}
-                </option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="mt-2 space-y-2">
-                <input
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="Project name"
-                  className={fieldCls}
-                />
-                <textarea
-                  value={newProjectDescription}
-                  onChange={(e) => setNewProjectDescription(e.target.value)}
-                  placeholder="Short description (optional)"
-                  rows={2}
-                  className={fieldCls}
-                />
-              </div>
-            )}
-          </Section>
-        </div>
-
-        {err && (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-            {err}
-          </p>
-        )}
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="rounded-lg border border-magic-border bg-white px-3 py-2 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={busy}
-            className="rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
-          >
-            {busy ? "Filing…" : "Claim & file lead"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section>
-      <h4 className="text-xs font-bold uppercase tracking-wide text-magic-ink/70">
-        {title}
-      </h4>
-      {subtitle && (
-        <p className="mt-0.5 text-[11px] text-magic-ink/55">{subtitle}</p>
-      )}
-      <div className="mt-2">{children}</div>
-    </section>
-  );
-}
-
-function Segmented({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: Array<{ value: string; label: string }>;
-}) {
-  return (
-    <div className="inline-flex w-full items-center gap-0.5 rounded-lg border border-magic-border bg-white p-0.5">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          onClick={() => onChange(o.value)}
-          className={`flex-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-            value === o.value
-              ? "bg-magic-red text-white shadow-sm"
-              : "text-magic-ink/60 hover:text-magic-ink"
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
     </div>
   );
 }
