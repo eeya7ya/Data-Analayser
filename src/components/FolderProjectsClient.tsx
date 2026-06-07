@@ -63,6 +63,49 @@ function formatBytes(n: number): string {
 }
 
 /**
+ * Mirrors `canAuthorQuotation` from src/lib/modules.ts so the client can
+ * hide quotation authoring affordances (the in-app Designer entry point
+ * and the "Upload existing quotation" file uploader) for plain sales /
+ * sales_manager users. Sales raise an RFQ via RequestQuotationButton —
+ * they don't design or upload quotations. The server-side /api/quotations
+ * POST and /api/project-files endpoints re-enforce the same rule, so
+ * this is purely a UI affordance and a stale tab can't smuggle either.
+ *
+ * Returns null while loading so callers can show a skeleton; true /
+ * false once /api/auth/me has resolved.
+ */
+function useCanAuthorQuotation(): boolean | null {
+  const [canAuthor, setCanAuthor] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        const data = (await res.json()) as {
+          user?: { role?: string } | null;
+          module_roles?: Array<{ module: string; role: string }>;
+        };
+        if (cancelled) return;
+        if (data.user?.role === "admin") {
+          setCanAuthor(true);
+          return;
+        }
+        const crm = (data.module_roles ?? [])
+          .filter((r) => r.module === "crm")
+          .map((r) => r.role);
+        setCanAuthor(crm.includes("presales") || crm.includes("presales_manager"));
+      } catch {
+        if (!cancelled) setCanAuthor(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return canAuthor;
+}
+
+/**
  * Per-folder Projects + Files dashboard.
  *
  * The component is intentionally self-contained: it lists projects under
@@ -782,6 +825,14 @@ function QuotationsTab({
     );
   }
 
+  // Plain sales (and sales_manager) raise an RFQ from the project header —
+  // they don't design quotations in-app and they can't upload an existing
+  // quotation file either. Hide both affordances; presales / admins still
+  // see them. `null` means we're still resolving the role, so we hide
+  // optimistically to avoid a flash of an unusable button.
+  const canAuthor = useCanAuthorQuotation();
+  const showAuthoring = canAuthor === true;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -790,12 +841,14 @@ function QuotationsTab({
             ? "Loading…"
             : `${items.length} quotation${items.length === 1 ? "" : "s"}`}
         </span>
-        <Link
-          href={`/designer?folder=${project.folder_id}&project=${project.id}`}
-          className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700"
-        >
-          + New quotation in this project
-        </Link>
+        {showAuthoring && (
+          <Link
+            href={`/designer?folder=${project.folder_id}&project=${project.id}`}
+            className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700"
+          >
+            + New quotation in this project
+          </Link>
+        )}
       </div>
       {items === null ? (
         <div className="py-6 flex justify-center">
@@ -849,21 +902,25 @@ function QuotationsTab({
         </ul>
       )}
 
+      {(showAuthoring || files.length > 0) && (
       <div className="mt-5 border-t border-magic-border/60 pt-4">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-magic-ink/60 mb-2">
           Existing quotation files
         </h4>
-        <FileUploader
-          projectId={project.id}
-          kind="quotation"
-          variant="quotation"
-          onUploaded={loadFiles}
-        />
+        {showAuthoring && (
+          <FileUploader
+            projectId={project.id}
+            kind="quotation"
+            variant="quotation"
+            onUploaded={loadFiles}
+          />
+        )}
         <div className="mt-3">
           {files.length === 0 ? (
             <div className="text-xs text-magic-ink/50">
-              No uploaded quotation files. Use the button above to attach an old
-              Excel or PDF quotation.
+              {showAuthoring
+                ? "No uploaded quotation files. Use the button above to attach an old Excel or PDF quotation."
+                : "No uploaded quotation files yet."}
             </div>
           ) : (
             <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
@@ -882,6 +939,7 @@ function QuotationsTab({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

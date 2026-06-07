@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { isSalesEditLocked } from "@/lib/modules";
+import { canAuthorQuotation, isSalesEditLocked } from "@/lib/modules";
 import Designer from "@/components/Designer";
 import DesignerShell from "@/components/DesignerShell";
 import TopBar from "@/components/TopBar";
@@ -137,6 +137,16 @@ export default async function DesignerPage({
         </main>
       </div>
     );
+  }
+
+  // Create mode — mirrors POST /api/quotations: only presales /
+  // presales_manager / admin may author a new quotation. Sales reach this
+  // route from "+ New quotation in this project" only when their browser
+  // mistakenly rendered the button (stale tab, role change mid-session);
+  // bounce them to the CRM hub so they raise an RFQ instead of staring at
+  // a Designer they can't save.
+  if (!(await canAuthorQuotation(user))) {
+    redirect("/crm");
   }
 
   let initialFolderId: number | null = null;
