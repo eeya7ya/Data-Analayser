@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
 import { hasModule, hasModuleRole, requireModuleAllowLegacy } from "@/lib/modules";
+import { sendPushToUsers } from "@/lib/push";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -226,6 +227,45 @@ export async function POST(req: NextRequest) {
       values (${user.id}, 'project_handoff', ${inserted[0].id}, 'create',
               ${JSON.stringify({ quotation_id: quotation.id, ref: quotation.ref, priority })}::jsonb)
     `;
+
+    // Project Execution — tell the projects manager(s) a job is waiting to
+    // be distributed. Fan out a TopBar notification + Web Push to every
+    // projects:manager (and admins as a fallback so a fresh deployment is
+    // never left without an audience). Best-effort: a notification hiccup
+    // must never fail the handoff the user just created.
+    try {
+      const managers = (await q`
+        select distinct user_id from user_module_roles
+        where module = 'projects' and role = 'manager' and revoked_at is null
+        union
+        select id as user_id from users where role = 'admin'
+      `) as Array<{ user_id: number }>;
+      const recipientIds = managers
+        .map((m) => m.user_id)
+        .filter((uid) => uid !== user.id);
+      if (recipientIds.length > 0) {
+        const title = `New job for execution · ${quotation.ref}`;
+        const bodyText = `${user.display_name || user.username} sent ${quotation.ref} to project execution${
+          priority !== "normal" ? ` (${priority} priority)` : ""
+        }. Assign a technician to start.`;
+        for (const rid of recipientIds) {
+          await q`
+            insert into notifications (user_id, kind, title, body, link, payload)
+            values (${rid}, 'project_handoff', ${title}, ${bodyText},
+                    ${"/projects/handoffs"},
+                    ${JSON.stringify({ handoff_id: inserted[0].id, quotation_id: quotation.id })}::jsonb)
+          `;
+        }
+        void sendPushToUsers(recipientIds, {
+          title,
+          body: bodyText,
+          url: "/projects/handoffs",
+          tag: `handoff-${inserted[0].id}`,
+        });
+      }
+    } catch {
+      // ignore — handoff already created
+    }
 
     return NextResponse.json({ ok: true, id: inserted[0].id });
   } catch (err) {

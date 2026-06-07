@@ -63,12 +63,11 @@ export async function POST(req: Request) {
     }
     const quotation = quotationRows[0];
 
-    if (user.role !== "admin" && quotation.owner_id !== user.id) {
-      return NextResponse.json(
-        { error: "only the quotation author may send it to sales" },
-        { status: 403 },
-      );
-    }
+    // Any quotation author (presales / presales_manager / admin) may send a
+    // quotation to sales — not just the literal owner. `canAuthorQuotation`
+    // was already checked above, so reaching here means the caller is on the
+    // presales side; the owner-only restriction was hiding the button for
+    // presales colleagues working the same project.
     if (quotation.status && quotation.status !== "active") {
       return NextResponse.json(
         { error: "only active quotations can be sent to sales" },

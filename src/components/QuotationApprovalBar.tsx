@@ -101,7 +101,10 @@ export default function QuotationApprovalBar({
     !!me?.user?.id && state.owner_id !== null && me.user.id === state.owner_id;
   const isPresalesAuthor =
     isAdmin || isOwner || hasRole("crm", "presales") || hasRole("crm", "presales_manager");
-  const canSendToSales = isPresalesAuthor && (isAdmin || isOwner);
+  // Any presales author / manager / admin can send to sales (server mirrors
+  // this via canAuthorQuotation). Previously this also required ownership,
+  // which hid the button for presales colleagues on the same project.
+  const canSendToSales = isPresalesAuthor;
   const sentToSales = !!state.sent_to_sales_at;
   const salesAccepted = !!state.sales_accepted_at;
   // The endpoint enforces "must be the lead creator", but the role check
