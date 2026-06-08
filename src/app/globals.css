@@ -947,3 +947,328 @@ body > * {
     padding: 28mm 22mm !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Technical Proposal extensions — extra elements on top of the Financial
+ * Proposal layout (cover labels, Bill of Materials table, product overview
+ * grid, references table, editable image cells). Reuses .fp-* classes for
+ * everything that is shared with the Financial Proposal so a single set
+ * of styles drives both documents.
+ * ------------------------------------------------------------------------- */
+
+/* Cover labels match the docx template: bold customer name on top, then
+ * "Exp: <project>" in smaller red caps. */
+.tp-cover-customer {
+  font-size: 36px;
+  font-weight: 900;
+  color: var(--mt-ink);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.tp-cover-exp {
+  margin-top: 12px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--mt-red);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tp-cover-exp .fp-inline { font: inherit; color: inherit; }
+.tp-cover-customer .fp-inline { font: inherit; color: inherit; }
+
+/* Sub-heading reused across solution overview / service / team pages. */
+.fp-sheet .tp-h2 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--mt-red);
+  margin: 18px 0 8px 0;
+  border-bottom: 1px solid var(--mt-border);
+  padding-bottom: 4px;
+}
+
+.fp-sheet .tp-note {
+  font-size: 11px;
+  color: var(--mt-ink);
+  opacity: 0.7;
+  font-style: italic;
+  margin: 4px 0 8px 0;
+}
+.fp-sheet .tp-paragraph-tight { margin-top: 4px; }
+
+.fp-sheet .tp-contact-pos {
+  font-style: italic;
+  color: var(--mt-ink);
+  opacity: 0.8;
+}
+
+/* ---- Bill of Materials table -------------------------------------------- */
+.tp-bom-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+  margin-top: 4px;
+}
+.tp-bom-table th {
+  background: var(--mt-red);
+  color: #ffffff;
+  padding: 8px 6px;
+  border: 1px solid var(--mt-red);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.tp-bom-table td {
+  border: 1px solid #cfbebc;
+  padding: 8px 8px;
+  vertical-align: top;
+  text-align: center;
+}
+.tp-bom-th-no { width: 4%; }
+.tp-bom-th-part { width: 18%; }
+.tp-bom-th-desc { width: 52%; text-align: left; padding-left: 12px; }
+.tp-bom-th-dur { width: 14%; }
+.tp-bom-th-qty { width: 12%; }
+
+.tp-bom-td-part { text-align: left; padding-left: 10px; }
+.tp-bom-part-num {
+  font-weight: 800;
+  color: var(--mt-ink);
+  font-size: 11.5px;
+}
+.tp-bom-part-vendor {
+  font-size: 10px;
+  color: var(--mt-red);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+.tp-bom-td-desc { text-align: left; padding-left: 10px; }
+.tp-bom-desc-text {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  resize: vertical;
+  padding: 4px;
+  field-sizing: content;
+  min-height: 3em;
+}
+.tp-bom-desc-text:hover:not(:focus) {
+  border-color: #d8c9c7;
+  background: rgba(255, 248, 191, 0.16);
+}
+.tp-bom-desc-text:focus {
+  border-color: var(--mt-red);
+  background: #fffaf7;
+  outline: none;
+}
+.tp-bom-specs {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--mt-ink);
+  opacity: 0.7;
+}
+.tp-bom-specs summary { cursor: pointer; color: var(--mt-red); }
+.tp-bom-specs pre {
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  margin: 4px 0 0 0;
+  padding: 6px 8px;
+  background: var(--mt-soft);
+  border-radius: 4px;
+  max-height: 220px;
+  overflow: auto;
+}
+.tp-bom-td-dur {
+  white-space: nowrap;
+}
+.tp-bom-dur-input {
+  width: 3.5em;
+  text-align: center;
+  background: transparent;
+  border: 1px dotted #b0a09e;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  color: inherit;
+}
+.tp-bom-dur-input:focus { border-color: var(--mt-red); outline: none; }
+.tp-bom-dur-unit { margin-left: 4px; color: var(--mt-ink); opacity: 0.6; font-size: 10px; }
+
+/* ---- Product Overview grid ---------------------------------------------- */
+.tp-product-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.tp-product-card {
+  border: 1px solid var(--mt-border);
+  border-radius: 6px;
+  padding: 8px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tp-product-name {
+  font-weight: 800;
+  font-size: 11px;
+  color: var(--mt-ink);
+}
+.tp-product-desc {
+  font-size: 10px;
+  color: var(--mt-ink);
+  opacity: 0.8;
+  line-height: 1.35;
+}
+
+/* ---- References table --------------------------------------------------- */
+.tp-ref-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+  margin-top: 6px;
+}
+.tp-ref-table th {
+  background: var(--mt-header);
+  color: var(--mt-red);
+  border: 1px solid #cfbebc;
+  padding: 6px 5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.tp-ref-table td {
+  border: 1px solid #cfbebc;
+  padding: 6px 5px;
+  vertical-align: middle;
+  text-align: center;
+}
+.tp-ref-table .fp-inline {
+  width: 100%;
+  text-align: center;
+  border-bottom: 0;
+}
+.tp-ref-actions {
+  width: 30px;
+}
+.tp-ref-remove {
+  color: var(--mt-red);
+  font-size: 16px;
+  line-height: 1;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+/* ---- Editable image cell ------------------------------------------------ */
+.editable-image {
+  margin: 6px 0 12px 0;
+}
+.editable-image-frame {
+  position: relative;
+  border: 2px dashed #d8c9c7;
+  border-radius: 6px;
+  background: var(--mt-soft);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 180ms ease, background-color 180ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.editable-image-frame:hover {
+  border-color: var(--mt-red);
+  background: rgba(255, 248, 191, 0.25);
+}
+.editable-image-frame img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #ffffff;
+}
+.editable-image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--mt-ink);
+  opacity: 0.55;
+  font-size: 11px;
+  text-align: center;
+  padding: 16px;
+}
+.editable-image-plus {
+  font-size: 28px;
+  line-height: 1;
+  color: var(--mt-red);
+  opacity: 0.7;
+}
+.editable-image-actions {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.editable-image-frame:hover .editable-image-actions { opacity: 1; }
+.editable-image-btn {
+  background: var(--mt-red);
+  color: #ffffff;
+  border: 0;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.editable-image-btn-ghost {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--mt-ink);
+  border: 1px solid var(--mt-border);
+}
+.editable-image-caption {
+  text-align: center;
+  font-size: 10px;
+  color: var(--mt-ink);
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+@media print {
+  /* Strip every editing affordance from the printed image cells but
+   * keep the photo itself, so a finished PDF carries clean artwork
+   * with no dashed borders or hover buttons. */
+  .editable-image-frame {
+    border: none !important;
+    background: transparent !important;
+    cursor: default !important;
+  }
+  .editable-image-actions,
+  .editable-image-placeholder { display: none !important; }
+  .tp-bom-desc-text {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+  .tp-bom-dur-input {
+    border: none !important;
+    background: transparent !important;
+  }
+  .tp-bom-specs { display: none !important; }
+  .tp-product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

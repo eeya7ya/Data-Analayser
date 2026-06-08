@@ -429,6 +429,15 @@ export default function QuotationViewer({
         >
           Financial Proposal
         </button>
+        <button
+          onClick={() =>
+            window.open(`/technical-proposal?id=${id}`, "_blank", "noopener")
+          }
+          title="Open the Technical Proposal — auto-pulls detailed descriptions from the catalogue, with click-to-upload diagrams and certificates"
+          className="rounded-md border border-magic-red text-magic-red px-4 py-2 text-sm font-semibold hover:bg-magic-red hover:text-white transition-colors"
+        >
+          Technical Proposal
+        </button>
       </div>
       {requestDone && (
         <div className="no-print mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
