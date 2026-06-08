@@ -632,3 +632,318 @@ body > * {
   0%, 100% { transform: scale(0.6); opacity: 0.4; }
   50%      { transform: scale(1);   opacity: 1;   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Financial Proposal — printable layout mirrors the Word template
+ * (Financial_Proposal_Temp.docx). Reuses the .quotation-sheet print
+ * plumbing (running header + footer table groups) so every page
+ * automatically carries the brand strip and copyright footer.
+ * ------------------------------------------------------------------------- */
+.fp-doc { gap: 18px; }
+
+.fp-sheet .fp-brand-strip {
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid var(--mt-red);
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+.fp-sheet .fp-brand-strip img {
+  height: 38px;
+  width: auto;
+  object-fit: contain;
+}
+
+.fp-sheet .fp-h1 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--mt-ink);
+  margin: 4px 0 12px 0;
+  letter-spacing: -0.01em;
+}
+.fp-sheet .fp-h1-spaced { margin-top: 22px; }
+.fp-sheet .fp-red { color: var(--mt-red); }
+
+.fp-sheet .fp-paragraph {
+  font-size: 11.5px;
+  line-height: 1.55;
+  text-align: justify;
+  color: var(--mt-ink);
+  white-space: pre-wrap;
+}
+
+/* Inline / textarea editors — underlined on screen so the sales rep
+ * spots what's editable; collapse to plain text in print so the output
+ * looks like a finished document. */
+.fp-sheet .fp-inline {
+  display: inline-block;
+  min-width: 4em;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dotted #b0a09e;
+  outline: none;
+  font: inherit;
+  color: inherit;
+  padding: 0 2px;
+}
+.fp-sheet .fp-inline:focus {
+  border-bottom-color: var(--mt-red);
+  background: rgba(255, 248, 191, 0.4);
+}
+.fp-sheet .fp-textarea {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: 1px dashed #d8c9c7;
+  border-radius: 4px;
+  outline: none;
+  padding: 6px 8px;
+  margin-bottom: 10px;
+  font: inherit;
+  color: inherit;
+  resize: vertical;
+  field-sizing: content;
+}
+.fp-sheet .fp-textarea:focus {
+  border-color: var(--mt-red);
+  background: #fffaf7;
+}
+
+/* ---- Cover page ---------------------------------------------------------- */
+.fp-sheet.fp-cover { padding: 0; overflow: hidden; }
+.fp-cover-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  min-height: 280mm;
+  padding: 24mm 18mm;
+  background:
+    linear-gradient(135deg, rgba(220, 38, 38, 0.06) 0%, rgba(255, 255, 255, 1) 50%, rgba(220, 38, 38, 0.04) 100%);
+  box-sizing: border-box;
+}
+.fp-cover-logo {
+  height: 60px;
+  width: auto;
+  object-fit: contain;
+}
+.fp-cover-band {
+  border-left: 6px solid var(--mt-red);
+  padding: 24px 22px;
+  background: #ffffff;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.06);
+}
+.fp-cover-title {
+  font-size: 40px;
+  font-weight: 900;
+  color: var(--mt-ink);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.fp-cover-sub {
+  margin-top: 10px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--mt-red);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.fp-cover-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 12px;
+  color: var(--mt-ink);
+}
+.fp-cover-ref { font-weight: 700; }
+.fp-cover .fp-inline { font: inherit; color: inherit; }
+
+/* ---- Table of contents --------------------------------------------------- */
+.fp-toc {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  counter-reset: fp-toc;
+}
+.fp-toc li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px dotted #d8c9c7;
+  font-size: 12px;
+  counter-increment: fp-toc;
+}
+.fp-toc li::before {
+  content: counter(fp-toc) ".";
+  font-weight: 700;
+  color: var(--mt-red);
+  margin-right: 10px;
+  min-width: 1.6em;
+}
+.fp-toc li.fp-toc-sub {
+  padding-left: 28px;
+  font-size: 11px;
+  color: var(--mt-ink);
+  border-bottom-style: none;
+  counter-increment: none;
+}
+.fp-toc li.fp-toc-sub::before { content: ""; min-width: 0; margin: 0; }
+
+/* ---- Disclaimer / meta page --------------------------------------------- */
+.fp-meta-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--mt-border);
+  padding-bottom: 6px;
+  margin-bottom: 14px;
+}
+.fp-disclaimer .fp-paragraph { margin-bottom: 8px; }
+
+/* ---- Contact details ----------------------------------------------------- */
+.fp-contact {
+  margin: 6px 0 18px 0;
+  padding: 10px 14px;
+  background: var(--mt-header);
+  border-left: 4px solid var(--mt-red);
+}
+.fp-contact-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--mt-ink);
+}
+.fp-contact-row {
+  font-size: 12px;
+  color: var(--mt-ink);
+  margin-top: 4px;
+}
+
+.fp-submitted {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* ---- Financial Proposal table ------------------------------------------- */
+.fp-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+}
+.fp-table th {
+  background: var(--mt-red);
+  color: #ffffff;
+  text-transform: none;
+  font-weight: 700;
+  padding: 9px 8px;
+  border: 1px solid var(--mt-red);
+  letter-spacing: 0.01em;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.fp-table td {
+  border: 1px solid #cfbebc;
+  padding: 8px;
+  vertical-align: middle;
+  text-align: center;
+}
+.fp-table .fp-th-desc { width: 56%; text-align: left; padding-left: 12px; }
+.fp-table .fp-th-qty { width: 10%; }
+.fp-table .fp-th-unit { width: 16%; }
+.fp-table .fp-th-total { width: 18%; }
+.fp-table .fp-td-desc {
+  text-align: left;
+  padding-left: 12px;
+  font-weight: 600;
+}
+.fp-table .fp-td-no {
+  display: inline-block;
+  min-width: 1.6em;
+  font-weight: 800;
+  color: var(--mt-ink);
+}
+.fp-table .fp-empty {
+  padding: 16px;
+  font-style: italic;
+  color: var(--mt-ink);
+  opacity: 0.6;
+}
+.fp-table .fp-optional {
+  font-style: italic;
+  color: var(--mt-ink);
+  opacity: 0.7;
+}
+.fp-table .fp-total-row td {
+  background: var(--mt-highlight);
+  font-weight: 700;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.fp-table .fp-total-row.fp-total-row-final td {
+  background: #fff8bf;
+  color: var(--mt-red);
+}
+.fp-table .fp-total-label { text-align: left; padding-left: 12px; }
+.fp-table .fp-total-value { font-weight: 800; }
+
+/* ---- General Terms and Conditions --------------------------------------- */
+.fp-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.fp-section-heading {
+  display: inline-block;
+  width: auto;
+  min-width: 8em;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--mt-red);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: none;
+}
+.fp-bullets {
+  list-style: disc;
+  padding-left: 26px;
+  margin: 6px 0 0 0;
+}
+.fp-bullets li {
+  font-size: 11.5px;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+.fp-bullets .fp-bullet-text {
+  border: 1px dashed transparent;
+  background: transparent;
+  padding: 2px 4px;
+  min-height: 1.4em;
+}
+.fp-bullets .fp-bullet-text:hover:not(:focus) {
+  border-color: #d8c9c7;
+  background: rgba(255, 248, 191, 0.18);
+}
+
+@media print {
+  /* Editor chrome must vanish on paper. */
+  .fp-sheet .fp-inline,
+  .fp-sheet .fp-textarea,
+  .fp-bullets .fp-bullet-text {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    color: inherit !important;
+  }
+  .fp-sheet .fp-textarea { margin-bottom: 8px !important; }
+  .fp-sheet.fp-cover { padding: 0 !important; }
+  .fp-cover-inner {
+    min-height: 0;
+    height: 100%;
+    padding: 28mm 22mm !important;
+  }
+}
