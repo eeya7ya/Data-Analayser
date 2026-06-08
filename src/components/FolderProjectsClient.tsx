@@ -1497,70 +1497,157 @@ function FileRowItem({
 /**
  * Financial Offer — deal economics view shared by Sales and Presales.
  *
- * Reserved tab: the full implementation will pull together the priced
- * quotation totals, margins, payment terms, and the related PO ledger so
- * both sides see the same numbers. For now we render a stable empty
- * shell so the tab strip and route shape are locked in; downstream work
- * fills the body in without renaming anything.
+ * Lists every quotation under this project and opens the printable
+ * Financial Proposal document (cover / contact details / items table /
+ * totals / T&C, all wired to the quotation data) in a new tab for the
+ * chosen quotation. The proposal itself is rendered by
+ * /financial-proposal?id=<n>.
  */
 function FinancialOfferTab({ project }: { project: Project }) {
   return (
-    <div className="space-y-3">
-      <div>
-        <h3 className="text-sm font-semibold text-magic-ink">
-          Financial Offer
-        </h3>
-        <p className="text-xs text-magic-ink/60">
-          Deal economics for{" "}
-          <span className="font-medium">{project.name}</span> — visible to
-          sales and presales.
-        </p>
-      </div>
-      <div className="rounded-lg border border-dashed border-magic-border bg-magic-soft/30 px-4 py-6 text-center">
-        <div className="text-sm font-semibold text-magic-ink/80">
-          Coming soon
-        </div>
-        <div className="mt-1 text-xs text-magic-ink/60">
-          This tab will summarise the priced quotation, margins, payment
-          terms, and the PO ledger for this project. The layout is being
-          reserved so links and bookmarks stay valid.
-        </div>
-      </div>
-    </div>
+    <ProposalsListTab
+      project={project}
+      title="Financial Offer"
+      subtitle={`Deal economics for ${project.name} — visible to sales and presales.`}
+      openHref={(id) => `/financial-proposal?id=${id}`}
+      ctaLabel="Open Financial Proposal"
+      emptyHint="No quotations on this project yet. Create one from the Quotations tab — the Financial Proposal will pick up its data automatically."
+    />
   );
 }
 
 /**
  * Technical Proposal — presales-only deliverable view.
  *
- * Reserved tab: will collect the system narrative, BOQ summary, scope
- * boundaries, and any technical diagrams that go out to the client
- * alongside the priced quotation. Hidden from sales because the artefact
- * is owned by presales engineering.
+ * Lists every quotation under this project and opens the printable
+ * Technical Proposal document (catalogue-enriched BoM, editable
+ * diagrams, references, T&C) in a new tab. The proposal itself is
+ * rendered by /technical-proposal?id=<n>.
  */
 function TechnicalProposalTab({ project }: { project: Project }) {
   return (
+    <ProposalsListTab
+      project={project}
+      title="Technical Proposal"
+      subtitle={`Presales engineering deliverable for ${project.name}.`}
+      openHref={(id) => `/technical-proposal?id=${id}`}
+      ctaLabel="Open Technical Proposal"
+      emptyHint="No quotations on this project yet. Create one from the Quotations tab — the Technical Proposal will auto-pull descriptions from the catalogue."
+    />
+  );
+}
+
+/**
+ * Shared list view behind both the Financial Offer and Technical
+ * Proposal tabs. Fetches the project's quotations and renders each row
+ * with a CTA that opens the corresponding printable proposal in a new
+ * tab. Kept generic so the two tabs only differ by label / href, not
+ * by data flow.
+ */
+function ProposalsListTab({
+  project,
+  title,
+  subtitle,
+  openHref,
+  ctaLabel,
+  emptyHint,
+}: {
+  project: Project;
+  title: string;
+  subtitle: string;
+  openHref: (quotationId: number) => string;
+  ctaLabel: string;
+  emptyHint: string;
+}) {
+  const [items, setItems] = useState<QuotationRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setItems(null);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/quotations?project_id=${project.id}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as { quotations?: QuotationRow[] };
+        if (!cancelled) setItems(data.quotations ?? []);
+      } catch (err) {
+        if (!cancelled) setError((err as Error).message);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+
+  return (
     <div className="space-y-3">
       <div>
-        <h3 className="text-sm font-semibold text-magic-ink">
-          Technical Proposal
-        </h3>
-        <p className="text-xs text-magic-ink/60">
-          Presales engineering deliverable for{" "}
-          <span className="font-medium">{project.name}</span>.
-        </p>
+        <h3 className="text-sm font-semibold text-magic-ink">{title}</h3>
+        <p className="text-xs text-magic-ink/60">{subtitle}</p>
       </div>
-      <div className="rounded-lg border border-dashed border-magic-border bg-magic-soft/30 px-4 py-6 text-center">
-        <div className="text-sm font-semibold text-magic-ink/80">
-          Coming soon
+      {error && (
+        <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
         </div>
-        <div className="mt-1 text-xs text-magic-ink/60">
-          This tab will host the system narrative, BOQ summary, scope
-          boundaries, and any technical diagrams that ship with the
-          quotation. The layout is being reserved so links and bookmarks
-          stay valid.
+      )}
+      {items === null && !error && (
+        <div className="rounded-md border border-magic-border bg-white px-3 py-3 text-xs text-magic-ink/60">
+          Loading quotations…
         </div>
-      </div>
+      )}
+      {items !== null && items.length === 0 && (
+        <div className="rounded-lg border border-dashed border-magic-border bg-magic-soft/30 px-4 py-6 text-center text-xs text-magic-ink/70">
+          {emptyHint}
+        </div>
+      )}
+      {items !== null && items.length > 0 && (
+        <ul className="space-y-2">
+          {items.map((q) => (
+            <li
+              key={q.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-magic-border bg-white px-3 py-2.5"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-sm font-semibold text-magic-ink">
+                  <span className="rounded bg-magic-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-magic-red">
+                    {q.ref}
+                  </span>
+                  <span className="truncate">
+                    {q.project_name || "Untitled quotation"}
+                  </span>
+                  {q.status && q.status !== "active" && (
+                    <span className="rounded bg-magic-border/40 px-1.5 py-0.5 text-[10px] uppercase text-magic-ink/70">
+                      {q.status}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-0.5 text-[11px] text-magic-ink/60">
+                  Created{" "}
+                  {new Date(q.created_at).toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </div>
+              </div>
+              <a
+                href={openHref(q.id)}
+                target="_blank"
+                rel="noopener"
+                className="rounded-md bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+              >
+                {ctaLabel}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
