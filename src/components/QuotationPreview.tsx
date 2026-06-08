@@ -830,6 +830,40 @@ export default function QuotationPreview({
   // "jump to No" input driven by `moveRowToNo` below. See that function
   // for the reorder logic.
 
+  // ── Per-merge undo stack ────────────────────────────────────────────
+  // Every time a cell is MERGED (not unmerged) we snapshot the current
+  // items[] so the toolbar's "Undo last merge" button can pop the last
+  // snapshot and revert just that one merge. This matters because
+  // `toggleMerge` has a side effect — it copies the anchor row's value
+  // into the merged row's own column — so a flag-only reversal would
+  // leave the row's value pointing at the anchor's data. A snapshot
+  // restores both the merge flag and the original value in one step.
+  // Stack is capped so a runaway batch can't eat memory.
+  const mergeUndoStackRef = useRef<QuotationItem[][]>([]);
+  const [mergeUndoCount, setMergeUndoCount] = useState(0);
+
+  function pushMergeSnapshot() {
+    const snapshot = items.map((it) => ({
+      ...it,
+      merge_up: it.merge_up ? { ...it.merge_up } : undefined,
+      merge_left: it.merge_left ? { ...it.merge_left } : undefined,
+      extra: it.extra ? { ...it.extra } : undefined,
+    }));
+    mergeUndoStackRef.current.push(snapshot);
+    if (mergeUndoStackRef.current.length > 30) {
+      mergeUndoStackRef.current.shift();
+    }
+    setMergeUndoCount(mergeUndoStackRef.current.length);
+  }
+
+  function undoLastMerge() {
+    if (!setItems) return;
+    const prev = mergeUndoStackRef.current.pop();
+    setMergeUndoCount(mergeUndoStackRef.current.length);
+    if (!prev) return;
+    setItems(prev);
+  }
+
   // Toggles the `merge_up` flag for a specific column on a specific row.
   // Pairs with SystemTable's `computeMergePlan` to render rowSpan correctly.
   // On merge (not unmerge) we also copy the anchor row's value into the
@@ -847,6 +881,9 @@ export default function QuotationPreview({
       setItems(next);
       return;
     }
+    // Snapshot before we actually merge, so "Undo last merge" can
+    // restore the row's original value alongside the flag.
+    pushMergeSnapshot();
     merge_up[col] = true;
 
     // Walk back through rows in the same system group to find the
@@ -910,6 +947,9 @@ export default function QuotationPreview({
     if (merge_left[col]) {
       delete merge_left[col];
     } else {
+      // Snapshot before we merge so "Undo last merge" can roll this
+      // single merge back without affecting any other cells.
+      pushMergeSnapshot();
       merge_left[col] = true;
     }
     next[globalIndex] = { ...cur, merge_left };
@@ -1265,11 +1305,16 @@ export default function QuotationPreview({
                 + Add manual item
               </button>
               <button
-                onClick={() => unmergeAllRows(group.system)}
-                className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
-                title="Undo every cell merge on this page"
+                onClick={undoLastMerge}
+                disabled={mergeUndoCount === 0}
+                className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft disabled:opacity-40 disabled:cursor-not-allowed"
+                title={
+                  mergeUndoCount > 0
+                    ? `Undo only the most recent cell merge (${mergeUndoCount} step${mergeUndoCount === 1 ? "" : "s"} available)`
+                    : "Nothing to undo yet — merge a cell first"
+                }
               >
-                ↺ Unmerge cells
+                ↺ Undo last merge
               </button>
               {/* Only show the "add column" button on the first group so the
                * user isn't tempted to add the same column multiple times —
