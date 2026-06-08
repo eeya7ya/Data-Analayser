@@ -4,6 +4,10 @@ import { requireUser, canReadAll } from "@/lib/auth";
 import { requireModuleAllowLegacy, requireCrmOrProjectsRead } from "@/lib/modules";
 import { assignedCompanyIds } from "@/lib/projectAccess";
 import { findCrossKindConflicts } from "@/lib/crmNames";
+import {
+  cascadeSoftDeleteCompany,
+  cascadeRestoreCompany,
+} from "@/lib/cascade";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -281,11 +285,28 @@ export async function PATCH(req: NextRequest) {
       await q`update companies set notes = ${v} where id = ${id}`;
     }
     if (body.archived !== undefined) {
-      await q`
-        update companies
-        set deleted_at = ${body.archived ? new Date().toISOString() : null}
-        where id = ${id}
-      `;
+      if (body.archived) {
+        // Archive = soft-delete the company AND its whole subtree (folders,
+        // projects, quotations, leads, POs, files) under one timestamp, so
+        // nothing the company owned keeps showing in any active list.
+        const ts = new Date().toISOString();
+        await cascadeSoftDeleteCompany(q, id, ts);
+        await q`
+          update companies set deleted_at = ${ts} where id = ${id}
+        `;
+      } else {
+        // Un-archive = restore the company, then re-light the subtree that
+        // went down with it (matched on the company's old timestamp) before
+        // clearing the company's own stamp.
+        const prev = (await q`
+          select deleted_at from companies where id = ${id} limit 1
+        `) as Array<{ deleted_at: string | null }>;
+        const prevTs = prev[0]?.deleted_at ?? null;
+        if (prevTs) await cascadeRestoreCompany(q, id, prevTs);
+        await q`
+          update companies set deleted_at = null where id = ${id}
+        `;
+      }
     }
     await q`update companies set updated_at = now() where id = ${id}`;
 

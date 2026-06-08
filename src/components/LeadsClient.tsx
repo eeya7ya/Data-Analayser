@@ -115,11 +115,14 @@ export default function LeadsClient({
   const [tab, setTab] = useState<Tab>(isPresales ? "new" : "all");
   const [age, setAge] = useState<AgeFilter>("all");
   const [sort, setSort] = useState<SortKey>("newest");
+  const [junk, setJunk] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
+  const [actBusy, setActBusy] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,7 +130,8 @@ export default function LeadsClient({
     setError(null);
 
     const params = new URLSearchParams();
-    if (isPresales && tab !== "all") params.set("status", tab);
+    if (junk) params.set("view", "junk");
+    else if (isPresales && tab !== "all") params.set("status", tab);
 
     fetch(`/api/leads?${params.toString()}`, { cache: "no-store" })
       .then((r) => r.json())
@@ -151,7 +155,38 @@ export default function LeadsClient({
     return () => {
       cancelled = true;
     };
-  }, [tab, isPresales]);
+  }, [tab, isPresales, junk, reloadKey]);
+
+  // Lead junk actions. Move-to-junk / restore / delete-forever all hit the
+  // leads API and then re-fetch so the row leaves (or returns to) the view.
+  async function junkAction(
+    leadId: number,
+    action: "junk" | "restore" | "purge",
+  ) {
+    if (action === "purge" && !window.confirm("Delete this lead forever? This cannot be undone.")) {
+      return;
+    }
+    setActBusy(true);
+    setError(null);
+    try {
+      let res: Response;
+      if (action === "junk") {
+        res = await fetch(`/api/leads/${leadId}`, { method: "DELETE" });
+      } else if (action === "purge") {
+        res = await fetch(`/api/leads/${leadId}?purge=1`, { method: "DELETE" });
+      } else {
+        res = await fetch(`/api/leads/${leadId}/restore`, { method: "POST" });
+      }
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setSelectedId(null);
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setActBusy(false);
+    }
+  }
 
   // Filter (search + age) then sort — all client-side over a small queue.
   const visible = useMemo(() => {
@@ -231,19 +266,36 @@ export default function LeadsClient({
       {/* ── Toolbar ─────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          {isPresales ? (
-            <SegTabs
-              value={tab}
-              onChange={(v) => setTab(v as Tab)}
-              options={[
-                { value: "new", label: "Unclaimed" },
-                { value: "in_progress", label: "In progress" },
-                { value: "all", label: "All" },
-              ]}
-            />
-          ) : (
-            <span />
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {isPresales && !junk && (
+              <SegTabs
+                value={tab}
+                onChange={(v) => setTab(v as Tab)}
+                options={[
+                  { value: "new", label: "Unclaimed" },
+                  { value: "in_progress", label: "In progress" },
+                  { value: "all", label: "All" },
+                ]}
+              />
+            )}
+            {/* Junk toggle — presales (and the lead creator) triage noise /
+                duplicates here; the live queue and junk are mutually
+                exclusive views. */}
+            <button
+              type="button"
+              onClick={() => {
+                setJunk((v) => !v);
+                setSelectedId(null);
+              }}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                junk
+                  ? "border-magic-red bg-magic-red text-white"
+                  : "border-magic-border bg-white text-magic-ink/65 hover:bg-magic-soft"
+              }`}
+            >
+              {junk ? "← Back to queue" : "Junk"}
+            </button>
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -328,7 +380,12 @@ export default function LeadsClient({
               lead={selected}
               isPresales={isPresales}
               mine={selected.assigned_to_id === userId}
+              junk={junk}
+              actBusy={actBusy}
               onAssign={() => router.push(`/leads/${selected.id}/assign`)}
+              onJunk={() => void junkAction(selected.id, "junk")}
+              onRestore={() => void junkAction(selected.id, "restore")}
+              onPurge={() => void junkAction(selected.id, "purge")}
             />
           ) : (
             <div className="rounded-2xl border border-dashed border-magic-border bg-white/60 p-8 text-center text-sm text-magic-ink/55">
@@ -426,15 +483,29 @@ function LeadDetailPane({
   lead,
   isPresales,
   mine,
+  junk,
+  actBusy,
   onAssign,
+  onJunk,
+  onRestore,
+  onPurge,
 }: {
   lead: Lead;
   isPresales: boolean;
   mine: boolean;
+  junk: boolean;
+  actBusy: boolean;
   onAssign: () => void;
+  onJunk: () => void;
+  onRestore: () => void;
+  onPurge: () => void;
 }) {
   const updated = lead.updated_at && lead.updated_at !== lead.created_at;
-  const claimable = isPresales && lead.status === "new" && !lead.assigned_to_id;
+  const claimable =
+    !junk && isPresales && lead.status === "new" && !lead.assigned_to_id;
+  // Presales can junk an active lead; the creator can too. (Server
+  // re-checks; this just governs button visibility.)
+  const canJunk = !junk && isPresales;
   return (
     <div className="rounded-2xl border border-magic-border bg-white shadow-sm">
       <div className="border-b border-magic-border/60 px-5 py-4">
@@ -508,29 +579,63 @@ function LeadDetailPane({
         )}
 
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          {claimable && (
-            <button
-              type="button"
-              onClick={onAssign}
-              className="rounded-lg bg-magic-red px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
-            >
-              Claim &amp; file →
-            </button>
+          {junk ? (
+            <>
+              <button
+                type="button"
+                onClick={onRestore}
+                disabled={actBusy}
+                className="rounded-lg bg-magic-red px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
+              >
+                Restore
+              </button>
+              <button
+                type="button"
+                onClick={onPurge}
+                disabled={actBusy}
+                className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+              >
+                Delete forever
+              </button>
+            </>
+          ) : (
+            <>
+              {claimable && (
+                <button
+                  type="button"
+                  onClick={onAssign}
+                  className="rounded-lg bg-magic-red px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
+                >
+                  Claim &amp; file →
+                </button>
+              )}
+              {isPresales && mine && lead.folder_id && (
+                <Link
+                  href={`/folder/${lead.folder_id}`}
+                  className="rounded-lg bg-magic-red px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
+                >
+                  Open client workspace →
+                </Link>
+              )}
+              <Link
+                href={`/leads/${lead.id}`}
+                className="rounded-lg border border-magic-border px-3 py-2 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft"
+              >
+                Open full lead
+              </Link>
+              {canJunk && (
+                <button
+                  type="button"
+                  onClick={onJunk}
+                  disabled={actBusy}
+                  className="ml-auto rounded-lg border border-magic-border px-3 py-2 text-xs font-semibold text-magic-ink/60 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 disabled:opacity-50"
+                  title="Move this lead to junk (restorable)"
+                >
+                  Move to junk
+                </button>
+              )}
+            </>
           )}
-          {isPresales && mine && lead.folder_id && (
-            <Link
-              href={`/folder/${lead.folder_id}`}
-              className="rounded-lg bg-magic-red px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-magic-red/90"
-            >
-              Open client workspace →
-            </Link>
-          )}
-          <Link
-            href={`/leads/${lead.id}`}
-            className="rounded-lg border border-magic-border px-3 py-2 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft"
-          >
-            Open full lead
-          </Link>
         </div>
       </div>
     </div>

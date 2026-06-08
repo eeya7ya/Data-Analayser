@@ -6,6 +6,7 @@ import { requireModuleAllowLegacy, requireCrmOrProjectsRead } from "@/lib/module
 import { assignedFolderIds } from "@/lib/projectAccess";
 import { ensureDefaultProject } from "@/lib/projects";
 import { findCrossKindConflicts } from "@/lib/crmNames";
+import { cascadeSoftDeleteFolder } from "@/lib/cascade";
 
 export const runtime = "nodejs";
 
@@ -462,17 +463,17 @@ export async function DELETE(req: NextRequest) {
     if (user.role !== "admin" && owned[0].owner_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    // Soft delete: stamp both the folder and every quotation inside it with
-    // the same deleted_at so the trash UI can group and offer a cascade
-    // restore ("undo the delete").
-    await q`
-      update quotations
-      set deleted_at = now()
-      where folder_id = ${id} and deleted_at is null
-    `;
+    // Soft delete: stamp the folder AND its entire subtree (projects,
+    // quotations, leads, purchase orders, project files) with the SAME
+    // deleted_at so nothing is left orphaned in a list — a deleted client's
+    // lead used to linger in the lead queue because only its quotations
+    // cascaded. The shared timestamp lets the trash UI group + restore them
+    // together.
+    const ts = new Date().toISOString();
+    await cascadeSoftDeleteFolder(q, id, ts);
     await q`
       update client_folders
-      set deleted_at = now(), updated_at = now()
+      set deleted_at = ${ts}, updated_at = now()
       where id = ${id}
     `;
     revalidatePath("/quotation");
