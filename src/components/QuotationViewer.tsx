@@ -420,6 +420,15 @@ export default function QuotationViewer({
         >
           Print BOQ
         </button>
+        <button
+          onClick={() =>
+            window.open(`/financial-proposal?id=${id}`, "_blank", "noopener")
+          }
+          title="Open the Financial Proposal document — cover, contact details, items table and terms, ready to print or save as PDF"
+          className="rounded-md border border-magic-red text-magic-red px-4 py-2 text-sm font-semibold hover:bg-magic-red hover:text-white transition-colors"
+        >
+          Financial Proposal
+        </button>
       </div>
       {requestDone && (
         <div className="no-print mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
