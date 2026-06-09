@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { canReadAll, getSessionUser } from "@/lib/auth";
 import { ensureSchema } from "@/lib/db";
-import { hasModule } from "@/lib/modules";
+import { hasModule, hasModuleRole } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 import StorageWorkspace from "@/components/StorageWorkspace";
 
@@ -24,6 +24,8 @@ export default async function CrmStoragePage() {
 
   const isAdmin = canReadAll(user);
   const hasStorage = isAdmin || (await hasModule(user.id, "storage"));
+  const canManage =
+    isAdmin || (await hasModuleRole(user.id, "storage", "manager"));
 
   if (!hasStorage) {
     return (
@@ -61,10 +63,10 @@ export default async function CrmStoragePage() {
           </Link>
           <h1 className="mt-1 text-2xl font-bold text-magic-ink">Storage</h1>
           <p className="mt-0.5 text-sm text-magic-ink/60">
-            Browse the product catalogue and manage stock.
+            Track stock levels, locations, and movements.
           </p>
         </header>
-        <StorageWorkspace user={user} />
+        <StorageWorkspace canManage={canManage} canRecord={hasStorage} />
       </main>
     </div>
   );

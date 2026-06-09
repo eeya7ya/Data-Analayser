@@ -1753,6 +1753,68 @@ async function _ensureSchemaOnce(): Promise<void> {
         where status = 'pending'
     `;
 
+    // 6b. Storage V1.5A — event-sourced stock foundation.
+    //     Source of truth = the append-only `stock_events` ledger;
+    //     `stock_placements` is a derived (item, node) on-hand cache updated
+    //     in the SAME transaction as each event (item total = sum of its
+    //     placements). Locations are a self-referencing TREE (any depth,
+    //     freely editable) and items carry a per-item reorder point.
+    //     See docs/storage-module-v1.5A.md.
+    await q`
+      create table if not exists stock_location_nodes (
+        id         serial primary key,
+        parent_id  integer references stock_location_nodes(id) on delete cascade,
+        name       text not null,
+        created_at timestamptz not null default now(),
+        deleted_at timestamptz
+      )
+    `;
+    await q`
+      create index if not exists stock_location_nodes_parent_idx
+        on stock_location_nodes(parent_id)
+    `;
+    await q`
+      create table if not exists stock_item_settings (
+        item_id       integer primary key references products(id) on delete cascade,
+        reorder_point integer not null default 0 check (reorder_point >= 0),
+        updated_at    timestamptz not null default now()
+      )
+    `;
+    await q`
+      create table if not exists stock_events (
+        id           bigserial primary key,
+        event_uid    uuid not null default gen_random_uuid() unique,
+        item_id      integer not null references products(id) on delete cascade,
+        type         text not null check (type in ('IN','OUT','MOVE','ADJUST')),
+        qty          integer not null check (qty > 0),
+        from_node_id integer references stock_location_nodes(id),
+        to_node_id   integer references stock_location_nodes(id),
+        actor_id     integer references users(id) on delete set null,
+        method       text not null default 'manual'
+          check (method in ('scan','manual','import','sync')),
+        reason       text,
+        occurred_at  timestamptz not null default now(),
+        recorded_at  timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists stock_events_item_idx
+        on stock_events(item_id, recorded_at desc)
+    `;
+    await q`
+      create table if not exists stock_placements (
+        item_id    integer not null references products(id) on delete cascade,
+        node_id    integer not null references stock_location_nodes(id) on delete cascade,
+        qty        integer not null default 0 check (qty >= 0),
+        updated_at timestamptz not null default now(),
+        primary key (item_id, node_id)
+      )
+    `;
+    await q`
+      create index if not exists stock_placements_node_idx
+        on stock_placements(node_id)
+    `;
+
     // 7. Admin-curated dashboard announcements. Audience targeting is
     //    array-based so a single post can target multiple modules / roles
     //    without a join table. Pinned posts float to the top.
