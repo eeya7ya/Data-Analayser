@@ -1703,54 +1703,15 @@ async function _ensureSchemaOnce(): Promise<void> {
         on project_assignments(project_id, deleted_at)
     `;
 
-    // 6. Storage module skeleton. Stock is keyed by (product_id,
-    //    location_id) so the same SKU can live in multiple warehouses.
-    //    Requests are issued by Projects-module users; storage manager
-    //    flips status from pending → approved/denied/fulfilled. Nothing
-    //    is ever deleted — denied requests stay queryable.
-    await q`
-      create table if not exists storage_locations (
-        id         serial primary key,
-        name       text unique not null,
-        address    text,
-        created_at timestamptz not null default now(),
-        deleted_at timestamptz
-      )
-    `;
-    await q`
-      create table if not exists storage_stock (
-        product_id  integer not null references products(id) on delete cascade,
-        location_id integer not null references storage_locations(id) on delete cascade,
-        on_hand     integer not null default 0 check (on_hand >= 0),
-        reserved    integer not null default 0 check (reserved >= 0),
-        updated_at  timestamptz not null default now(),
-        primary key (product_id, location_id)
-      )
-    `;
-    await q`
-      create table if not exists storage_requests (
-        id            bigserial primary key,
-        project_id    integer references projects(id) on delete set null,
-        product_id    integer references products(id) on delete set null,
-        location_id   integer references storage_locations(id) on delete set null,
-        quantity      integer not null check (quantity > 0),
-        requested_by  integer references users(id) on delete set null,
-        status        text not null default 'pending'
-          check (status in ('pending','approved','denied','fulfilled')),
-        handled_by    integer references users(id) on delete set null,
-        handled_at    timestamptz,
-        reason        text,
-        created_at    timestamptz not null default now()
-      )
-    `;
-    await q`
-      create index if not exists storage_requests_status_idx
-        on storage_requests(status, created_at)
-    `;
-    await q`
-      create index if not exists storage_requests_project_idx
-        on storage_requests(project_id, status)
-    `;
+    // 6. Storage module — V1.5A.
+    //    The legacy flat inventory model (storage_locations / storage_stock /
+    //    storage_requests) was REMOVED in V1.5A. It is superseded by the
+    //    event-sourced, tree-based, multi-node stock model spec'd in
+    //    docs/storage-module-v1.5A.md (one append-only stock_events ledger as
+    //    the source of truth; totals derived, never stored). The legacy
+    //    tables were dropped from the database; nothing recreates them here.
+    //    The BOQ availability check below (quotation_stock_checks) is a
+    //    quotation feature and is intentionally retained.
 
     // BOQ availability checks. When a presales engineer wants to know
     // whether the warehouse can fulfil a draft quotation, they fire one

@@ -8,7 +8,7 @@ import ExecutionDashboardClient, {
   type ExecutionProject,
 } from "@/components/ExecutionDashboardClient";
 import StorageDashboardClient, {
-  type StorageRequestRow,
+  type StorageCheckRow,
 } from "@/components/StorageDashboardClient";
 
 export const dynamic = "force-dynamic";
@@ -111,35 +111,26 @@ export default async function DashboardPage() {
     );
   }
 
-  // Storage people get a warehouse-oriented board.
+  // Storage people get a stock-checks board. (V1.5A removed the legacy flat
+  // inventory; the new event-sourced stock module is spec'd in
+  // docs/storage-module-v1.5A.md.)
   const isStorage = hasGrant("storage");
   if (!isAdmin && isStorage && !isCrm && !isProjects) {
     const qs = sql();
     const k = (await qs`
       select
-        (select count(*) from storage_requests where status = 'pending')::int as pending,
-        (select count(*) from storage_requests where status = 'fulfilled')::int as fulfilled,
-        (select count(*) from storage_locations where deleted_at is null)::int as locations,
-        (select count(distinct product_id) from storage_stock)::int as stock_items,
-        (select count(*) from quotation_stock_checks where status = 'pending')::int as pending_checks
-    `) as Array<{
-      pending: number;
-      fulfilled: number;
-      locations: number;
-      stock_items: number;
-      pending_checks: number;
-    }>;
-    const reqs = (await qs`
-      select sr.id, sr.quantity, sr.status, sr.created_at,
-             coalesce(nullif(trim(p.vendor || ' ' || p.model), ''), 'Item') as product_label,
-             pr.name as project_name
-      from storage_requests sr
-      left join products p on p.id = sr.product_id
-      left join projects pr on pr.id = sr.project_id
-      where sr.status = 'pending'
-      order by sr.created_at desc
+        (select count(*) from quotation_stock_checks where status = 'pending')::int  as pending_checks,
+        (select count(*) from quotation_stock_checks where status = 'answered')::int as answered_checks
+    `) as Array<{ pending_checks: number; answered_checks: number }>;
+    const checks = (await qs`
+      select c.id, c.quotation_id, q.ref as quotation_ref, q.project_name,
+             jsonb_array_length(c.items_json) as item_count, c.created_at
+      from quotation_stock_checks c
+      join quotations q on q.id = c.quotation_id
+      where c.status = 'pending'
+      order by c.created_at desc
       limit 20
-    `) as StorageRequestRow[];
+    `) as StorageCheckRow[];
 
     return (
       <div className="min-h-screen bg-magic-soft/40">
@@ -148,13 +139,10 @@ export default async function DashboardPage() {
           <StorageDashboardClient
             greetingName={user.display_name || user.username}
             kpis={{
-              pending: k[0].pending,
-              fulfilled: k[0].fulfilled,
-              locations: k[0].locations,
-              stockItems: k[0].stock_items,
               pendingChecks: k[0].pending_checks,
+              answeredChecks: k[0].answered_checks,
             }}
-            requests={reqs}
+            checks={checks}
           />
         </main>
       </div>

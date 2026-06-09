@@ -11,11 +11,12 @@ import CatalogBrowser from "@/components/CatalogBrowser";
  *     by any column, build a quotation manually). Reuses the same
  *     CatalogBrowser as /catalog; it self-fetches the system list when
  *     mounted with an empty `initialSystems`.
- *   • Stock Management — placeholder for now; wired up in a later pass.
+ *   • Stock Management — placeholder for the V1.5A event-sourced stock
+ *     module (docs/storage-module-v1.5A.md); wired up in a later pass.
  *
- * The legacy inventory panel (Requests / Stock checks / Stock /
- * Locations) intentionally lives outside this view — it stays on
- * /storage and is reached from the dashboard.
+ * The stock-checks inbox (BOQ availability requests from quotations) lives
+ * on /storage and is reached from the dashboard. The legacy flat inventory
+ * (Stock / Locations / Requests) was removed in V1.5A.
  */
 
 type Tab = "catalogue" | "stock";
@@ -40,7 +41,7 @@ export default function StorageWorkspace({ user }: { user: SessionUser }) {
         <div className="rounded-2xl border border-dashed border-magic-border bg-white p-10 text-center">
           <h2 className="text-lg font-bold text-magic-ink">Stock Management</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-magic-ink/60">
-            This area will be configured later.
+            The V1.5A event-sourced stock module will be configured here.
           </p>
         </div>
       )}
