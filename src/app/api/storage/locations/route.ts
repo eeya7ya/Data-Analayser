@@ -1,180 +1,175 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { canReadAll, requireUser } from "@/lib/auth";
 import { hasModule, hasModuleRole } from "@/lib/modules";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 /**
- * Storage locations.
- *
- *   GET    — any storage.* user, any projects.* user (needs to know
- *            where to request from), or admin. The list is short
- *            (warehouses) so no pagination.
- *   POST   — storage.manager or admin. Creates a new location. Idempotent
- *            on `name` (unique constraint at the DB level).
- *   PATCH  — storage.manager or admin. Renames or soft-archives.
- *            Setting `deleted_at` via PATCH archives the location; the
- *            row and its stock history stay queryable. No DELETE
- *            handler — archive is the destructive-most operation.
+ * Storage V1.5A — location TREE (Feature 4). Every node knows only its
+ * `name` and its `parent_id`; the full address is walked from the parents
+ * at read time via a recursive CTE (never stored as a string). Reads are
+ * open to any storage / admin user; mutations require a storage manager
+ * (or admin).
  */
 
-interface LocationRow {
-  id: number;
-  name: string;
-  address: string | null;
-  created_at: string;
-  deleted_at: string | null;
+async function canManage(userId: number, isAdmin: boolean): Promise<boolean> {
+  return isAdmin || (await hasModuleRole(userId, "storage", "manager"));
 }
 
-async function canManageStorage(
-  userId: number,
-  userRole: string,
-): Promise<boolean> {
-  if (userRole === "admin") return true;
-  return hasModuleRole(userId, "storage", "manager");
-}
-
-async function canReadStorage(
-  userId: number,
-  userRole: string,
-): Promise<boolean> {
-  if (userRole === "admin") return true;
-  if (await hasModule(userId, "storage")) return true;
-  if (await hasModule(userId, "projects")) return true;
-  return false;
-}
-
+// GET — every node with its computed full path + depth (archived included,
+// flagged via deleted_at so the UI can fade them).
 export async function GET() {
   try {
     const user = await requireUser();
     await ensureSchema();
-    if (!(await canReadStorage(user.id, user.role))) {
+    const isAdmin = canReadAll(user);
+    if (!isAdmin && !(await hasModule(user.id, "storage"))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     const q = sql();
-    const rows = (await q`
-      select id, name, address, created_at, deleted_at
-      from storage_locations
-      order by (deleted_at is not null), name
-    `) as LocationRow[];
-    return NextResponse.json({ locations: rows });
+    const nodes = (await q`
+      with recursive tree as (
+        select id, parent_id, name, deleted_at,
+               name::text as path, 0 as depth
+        from stock_location_nodes
+        where parent_id is null
+        union all
+        select n.id, n.parent_id, n.name, n.deleted_at,
+               t.path || ' › ' || n.name, t.depth + 1
+        from stock_location_nodes n
+        join tree t on n.parent_id = t.id
+      )
+      select id, parent_id, name, deleted_at, path, depth
+      from tree
+      order by path
+    `) as Array<Record<string, unknown>>;
+    return NextResponse.json({ nodes });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "UNKNOWN";
-    const status = msg === "UNAUTHENTICATED" ? 401 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    const msg = (err as Error).message;
+    return NextResponse.json(
+      { error: msg },
+      { status: msg === "UNAUTHENTICATED" ? 401 : 500 },
+    );
   }
 }
 
-export async function POST(req: Request) {
+// POST { name, parent_id? } — create a node.
+export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    if (!(await canManageStorage(user.id, user.role))) {
-      return NextResponse.json(
-        { error: "requires storage.manager or admin" },
-        { status: 403 },
-      );
+    const isAdmin = canReadAll(user);
+    if (!(await canManage(user.id, isAdmin))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
-    const body = (await req.json()) as { name?: string; address?: string };
+    const body = (await req.json()) as { name?: string; parent_id?: number | null };
     const name = String(body.name ?? "").trim();
     if (!name) {
-      return NextResponse.json({ error: "name required" }, { status: 400 });
+      return NextResponse.json({ error: "name is required" }, { status: 400 });
     }
-    const address = String(body.address ?? "").trim() || null;
+    const parentId =
+      body.parent_id == null ? null : Number(body.parent_id);
+    if (parentId != null && !Number.isInteger(parentId)) {
+      return NextResponse.json({ error: "invalid parent" }, { status: 400 });
+    }
     const q = sql();
-    const existing = (await q`
-      select id from storage_locations where name = ${name}
-    `) as Array<{ id: number }>;
-    if (existing.length > 0) {
-      return NextResponse.json(
-        { error: "a location with that name already exists" },
-        { status: 409 },
-      );
+    if (parentId != null) {
+      const parent = (await q`
+        select id from stock_location_nodes where id = ${parentId} limit 1
+      `) as Array<{ id: number }>;
+      if (parent.length === 0) {
+        return NextResponse.json({ error: "parent not found" }, { status: 404 });
+      }
     }
-    const inserted = (await q`
-      insert into storage_locations (name, address)
-      values (${name}, ${address})
-      returning id, name, address, created_at, deleted_at
-    `) as LocationRow[];
-    await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
-      values (${user.id}, 'storage_location', ${inserted[0].id}, 'create',
-              ${JSON.stringify({ name, address })}::jsonb)
-    `;
-    return NextResponse.json({ location: inserted[0] });
+    const rows = (await q`
+      insert into stock_location_nodes (parent_id, name)
+      values (${parentId}, ${name})
+      returning id, parent_id, name, created_at
+    `) as Array<Record<string, unknown>>;
+    return NextResponse.json({ node: rows[0] }, { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "UNKNOWN";
-    const status = msg === "UNAUTHENTICATED" ? 401 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    const msg = (err as Error).message;
+    return NextResponse.json(
+      { error: msg },
+      { status: msg === "UNAUTHENTICATED" ? 401 : 500 },
+    );
   }
 }
 
-export async function PATCH(req: Request) {
+// PATCH { id, name? } rename · { id, archived } archive/unarchive ·
+//       { id, parent_id } move a whole branch (children follow automatically).
+export async function PATCH(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    if (!(await canManageStorage(user.id, user.role))) {
-      return NextResponse.json(
-        { error: "requires storage.manager or admin" },
-        { status: 403 },
-      );
+    const isAdmin = canReadAll(user);
+    if (!(await canManage(user.id, isAdmin))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     const body = (await req.json()) as {
       id?: number;
       name?: string;
-      address?: string | null;
       archived?: boolean;
+      parent_id?: number | null;
     };
     const id = Number(body.id);
-    if (!Number.isInteger(id) || id <= 0) {
-      return NextResponse.json({ error: "invalid id" }, { status: 400 });
+    if (!Number.isInteger(id)) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
     const q = sql();
-    const existing = (await q`
-      select id from storage_locations where id = ${id}
-    `) as Array<{ id: number }>;
-    if (existing.length === 0) {
-      return NextResponse.json({ error: "not found" }, { status: 404 });
+
+    if (typeof body.name === "string") {
+      const name = body.name.trim();
+      if (!name) {
+        return NextResponse.json({ error: "name cannot be empty" }, { status: 400 });
+      }
+      await q`update stock_location_nodes set name = ${name} where id = ${id}`;
     }
 
-    if (body.name !== undefined) {
-      const name = String(body.name).trim();
-      if (!name) {
+    if (typeof body.archived === "boolean") {
+      if (body.archived) {
+        await q`update stock_location_nodes set deleted_at = now() where id = ${id}`;
+      } else {
+        await q`update stock_location_nodes set deleted_at = null where id = ${id}`;
+      }
+    }
+
+    if (body.parent_id !== undefined) {
+      const parentId = body.parent_id == null ? null : Number(body.parent_id);
+      if (parentId === id) {
         return NextResponse.json(
-          { error: "name cannot be empty" },
+          { error: "a node cannot be its own parent" },
           { status: 400 },
         );
       }
-      await q`update storage_locations set name = ${name} where id = ${id}`;
-    }
-    if (body.address !== undefined) {
-      const address =
-        body.address === null ? null : String(body.address).trim() || null;
-      await q`update storage_locations set address = ${address} where id = ${id}`;
-    }
-    if (body.archived !== undefined) {
-      await q`
-        update storage_locations
-        set deleted_at = ${body.archived ? new Date().toISOString() : null}
-        where id = ${id}
-      `;
+      // Guard against moving a node under one of its own descendants
+      // (which would orphan the branch into a cycle).
+      if (parentId != null) {
+        const cycle = (await q`
+          with recursive sub as (
+            select id from stock_location_nodes where id = ${id}
+            union all
+            select n.id from stock_location_nodes n join sub on n.parent_id = sub.id
+          )
+          select 1 as bad from sub where id = ${parentId} limit 1
+        `) as Array<{ bad: number }>;
+        if (cycle.length > 0) {
+          return NextResponse.json(
+            { error: "cannot move a node into its own branch" },
+            { status: 400 },
+          );
+        }
+      }
+      await q`update stock_location_nodes set parent_id = ${parentId} where id = ${id}`;
     }
 
-    await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
-      values (${user.id}, 'storage_location', ${id}, 'update', ${JSON.stringify(body)}::jsonb)
-    `;
-
-    const updated = (await q`
-      select id, name, address, created_at, deleted_at
-      from storage_locations where id = ${id}
-    `) as LocationRow[];
-    return NextResponse.json({ location: updated[0] });
+    return NextResponse.json({ ok: true });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "UNKNOWN";
-    const status = msg === "UNAUTHENTICATED" ? 401 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    const msg = (err as Error).message;
+    return NextResponse.json(
+      { error: msg },
+      { status: msg === "UNAUTHENTICATED" ? 401 : 500 },
+    );
   }
 }

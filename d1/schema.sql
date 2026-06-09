@@ -426,38 +426,9 @@ CREATE TABLE IF NOT EXISTS "quotations" (
   PRIMARY KEY ("id")
 );
 
-CREATE TABLE IF NOT EXISTS "storage_locations" (
-  "id" INTEGER,
-  "name" TEXT NOT NULL,
-  "address" TEXT,
-  "created_at" TEXT NOT NULL,
-  "deleted_at" TEXT,
-  PRIMARY KEY ("id")
-);
-
-CREATE TABLE IF NOT EXISTS "storage_requests" (
-  "id" INTEGER,
-  "project_id" INTEGER,
-  "product_id" INTEGER,
-  "location_id" INTEGER,
-  "quantity" INTEGER NOT NULL,
-  "requested_by" INTEGER,
-  "status" TEXT NOT NULL,
-  "handled_by" INTEGER,
-  "handled_at" TEXT,
-  "reason" TEXT,
-  "created_at" TEXT NOT NULL,
-  PRIMARY KEY ("id")
-);
-
-CREATE TABLE IF NOT EXISTS "storage_stock" (
-  "product_id" INTEGER,
-  "location_id" INTEGER,
-  "on_hand" INTEGER DEFAULT 0 NOT NULL,
-  "reserved" INTEGER DEFAULT 0 NOT NULL,
-  "updated_at" TEXT NOT NULL,
-  PRIMARY KEY ("product_id", "location_id")
-);
+-- The legacy flat storage model (storage_locations / storage_requests /
+-- storage_stock) was removed in V1.5A and is superseded by the
+-- event-sourced, tree-based stock model in docs/storage-module-v1.5A.md.
 
 CREATE TABLE IF NOT EXISTS "tasks" (
   "id" INTEGER,

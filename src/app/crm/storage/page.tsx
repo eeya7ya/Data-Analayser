@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { canReadAll, getSessionUser } from "@/lib/auth";
 import { ensureSchema } from "@/lib/db";
-import { hasModule } from "@/lib/modules";
+import { hasModule, hasModuleRole } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 import StorageWorkspace from "@/components/StorageWorkspace";
 
@@ -11,10 +11,10 @@ export const dynamic = "force-dynamic";
 /**
  * CRM → Storage tool. The Storage people's workspace: a Catalogue tab
  * (browse every product, build a quotation manually) and a Stock
- * Management tab (placeholder — wired up later). Gated to storage.* and
- * admins. The legacy inventory panel (Requests / Stock checks / Stock /
- * Locations) lives on at /storage and is reached from the dashboard;
- * it's intentionally kept out of this view per the storage restructure.
+ * Management tab (placeholder for the V1.5A event-sourced stock module —
+ * see docs/storage-module-v1.5A.md). Gated to storage.* and admins. The
+ * stock-checks inbox lives at /storage; the legacy flat inventory
+ * (Requests / Stock / Locations) was removed in V1.5A.
  */
 export default async function CrmStoragePage() {
   const user = await getSessionUser();
@@ -24,6 +24,8 @@ export default async function CrmStoragePage() {
 
   const isAdmin = canReadAll(user);
   const hasStorage = isAdmin || (await hasModule(user.id, "storage"));
+  const canManage =
+    isAdmin || (await hasModuleRole(user.id, "storage", "manager"));
 
   if (!hasStorage) {
     return (
@@ -61,10 +63,10 @@ export default async function CrmStoragePage() {
           </Link>
           <h1 className="mt-1 text-2xl font-bold text-magic-ink">Storage</h1>
           <p className="mt-0.5 text-sm text-magic-ink/60">
-            Browse the product catalogue and manage stock.
+            Track stock levels, locations, and movements.
           </p>
         </header>
-        <StorageWorkspace user={user} />
+        <StorageWorkspace canManage={canManage} canRecord={hasStorage} />
       </main>
     </div>
   );

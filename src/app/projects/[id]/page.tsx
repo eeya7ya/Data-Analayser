@@ -8,7 +8,6 @@ import ProjectAssignmentsPanel from "@/components/ProjectAssignmentsPanel";
 import MyAssignmentCard from "@/components/MyAssignmentCard";
 import ProjectBoqsTabSection from "@/components/ProjectBoqsTabSection";
 import ExecutionReportsPanel from "@/components/ExecutionReportsPanel";
-import RequestStockButton from "@/components/RequestStockButton";
 
 export const dynamic = "force-dynamic";
 
@@ -127,7 +126,6 @@ export default async function ProjectDetailPage({
             <h1 className="text-2xl font-bold text-magic-ink">
               {project.name}
             </h1>
-            <RequestStockButton projectId={id} />
           </div>
           <div className="mt-1 text-sm text-magic-ink/60 flex flex-wrap items-center gap-2">
             <span>Status: {project.status}</span>
