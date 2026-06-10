@@ -19,6 +19,8 @@ interface U {
   display_name: string;
   role: string;
   phone: string;
+  /** Work email printed on the user's quotations / financial proposals. */
+  email: string;
   created_at: string;
 }
 
@@ -98,15 +100,17 @@ export default function UsersAndRolesPanel({
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newRole, setNewRole] = useState<string>("crm.sales");
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
 
-  // Edit modal (display name / phone / password).
+  // Edit modal (display name / phone / email / password).
   const [editUser, setEditUser] = useState<U | null>(null);
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editErr, setEditErr] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -190,6 +194,7 @@ export default function UsersAndRolesPanel({
           role: newRole === "admin" ? "admin" : newRole === "viewer" ? "viewer" : "user",
           display_name: displayName,
           phone,
+          email,
         }),
       });
       const data = await res.json();
@@ -205,6 +210,7 @@ export default function UsersAndRolesPanel({
       setUsername("");
       setDisplayName("");
       setPhone("");
+      setEmail("");
       setPassword("");
       setNewRole("crm.sales");
       await loadAll();
@@ -230,6 +236,7 @@ export default function UsersAndRolesPanel({
     setEditUser(u);
     setEditDisplayName(u.display_name || "");
     setEditPhone(u.phone || "");
+    setEditEmail(u.email || "");
     setEditPassword("");
     setEditErr(null);
   }
@@ -243,6 +250,7 @@ export default function UsersAndRolesPanel({
       const body: Record<string, string> = {
         display_name: editDisplayName,
         phone: editPhone,
+        email: editEmail,
       };
       if (editPassword) body.password = editPassword;
       const res = await fetch(`/api/users?id=${editUser.id}`, {
@@ -281,7 +289,7 @@ export default function UsersAndRolesPanel({
           <h3 className="mb-3 text-sm font-semibold text-magic-ink">
             Create user
           </h3>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-7">
             <input
               className="rounded-md border border-magic-border px-3 py-2 text-sm"
               placeholder="username"
@@ -301,6 +309,13 @@ export default function UsersAndRolesPanel({
               placeholder="phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+            />
+            <input
+              className="rounded-md border border-magic-border px-3 py-2 text-sm"
+              type="email"
+              placeholder="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
             <input
               className="rounded-md border border-magic-border px-3 py-2 text-sm"
@@ -357,6 +372,7 @@ export default function UsersAndRolesPanel({
                     <div className="text-xs text-magic-ink/60">
                       {u.display_name || "—"}
                       {u.phone ? ` · ${u.phone}` : ""}
+                      {u.email ? ` · ${u.email}` : ""}
                     </div>
                     <div className="mt-0.5 font-mono text-[11px] text-magic-ink/40">
                       #{u.id} · {new Date(u.created_at).toLocaleDateString()}
@@ -423,9 +439,9 @@ export default function UsersAndRolesPanel({
                   <div className="truncate text-sm text-magic-ink/70">
                     {u.display_name || "—"}
                   </div>
-                  {u.phone && (
+                  {(u.phone || u.email) && (
                     <div className="mt-0.5 text-xs text-magic-ink/50">
-                      {u.phone}
+                      {[u.phone, u.email].filter(Boolean).join(" · ")}
                     </div>
                   )}
                 </div>
@@ -504,6 +520,13 @@ export default function UsersAndRolesPanel({
               placeholder="phone"
               value={editPhone}
               onChange={(e) => setEditPhone(e.target.value)}
+            />
+            <input
+              className="w-full rounded-md border border-magic-border px-3 py-2 text-sm"
+              type="email"
+              placeholder="email (printed on quotations)"
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
             />
             <input
               className="w-full rounded-md border border-magic-border px-3 py-2 text-sm"

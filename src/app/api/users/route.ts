@@ -9,7 +9,8 @@ export async function GET() {
     await requireAdmin();
     const q = sql();
     const rows = (await q`
-      select id, username, display_name, role, phone, created_at
+      select id, username, display_name, role, phone,
+             coalesce(email, '') as email, created_at
       from users
       order by id asc
     `) as Array<{
@@ -18,6 +19,7 @@ export async function GET() {
       display_name: string;
       role: string;
       phone: string;
+      email: string;
       created_at: string;
     }>;
     return NextResponse.json({ users: rows });
@@ -39,6 +41,7 @@ export async function POST(req: NextRequest) {
       role?: "admin" | "viewer" | "user";
       display_name?: string;
       phone?: string;
+      email?: string;
     };
     if (!body.username || !body.password) {
       return NextResponse.json(
@@ -50,19 +53,22 @@ export async function POST(req: NextRequest) {
       body.role === "admin" || body.role === "viewer" ? body.role : "user";
     const displayName = body.display_name || "";
     const phone = (body.phone || "").trim();
+    const email = (body.email || "").trim();
     const hash = await hashPassword(body.password);
     const q = sql();
     const rows = (await q`
-      insert into users (username, password_hash, role, display_name, phone)
-      values (${body.username}, ${hash}, ${role}, ${displayName}, ${phone})
+      insert into users (username, password_hash, role, display_name, phone, email)
+      values (${body.username}, ${hash}, ${role}, ${displayName}, ${phone}, ${email})
       on conflict (username) do nothing
-      returning id, username, display_name, role, phone, created_at
+      returning id, username, display_name, role, phone,
+                coalesce(email, '') as email, created_at
     `) as Array<{
       id: number;
       username: string;
       display_name: string;
       role: string;
       phone: string;
+      email: string;
       created_at: string;
     }>;
     if (rows.length === 0) {
@@ -94,6 +100,7 @@ export async function PATCH(req: NextRequest) {
       role?: "admin" | "viewer" | "user";
       password?: string;
       phone?: string;
+      email?: string;
     };
     const q = sql();
 
@@ -114,9 +121,13 @@ export async function PATCH(req: NextRequest) {
     if (body.phone !== undefined) {
       await q`update users set phone = ${body.phone.trim()} where id = ${id}`;
     }
+    if (body.email !== undefined) {
+      await q`update users set email = ${body.email.trim()} where id = ${id}`;
+    }
 
     const rows = (await q`
-      select id, username, display_name, role, phone, created_at
+      select id, username, display_name, role, phone,
+             coalesce(email, '') as email, created_at
       from users where id = ${id}
     `) as Array<{
       id: number;
@@ -124,6 +135,7 @@ export async function PATCH(req: NextRequest) {
       display_name: string;
       role: string;
       phone: string;
+      email: string;
       created_at: string;
     }>;
     if (rows.length === 0) {

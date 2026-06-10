@@ -12,9 +12,11 @@
  *                     /quotation print)
  *   - Totals         ← computeQuotationTotals(items, tax_percent)
  *   - Submitted to   ← quotation.client_name
- *   - Sales name     ← quotation.sales_engineer or session display_name
- *   - Sales phone    ← config.salesPhone or session phone
- *   - Sales email    ← <username>@magictech-jo.com (template convention)
+ *   - Sales name     ← quotation.sales_engineer or owner/session display_name
+ *   - Sales phone    ← config.salesPhone or owner/session phone
+ *   - Sales email    ← quotation owner's users.email; falls back to the
+ *                     <username>@magictech-jo.com template convention when
+ *                     the admin hasn't filed an address for that user yet
  *
  * Everything else (About Us paragraph, disclaimer, T&C sections) defaults
  * to the template's copy and is inline-editable. Edits persist in
@@ -46,6 +48,18 @@ interface SessionMe {
   } | null;
 }
 
+/**
+ * Contact card of the user who owns the quotation — the salesman whose
+ * name/phone/email should appear under "Contact Details", regardless of
+ * who is currently viewing the proposal. Returned by /api/quotations?id=.
+ */
+interface OwnerInfo {
+  username?: string;
+  display_name?: string;
+  phone?: string;
+  email?: string;
+}
+
 /** Default sections of the General Terms and Conditions block. */
 interface FpSection {
   /** Heading rendered as bold red caps. */
@@ -64,6 +78,13 @@ interface FpOverrides {
   aboutUs?: string;
   disclaimer?: string[];
   sections?: FpSection[];
+  /**
+   * Optional margin multiplier applied to every unit price on this
+   * proposal (e.g. 1.10 = +10%). Display-only: it scales the printed
+   * Unit/Total Cost columns and totals, but never writes back to the
+   * quotation's stored items.
+   */
+  gainFactor?: number;
 }
 
 const DEFAULT_ABOUT_US =
@@ -199,6 +220,7 @@ export default function FinancialProposalView({
   quotationId: number;
 }) {
   const [row, setRow] = useState<Record<string, unknown> | null>(null);
+  const [owner, setOwner] = useState<OwnerInfo | null>(null);
   const [me, setMe] = useState<SessionMe["user"]>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -208,6 +230,11 @@ export default function FinancialProposalView({
   // server render is deterministic.
   const [overrides, setOverridesRaw] = useState<FpOverrides>({});
   const hydratedRef = useRef(false);
+
+  // Free-text mirror of the gain-factor input so partial entries like
+  // "1." survive the keystroke; committed to overrides once they parse
+  // to a positive number, snapped back to the canonical value on blur.
+  const [gainDraft, setGainDraft] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -243,9 +270,10 @@ export default function FinancialProposalView({
     let cancelled = false;
     setLoading(true);
     Promise.all([
-      fetchJson<{ quotation: Record<string, unknown> | null }>(
-        `/api/quotations?id=${quotationId}`,
-      ),
+      fetchJson<{
+        quotation: Record<string, unknown> | null;
+        owner?: OwnerInfo | null;
+      }>(`/api/quotations?id=${quotationId}`),
       fetchJson<SessionMe>(`/api/auth/me`),
     ])
       .then(([qRes, meRes]) => {
@@ -259,6 +287,7 @@ export default function FinancialProposalView({
           return;
         }
         setRow(qRes.quotation);
+        setOwner(qRes.owner ?? null);
         if (!("__error" in meRes)) setMe(meRes.user);
       })
       .finally(() => {
@@ -320,9 +349,34 @@ export default function FinancialProposalView({
       };
     }, [row]);
 
+  // Optional sales margin multiplier. Anything non-numeric or <= 0 falls
+  // back to 1 (no change) so a half-typed value can never zero the offer.
+  const gainFactor = (() => {
+    const f = Number(overrides.gainFactor);
+    return Number.isFinite(f) && f > 0 ? f : 1;
+  })();
+
+  // Items with the gain factor folded into every unit price (rounded to
+  // the 2 decimals the document prints, so unit × qty always matches the
+  // printed row total). The quotation's stored items stay untouched —
+  // this is a display-time projection only.
+  const pricedItems = useMemo(() => {
+    if (gainFactor === 1) return items;
+    return items.map((it) =>
+      it.kind === "section"
+        ? it
+        : {
+            ...it,
+            unit_price:
+              Math.round((Number(it.unit_price) || 0) * gainFactor * 100) /
+              100,
+          },
+    );
+  }, [items, gainFactor]);
+
   const totals = useMemo(
-    () => computeQuotationTotals(items, taxPercent, false, null),
-    [items, taxPercent],
+    () => computeQuotationTotals(pricedItems, taxPercent, false, null),
+    [pricedItems, taxPercent],
   );
 
   // First system name doubles as the cover subtitle (e.g. "CCTV") when
@@ -330,13 +384,21 @@ export default function FinancialProposalView({
   // template prints "Jordan Bar Association / CCTV".
   const firstSystem = items.find((it) => it.system)?.system || "";
 
-  // Default contact details derived from quotation row + session user.
+  // Default contact details. The quotation's owner (the salesman who
+  // created it) wins over the viewing session, so an admin opening
+  // Farid's proposal still prints Farid's name, phone and email.
   const defaultSalesName =
-    (row?.sales_engineer as string) || me?.display_name || me?.username || "";
-  const defaultSalesPhone = config.salesPhone || me?.phone || "";
-  const defaultSalesEmail = me?.username
-    ? `${me.username}@magictech-jo.com`
-    : "";
+    (row?.sales_engineer as string) ||
+    owner?.display_name ||
+    owner?.username ||
+    me?.display_name ||
+    me?.username ||
+    "";
+  const defaultSalesPhone = config.salesPhone || owner?.phone || me?.phone || "";
+  const salesUsername = owner?.username || me?.username || "";
+  const defaultSalesEmail =
+    owner?.email ||
+    (salesUsername ? `${salesUsername}@magictech-jo.com` : "");
 
   const salesName = overrides.salesName ?? defaultSalesName;
   const salesPhone = overrides.salesPhone ?? defaultSalesPhone;
@@ -362,8 +424,8 @@ export default function FinancialProposalView({
       optional: boolean;
     }> = [];
     let n = 1;
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
+    for (let i = 0; i < pricedItems.length; i++) {
+      const it = pricedItems[i];
       if (it.kind === "section") continue;
       const descParts = [
         it.brand,
@@ -374,7 +436,7 @@ export default function FinancialProposalView({
         .filter(Boolean);
       const desc =
         descParts.length === 0 ? "—" : descParts.join(" — ");
-      const total = effectiveRowTotal(items, i);
+      const total = effectiveRowTotal(pricedItems, i);
       out.push({
         no: n++,
         desc,
@@ -385,7 +447,7 @@ export default function FinancialProposalView({
       });
     }
     return out;
-  }, [items]);
+  }, [pricedItems]);
 
   function runPrint() {
     runQuotationPrint({
@@ -398,6 +460,7 @@ export default function FinancialProposalView({
   function resetOverrides() {
     if (!window.confirm("Reset all sales overrides back to defaults?")) return;
     setOverridesRaw({});
+    setGainDraft(null);
     try {
       window.localStorage.removeItem(storageKey);
     } catch {
@@ -430,6 +493,37 @@ export default function FinancialProposalView({
           quotation data. Edits are remembered for this proposal only.
         </div>
         <div className="flex items-center gap-2">
+          <label
+            className="flex items-center gap-1.5 rounded-md border border-magic-border px-2 py-1.5 text-xs font-semibold text-magic-ink/80"
+            title="Optional margin multiplier — every unit price in this proposal is multiplied by it (e.g. 1.10 = +10%). Only this document changes; the quotation itself keeps its original prices."
+          >
+            Gain factor
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              placeholder="1.00"
+              value={gainDraft ?? (overrides.gainFactor != null ? String(overrides.gainFactor) : "")}
+              onChange={(e) => {
+                const v = e.target.value;
+                setGainDraft(v);
+                if (v.trim() === "") {
+                  setOverrides((prev) => {
+                    const { gainFactor: _drop, ...rest } = prev;
+                    return rest;
+                  });
+                  return;
+                }
+                const n = Number(v);
+                if (Number.isFinite(n) && n > 0) setOverrides({ gainFactor: n });
+              }}
+              onBlur={() => setGainDraft(null)}
+              className="w-16 rounded border border-magic-border px-1.5 py-0.5 text-xs font-normal"
+            />
+            {gainFactor !== 1 && (
+              <span className="font-normal text-magic-red">×{gainFactor}</span>
+            )}
+          </label>
           <button
             onClick={resetOverrides}
             className="rounded-md border border-magic-border px-3 py-1.5 text-xs font-semibold hover:bg-magic-soft"
@@ -480,19 +574,15 @@ export default function FinancialProposalView({
           <FpSheet>
             <h1 className="fp-h1">Table of Contents</h1>
             <ol className="fp-toc">
-              <li><span>About our Company</span><span>2</span></li>
-              <li><span>Contact Details</span><span>3</span></li>
-              <li><span>Financial Proposal</span><span>4</span></li>
-              <li>
-                <span>General Terms and Conditions</span>
-                <span>5</span>
-              </li>
-              <li className="fp-toc-sub"><span>NOTES</span><span>5</span></li>
-              <li className="fp-toc-sub"><span>PRICES</span><span>5</span></li>
-              <li className="fp-toc-sub"><span>WARRANTY</span><span>5</span></li>
-              <li className="fp-toc-sub"><span>VALIDITY</span><span>5</span></li>
-              <li className="fp-toc-sub"><span>DELIVERY</span><span>5</span></li>
-              <li className="fp-toc-sub"><span>PAYMENT TERMS</span><span>5</span></li>
+              <FpTocEntry title="About our Company" page={2} />
+              <FpTocEntry title="Contact Details" page={3} />
+              <FpTocEntry title="Financial Proposal" page={4} />
+              <FpTocEntry title="General Terms and Conditions" page={5} />
+              {/* Sub-entries mirror the live T&C sections so renaming,
+                  adding or removing a section keeps the TOC in sync. */}
+              {sections.map((sec, i) => (
+                <FpTocEntry key={i} title={sec.heading} page={5} sub />
+              ))}
             </ol>
           </FpSheet>
 
@@ -657,10 +747,47 @@ export default function FinancialProposalView({
                           }
                           className="fp-bullet-text"
                           rows={2}
+                          placeholder="New point…"
                         />
+                        {sec.bullets.length > 1 && (
+                          <button
+                            type="button"
+                            className="fp-bullet-remove no-print"
+                            title="Remove this point"
+                            onClick={() =>
+                              setOverrides((prev) => {
+                                const next = [
+                                  ...(prev.sections ?? DEFAULT_SECTIONS),
+                                ].map((s) => ({
+                                  ...s,
+                                  bullets: [...s.bullets],
+                                }));
+                                next[sIdx].bullets.splice(bIdx, 1);
+                                return { ...prev, sections: next };
+                              })
+                            }
+                          >
+                            ×
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>
+                  <button
+                    type="button"
+                    className="fp-add-bullet no-print"
+                    onClick={() =>
+                      setOverrides((prev) => {
+                        const next = [
+                          ...(prev.sections ?? DEFAULT_SECTIONS),
+                        ].map((s) => ({ ...s, bullets: [...s.bullets] }));
+                        next[sIdx].bullets.push("");
+                        return { ...prev, sections: next };
+                      })
+                    }
+                  >
+                    + Add point
+                  </button>
                 </div>
               ))}
             </div>
@@ -721,6 +848,30 @@ function FpSheet({
   );
 }
 
+/**
+ * One Table-of-Contents row: numbered (CSS counter) main entry or an
+ * indented un-numbered sub-entry, with a left-aligned title, a dotted
+ * leader stretching across the free space, and the page number flush
+ * right — the classic word-processor TOC layout.
+ */
+function FpTocEntry({
+  title,
+  page,
+  sub,
+}: {
+  title: string;
+  page: number;
+  sub?: boolean;
+}) {
+  return (
+    <li className={sub ? "fp-toc-sub" : undefined}>
+      <span className="fp-toc-title">{title}</span>
+      <span className="fp-toc-leader" aria-hidden="true" />
+      <span className="fp-toc-page">{page}</span>
+    </li>
+  );
+}
+
 /** Single-line inline editable field. Underlined when editable. */
 function FpInline({
   value,
@@ -749,17 +900,20 @@ function FpTextarea({
   onChange,
   rows,
   className,
+  placeholder,
 }: {
   value: string;
   onChange: (v: string) => void;
   rows?: number;
   className?: string;
+  placeholder?: string;
 }) {
   return (
     <textarea
       value={value}
       onChange={(e) => onChange(e.target.value)}
       rows={rows ?? 3}
+      placeholder={placeholder}
       className={`fp-textarea ${className || ""}`}
     />
   );

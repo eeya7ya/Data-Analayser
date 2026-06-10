@@ -760,6 +760,10 @@ body > * {
 .fp-cover .fp-inline { font: inherit; color: inherit; }
 
 /* ---- Table of contents --------------------------------------------------- */
+/* Word-processor style rows: "1.  Title ……………… 2" — number and title
+   flush left, dotted leader filling the slack, page number flush right.
+   (The previous flex space-between layout floated the title to the
+   middle of the row, which read as a centred mess.) */
 .fp-toc {
   list-style: none;
   padding: 0;
@@ -768,28 +772,49 @@ body > * {
 }
 .fp-toc li {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
-  padding: 6px 0;
-  border-bottom: 1px dotted #d8c9c7;
-  font-size: 12px;
+  gap: 8px;
+  padding: 7px 0;
+  font-size: 12.5px;
   counter-increment: fp-toc;
 }
 .fp-toc li::before {
   content: counter(fp-toc) ".";
   font-weight: 700;
   color: var(--mt-red);
-  margin-right: 10px;
   min-width: 1.6em;
 }
-.fp-toc li.fp-toc-sub {
-  padding-left: 28px;
-  font-size: 11px;
+.fp-toc .fp-toc-title {
+  font-weight: 600;
   color: var(--mt-ink);
-  border-bottom-style: none;
+}
+.fp-toc .fp-toc-leader {
+  flex: 1;
+  min-width: 24px;
+  border-bottom: 1.5px dotted #c9b2af;
+  transform: translateY(-3px);
+}
+.fp-toc .fp-toc-page {
+  font-weight: 700;
+  color: var(--mt-ink);
+  min-width: 1.4em;
+  text-align: right;
+}
+.fp-toc li.fp-toc-sub {
+  padding: 4px 0 4px 30px;
+  font-size: 11px;
   counter-increment: none;
 }
 .fp-toc li.fp-toc-sub::before { content: ""; min-width: 0; margin: 0; }
+.fp-toc li.fp-toc-sub .fp-toc-title {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--mt-ink);
+  opacity: 0.85;
+}
+.fp-toc li.fp-toc-sub .fp-toc-leader { border-bottom-color: #e2d4d2; }
+.fp-toc li.fp-toc-sub .fp-toc-page { font-weight: 500; }
 
 /* ---- Disclaimer / meta page --------------------------------------------- */
 .fp-meta-row {
@@ -913,6 +938,7 @@ body > * {
   margin: 6px 0 0 0;
 }
 .fp-bullets li {
+  position: relative;
   font-size: 11.5px;
   line-height: 1.5;
   margin-bottom: 4px;
@@ -927,6 +953,44 @@ body > * {
   border-color: #d8c9c7;
   background: rgba(255, 248, 191, 0.18);
 }
+/* Per-point editor chrome: an × that surfaces on hover to drop a point,
+   and a dashed "+ Add point" pill under each section's list. Both are
+   .no-print so the paper output never sees them. */
+.fp-bullets .fp-bullet-remove {
+  position: absolute;
+  top: 2px;
+  right: -24px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #e3c8c5;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: var(--mt-red);
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.fp-bullets li:hover .fp-bullet-remove,
+.fp-bullets .fp-bullet-remove:focus-visible {
+  opacity: 1;
+}
+.fp-bullets .fp-bullet-remove:hover {
+  background: #fdf1f0;
+}
+.fp-add-bullet {
+  margin: 2px 0 0 26px;
+  padding: 2px 10px;
+  border: 1px dashed #d8c9c7;
+  border-radius: 9999px;
+  background: transparent;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--mt-red);
+}
+.fp-add-bullet:hover {
+  background: rgba(255, 248, 191, 0.3);
+}
 
 @media print {
   /* Editor chrome must vanish on paper. */
@@ -940,6 +1004,11 @@ body > * {
     color: inherit !important;
   }
   .fp-sheet .fp-textarea { margin-bottom: 8px !important; }
+  /* A point that was added but never filled in must not print a bare
+     disc. :placeholder-shown is only true while the textarea is empty. */
+  .fp-bullets li:has(.fp-bullet-text:placeholder-shown) {
+    display: none !important;
+  }
   .fp-sheet.fp-cover { padding: 0 !important; }
   .fp-cover-inner {
     min-height: 0;
