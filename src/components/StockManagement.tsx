@@ -281,20 +281,22 @@ function StockView({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Stacked on phones (a <select> sizes to its widest option and
+          would otherwise run off-screen), single row from sm: up. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <input
           type="search"
           placeholder="Search item (vendor / model)…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="min-w-0 flex-1 rounded border border-magic-border bg-white px-3 py-1.5 text-sm"
+          className="w-full min-w-0 rounded border border-magic-border bg-white px-3 py-1.5 text-sm sm:w-auto sm:flex-1"
         />
         <select
           value={nodeFilter}
           onChange={(e) =>
             setNodeFilter(e.target.value === "" ? "" : Number(e.target.value))
           }
-          className="rounded border border-magic-border bg-white px-2 py-1.5 text-sm"
+          className="w-full max-w-full rounded border border-magic-border bg-white px-2 py-1.5 text-sm sm:w-auto"
         >
           <option value="">All locations</option>
           {activeNodes.map((n) => (
@@ -306,7 +308,7 @@ function StockView({
         {canRecord && (
           <button
             onClick={() => setShowModal(true)}
-            className="rounded bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-magic-red/90"
+            className="w-full rounded bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-magic-red/90 sm:w-auto"
           >
             + Record movement
           </button>

@@ -938,15 +938,18 @@ function QuotationsTab({
               className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40 cursor-grab active:cursor-grabbing"
               title="Drag onto a project in the sidebar to move this quotation"
             >
-              <div className="min-w-0">
+              {/* Flex (not inline) children so `truncate` actually clips —
+                  on phones a long project name used to overflow its
+                  min-w-0 parent and paint underneath the action buttons. */}
+              <div className="flex min-w-0 flex-1 items-baseline gap-2">
                 <Link
                   href={`/quotation?id=${row.id}`}
-                  className="font-mono text-sm text-magic-red hover:underline"
+                  className="shrink-0 font-mono text-sm text-magic-red hover:underline"
                   draggable={false}
                 >
                   {row.ref}
                 </Link>
-                <span className="ml-2 text-sm text-magic-ink truncate">
+                <span className="min-w-0 truncate text-sm text-magic-ink">
                   {row.project_name || "—"}
                 </span>
               </div>
