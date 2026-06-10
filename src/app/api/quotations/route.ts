@@ -252,7 +252,21 @@ export async function GET(req: NextRequest) {
       if (!canReadAll(user) && Number(row.owner_id) !== user.id) {
         return NextResponse.json({ error: "forbidden" }, { status: 403 });
       }
-      return NextResponse.json({ quotation: row });
+      // Contact card of the salesman who owns this quotation. The
+      // Financial Proposal prints these under "Contact Details" so the
+      // document always carries the owner's real email/phone from the
+      // users table, not whoever happens to be viewing it.
+      let owner: Record<string, unknown> | null = null;
+      const ownerId = Number(row.owner_id);
+      if (!useD1 && ownerId) {
+        const ownerRows = (await q!`
+          select username, display_name, phone, coalesce(email, '') as email
+          from users where id = ${ownerId}
+          limit 1
+        `) as Array<Record<string, unknown>>;
+        owner = ownerRows[0] ?? null;
+      }
+      return NextResponse.json({ quotation: row, owner });
     }
     // Per-project list. Drives the Files / Quotations tab inside the
     // Project page: every quotation filed under a given project_id, or
