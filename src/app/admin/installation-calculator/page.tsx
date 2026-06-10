@@ -2,19 +2,15 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { canReadAll, getSessionUser } from "@/lib/auth";
 import TopBar from "@/components/TopBar";
+import InstallationCalcSetup from "@/components/InstallationCalcSetup";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Admin → Installation Calculator. Reserved route.
- *
- * The downstream picker (opened from the Designer toolbar) prices a
- * complete installation — 1st + 2nd + 3rd FIX — by combining predefined
- * conduits, cables, locations, and technician fees. This page will host
- * the catalogues that drive those choices: line-item types, unit prices,
- * defaults, and the labour rate book. For now we render a stable empty
- * shell so the URL is live and bookmarkable while the actual config UI
- * is being built.
+ * Admin → Installation Calculator setup. Hosts the preset price book
+ * (conduits by size, cable runs, technician day rates, …) that the
+ * Designer's Installation Calculator picker draws from. Viewers get the
+ * read-only mirror; the API enforces admin on every write regardless.
  */
 export default async function InstallationCalculatorAdminPage() {
   const user = await getSessionUser();
@@ -38,19 +34,12 @@ export default async function InstallationCalculatorAdminPage() {
           Installation Calculator
         </h1>
         <p className="text-sm text-magic-ink/70 mb-6">
-          Catalogue of installation line items that the Designer&apos;s
-          Installation Calculator picker draws from.
+          Preset price book for the Designer&apos;s Installation Calculator —
+          conduits, cables, technician fees and any other line items, grouped
+          by category. Each line stores cost + margin; the selling price is
+          always derived from them.
         </p>
-        <div className="rounded-2xl border border-dashed border-magic-border bg-white px-6 py-10 text-center">
-          <div className="text-base font-semibold text-magic-ink">
-            Coming soon
-          </div>
-          <p className="mt-2 text-sm text-magic-ink/60 max-w-xl mx-auto">
-            This page will let admins manage the conduits, cables,
-            locations, technician fees, and other line items the calculator
-            combines into a single installation row on the quotation.
-          </p>
-        </div>
+        <InstallationCalcSetup readOnly={user.role !== "admin"} />
       </main>
     </div>
   );

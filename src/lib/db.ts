@@ -1815,6 +1815,35 @@ async function _ensureSchemaOnce(): Promise<void> {
         on stock_placements(node_id)
     `;
 
+    // 6c. Installation Calculator presets. Admin-maintained price book of
+    //     installation line items (PVC conduits by size, cable runs,
+    //     technician day rates, …) grouped by free-text category. The
+    //     Designer's Installation Calculator picker combines quantities of
+    //     these into a single priced "Installation" row on the quotation.
+    //     Pricing mirrors the CCTV costing sheet: selling price is derived
+    //     from cost + margin-on-selling (sell = cost × 100 / (100 − margin)),
+    //     so admins maintain cost and margin, never a hand-typed sell price.
+    await q`
+      create table if not exists installation_calc_items (
+        id             serial primary key,
+        category       text not null,
+        name           text not null,
+        unit           text not null default 'pcs',
+        unit_cost      numeric not null default 0 check (unit_cost >= 0),
+        margin_percent numeric not null default 25
+          check (margin_percent >= 0 and margin_percent < 100),
+        sort_order     integer not null default 0,
+        active         boolean not null default true,
+        created_at     timestamptz not null default now(),
+        updated_at     timestamptz not null default now(),
+        deleted_at     timestamptz
+      )
+    `;
+    await q`
+      create index if not exists installation_calc_items_category_idx
+        on installation_calc_items(category, sort_order, id)
+    `;
+
     // 7. Admin-curated dashboard announcements. Audience targeting is
     //    array-based so a single post can target multiple modules / roles
     //    without a join table. Pinned posts float to the top.

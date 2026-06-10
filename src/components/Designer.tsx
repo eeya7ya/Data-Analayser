@@ -27,6 +27,7 @@ import {
 } from "@/lib/quotationDraft";
 import QuickCatalogPicker from "./QuickCatalogPicker";
 import CataloguePickerModal from "./CataloguePickerModal";
+import InstallationCalculatorModal from "./InstallationCalculatorModal";
 import ExcelImportModal from "./ExcelImportModal";
 import {
   BRAND_VARIANTS,
@@ -246,11 +247,10 @@ export default function Designer({
   // user browses/searches the whole catalogue and drops products into this
   // quotation without leaving the Designer (replaces the old /catalog round-trip).
   const [cataloguePickerOpen, setCataloguePickerOpen] = useState(false);
-  // Installation Calculator — reserved entry point. The full picker
-  // (predefined conduits, cables, locations, technician fees, etc.) lands
-  // in a follow-up; for now opening the panel renders an informational
-  // shell so the toolbar slot, state plumbing, and modal mount are all
-  // already wired and downstream work doesn't need a UI re-shuffle.
+  // Installation Calculator — prices a complete installation (1st + 2nd +
+  // 3rd FIX) from the admin-maintained preset price book (conduits,
+  // cables, technician fees, …) and adds it as a single row under the
+  // chosen system. Presets live at /admin/installation-calculator.
   const [installationCalculatorOpen, setInstallationCalculatorOpen] =
     useState(false);
   // Hydration status is tracked as a state (not a ref) so the persist
@@ -2113,6 +2113,8 @@ export default function Designer({
       )}
       {installationCalculatorOpen && (
         <InstallationCalculatorModal
+          existingPages={existingPageNames}
+          onAdd={addCatalogItem}
           onClose={() => setInstallationCalculatorOpen(false)}
         />
       )}
@@ -2120,68 +2122,3 @@ export default function Designer({
   );
 }
 
-/**
- * Installation Calculator — placeholder modal.
- *
- * The full tool will let presales price a complete installation (1st +
- * 2nd + 3rd FIX) by picking from predefined catalogues of conduits,
- * cables, locations, and technician fees, then drop the total back into
- * the quotation as a single row attached to the selected system —
- * conceptually similar to the catalogue picker, but for labour-and-
- * materials rather than products. This empty shell reserves the entry
- * point so the rest of the UI doesn't have to move when the picker
- * lands. Configuration of the underlying catalogues will live at
- * /admin/installation-calculator.
- */
-function InstallationCalculatorModal({ onClose }: { onClose: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-magic-ink/40 px-4"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"
-      >
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-base font-semibold text-magic-ink">
-            Installation Calculator
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-magic-ink/50 hover:text-magic-ink"
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
-        <p className="text-xs text-magic-ink/60">
-          Coming soon — this tool will combine predefined conduits, cables,
-          locations, and technician fees to compute the total installation
-          cost (1st + 2nd + 3rd FIX) and add it as a single row to the
-          quotation under the selected system.
-        </p>
-        <div className="mt-4 rounded-lg border border-dashed border-magic-border bg-magic-soft/30 p-4 text-xs text-magic-ink/70">
-          <div className="font-semibold text-magic-ink/80 mb-1">
-            What you&apos;ll be able to pick from
-          </div>
-          <ul className="list-disc pl-5 space-y-0.5">
-            <li>Conduit types and lengths</li>
-            <li>Cable types and runs</li>
-            <li>Locations / rooms</li>
-            <li>Technician fees and hours</li>
-            <li>Any other line items configured by admins</li>
-          </ul>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={onClose}
-            className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700"
-          >
-            Got it
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}

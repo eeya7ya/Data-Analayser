@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import UsersAndRolesPanel from "./UsersAndRolesPanel";
 import AdminSettings from "./AdminSettings";
 import AdminQuotationExport from "./AdminQuotationExport";
@@ -34,7 +35,7 @@ export default function AdminTabs({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 border-b border-magic-border">
+      <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap border-b border-magic-border">
         <TabButton active={tab === "users"} onClick={() => setTab("users")}>
           Users &amp; Roles
         </TabButton>
@@ -65,6 +66,14 @@ export default function AdminTabs({
         >
           Export
         </TabButton>
+        {/* Dedicated page rather than an inline tab — the price book is
+            shared with the Designer's picker and deep-linkable. */}
+        <Link
+          href="/admin/installation-calculator"
+          className="-mb-px border-b-2 border-transparent px-4 py-2 text-sm font-semibold text-magic-ink/60 transition-colors hover:text-magic-ink"
+        >
+          Installation Calculator
+        </Link>
       </div>
 
       {tab === "users" && (
