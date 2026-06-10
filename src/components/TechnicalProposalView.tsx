@@ -11,7 +11,10 @@
  * Smart wiring:
  *   - Cover         ← project_name + first system + created_at
  *   - Ref / Date    ← quotation.ref / created_at
- *   - Contact       ← sales_engineer + session phone / email
+ *   - Contact       ← signed-in generator: name / phone / email from the
+ *                     session, position from their CRM module role
+ *                     (presales → Presales Engineer, sales → Sales
+ *                     Engineer, *_manager → Manager)
  *   - BoM           ← items_json, enriched with catalogue description /
  *                     fast_view / specifications / picture via
  *                     /api/catalogue/lookup
@@ -44,6 +47,7 @@ interface SessionMe {
     display_name?: string;
     phone?: string;
   } | null;
+  module_roles?: Array<{ module: string; role: string }>;
 }
 
 interface CatalogueProduct {
@@ -282,6 +286,9 @@ export default function TechnicalProposalView({
 }) {
   const [row, setRow] = useState<Record<string, unknown> | null>(null);
   const [me, setMe] = useState<SessionMe["user"]>(null);
+  const [meRoles, setMeRoles] = useState<
+    Array<{ module: string; role: string }>
+  >([]);
   const [catalogue, setCatalogue] = useState<Record<string, CatalogueProduct>>(
     {},
   );
@@ -349,7 +356,10 @@ export default function TechnicalProposalView({
           return;
         }
         setRow(qRes.quotation);
-        if (!("__error" in meRes)) setMe(meRes.user);
+        if (!("__error" in meRes)) {
+          setMe(meRes.user);
+          setMeRoles(meRes.module_roles || []);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -490,16 +500,39 @@ export default function TechnicalProposalView({
     return out;
   }, [items, catalogue]);
 
-  // Default contact bits sourced from row + session.
+  // Contact card belongs to whoever is GENERATING this proposal — the
+  // signed-in user, not the engineer stamped on the quotation. Their CRM
+  // grant decides the printed position: a presales user signs as Presales
+  // Engineer, a sales user as Sales Engineer (manager grants print the
+  // manager title). Users wearing both hats — and admins with no CRM
+  // grant — keep the combined label.
+  const crmRoles = meRoles
+    .filter((g) => g.module === "crm")
+    .map((g) => g.role);
+  const isPresalesUser =
+    crmRoles.includes("presales") || crmRoles.includes("presales_manager");
+  const isSalesUser =
+    crmRoles.includes("sales") || crmRoles.includes("sales_manager");
+  const defaultPosition =
+    isPresalesUser && !isSalesUser
+      ? crmRoles.includes("presales_manager")
+        ? "Presales Manager"
+        : "Presales Engineer"
+      : isSalesUser && !isPresalesUser
+        ? crmRoles.includes("sales_manager")
+          ? "Sales Manager"
+          : "Sales Engineer"
+        : "Sales / Presales Engineer";
+
   const defaultSalesName =
-    (row?.sales_engineer as string) || me?.display_name || me?.username || "";
-  const defaultSalesPhone = config.salesPhone || me?.phone || "";
+    me?.display_name || me?.username || (row?.sales_engineer as string) || "";
+  const defaultSalesPhone = me?.phone || config.salesPhone || "";
   const defaultSalesEmail = me?.username
     ? `${me.username}@magictech-jo.com`
     : "";
 
   const salesName = overrides.salesName ?? defaultSalesName;
-  const salesPosition = overrides.salesPosition ?? "Sales / Presales Engineer";
+  const salesPosition = overrides.salesPosition ?? defaultPosition;
   const salesPhone = overrides.salesPhone ?? defaultSalesPhone;
   const salesEmail = overrides.salesEmail ?? defaultSalesEmail;
 
@@ -628,26 +661,28 @@ export default function TechnicalProposalView({
             <div className="fp-cover-inner">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo.png" alt="Magic Tech" className="fp-cover-logo" />
-              <div className="fp-cover-band">
-                <div className="tp-cover-customer">
-                  <TpInline
-                    value={customerName}
-                    onChange={(v) => setOverrides({ customerName: v })}
-                    placeholder="Customer Name"
-                  />
+              <div className="fp-cover-middle">
+                <div className="fp-cover-band">
+                  <div className="tp-cover-customer">
+                    <TpInline
+                      value={customerName}
+                      onChange={(v) => setOverrides({ customerName: v })}
+                      placeholder="Customer Name"
+                    />
+                  </div>
+                  <div className="tp-cover-exp">
+                    Exp:{" "}
+                    <TpInline
+                      value={projectTitle}
+                      onChange={(v) => setOverrides({ projectTitle: v })}
+                      placeholder="Project / system (e.g. Galaxy Access Control)"
+                    />
+                  </div>
                 </div>
-                <div className="tp-cover-exp">
-                  Exp:{" "}
-                  <TpInline
-                    value={projectTitle}
-                    onChange={(v) => setOverrides({ projectTitle: v })}
-                    placeholder="Project / system (e.g. Galaxy Access Control)"
-                  />
+                <div className="fp-cover-foot">
+                  <div>{dateLong}</div>
+                  <div className="fp-cover-ref">Technical Proposal</div>
                 </div>
-              </div>
-              <div className="fp-cover-foot">
-                <div>{dateLong}</div>
-                <div className="fp-cover-ref">Technical Proposal</div>
               </div>
             </div>
           </section>

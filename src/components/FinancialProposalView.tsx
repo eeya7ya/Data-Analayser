@@ -547,25 +547,27 @@ export default function FinancialProposalView({
             <div className="fp-cover-inner">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo.png" alt="Magic Tech" className="fp-cover-logo" />
-              <div className="fp-cover-band">
-                <div className="fp-cover-title">
-                  <FpInline
-                    value={coverTitle}
-                    onChange={(v) => setOverrides({ coverTitle: v })}
-                    placeholder="Project name"
-                  />
+              <div className="fp-cover-middle">
+                <div className="fp-cover-band">
+                  <div className="fp-cover-title">
+                    <FpInline
+                      value={coverTitle}
+                      onChange={(v) => setOverrides({ coverTitle: v })}
+                      placeholder="Project name"
+                    />
+                  </div>
+                  <div className="fp-cover-sub">
+                    <FpInline
+                      value={coverSubtitle}
+                      onChange={(v) => setOverrides({ coverSubtitle: v })}
+                      placeholder="System (e.g. CCTV)"
+                    />
+                  </div>
                 </div>
-                <div className="fp-cover-sub">
-                  <FpInline
-                    value={coverSubtitle}
-                    onChange={(v) => setOverrides({ coverSubtitle: v })}
-                    placeholder="System (e.g. CCTV)"
-                  />
+                <div className="fp-cover-foot">
+                  <div>{dateLong}</div>
+                  <div className="fp-cover-ref">Ref. {ref || "—"}</div>
                 </div>
-              </div>
-              <div className="fp-cover-foot">
-                <div>{dateLong}</div>
-                <div className="fp-cover-ref">Ref. {ref || "—"}</div>
               </div>
             </div>
           </section>

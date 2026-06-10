@@ -715,7 +715,6 @@ body > * {
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   height: 100%;
   min-height: 280mm;
   padding: 24mm 18mm;
@@ -723,6 +722,10 @@ body > * {
     linear-gradient(135deg, rgba(220, 38, 38, 0.06) 0%, rgba(255, 255, 255, 1) 50%, rgba(220, 38, 38, 0.04) 100%);
   box-sizing: border-box;
 }
+/* Only the logo is pinned to the top of the cover; the title band and
+ * the date/ref line travel together and sit in the vertical middle of
+ * the page (auto margins split the remaining slack evenly). */
+.fp-cover-middle { margin: auto 0; }
 .fp-cover-logo {
   height: 60px;
   width: auto;
@@ -753,6 +756,7 @@ body > * {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
+  margin-top: 18px;
   font-size: 12px;
   color: var(--mt-ink);
 }
@@ -1011,8 +1015,14 @@ body > * {
   }
   .fp-sheet.fp-cover { padding: 0 !important; }
   .fp-cover-inner {
-    min-height: 0;
-    height: 100%;
+    /* The printed sheet is plain block flow with only a min-height, so
+     * `height: 100%` resolves to the content height — the title band and
+     * date/ref would pile up directly under the logo. Reserve (almost)
+     * the full A4 print box instead so the auto-margined middle block
+     * really lands mid-page; 260mm stays safely inside the 265mm page
+     * area to avoid a rounding-induced blank page. */
+    min-height: 260mm;
+    height: auto;
     padding: 28mm 22mm !important;
   }
 }
