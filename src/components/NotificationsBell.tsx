@@ -25,6 +25,56 @@ import {
  * `dismissAndGo`). Read items never show in the bell — they're "done".
  */
 
+// Each page mounts its own <TopBar/>, so client navigation remounts the
+// bell. Without a cache the badge starts empty and re-fetches on every
+// page change, which reads as a "loading" flash. The module-level cache
+// survives remounts within a tab; sessionStorage carries the last-known
+// items across hard reloads so the badge paints instantly either way.
+const NOTIF_CACHE_KEY = "mt.notifications.v1";
+const NOTIF_POLL_MS = 60_000;
+
+type NotifCache = { items: NotificationItem[]; at: number };
+
+let notifCache: NotifCache | null = null;
+// Whether the server has push configured (VAPID keys) never changes
+// within a session — check it once, not on every page.
+let pushConfiguredCache: boolean | null = null;
+
+function readNotifCache(): NotifCache | null {
+  if (notifCache) return notifCache;
+  try {
+    const raw = sessionStorage.getItem(NOTIF_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as NotifCache;
+    if (!Array.isArray(parsed.items) || typeof parsed.at !== "number") {
+      return null;
+    }
+    notifCache = parsed;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/** Called on logout so the next account in this tab starts clean. */
+export function clearNotificationsCache() {
+  notifCache = null;
+  try {
+    sessionStorage.removeItem(NOTIF_CACHE_KEY);
+  } catch {
+    // storage unavailable — nothing to clear
+  }
+}
+
+function writeNotifCache(items: NotificationItem[], at = Date.now()) {
+  notifCache = { items, at };
+  try {
+    sessionStorage.setItem(NOTIF_CACHE_KEY, JSON.stringify(notifCache));
+  } catch {
+    // storage unavailable — the in-memory cache still covers remounts
+  }
+}
+
 const SEVERITY_STYLES: Record<
   NotificationItem["severity"],
   { dot: string; chip: string; title: string }
@@ -47,7 +97,12 @@ const SEVERITY_STYLES: Record<
 };
 
 export default function NotificationsBell() {
-  const [items, setItems] = useState<NotificationItem[]>([]);
+  // Initialize from the in-memory cache only — it's always empty during
+  // SSR/hydration, so server and client first paints match. sessionStorage
+  // (hard-reload survival) is folded in by the load effect below.
+  const [items, setItems] = useState<NotificationItem[]>(
+    () => notifCache?.items ?? []
+  );
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -67,14 +122,19 @@ export default function NotificationsBell() {
         return;
       }
       // Push must also be configured server-side (VAPID keys present).
-      try {
-        const res = await fetch("/api/push/public-key", { cache: "no-store" });
-        const { key } = (await res.json()) as { key: string | null };
-        if (!key) {
+      if (pushConfiguredCache === null) {
+        try {
+          const res = await fetch("/api/push/public-key", { cache: "no-store" });
+          const { key } = (await res.json()) as { key: string | null };
+          pushConfiguredCache = Boolean(key);
+        } catch {
+          // network hiccup — treat as unconfigured for now but don't cache
+          // the failure, so the next page mount can retry
           if (!cancelled) setPushState("unconfigured");
           return;
         }
-      } catch {
+      }
+      if (!pushConfiguredCache) {
         if (!cancelled) setPushState("unconfigured");
         return;
       }
@@ -129,19 +189,38 @@ export default function NotificationsBell() {
         const res = await fetch("/api/notifications", { cache: "no-store" });
         if (!res.ok) return;
         const data = (await res.json()) as { items?: NotificationItem[] };
-        if (!cancelled && Array.isArray(data.items)) {
+        if (Array.isArray(data.items)) {
           // Read items are "done" — keep them out of the bell entirely.
-          setItems(data.items.filter((i) => !i.read));
+          const unread = data.items.filter((i) => !i.read);
+          writeNotifCache(unread);
+          if (!cancelled) setItems(unread);
         }
       } catch {
         // soft-fail — the bell goes quiet rather than throwing
       }
     }
-    void load();
-    const t = setInterval(load, 60_000);
+    // After a hard reload the in-memory cache is gone but sessionStorage
+    // may still have the last-known items — paint those right away while
+    // the schedule below revalidates.
+    const cached = readNotifCache();
+    if (cached) setItems(cached.items);
+    // If the cache is still fresh (younger than one poll interval) skip
+    // the immediate fetch — navigating between pages shouldn't re-hit
+    // the API. The first fetch is delayed by the cache's remaining TTL.
+    let t: ReturnType<typeof setInterval> | undefined;
+    const age = Date.now() - (cached?.at ?? 0);
+    const kick = setTimeout(
+      () => {
+        void load();
+        // re-align the steady poll to the (possibly delayed) first fetch
+        t = setInterval(load, NOTIF_POLL_MS);
+      },
+      age < NOTIF_POLL_MS ? NOTIF_POLL_MS - age : 0
+    );
     return () => {
       cancelled = true;
-      clearInterval(t);
+      clearTimeout(kick);
+      if (t) clearInterval(t);
     };
   }, []);
 
@@ -179,7 +258,13 @@ export default function NotificationsBell() {
         // best-effort — the optimistic removal already cleared it locally
       });
     }
-    setItems((prev) => prev.filter((x) => x.id !== n.id));
+    setItems((prev) => {
+      const next = prev.filter((x) => x.id !== n.id);
+      // keep the cache's timestamp — dismissing isn't a refresh, so the
+      // next poll still happens on schedule (alarms may legitimately return)
+      writeNotifCache(next, notifCache?.at ?? Date.now());
+      return next;
+    });
     if (href) router.push(href);
   }
   const openNotif = (n: NotificationItem) =>

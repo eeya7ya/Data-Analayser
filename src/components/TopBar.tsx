@@ -6,7 +6,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { Menu, LogOut } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
-import NotificationsBell from "@/components/NotificationsBell";
+import NotificationsBell, {
+  clearNotificationsCache,
+} from "@/components/NotificationsBell";
 import SideNav from "@/components/SideNav";
 import AppFooter from "@/components/AppFooter";
 
@@ -14,6 +16,11 @@ interface ModuleRole {
   module: string;
   role: string;
 }
+
+// Module roles barely change within a session, and every page mounts its
+// own TopBar — cache the first fetch so navigation doesn't re-hit
+// /api/auth/me on each page. A hard reload naturally refreshes it.
+let moduleRolesCache: ModuleRole[] | null = null;
 
 /**
  * V1.3a app chrome. The top bar is now intentionally minimal — brand,
@@ -26,16 +33,20 @@ interface ModuleRole {
  */
 export default function TopBar({ user }: { user: SessionUser }) {
   const router = useRouter();
-  const [moduleRoles, setModuleRoles] = useState<ModuleRole[] | null>(null);
+  const [moduleRoles, setModuleRoles] = useState<ModuleRole[] | null>(
+    moduleRolesCache
+  );
   const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
+    if (moduleRolesCache) return;
     let cancelled = false;
     void fetch("/api/auth/me", { cache: "no-store" })
       .then((r) => r.json())
       .then((data: { module_roles?: ModuleRole[] }) => {
-        if (!cancelled && Array.isArray(data.module_roles)) {
-          setModuleRoles(data.module_roles);
+        if (Array.isArray(data.module_roles)) {
+          moduleRolesCache = data.module_roles;
+          if (!cancelled) setModuleRoles(data.module_roles);
         }
       })
       .catch(() => {
@@ -48,6 +59,8 @@ export default function TopBar({ user }: { user: SessionUser }) {
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
+    moduleRolesCache = null;
+    clearNotificationsCache();
     router.push("/login");
     router.refresh();
   }
