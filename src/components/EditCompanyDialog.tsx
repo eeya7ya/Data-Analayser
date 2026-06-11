@@ -59,14 +59,11 @@ export function EditCompanyDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-magic-ink/40 px-4"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-3"
-      >
+    // The backdrop intentionally has no onClick — a stray click outside the
+    // panel must not discard in-progress edits. Closing is explicit via the
+    // × / Cancel buttons only.
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-magic-ink/40 px-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-magic-ink">Edit company</h3>
           <button
