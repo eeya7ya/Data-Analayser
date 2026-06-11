@@ -6,5 +6,5 @@ export default async function IndividualProjectRoot({
   params: Promise<{ clientId: string; projectId: string }>;
 }) {
   const { clientId, projectId } = await params;
-  redirect(`/crm/individual/${clientId}/${projectId}/quotations`);
+  redirect(`/crm/individual/${clientId}?project=${projectId}`);
 }

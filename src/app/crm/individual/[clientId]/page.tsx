@@ -30,10 +30,11 @@ export default async function IndividualClientPage({
   searchParams,
 }: {
   params: Promise<{ clientId: string }>;
-  searchParams: Promise<{ tool?: string }>;
+  searchParams: Promise<{ tool?: string; project?: string; tab?: string }>;
 }) {
   const { clientId: clientIdParam } = await params;
-  const { tool } = await searchParams;
+  const { tool, project, tab } = await searchParams;
+  const initialProjectId = Number(project);
   const toolLabel = tool ? TOOL_LABELS[tool] : undefined;
   const toolQuery = toolLabel ? `?tool=${tool}` : "";
   const folderId = Number(clientIdParam);
@@ -155,7 +156,16 @@ export default async function IndividualClientPage({
           </div>
         </div>
 
-        <FolderProjectsClient folderId={folder.id} folderName={folder.name} />
+        <FolderProjectsClient
+          folderId={folder.id}
+          folderName={folder.name}
+          initialProjectId={
+            Number.isFinite(initialProjectId) && initialProjectId > 0
+              ? initialProjectId
+              : undefined
+          }
+          initialTab={tab}
+        />
       </main>
     </div>
   );

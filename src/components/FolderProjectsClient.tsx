@@ -148,9 +148,16 @@ function useCrmCaps(): CrmCaps {
 export default function FolderProjectsClient({
   folderId,
   folderName,
+  initialProjectId,
+  initialTab,
 }: {
   folderId: number;
   folderName: string;
+  /** Preselect this project on first load (e.g. ?project=<id> from a
+   * legacy drill-down URL). Ignored if the project isn't in this folder. */
+  initialProjectId?: number;
+  /** Preselect this tab on first load (e.g. ?tab=pos). */
+  initialTab?: string;
 }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
@@ -227,8 +234,13 @@ export default function FolderProjectsClient({
       // Pick the first project by default. The migration creates a
       // "Default Project" for every existing folder, so a brand-new
       // visit always lands on something rather than an empty pane.
+      // A ?project=<id> deep link (legacy drill-down URLs redirect
+      // here with one) wins over the first-project default.
       setActiveProjectId((prev) => {
         if (prev && list.some((p) => p.id === prev)) return prev;
+        if (initialProjectId && list.some((p) => p.id === initialProjectId)) {
+          return initialProjectId;
+        }
         return list[0]?.id ?? null;
       });
     } catch (err) {
@@ -236,7 +248,7 @@ export default function FolderProjectsClient({
     } finally {
       setLoadingProjects(false);
     }
-  }, [folderId]);
+  }, [folderId, initialProjectId]);
 
   useEffect(() => {
     void reloadProjects();
@@ -418,6 +430,7 @@ export default function FolderProjectsClient({
         {activeProject ? (
           <ProjectPanel
             project={activeProject}
+            initialTab={initialTab}
             refreshKey={refreshKey}
             onDragStart={(kind, id) =>
               setDragInfo({ kind, id, sourceProjectId: activeProject.id })
@@ -563,8 +576,19 @@ type ProjectTab =
   | "financial"
   | "technical";
 
+/** Tabs a deep link may preselect. Financial / Technical are excluded:
+ * they're role-gated and the gate resolves asynchronously, so an early
+ * preselect would be reset to Quotations before the roles arrive. */
+const LINKABLE_TABS: ReadonlyArray<ProjectTab> = [
+  "quotations",
+  "pos",
+  "boq",
+  "files",
+];
+
 function ProjectPanel({
   project,
+  initialTab,
   refreshKey,
   onDragStart,
   onDragEnd,
@@ -572,13 +596,18 @@ function ProjectPanel({
   onProjectDelete,
 }: {
   project: Project;
+  initialTab?: string;
   refreshKey: number;
   onDragStart: (kind: DragKind, id: number) => void;
   onDragEnd: () => void;
   onProjectUpdate: (p: Project) => void;
   onProjectDelete: (id: number) => void;
 }) {
-  const [tab, setTab] = useState<ProjectTab>("quotations");
+  const [tab, setTab] = useState<ProjectTab>(() =>
+    LINKABLE_TABS.includes(initialTab as ProjectTab)
+      ? (initialTab as ProjectTab)
+      : "quotations",
+  );
   const caps = useCrmCaps();
   const tabs = useMemo(() => {
     const base: Array<[ProjectTab, string]> = [
