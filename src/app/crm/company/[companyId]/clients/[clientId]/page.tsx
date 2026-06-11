@@ -21,10 +21,14 @@ export const dynamic = "force-dynamic";
  */
 export default async function CompanyClientFolderPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ companyId: string; clientId: string }>;
+  searchParams: Promise<{ project?: string; tab?: string }>;
 }) {
   const { companyId: companyIdParam, clientId: clientIdParam } = await params;
+  const { project, tab } = await searchParams;
+  const initialProjectId = Number(project);
   const companyId = Number(companyIdParam);
   const folderId = Number(clientIdParam);
   if (!Number.isFinite(companyId) || !Number.isFinite(folderId)) notFound();
@@ -137,7 +141,16 @@ export default async function CompanyClientFolderPage({
           </div>
         </div>
 
-        <FolderProjectsClient folderId={folder.id} folderName={folder.name} />
+        <FolderProjectsClient
+          folderId={folder.id}
+          folderName={folder.name}
+          initialProjectId={
+            Number.isFinite(initialProjectId) && initialProjectId > 0
+              ? initialProjectId
+              : undefined
+          }
+          initialTab={tab}
+        />
       </main>
     </div>
   );

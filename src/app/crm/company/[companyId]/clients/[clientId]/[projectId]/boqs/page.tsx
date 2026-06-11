@@ -1,17 +1,18 @@
-import ProjectBoqsTabSection from "@/components/ProjectBoqsTabSection";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Legacy drill-down tab — BOQs / Files now live in the unified project
+ * panel on the client page.
+ */
 export default async function CompanyProjectBoqsTab({
   params,
 }: {
-  params: Promise<{ clientId: string; projectId: string }>;
+  params: Promise<{ companyId: string; clientId: string; projectId: string }>;
 }) {
-  const { clientId, projectId } = await params;
-  return (
-    <ProjectBoqsTabSection
-      projectId={Number(projectId)}
-      folderId={Number(clientId)}
-    />
+  const { companyId, clientId, projectId } = await params;
+  redirect(
+    `/crm/company/${companyId}/clients/${clientId}?project=${projectId}&tab=boq`,
   );
 }

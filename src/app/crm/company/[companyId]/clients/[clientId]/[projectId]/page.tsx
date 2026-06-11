@@ -6,5 +6,7 @@ export default async function CompanyProjectRoot({
   params: Promise<{ companyId: string; clientId: string; projectId: string }>;
 }) {
   const { companyId, clientId, projectId } = await params;
-  redirect(`/crm/company/${companyId}/clients/${clientId}/${projectId}/quotations`);
+  redirect(
+    `/crm/company/${companyId}/clients/${clientId}?project=${projectId}`,
+  );
 }

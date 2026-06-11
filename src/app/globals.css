@@ -327,7 +327,12 @@ body > * {
   input.cell-input:focus,
   textarea.cell-input:focus {
     position: absolute;
-    top: 4px;
+    /* Centre the popped editor on the cell. Pinning it to `top: 4px`
+     * made it jump to the top of tall rows (a long description makes
+     * the row tall while the value sits vertically centred), so the
+     * editor appeared to fly upward away from the cell on focus. */
+    top: 50%;
+    transform: translateY(-50%);
     left: -4em;
     width: calc(100% + 8em);
     min-height: 3em;
@@ -342,6 +347,13 @@ body > * {
   }
   textarea.cell-input:focus {
     min-height: 8em;
+  }
+  /* Top-aligned cells (manual extra columns) keep the editor at the
+   * top, where the value already sits. */
+  .align-top > input.cell-input:focus,
+  .align-top > textarea.cell-input:focus {
+    top: 4px;
+    transform: none;
   }
 }
 
