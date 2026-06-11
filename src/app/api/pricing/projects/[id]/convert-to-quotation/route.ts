@@ -220,6 +220,16 @@ export async function POST(
         config: {
           pricingCategory: "manual",
           manualFactor: 1,
+          // Unit prices above are PRE-TAX, so the Designer must open with
+          // tax added on top ("Tax ON" + "Excl. Tax"). Without these flags
+          // it defaults to its tax-inclusive entry state, mislabelling the
+          // pre-tax prices as tax-included — and toggling the button to
+          // correct it would divide every price by (1 + rate).
+          includeTax: true,
+          taxInclusive: true,
+          // Prices are already tax-exclusive; block the Designer's one-time
+          // legacy divide-by-(1+rate) migration for taxInclusive configs.
+          taxPricesNormalized: true,
           scopeIntro: intro,
           origin: { pricingProjectId: projectId },
         },
