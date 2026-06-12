@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
 import { canAuthorQuotation, hasModule } from "@/lib/modules";
 import { normalizeFileKind } from "@/lib/storage";
+import { isR2Configured, mirrorStorageObjectToR2 } from "@/lib/file-backup";
 import { notifyPresalesOfProjectUpload } from "@/lib/leads";
 
 export const runtime = "nodejs";
@@ -226,6 +227,24 @@ export async function POST(req: NextRequest) {
       });
     } catch {
       // ignore — upload already succeeded
+    }
+
+    // Mirror the freshly-uploaded file into Cloudflare R2 as a durable
+    // second copy. Runs after the response is sent (`after`) so it never
+    // delays the user's upload, and is best-effort: a backup hiccup must
+    // not fail the registration the user just completed. The admin
+    // "Back up files to R2" sweep is the backstop for anything this misses
+    // (e.g. a very large file that outruns the function's time budget).
+    if (isR2Configured()) {
+      const path = rows[0].storage_path;
+      const fileMime = rows[0].mime;
+      const fileSize = rows[0].size_bytes;
+      after(async () => {
+        await mirrorStorageObjectToR2(path, {
+          contentType: fileMime,
+          expectedSize: fileSize,
+        });
+      });
     }
 
     return NextResponse.json({ file: rows[0] });

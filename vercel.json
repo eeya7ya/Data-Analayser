@@ -9,6 +9,10 @@
     "src/app/api/quotations/route.ts": {
       "maxDuration": 60,
       "memory": 1024
+    },
+    "src/app/api/admin/backup-files-r2/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
     }
   }
 }
