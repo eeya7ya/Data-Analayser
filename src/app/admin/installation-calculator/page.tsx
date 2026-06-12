@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { canReadAll, getSessionUser } from "@/lib/auth";
 import TopBar from "@/components/TopBar";
+import InstallationRatesAdmin from "@/components/InstallationRatesAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -38,19 +39,12 @@ export default async function InstallationCalculatorAdminPage() {
           Installation Calculator
         </h1>
         <p className="text-sm text-magic-ink/70 mb-6">
-          Catalogue of installation line items that the Designer&apos;s
-          Installation Calculator picker draws from.
+          The rate book the Designer&apos;s Installation Calculator draws from.
+          Set the cost of each conduit, cable, labour day, location uplift and
+          accessory; the calculator combines them into one installation row on
+          the quotation.
         </p>
-        <div className="rounded-2xl border border-dashed border-magic-border bg-white px-6 py-10 text-center">
-          <div className="text-base font-semibold text-magic-ink">
-            Coming soon
-          </div>
-          <p className="mt-2 text-sm text-magic-ink/60 max-w-xl mx-auto">
-            This page will let admins manage the conduits, cables,
-            locations, technician fees, and other line items the calculator
-            combines into a single installation row on the quotation.
-          </p>
-        </div>
+        <InstallationRatesAdmin />
       </main>
     </div>
   );

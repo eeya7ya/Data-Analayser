@@ -273,6 +273,17 @@ export async function DELETE(req: NextRequest) {
       if (!isAdmin && rows[0].owner_id !== user.id) {
         return NextResponse.json({ error: "forbidden" }, { status: 403 });
       }
+      // Remove the company's client folders too. The FK only NULLs their
+      // company_id, which would leave orphaned 'company'-kind folders behind
+      // (they then show as "client folders" under "0 companies"). Purge each
+      // folder's quotations first — folder→quotation is SET NULL and would
+      // otherwise strand them — then the folders (projects/files/assignments
+      // cascade via their own FKs), then the company itself.
+      await q`
+        delete from quotations
+        where folder_id in (select id from client_folders where company_id = ${id})
+      `;
+      await q`delete from client_folders where company_id = ${id}`;
       await q`delete from companies where id = ${id}`;
       return NextResponse.json({ ok: true });
     }
