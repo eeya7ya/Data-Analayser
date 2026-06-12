@@ -407,6 +407,8 @@ const PRODUCT_BARCODE_FLAG = "product_barcode_v1_2026_06";
 const ORPHAN_FOLDER_CLEANUP_FLAG = "orphan_company_folder_cleanup_v1_2026_06";
 // Installation calculator rate book (conduit/cable/labor/location/accessory).
 const INSTALLATION_RATES_FLAG = "installation_rates_v1_2026_06";
+// Remember the sales project an RFQ was raised from (survives presales filing).
+const LEADS_SALES_PROJECT_FLAG = "leads_sales_project_v1_2026_06";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
@@ -493,6 +495,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let productBarcodeApplied = false;
   let orphanFolderCleanupApplied = false;
   let installationRatesApplied = false;
+  let leadsSalesProjectApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -509,7 +512,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}, ${USER_TOOLS_FLAG},
         ${V14A_FLAG}, ${LEAD_SHARED_QUEUE_FLAG}, ${PROJECT_TASKS_FLAG},
         ${PRODUCT_BARCODE_FLAG}, ${ORPHAN_FOLDER_CLEANUP_FLAG},
-        ${INSTALLATION_RATES_FLAG}
+        ${INSTALLATION_RATES_FLAG}, ${LEADS_SALES_PROJECT_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -546,6 +549,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     productBarcodeApplied = keys.has(PRODUCT_BARCODE_FLAG);
     orphanFolderCleanupApplied = keys.has(ORPHAN_FOLDER_CLEANUP_FLAG);
     installationRatesApplied = keys.has(INSTALLATION_RATES_FLAG);
+    leadsSalesProjectApplied = keys.has(LEADS_SALES_PROJECT_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -584,7 +588,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     projectTasksApplied &&
     productBarcodeApplied &&
     orphanFolderCleanupApplied &&
-    installationRatesApplied
+    installationRatesApplied &&
+    leadsSalesProjectApplied
   )
     return;
 
@@ -2744,6 +2749,40 @@ async function _ensureSchemaOnce(): Promise<void> {
     }
     await q`
       insert into migration_flags (key) values (${INSTALLATION_RATES_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!leadsSalesProjectApplied) {
+    // The project a salesperson raised an RFQ from. When presales claim & file
+    // the lead they overwrite leads.project_id with their OWN project, severing
+    // the link back to the sales project. This column preserves the original
+    // so the sales project can still surface the resulting quotation. Backfill
+    // existing rows with the current project_id (best-effort).
+    await q`alter table leads add column if not exists sales_project_id integer`;
+    // Backfill: recover the ORIGINAL sales project from the claim event log
+    // (assign-and-claim records previous_project_id when it overwrites
+    // project_id). Falls back to the current project_id when there's no such
+    // event (e.g. leads that were never re-filed).
+    await q`
+      update leads l set sales_project_id = coalesce(
+        (
+          select (e.meta_json->>'previous_project_id')::int
+          from lead_events e
+          where e.lead_id = l.id
+            and e.meta_json->>'previous_project_id' is not null
+          order by e.created_at asc
+          limit 1
+        ),
+        l.project_id
+      )
+      where l.sales_project_id is null
+    `;
+    await q`
+      create index if not exists leads_sales_project_idx on leads(sales_project_id)
+    `;
+    await q`
+      insert into migration_flags (key) values (${LEADS_SALES_PROJECT_FLAG})
       on conflict (key) do nothing
     `;
   }

@@ -50,6 +50,10 @@ interface LeadRow {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Latest quotation built under the lead's project, if any. */
+  quote_id: number | null;
+  quote_ref: string | null;
+  quote_sent_to_sales_at: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -91,16 +95,30 @@ export async function GET(req: NextRequest) {
              l.assigned_to_id, au.username as assigned_to_username,
              l.company_id, l.folder_id, l.contact_id, l.project_id, l.quotation_id,
              l.outcome, l.outcome_at, l.completed_at, l.quotation_sent_at,
-             l.deleted_at, l.created_at, l.updated_at
+             l.deleted_at, l.created_at, l.updated_at,
+             ql.id  as quote_id,
+             ql.ref as quote_ref,
+             ql.sent_to_sales_at as quote_sent_to_sales_at
       from leads l
       left join users cu on cu.id = l.created_by
       left join users au on au.id = l.assigned_to_id
+      left join lateral (
+        select qq.id, qq.ref, qq.sent_to_sales_at
+        from quotations qq
+        where qq.project_id = l.project_id and qq.deleted_at is null
+        order by qq.created_at desc
+        limit 1
+      ) ql on true
       where (
           (${junkView}::boolean = true and l.deleted_at is not null)
           or (${junkView}::boolean = false and l.deleted_at is null)
         )
         and (${statusFilter}::text is null or l.status = ${statusFilter})
-        and (${projectId}::int is null or l.project_id = ${projectId})
+        and (
+          ${projectId}::int is null
+          or l.project_id = ${projectId}
+          or l.sales_project_id = ${projectId}
+        )
         and (${junkView}::boolean = true or ${includeDone}::boolean = true or l.completed_at is null)
         and (
           ${vis.full}::boolean
@@ -279,11 +297,11 @@ export async function POST(req: NextRequest) {
       insert into leads
         (ref, title, description, source, priority, status,
          created_by, requested_timeline_at, company_id, folder_id, contact_id,
-         project_id)
+         project_id, sales_project_id)
       values
         (${ref}, ${title}, ${description}, ${source}, ${priority}, 'new',
          ${user.id}, ${requestedTimelineAt}, ${companyId}, ${folderId}, ${contactId},
-         ${projectId})
+         ${projectId}, ${projectId})
       returning id, ref
     `) as Array<{ id: number; ref: string }>;
     const leadId = inserted[0].id;

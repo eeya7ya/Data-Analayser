@@ -250,7 +250,24 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ quotation: null });
       }
       if (!canReadAll(user) && Number(row.owner_id) !== user.id) {
-        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+        // The salesperson who raised the RFQ may VIEW (read-only) the
+        // quotation presales built against it — matched via a lead they
+        // created on the quotation's project. Editing stays owner/admin-only
+        // (the PATCH path is unchanged), so this is genuinely view-only.
+        const projId = row.project_id != null ? Number(row.project_id) : null;
+        let isRequester = false;
+        if (projId && q) {
+          const r = (await q`
+            select 1 from leads
+            where created_by = ${user.id} and project_id = ${projId}
+              and deleted_at is null
+            limit 1
+          `) as Array<{ "?column?": number }>;
+          isRequester = r.length > 0;
+        }
+        if (!isRequester) {
+          return NextResponse.json({ error: "forbidden" }, { status: 403 });
+        }
       }
       // Contact card of the salesman who owns this quotation. The
       // Financial Proposal prints these under "Contact Details" so the
