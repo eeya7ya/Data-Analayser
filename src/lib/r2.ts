@@ -61,6 +61,43 @@ function deriveSigningKey(secret: string, dateStamp: string): Buffer {
 }
 
 /**
+ * RFC 3986 / AWS SigV4 URI encoding. Percent-encodes every byte except the
+ * unreserved set (A-Z a-z 0-9 - _ . ~).
+ *
+ * This exists because `encodeURIComponent` leaves `! ' ( ) *` unescaped, but
+ * AWS/R2 require them encoded. A key containing e.g. an apostrophe would then
+ * produce a canonical request that doesn't match the one R2 recomputes on its
+ * side, and the request is rejected with 403 SignatureDoesNotMatch. Both the
+ * URL we fetch and the canonical path we sign must use this same encoding so
+ * they agree byte-for-byte.
+ *
+ * `encodeSlash = false` leaves "/" intact so object keys keep their path
+ * separators while each segment is still fully encoded.
+ */
+function awsUriEncode(input: string, encodeSlash = true): string {
+  const bytes = Buffer.from(input, "utf8");
+  let out = "";
+  for (const b of bytes) {
+    if (
+      (b >= 0x41 && b <= 0x5a) || // A-Z
+      (b >= 0x61 && b <= 0x7a) || // a-z
+      (b >= 0x30 && b <= 0x39) || // 0-9
+      b === 0x2d || // -
+      b === 0x5f || // _
+      b === 0x2e || // .
+      b === 0x7e // ~
+    ) {
+      out += String.fromCharCode(b);
+    } else if (b === 0x2f && !encodeSlash) {
+      out += "/";
+    } else {
+      out += "%" + b.toString(16).toUpperCase().padStart(2, "0");
+    }
+  }
+  return out;
+}
+
+/**
  * PUT a single object to R2. The key may contain slashes for folder-like
  * organization. Returns the bucket and key so callers can build a reference
  * to store elsewhere (e.g. in a D1 cell).
@@ -78,7 +115,7 @@ export async function r2PutObject(
   const bodyBytes = new Uint8Array(bodyBuf.length);
   bodyBytes.set(bodyBuf);
   const host = `${accountId}.r2.cloudflarestorage.com`;
-  const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+  const encodedKey = awsUriEncode(key, false);
   const url = `https://${host}/${bucket}/${encodedKey}`;
 
   const now = new Date();
@@ -159,7 +196,7 @@ export type R2Overflow = {
 export async function r2GetObject(key: string): Promise<string> {
   const { accountId, accessKeyId, secretAccessKey, bucket } = readR2Config();
   const host = `${accountId}.r2.cloudflarestorage.com`;
-  const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+  const encodedKey = awsUriEncode(key, false);
   const url = `https://${host}/${bucket}/${encodedKey}`;
 
   const now = new Date();
@@ -227,7 +264,7 @@ export async function r2HeadObject(
 ): Promise<{ exists: boolean; size: number | null }> {
   const { accountId, accessKeyId, secretAccessKey, bucket } = readR2Config();
   const host = `${accountId}.r2.cloudflarestorage.com`;
-  const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+  const encodedKey = awsUriEncode(key, false);
   const url = `https://${host}/${bucket}/${encodedKey}`;
 
   const now = new Date();
