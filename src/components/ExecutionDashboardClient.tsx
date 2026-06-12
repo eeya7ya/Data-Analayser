@@ -10,12 +10,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import MessagesPanel from "@/components/MessagesPanel";
+import ExecutionReportsSummary from "@/components/ExecutionReportsSummary";
 
 /**
  * Execution dashboard for projects-module people (technician / engineer /
  * project manager). They don't care about quotation analytics — this
  * board surfaces the projects pushed to them, their execution status,
- * and (for managers) the handoff queue waiting to be assigned.
+ * a completion + reports roll-up, and (for managers) the handoff queue
+ * waiting to be assigned.
  */
 
 export interface ExecutionProject {
@@ -26,6 +28,8 @@ export interface ExecutionProject {
   notes: string | null;
   client_name: string | null;
   updated_at: string;
+  /** Derived completion % (latest reported progress; 100 once `done`). */
+  completion: number;
 }
 
 interface ExecutionKpis {
@@ -93,6 +97,10 @@ export default function ExecutionDashboardClient({
         )}
       </div>
 
+      {/* Completion % per project + the daily/weekly/monthly report roll-up
+          (today's tab is the all-projects single execution report). */}
+      <ExecutionReportsSummary />
+
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Assigned projects */}
         <div className="lg:col-span-2">
@@ -141,6 +149,23 @@ export default function ExecutionDashboardClient({
                             {p.notes}
                           </div>
                         )}
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <div className="h-1.5 w-28 overflow-hidden rounded-full bg-magic-soft">
+                            <div
+                              className={`h-full rounded-full ${
+                                p.completion >= 100
+                                  ? "bg-emerald-500"
+                                  : "bg-violet-500"
+                              }`}
+                              style={{
+                                width: `${Math.max(0, Math.min(100, p.completion))}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-[11px] font-semibold tabular-nums text-magic-ink/50">
+                            {p.completion}%
+                          </span>
+                        </div>
                       </div>
                       <span
                         className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${

@@ -81,7 +81,19 @@ export default async function DashboardPage() {
     const projectRows = (await qx`
       select distinct on (p.id)
              p.id, p.name, p.status, pa.role, pa.notes,
-             cf.name as client_name, p.updated_at
+             cf.name as client_name, p.updated_at,
+             case
+               when exists (
+                 select 1 from execution_reports r
+                 where r.project_id = p.id and r.kind = 'done'
+               ) then 100
+               else coalesce((
+                 select r.progress from execution_reports r
+                 where r.project_id = p.id and r.progress is not null
+                 order by r.created_at desc
+                 limit 1
+               ), 0)
+             end::int as completion
       from project_assignments pa
       join projects p on p.id = pa.project_id and p.deleted_at is null
       join client_folders cf on cf.id = p.folder_id
