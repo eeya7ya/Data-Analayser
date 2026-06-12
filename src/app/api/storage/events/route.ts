@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
       from_node_id?: number | null;
       to_node_id?: number | null;
       reason?: string | null;
+      method?: string;
     };
 
     const itemId = Number(body.item_id);
@@ -47,6 +48,9 @@ export async function POST(req: NextRequest) {
     const fromNode = body.from_node_id == null ? null : Number(body.from_node_id);
     const toNode = body.to_node_id == null ? null : Number(body.to_node_id);
     const reason = body.reason ? String(body.reason).trim() : null;
+    // Only the two user-initiated methods are accepted from the client;
+    // import / sync are server-side origins. Anything else falls back to manual.
+    const method = body.method === "scan" ? "scan" : "manual";
 
     if (!Number.isInteger(itemId) || itemId <= 0) {
       return NextResponse.json({ error: "item_id is required" }, { status: 400 });
@@ -140,7 +144,7 @@ export async function POST(req: NextRequest) {
           insert into stock_events
             (item_id, type, qty, from_node_id, to_node_id, actor_id, method, reason)
           values
-            (${itemId}, ${type}, ${qty}, ${fromNode}, ${toNode}, ${user.id}, 'manual', ${reason})
+            (${itemId}, ${type}, ${qty}, ${fromNode}, ${toNode}, ${user.id}, ${method}, ${reason})
           returning id, event_uid, recorded_at
         `) as Array<Record<string, unknown>>;
         return ev[0];
