@@ -21,11 +21,30 @@ export async function GET(req: NextRequest) {
     if (!isAdmin && !(await hasModule(user.id, "storage"))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
-    const term = (new URL(req.url).searchParams.get("q") || "").trim();
+    const params = new URL(req.url).searchParams;
     const q = sql();
+
+    // Scan path: an exact lookup by scanned code. Match an explicit barcode
+    // first, then fall back to the model (many scanners encode the part
+    // number), so scanning works even before any barcode is mapped.
+    const code = (params.get("code") || "").trim();
+    if (code) {
+      const rows = (await q`
+        select id, vendor, model, category, barcode,
+               coalesce(nullif(trim(vendor || ' ' || model), ''), model) as label
+        from products
+        where lower(barcode) = lower(${code})
+           or lower(model) = lower(${code})
+        order by (lower(barcode) = lower(${code})) desc, vendor, model
+        limit 10
+      `) as Array<Record<string, unknown>>;
+      return NextResponse.json({ items: rows });
+    }
+
+    const term = (params.get("q") || "").trim();
     const like = `%${term}%`;
     const rows = (await q`
-      select id, vendor, model, category,
+      select id, vendor, model, category, barcode,
              coalesce(nullif(trim(vendor || ' ' || model), ''), model) as label
       from products
       where ${term === ""}::boolean
@@ -53,19 +72,41 @@ export async function PATCH(req: NextRequest) {
     if (!isAdmin && !(await hasModuleRole(user.id, "storage", "manager"))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
-    const body = (await req.json()) as { item_id?: number; reorder_point?: number };
+    const body = (await req.json()) as {
+      item_id?: number;
+      reorder_point?: number;
+      barcode?: string | null;
+    };
     const itemId = Number(body.item_id);
-    const reorder = Number(body.reorder_point);
     if (!Number.isInteger(itemId) || itemId <= 0) {
       return NextResponse.json({ error: "item_id is required" }, { status: 400 });
     }
+    const q = sql();
+
+    // Map a scanned code to this product (or clear it with null/empty).
+    if (body.barcode !== undefined) {
+      const bc =
+        body.barcode === null || String(body.barcode).trim() === ""
+          ? null
+          : String(body.barcode).trim().slice(0, 200);
+      try {
+        await q`
+          update products set barcode = ${bc}, updated_at = now()
+          where id = ${itemId}
+        `;
+      } catch {
+        // barcode column may predate the migration on a cold cache — ignore.
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    const reorder = Number(body.reorder_point);
     if (!Number.isInteger(reorder) || reorder < 0) {
       return NextResponse.json(
         { error: "reorder_point must be a whole number ≥ 0" },
         { status: 400 },
       );
     }
-    const q = sql();
     await q`
       insert into stock_item_settings (item_id, reorder_point, updated_at)
       values (${itemId}, ${reorder}, now())

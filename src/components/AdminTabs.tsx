@@ -550,12 +550,11 @@ function R2FileBackupPanel() {
         Back up files to Cloudflare R2
       </h3>
       <p className="text-sm text-magic-ink/60 mb-4">
-        Project files (BOQs, POs, PDFs, photos) are uploaded straight into
-        Supabase Storage. This copies every one of them into your Cloudflare
-        R2 bucket so R2 holds a durable second copy. New uploads are mirrored
-        automatically — use this to back up everything uploaded before that,
-        or to re-check that R2 is fully in sync. It&apos;s safe to run
-        repeatedly: files already in R2 with the same size are skipped.
+        New uploads now go straight to Cloudflare R2. This sweep copies any
+        older files that still live only in Supabase Storage (from before the
+        switch) into R2, so nothing from before the cutover is left behind.
+        It&apos;s safe to run repeatedly: files already in R2 with the same
+        size are skipped.
       </p>
 
       <div className="flex flex-wrap items-center gap-3">

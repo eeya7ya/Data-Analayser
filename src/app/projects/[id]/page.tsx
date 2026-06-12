@@ -7,6 +7,7 @@ import TopBar from "@/components/TopBar";
 import ProjectAssignmentsPanel from "@/components/ProjectAssignmentsPanel";
 import MyAssignmentCard from "@/components/MyAssignmentCard";
 import ProjectBoqsTabSection from "@/components/ProjectBoqsTabSection";
+import ProjectTasksPanel from "@/components/ProjectTasksPanel";
 import ExecutionReportsPanel from "@/components/ExecutionReportsPanel";
 
 export const dynamic = "force-dynamic";
@@ -164,6 +165,10 @@ export default async function ProjectDetailPage({
             share toggle), shared-only and read-only for assigned
             projects-module members. */}
         <ProjectBoqsTabSection projectId={id} folderId={project.folder_id} />
+
+        {/* To-do checklist — the assigned technician ticks off execution
+            steps; progress is visible to the PM and owner. */}
+        <ProjectTasksPanel projectId={id} />
 
         {/* Execution reports — assigned technicians / engineers post
             progress + feedback; the PM and owner read them. */}

@@ -1,27 +1,27 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
 import { canAuthorQuotation, hasModule } from "@/lib/modules";
 import { normalizeFileKind } from "@/lib/storage";
-import { isR2Configured, mirrorStorageObjectToR2 } from "@/lib/file-backup";
 import { notifyPresalesOfProjectUpload } from "@/lib/leads";
 
 export const runtime = "nodejs";
 
 /**
- * Project file metadata. The actual binary lives in Supabase Storage;
- * this table only stores the bucket-relative `storage_path`.
+ * Project file metadata. The actual binary lives in Cloudflare R2;
+ * this table only stores the bucket-relative `storage_path` (the R2 key is
+ * `project-files/<storage_path>`).
  *
  * Two-phase upload flow used by the browser:
  *
- *   1. POST /api/project-files/sign-upload  →  signed URL
+ *   1. POST /api/project-files/sign-upload  →  presigned URL
  *      The browser sends { project_id, kind, filename, mime, size }.
  *      We validate the project, check size caps, mint a path under
- *      `<owner>/<project>/<random>-<safe-name>` and return a Supabase
- *      signed upload URL.
+ *      `<owner>/<project>/<random>-<safe-name>` and return a presigned
+ *      R2 PUT URL.
  *
- *   2. PUT <signedUrl>  (browser → Supabase)
- *      The binary goes directly to Supabase Storage; nothing transits
+ *   2. PUT <signedUrl>  (browser → R2)
+ *      The binary goes directly to Cloudflare R2; nothing transits
  *      this Next.js server (that's the whole point — Vercel body-size
  *      caps wouldn't allow it).
  *
@@ -229,24 +229,9 @@ export async function POST(req: NextRequest) {
       // ignore — upload already succeeded
     }
 
-    // Mirror the freshly-uploaded file into Cloudflare R2 as a durable
-    // second copy. Runs after the response is sent (`after`) so it never
-    // delays the user's upload, and is best-effort: a backup hiccup must
-    // not fail the registration the user just completed. The admin
-    // "Back up files to R2" sweep is the backstop for anything this misses
-    // (e.g. a very large file that outruns the function's time budget).
-    if (isR2Configured()) {
-      const path = rows[0].storage_path;
-      const fileMime = rows[0].mime;
-      const fileSize = rows[0].size_bytes;
-      after(async () => {
-        await mirrorStorageObjectToR2(path, {
-          contentType: fileMime,
-          expectedSize: fileSize,
-        });
-      });
-    }
-
+    // The bytes were uploaded straight to R2 via the presigned URL from
+    // /sign-upload, so there's nothing to mirror here — the file is already
+    // in its durable home.
     return NextResponse.json({ file: rows[0] });
   } catch (err) {
     return NextResponse.json(

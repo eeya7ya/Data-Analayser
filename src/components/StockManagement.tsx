@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Camera } from "lucide-react";
 
 /**
  * StockManagement — the V1.5A stock module surface (Storage workspace).
@@ -337,6 +338,7 @@ function StockView({
       {showModal && (
         <MovementModal
           nodes={activeNodes}
+          canManage={canManage}
           onClose={() => setShowModal(false)}
           onDone={async () => {
             setShowModal(false);
@@ -543,15 +545,18 @@ interface PickItem {
   model: string;
   category: string;
   label: string;
+  barcode?: string | null;
 }
 
 function MovementModal({
   nodes,
+  canManage,
   onClose,
   onDone,
   onError,
 }: {
   nodes: Node[];
+  canManage: boolean;
   onClose: () => void;
   onDone: () => Promise<void>;
   onError: (m: string) => void;
@@ -560,6 +565,24 @@ function MovementModal({
   const [itemQuery, setItemQuery] = useState("");
   const [results, setResults] = useState<PickItem[]>([]);
   const [picked, setPicked] = useState<PickItem | null>(null);
+  // Scan flow: a code from a USB/Bluetooth wedge scanner, manual entry, or the
+  // camera. Tracks whether the current pick came from a scan (so the ledger
+  // records method='scan') and the last code that matched nothing (to offer
+  // mapping it onto a product).
+  const [scanCode, setScanCode] = useState("");
+  const [scanMsg, setScanMsg] = useState<string | null>(null);
+  const [pickedViaScan, setPickedViaScan] = useState(false);
+  const [unmatchedCode, setUnmatchedCode] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraSupported, setCameraSupported] = useState(false);
+
+  useEffect(() => {
+    // The camera path needs the native BarcodeDetector (Chromium/Android).
+    // The USB-wedge / manual scan input works everywhere regardless.
+    setCameraSupported(
+      typeof window !== "undefined" && "BarcodeDetector" in window,
+    );
+  }, []);
   const [fromNode, setFromNode] = useState<number | "">("");
   const [toNode, setToNode] = useState<number | "">("");
   const [adjustDir, setAdjustDir] = useState<"increase" | "decrease">("increase");
@@ -590,6 +613,58 @@ function MovementModal({
   const needsFrom = type === "OUT" || type === "MOVE" || (type === "ADJUST" && adjustDir === "decrease");
   const needsTo = type === "IN" || type === "MOVE" || (type === "ADJUST" && adjustDir === "increase");
 
+  /** Resolve a scanned/typed code to a product and pick it. */
+  async function lookupCode(raw: string) {
+    const code = raw.trim();
+    if (!code) return;
+    setScanMsg(null);
+    setUnmatchedCode(null);
+    try {
+      const res = await fetch(
+        `/api/storage/items?code=${encodeURIComponent(code)}`,
+        { cache: "no-store" },
+      );
+      const data = (await res.json()) as { items?: PickItem[]; error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const found = data.items ?? [];
+      if (found.length === 1) {
+        setPicked(found[0]);
+        setPickedViaScan(true);
+        setScanCode("");
+        setScanMsg(`Scanned: ${found[0].label}`);
+      } else if (found.length > 1) {
+        setResults(found);
+        setScanMsg(`${found.length} matches for "${code}" — pick one below.`);
+      } else {
+        setUnmatchedCode(code);
+        setScanMsg(`No item matches "${code}". Search and pick it to link the code.`);
+      }
+    } catch (err) {
+      setScanMsg((err as Error).message);
+    }
+  }
+
+  /** Map the last unmatched code onto the currently picked product (manager). */
+  async function linkBarcode() {
+    if (!picked || !unmatchedCode) return;
+    try {
+      const res = await fetch("/api/storage/items", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ item_id: picked.id, barcode: unmatchedCode }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b.error || `HTTP ${res.status}`);
+      }
+      setScanMsg(`Linked ${unmatchedCode} → ${picked.label}.`);
+      setUnmatchedCode(null);
+      setPickedViaScan(true);
+    } catch (err) {
+      setScanMsg((err as Error).message);
+    }
+  }
+
   async function submit() {
     if (!picked) {
       onError("Pick an item first.");
@@ -609,6 +684,7 @@ function MovementModal({
       type,
       qty: n,
       reason: reason.trim() || null,
+      method: pickedViaScan ? "scan" : "manual",
     };
     if (needsFrom) body.from_node_id = fromNode === "" ? null : fromNode;
     if (needsTo) body.to_node_id = toNode === "" ? null : toNode;
@@ -663,27 +739,85 @@ function MovementModal({
             ))}
           </div>
 
-          {/* Item picker */}
+          {/* Item picker — scan or search */}
           <div>
             <label className="mb-1 block text-xs font-semibold text-magic-ink/70">
               Item
             </label>
             {picked ? (
-              <div className="flex items-center justify-between rounded border border-magic-border px-2 py-1.5 text-sm">
-                <span className="truncate">{picked.label}</span>
-                <button
-                  onClick={() => setPicked(null)}
-                  className="ml-2 text-xs text-magic-red"
-                >
-                  change
-                </button>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between rounded border border-magic-border px-2 py-1.5 text-sm">
+                  <span className="truncate">
+                    {picked.label}
+                    {pickedViaScan && (
+                      <span className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                        SCANNED
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setPicked(null);
+                      setPickedViaScan(false);
+                      setScanMsg(null);
+                    }}
+                    className="ml-2 text-xs text-magic-red"
+                  >
+                    change
+                  </button>
+                </div>
+                {canManage && unmatchedCode && (
+                  <button
+                    onClick={() => void linkBarcode()}
+                    className="w-full rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                  >
+                    Link scanned code “{unmatchedCode}” to this item
+                  </button>
+                )}
               </div>
             ) : (
               <>
+                {/* Scan row — USB/Bluetooth wedge, manual entry, or camera */}
+                <div className="mb-1.5 flex gap-1.5">
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Scan or type a barcode…"
+                    value={scanCode}
+                    onChange={(e) => setScanCode(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void lookupCode(scanCode);
+                      }
+                    }}
+                    className="min-w-0 flex-1 rounded border border-magic-border px-2 py-1.5 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void lookupCode(scanCode)}
+                    className="shrink-0 rounded border border-magic-border px-2 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft"
+                  >
+                    Scan
+                  </button>
+                  {cameraSupported && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCamera(true)}
+                      aria-label="Scan with camera"
+                      className="shrink-0 rounded border border-magic-border px-2 py-1.5 text-magic-ink/70 hover:bg-magic-soft"
+                    >
+                      <Camera className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {scanMsg && (
+                  <p className="mb-1.5 text-xs text-magic-ink/60">{scanMsg}</p>
+                )}
+
                 <input
                   type="search"
-                  autoFocus
-                  placeholder="Search vendor / model / category…"
+                  placeholder="…or search vendor / model / category"
                   value={itemQuery}
                   onChange={(e) => setItemQuery(e.target.value)}
                   className="w-full rounded border border-magic-border px-2 py-1.5 text-sm"
@@ -693,7 +827,10 @@ function MovementModal({
                     {results.map((r) => (
                       <li key={r.id}>
                         <button
-                          onClick={() => setPicked(r)}
+                          onClick={() => {
+                            setPicked(r);
+                            setPickedViaScan(false);
+                          }}
                           className="block w-full px-2 py-1.5 text-left text-sm hover:bg-magic-soft"
                         >
                           {r.label}
@@ -704,6 +841,20 @@ function MovementModal({
                       </li>
                     ))}
                   </ul>
+                )}
+                {showCamera && (
+                  <CameraScanner
+                    onDetected={(code) => {
+                      setShowCamera(false);
+                      setScanCode(code);
+                      void lookupCode(code);
+                    }}
+                    onClose={() => setShowCamera(false)}
+                    onError={(m) => {
+                      setShowCamera(false);
+                      setScanMsg(m);
+                    }}
+                  />
                 )}
               </>
             )}
@@ -873,5 +1024,103 @@ function IconBtn({
     >
       {children}
     </button>
+  );
+}
+
+// ── Camera barcode scanner (progressive enhancement) ────────────────────────
+// Uses the native BarcodeDetector (Chromium / Android Chrome). Shows a small
+// live-camera overlay; on the first detected code it calls onDetected and the
+// parent unmounts this, which stops the stream. Only rendered when supported.
+
+interface DetectedBarcode {
+  rawValue: string;
+}
+interface BarcodeDetectorLike {
+  detect: (source: CanvasImageSource) => Promise<DetectedBarcode[]>;
+}
+interface BarcodeDetectorCtor {
+  new (opts?: { formats?: string[] }): BarcodeDetectorLike;
+}
+
+function CameraScanner({
+  onDetected,
+  onClose,
+  onError,
+}: {
+  onDetected: (code: string) => void;
+  onClose: () => void;
+  onError: (msg: string) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  // Hold the latest callbacks in refs so the camera effect can run exactly
+  // once (empty deps) without restarting the stream on every parent render.
+  const onDetectedRef = useRef(onDetected);
+  const onErrorRef = useRef(onError);
+  onDetectedRef.current = onDetected;
+  onErrorRef.current = onError;
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let stopped = false;
+    let detector: BarcodeDetectorLike | null = null;
+
+    async function start() {
+      try {
+        const Ctor = (
+          window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }
+        ).BarcodeDetector;
+        if (!Ctor) throw new Error("Barcode scanning isn't supported here.");
+        detector = new Ctor();
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+        const video = videoRef.current;
+        if (!video) return;
+        video.srcObject = stream;
+        await video.play();
+        timer = setInterval(async () => {
+          if (stopped || !detector || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            if (codes.length > 0 && codes[0].rawValue) {
+              onDetectedRef.current(codes[0].rawValue);
+            }
+          } catch {
+            /* transient detect error — keep scanning */
+          }
+        }, 300);
+      } catch (err) {
+        onErrorRef.current(
+          err instanceof Error ? err.message : "Could not start the camera.",
+        );
+      }
+    }
+    void start();
+
+    return () => {
+      stopped = true;
+      if (timer) clearInterval(timer);
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  return (
+    <div className="mt-2 overflow-hidden rounded-lg border border-magic-border bg-black">
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        className="h-44 w-full object-cover"
+      />
+      <div className="flex items-center justify-between bg-magic-soft px-2 py-1 text-xs">
+        <span className="text-magic-ink/60">
+          Point the camera at a barcode / QR
+        </span>
+        <button onClick={onClose} className="font-semibold text-magic-red">
+          Close
+        </button>
+      </div>
+    </div>
   );
 }

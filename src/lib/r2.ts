@@ -323,6 +323,148 @@ export async function r2HeadObject(
 }
 
 /**
+ * Build a SigV4 query-string presigned URL for R2 that a browser can hit
+ * directly — `PUT` to upload a file's bytes, `GET` to download/view them —
+ * without our server ever touching the payload (the whole point: files can be
+ * up to 200 MB, far past Vercel's request-body limit).
+ *
+ * Only the `host` header is signed, so the browser is free to add its own
+ * headers (e.g. Content-Type on upload) without invalidating the signature.
+ * The payload is `UNSIGNED-PAYLOAD`, as required for query presigning.
+ *
+ * `responseContentDisposition` (GET only) sets S3's `response-content-
+ * disposition` override so an explicit download saves with a friendly
+ * filename; omit it for inline viewing.
+ *
+ * NOTE: browser PUT/GET to *.r2.cloudflarestorage.com is cross-origin, so the
+ * R2 bucket needs a CORS policy allowing the app origin + PUT/GET/HEAD.
+ */
+export function r2PresignUrl(
+  method: "GET" | "PUT",
+  key: string,
+  opts?: { expiresSeconds?: number; responseContentDisposition?: string },
+): string {
+  const { accountId, accessKeyId, secretAccessKey, bucket } = readR2Config();
+  const host = `${accountId}.r2.cloudflarestorage.com`;
+  const encodedKey = awsUriEncode(key, false);
+  const canonicalUri = `/${bucket}/${encodedKey}`;
+
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const dateStamp = amzDate.slice(0, 8);
+  const credentialScope = `${dateStamp}/${REGION}/${SERVICE}/aws4_request`;
+  // R2/S3 cap presigned URLs at 7 days.
+  const expires = Math.min(Math.max(1, Math.trunc(opts?.expiresSeconds ?? 300)), 604800);
+
+  const params: Array<[string, string]> = [
+    ["X-Amz-Algorithm", "AWS4-HMAC-SHA256"],
+    ["X-Amz-Credential", `${accessKeyId}/${credentialScope}`],
+    ["X-Amz-Date", amzDate],
+    ["X-Amz-Expires", String(expires)],
+    ["X-Amz-SignedHeaders", "host"],
+  ];
+  if (opts?.responseContentDisposition) {
+    params.push(["response-content-disposition", opts.responseContentDisposition]);
+  }
+  // Canonical query string: every key/value AWS-URI-encoded (so the "/" in the
+  // credential scope becomes %2F), then sorted by encoded key.
+  const canonicalQuery = params
+    .map(([k, v]) => [awsUriEncode(k), awsUriEncode(v)] as [string, string])
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([k, v]) => `${k}=${v}`)
+    .join("&");
+
+  const canonicalHeaders = `host:${host}\n`;
+  const signedHeaders = "host";
+
+  const canonicalRequest = [
+    method,
+    canonicalUri,
+    canonicalQuery,
+    canonicalHeaders,
+    signedHeaders,
+    "UNSIGNED-PAYLOAD",
+  ].join("\n");
+
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    sha256Hex(canonicalRequest),
+  ].join("\n");
+
+  const signingKey = deriveSigningKey(secretAccessKey, dateStamp);
+  const signature = createHmac("sha256", signingKey)
+    .update(stringToSign)
+    .digest("hex");
+
+  return `https://${host}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+}
+
+/**
+ * DELETE a single object from R2 (server-side, SigV4 header auth). Treats a
+ * missing key as success — S3/R2 return 204 either way — so deleting a file
+ * whose blob is already gone doesn't error.
+ */
+export async function r2DeleteObject(key: string): Promise<void> {
+  const { accountId, accessKeyId, secretAccessKey, bucket } = readR2Config();
+  const host = `${accountId}.r2.cloudflarestorage.com`;
+  const encodedKey = awsUriEncode(key, false);
+  const url = `https://${host}/${bucket}/${encodedKey}`;
+
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const dateStamp = amzDate.slice(0, 8);
+  const payloadHash = sha256Hex(""); // empty body
+
+  const canonicalHeaders =
+    `host:${host}\n` +
+    `x-amz-content-sha256:${payloadHash}\n` +
+    `x-amz-date:${amzDate}\n`;
+  const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+
+  const canonicalRequest = [
+    "DELETE",
+    `/${bucket}/${encodedKey}`,
+    "",
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join("\n");
+
+  const credentialScope = `${dateStamp}/${REGION}/${SERVICE}/aws4_request`;
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    sha256Hex(canonicalRequest),
+  ].join("\n");
+
+  const signingKey = deriveSigningKey(secretAccessKey, dateStamp);
+  const signature = createHmac("sha256", signingKey)
+    .update(stringToSign)
+    .digest("hex");
+
+  const authorization =
+    `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, ` +
+    `SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      Host: host,
+      "X-Amz-Date": amzDate,
+      "X-Amz-Content-Sha256": payloadHash,
+      Authorization: authorization,
+    },
+  });
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text();
+    throw new Error(`R2 DELETE ${res.status}: ${text.slice(0, 200)}`);
+  }
+}
+
+/**
  * Type guard: true when the value is a parsed R2 overflow reference.
  */
 export function isR2OverflowRef(value: unknown): value is R2Overflow {

@@ -6,6 +6,12 @@ import {
   createSignedDownloadUrl,
   deleteStorageObject,
 } from "@/lib/storage";
+import {
+  deleteR2ObjectForPath,
+  isR2Configured,
+  r2ObjectExistsForPath,
+  r2PresignDownloadUrl,
+} from "@/lib/file-backup";
 
 export const runtime = "nodejs";
 
@@ -16,6 +22,8 @@ export const runtime = "nodejs";
  *   GET    /api/project-files/[id]?download=1 → minted download URL
  *   DELETE /api/project-files/[id]            → soft-delete + remove blob
  *
+ * Files live in Cloudflare R2 (presigned GET to view/download), with a
+ * Supabase signed-URL fallback for any blob that predates the R2 cutover.
  * Owner-isolation is enforced for non-admins. Storage URLs are signed
  * for 5 minutes and never persisted on the client; every access mints a
  * fresh one so a leaked URL stops working quickly.
@@ -29,6 +37,33 @@ interface FileRecord {
   mime: string;
   storage_path: string;
   shared_to_projects: boolean;
+}
+
+/**
+ * Mint a short-lived URL the browser fetches the file from. R2 is the primary
+ * store for uploads, so we presign an R2 GET when the object is there and fall
+ * back to a Supabase signed URL for any file that predates the R2 cutover and
+ * isn't mirrored. `downloadName` forces an attachment download with that name;
+ * omit it for inline viewing (the eyeball / iframe preview).
+ */
+async function resolveDownloadUrl(
+  storagePath: string,
+  downloadName?: string,
+): Promise<string> {
+  if (isR2Configured()) {
+    try {
+      if (await r2ObjectExistsForPath(storagePath)) {
+        return r2PresignDownloadUrl(storagePath, {
+          downloadFilename: downloadName,
+        });
+      }
+    } catch {
+      // R2 hiccup — fall through to the Supabase copy below.
+    }
+  }
+  return createSignedDownloadUrl(storagePath, {
+    download: downloadName ?? false,
+  });
 }
 
 async function loadFileRow(
@@ -103,12 +138,13 @@ export async function GET(
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
     const isDownload = req.nextUrl.searchParams.get("download") === "1";
-    const url = await createSignedDownloadUrl(file.storage_path, {
-      // Inline view for the eyeball / iframe preview, attachment for
-      // the explicit Download button. Passing the filename string
-      // makes the browser save with the original user-visible name.
-      download: isDownload ? file.filename : false,
-    });
+    // Inline view for the eyeball / iframe preview, attachment for the
+    // explicit Download button (the filename makes the browser save with
+    // the original user-visible name).
+    const url = await resolveDownloadUrl(
+      file.storage_path,
+      isDownload ? file.filename : undefined,
+    );
     return NextResponse.json({ url, filename: file.filename, mime: file.mime });
   } catch (err) {
     return NextResponse.json(
@@ -237,11 +273,21 @@ export async function DELETE(
       set deleted_at = now()
       where id = ${id}
     `;
+    // Best-effort blob cleanup from both stores: R2 (primary) and Supabase
+    // (legacy copy / read-fallback). A failure on either is tolerated — the
+    // row is already soft-deleted, and a future sweep can reconcile orphan
+    // blobs vs rows.
+    if (isR2Configured()) {
+      try {
+        await deleteR2ObjectForPath(file.storage_path);
+      } catch {
+        // already-gone / network blip
+      }
+    }
     try {
       await deleteStorageObject(file.storage_path);
     } catch {
-      // already-gone / network blip — leave the soft-deleted row in
-      // place; a future sweep can reconcile orphan blobs vs rows.
+      // already-gone / network blip
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

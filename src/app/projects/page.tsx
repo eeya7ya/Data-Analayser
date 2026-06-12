@@ -5,6 +5,7 @@ import { getSessionUser, canReadAll } from "@/lib/auth";
 import { getVisibleProjectIds } from "@/lib/scope";
 import { hasModule } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
+import ExecutionReportsSummary from "@/components/ExecutionReportsSummary";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +121,12 @@ export default async function ProjectsPage() {
             </p>
           </div>
         </div>
+
+        {rows.length > 0 && (
+          <div className="mb-6">
+            <ExecutionReportsSummary />
+          </div>
+        )}
 
         {rows.length === 0 ? (
           <div className="rounded-2xl border border-magic-border bg-white p-8 text-center">

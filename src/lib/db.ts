@@ -399,6 +399,10 @@ const V14A_FLAG = "v1_4a_update_notes_role_targeting_2026_05_v2";
 // status 'distributed' for a manager-assigned lead; the new model calls a
 // claimed lead 'in_progress'. Data-only (status rename), no DDL.
 const LEAD_SHARED_QUEUE_FLAG = "lead_shared_queue_v1_4a_2026_05";
+// Per-project technician to-do checklist.
+const PROJECT_TASKS_FLAG = "project_tasks_v1_2026_06";
+// Barcode/QR code on products for stock scanning.
+const PRODUCT_BARCODE_FLAG = "product_barcode_v1_2026_06";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
@@ -481,6 +485,8 @@ async function _ensureSchemaOnce(): Promise<void> {
   let userToolsApplied = false;
   let v14aApplied = false;
   let leadSharedQueueApplied = false;
+  let projectTasksApplied = false;
+  let productBarcodeApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -495,7 +501,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${STOCK_CHECKS_FLAG}, ${PRICING_FOUNDATION_FLAG},
         ${NOTIFICATION_STATE_FLAG}, ${PROJECT_HANDOFFS_FLAG},
         ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}, ${USER_TOOLS_FLAG},
-        ${V14A_FLAG}, ${LEAD_SHARED_QUEUE_FLAG}
+        ${V14A_FLAG}, ${LEAD_SHARED_QUEUE_FLAG}, ${PROJECT_TASKS_FLAG},
+        ${PRODUCT_BARCODE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -528,6 +535,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     userToolsApplied = keys.has(USER_TOOLS_FLAG);
     v14aApplied = keys.has(V14A_FLAG);
     leadSharedQueueApplied = keys.has(LEAD_SHARED_QUEUE_FLAG);
+    projectTasksApplied = keys.has(PROJECT_TASKS_FLAG);
+    productBarcodeApplied = keys.has(PRODUCT_BARCODE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -562,7 +571,9 @@ async function _ensureSchemaOnce(): Promise<void> {
     v13dApplied &&
     userToolsApplied &&
     v14aApplied &&
-    leadSharedQueueApplied
+    leadSharedQueueApplied &&
+    projectTasksApplied &&
+    productBarcodeApplied
   )
     return;
 
@@ -2601,6 +2612,48 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${LEAD_SHARED_QUEUE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!projectTasksApplied) {
+    // Per-project technician to-do checklist. Assigned members tick items
+    // off during execution; the PM reads progress on the project page (and
+    // it can roll up into the project's completion %).
+    await q`
+      create table if not exists project_tasks (
+        id          bigserial primary key,
+        project_id  integer not null references projects(id) on delete cascade,
+        title       text not null,
+        done        boolean not null default false,
+        position    integer not null default 0,
+        created_by  integer references users(id) on delete set null,
+        done_by     integer references users(id) on delete set null,
+        done_at     timestamptz,
+        created_at  timestamptz not null default now(),
+        deleted_at  timestamptz
+      )
+    `;
+    await q`
+      create index if not exists project_tasks_project_idx
+        on project_tasks(project_id) where deleted_at is null
+    `;
+    await q`
+      insert into migration_flags (key) values (${PROJECT_TASKS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!productBarcodeApplied) {
+    // Barcode / QR payload per product so the storage team can scan an item
+    // to record a stock movement instead of searching for it.
+    await q`alter table products add column if not exists barcode text`;
+    await q`
+      create index if not exists products_barcode_idx
+        on products(barcode) where barcode is not null
+    `;
+    await q`
+      insert into migration_flags (key) values (${PRODUCT_BARCODE_FLAG})
       on conflict (key) do nothing
     `;
   }

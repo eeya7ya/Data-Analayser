@@ -27,7 +27,13 @@
  */
 
 import { PROJECT_FILES_BUCKET, downloadStorageObject } from "./storage";
-import { isR2Configured, r2HeadObject, r2PutObject } from "./r2";
+import {
+  isR2Configured,
+  r2DeleteObject,
+  r2HeadObject,
+  r2PresignUrl,
+  r2PutObject,
+} from "./r2";
 
 /**
  * R2 key prefix under which Supabase Storage objects are mirrored. Keeps
@@ -39,6 +45,53 @@ export const R2_BACKUP_PREFIX = "project-files";
 /** Derive the R2 object key for a Supabase `project-files` storage path. */
 export function r2KeyForStoragePath(storagePath: string): string {
   return `${R2_BACKUP_PREFIX}/${storagePath}`;
+}
+
+/**
+ * Presign an R2 PUT URL the browser uploads a new file's bytes to directly.
+ * The object lands at the same `project-files/<storage_path>` key the rest of
+ * the app reads from, so uploads and the legacy backup share one layout.
+ */
+export function r2PresignUploadUrl(
+  storagePath: string,
+  expiresSeconds = 300,
+): string {
+  return r2PresignUrl("PUT", r2KeyForStoragePath(storagePath), {
+    expiresSeconds,
+  });
+}
+
+/**
+ * Presign a short-lived R2 GET URL for viewing or downloading a stored file.
+ * Pass `downloadFilename` to force an attachment download with that name
+ * (RFC 5987 encoded so quotes / non-ASCII are safe); omit it for inline view.
+ */
+export function r2PresignDownloadUrl(
+  storagePath: string,
+  opts?: { expiresSeconds?: number; downloadFilename?: string },
+): string {
+  return r2PresignUrl("GET", r2KeyForStoragePath(storagePath), {
+    expiresSeconds: opts?.expiresSeconds ?? 300,
+    responseContentDisposition: opts?.downloadFilename
+      ? `attachment; filename*=UTF-8''${encodeURIComponent(opts.downloadFilename)}`
+      : undefined,
+  });
+}
+
+/** True when the file's bytes are present in R2 (used to decide R2 vs the
+ * Supabase read-fallback). */
+export async function r2ObjectExistsForPath(
+  storagePath: string,
+): Promise<boolean> {
+  const head = await r2HeadObject(r2KeyForStoragePath(storagePath));
+  return head.exists;
+}
+
+/** Delete a file's object from R2. Missing keys are treated as success. */
+export async function deleteR2ObjectForPath(
+  storagePath: string,
+): Promise<void> {
+  await r2DeleteObject(r2KeyForStoragePath(storagePath));
 }
 
 export type MirrorOutcome = "mirrored" | "skipped" | "missing" | "error";
