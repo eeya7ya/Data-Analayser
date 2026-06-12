@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Link from "next/link";
 import Spinner from "@/components/Spinner";
 import QuotationRowActions from "@/components/QuotationRowActions";
@@ -91,15 +98,43 @@ interface CrmCaps {
   canSeeTechnicalProposal: boolean;
 }
 
-function useCrmCaps(): CrmCaps {
-  const [caps, setCaps] = useState<CrmCaps>({
-    loaded: false,
-    canAuthorQuotation: false,
-    canRequestQuotation: false,
-    canSeeFinancialOffer: false,
-    canSeeTechnicalProposal: false,
-  });
+/** The server-resolved caps the page seeds the provider with. No `loaded`
+ *  flag — a seeded provider is loaded by definition. */
+export type InitialCrmCaps = Omit<CrmCaps, "loaded">;
+
+const EMPTY_CAPS: CrmCaps = {
+  loaded: false,
+  canAuthorQuotation: false,
+  canRequestQuotation: false,
+  canSeeFinancialOffer: false,
+  canSeeTechnicalProposal: false,
+};
+
+const CrmCapsContext = createContext<CrmCaps>(EMPTY_CAPS);
+
+/**
+ * Provides CRM caps to the entire project view through one shared value.
+ *
+ * Previously every consumer (the panel header, the quotations tab) called
+ * `useCrmCaps()` which each fired its own `/api/auth/me` request and started
+ * from `loaded:false` — so on a cold pooler the sales / presales buttons sat
+ * blank for a few seconds and the work was duplicated. Now the server page
+ * resolves the caps and seeds `initial`, the buttons paint on first render,
+ * and there's zero client round-trip. The fetch fallback is kept only for
+ * any mount that doesn't pass a seed.
+ */
+function CrmCapsProvider({
+  initial,
+  children,
+}: {
+  initial?: InitialCrmCaps;
+  children: React.ReactNode;
+}) {
+  const [caps, setCaps] = useState<CrmCaps>(() =>
+    initial ? { loaded: true, ...initial } : EMPTY_CAPS,
+  );
   useEffect(() => {
+    if (initial) return; // seeded by the server — nothing to fetch
     let cancelled = false;
     void (async () => {
       try {
@@ -131,8 +166,14 @@ function useCrmCaps(): CrmCaps {
     return () => {
       cancelled = true;
     };
-  }, []);
-  return caps;
+  }, [initial]);
+  return (
+    <CrmCapsContext.Provider value={caps}>{children}</CrmCapsContext.Provider>
+  );
+}
+
+function useCrmCaps(): CrmCaps {
+  return useContext(CrmCapsContext);
 }
 
 /**
@@ -150,6 +191,7 @@ export default function FolderProjectsClient({
   folderName,
   initialProjectId,
   initialTab,
+  initialCaps,
 }: {
   folderId: number;
   folderName: string;
@@ -158,6 +200,9 @@ export default function FolderProjectsClient({
   initialProjectId?: number;
   /** Preselect this tab on first load (e.g. ?tab=pos). */
   initialTab?: string;
+  /** CRM caps resolved on the server so the sales / presales buttons paint
+   * immediately instead of after a client /api/auth/me round-trip. */
+  initialCaps?: InitialCrmCaps;
 }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
@@ -277,6 +322,7 @@ export default function FolderProjectsClient({
   }
 
   return (
+    <CrmCapsProvider initial={initialCaps}>
     <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
       <aside className="rounded-2xl border border-magic-border bg-white p-4">
         <div className="flex items-center justify-between gap-2 mb-3">
@@ -458,6 +504,7 @@ export default function FolderProjectsClient({
         )}
       </section>
     </div>
+    </CrmCapsProvider>
   );
 }
 

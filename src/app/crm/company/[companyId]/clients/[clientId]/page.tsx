@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { canReadAll, getSessionUser } from "@/lib/auth";
+import { getCrmCaps } from "@/lib/modules";
 import { sql, ensureSchema } from "@/lib/db";
 import { userHasLeadAccessToFolder } from "@/lib/leads";
 import { userHasAssignedProjectInFolder } from "@/lib/projectAccess";
@@ -150,6 +151,7 @@ export default async function CompanyClientFolderPage({
               : undefined
           }
           initialTab={tab}
+          initialCaps={await getCrmCaps(user)}
         />
       </main>
     </div>

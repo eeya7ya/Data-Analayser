@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     const q = sql();
     const rows = (await q`
-      select id, ref, owner_id, approved_at, transferred_at
+      select id, ref, owner_id, project_id, approved_at, transferred_at
       from quotations
       where id = ${id} and deleted_at is null
       limit 1
@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
       id: number;
       ref: string;
       owner_id: number | null;
+      project_id: number | null;
       approved_at: string | null;
       transferred_at: string | null;
     }>;
@@ -87,9 +88,34 @@ export async function POST(req: NextRequest) {
     const isAdmin = canReadAll(user);
     const isSalesManager =
       isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
+    // The presales author owns the quotation row, but the deal verdict is the
+    // salesperson's call — so the salesperson who raised the RFQ for this
+    // quotation's project may mark the outcome too, not just the owner. This
+    // is what makes Accept → upload PO / Lead Lost reachable for plain sales.
+    let raisedRfq = false;
     if (!isAdmin && !isSalesManager && quotation.owner_id !== user.id) {
-      // A plain salesperson may only mark outcomes on quotations they own.
-      // Managers / admins can mark any.
+      const leadRows = (await q`
+        select 1 from leads
+        where deleted_at is null and created_by = ${user.id}
+          and (
+            quotation_id = ${id}
+            or (${quotation.project_id}::int is not null and (
+              project_id = ${quotation.project_id}
+              or sales_project_id = ${quotation.project_id}
+            ))
+          )
+        limit 1
+      `) as Array<{ "?column?": number }>;
+      raisedRfq = leadRows.length > 0;
+    }
+    if (
+      !isAdmin &&
+      !isSalesManager &&
+      quotation.owner_id !== user.id &&
+      !raisedRfq
+    ) {
+      // Plain salespeople may mark outcomes on quotations they own OR raised
+      // the RFQ for. Managers / admins can mark any.
       return NextResponse.json(
         { error: "you can only mark outcomes on your own quotations" },
         { status: 403 },

@@ -124,6 +124,65 @@ export async function assignedProjectIds(userId: number): Promise<number[]> {
   return rows.map((r) => r.project_id);
 }
 
+/**
+ * The set of project ids that share a file workspace because they are the
+ * two sides of the SAME lead.
+ *
+ * A salesperson raises an RFQ on their own project X (`leads.sales_project_id`);
+ * presales claims it and re-files it under their own project Y
+ * (`leads.project_id`). The DWGs, BOQ and other attachments belong to the one
+ * deal, so they should be visible from BOTH routes — Mosa's sales project and
+ * Raghad's presales project — without ever duplicating a row. This returns the
+ * id you passed plus every linked counterpart (deduped).
+ *
+ * A project never touched by a lead just returns `[projectId]`, i.e. it shares
+ * with nobody (existing single-project behaviour, unchanged).
+ */
+export async function getLinkedProjectIds(
+  projectId: number,
+): Promise<number[]> {
+  if (!Number.isFinite(projectId) || projectId <= 0) return [];
+  const q = sql();
+  const rows = (await q`
+    select project_id, sales_project_id
+    from leads
+    where deleted_at is null
+      and (project_id = ${projectId} or sales_project_id = ${projectId})
+  `) as Array<{ project_id: number | null; sales_project_id: number | null }>;
+  const ids = new Set<number>([projectId]);
+  for (const r of rows) {
+    if (r.project_id) ids.add(r.project_id);
+    if (r.sales_project_id) ids.add(r.sales_project_id);
+  }
+  return [...ids];
+}
+
+/**
+ * Owner-level write reach to a project's shared file workspace: the project
+ * owner, the owning client-folder owner, OR the owner (or folder owner) of a
+ * lead-linked counterpart project — the sales ↔ presales other side of the
+ * same deal. This is what lets a salesperson drop the client's signed PO (or
+ * a DWG) onto a deal whose quotation physically lives under the presales
+ * project, and have it land in the one shared workspace. Admins are handled
+ * by the caller.
+ */
+export async function userOwnsProjectOrLinked(
+  projectId: number,
+  userId: number,
+): Promise<boolean> {
+  const ids = await getLinkedProjectIds(projectId);
+  if (ids.length === 0) return false;
+  const q = sql();
+  const rows = (await q`
+    select 1 from projects p
+    join client_folders cf on cf.id = p.folder_id
+    where p.id = any(${ids}::int[]) and p.deleted_at is null
+      and (p.owner_id = ${userId} or cf.owner_id = ${userId})
+    limit 1
+  `) as Array<{ "?column?": number }>;
+  return rows.length > 0;
+}
+
 /** True when the user is assigned to any live project inside the folder. */
 export async function userHasAssignedProjectInFolder(
   userId: number,

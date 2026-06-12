@@ -48,9 +48,13 @@ interface MeResponse {
 export default function QuotationApprovalBar({
   quotationId,
   initial,
+  projectId,
 }: {
   quotationId: number;
   initial: ApprovalState;
+  /** The quotation's project, so an Accepted deal can attach the client's
+   * signed PO straight into the Purchase Orders tab. */
+  projectId?: number | null;
 }) {
   const [state, setState] = useState<ApprovalState>(initial);
   const [me, setMe] = useState<MeResponse | null>(null);
@@ -238,9 +242,13 @@ export default function QuotationApprovalBar({
 
   async function rejectOutcome() {
     const reason = window.prompt(
-      "Mark this deal lost. Add a brief reason (the client passed, lost to a competitor, budget, …):",
+      "Mark this lead LOST. A reason is required — say why (client passed, lost to a competitor, budget, …):",
     );
-    if (reason === null) return;
+    if (reason === null) return; // dialog cancelled — leave the outcome unset
+    if (!reason.trim()) {
+      setError("A reason is required to mark the lead as lost.");
+      return;
+    }
     await markOutcome("rejected", { reason: reason.trim() });
   }
 
@@ -346,10 +354,10 @@ export default function QuotationApprovalBar({
             <button
               onClick={() => setConverting(true)}
               disabled={busy}
-              title="Push to execution now with site / contact details"
+              title="Forward this deal to the project manager with site / contact details"
               className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
             >
-              {converted ? "Pushed ✓ — push again" : "Push to execution"}
+              {converted ? "Proceed to Execution ✓ — send again" : "Proceed to Execution"}
             </button>
           )}
         </div>
@@ -398,9 +406,10 @@ export default function QuotationApprovalBar({
                   <button
                     onClick={() => void rejectOutcome()}
                     disabled={outcomeBusy}
+                    title="The client passed — record why and mark the lead lost"
                     className="px-3 py-1 text-xs font-semibold rounded border border-magic-border text-magic-ink/70 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 disabled:opacity-50 transition-colors"
                   >
-                    Rejected
+                    Rejected · Lead Lost
                   </button>
                   <button
                     onClick={() => setHoldOpen((v) => !v)}
@@ -423,6 +432,9 @@ export default function QuotationApprovalBar({
               )}
             </div>
           </div>
+          {accepted && projectId ? (
+            <PoUploadInline projectId={projectId} />
+          ) : null}
           {holdOpen && !transferred && (
             <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg border border-magic-border bg-magic-soft/40 p-3">
               <div>
@@ -504,5 +516,107 @@ function Pill({
     >
       {children}
     </span>
+  );
+}
+
+/**
+ * Accepted → upload the client's signed PO. A won deal is followed by the
+ * client's purchase order, so as soon as sales marks the quotation Accepted
+ * we surface a one-click upload that lands the PO file in this project's
+ * Purchase Orders tab (kind='po'). Same direct-to-R2 three-phase flow the
+ * project Files panel uses, so the byte upload never hits this app's body
+ * limit.
+ */
+function PoUploadInline({ projectId }: { projectId: number }) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const upload = useCallback(
+    async (file: File) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const signRes = await fetch("/api/project-files/sign-upload", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            project_id: projectId,
+            kind: "po",
+            filename: file.name,
+            mime: file.type || "application/octet-stream",
+            size_bytes: file.size,
+          }),
+        });
+        const signData = (await signRes.json()) as {
+          signedUrl?: string;
+          storage_path?: string;
+          error?: string;
+        };
+        if (!signRes.ok || !signData.signedUrl || !signData.storage_path) {
+          throw new Error(signData.error || `HTTP ${signRes.status}`);
+        }
+        const putRes = await fetch(signData.signedUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type || "application/octet-stream" },
+          body: file,
+        });
+        if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`);
+        const regRes = await fetch("/api/project-files", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            project_id: projectId,
+            kind: "po",
+            filename: file.name,
+            mime: file.type || "application/octet-stream",
+            size_bytes: file.size,
+            storage_path: signData.storage_path,
+          }),
+        });
+        const regData = (await regRes.json()) as {
+          file?: unknown;
+          error?: string;
+        };
+        if (!regRes.ok || !regData.file) {
+          throw new Error(regData.error || `HTTP ${regRes.status}`);
+        }
+        setDone(true);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [projectId],
+  );
+
+  return (
+    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-emerald-800">
+          {done
+            ? "Client PO uploaded ✓"
+            : "Won — upload the client's signed PO:"}
+        </span>
+        <label className="rounded-md bg-emerald-600 text-white px-3 py-1 text-xs font-semibold cursor-pointer hover:bg-emerald-700">
+          {busy ? "Uploading…" : done ? "Replace PO" : "Upload signed PO"}
+          <input
+            type="file"
+            className="hidden"
+            disabled={busy}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) void upload(f);
+            }}
+          />
+        </label>
+        <span className="text-[11px] text-emerald-700/80">
+          Lands in the Purchase Orders tab · PDF / spreadsheet up to 25 MB
+        </span>
+      </div>
+      {error && <div className="mt-1 text-[11px] text-red-700">{error}</div>}
+    </div>
   );
 }

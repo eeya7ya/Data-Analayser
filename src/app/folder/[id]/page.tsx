@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { canReadAll, getSessionUser } from "@/lib/auth";
+import { getCrmCaps } from "@/lib/modules";
 import { sql, ensureSchema } from "@/lib/db";
 import { userHasLeadAccessToFolder } from "@/lib/leads";
 import TopBar from "@/components/TopBar";
@@ -134,7 +135,11 @@ export default async function FolderPage({
             </div>
           </div>
         </div>
-        <FolderProjectsClient folderId={folder.id} folderName={folder.name} />
+        <FolderProjectsClient
+          folderId={folder.id}
+          folderName={folder.name}
+          initialCaps={await getCrmCaps(user)}
+        />
       </main>
     </div>
   );

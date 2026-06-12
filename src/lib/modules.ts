@@ -266,6 +266,46 @@ export async function canAuthorQuotation(user: SessionUser): Promise<boolean> {
 }
 
 /**
+ * CRM project-view capabilities, resolved in a single pass so server pages
+ * can hand them straight to the project drill-down. The client used to
+ * derive these from a `/api/auth/me` round-trip on mount (the `useCrmCaps`
+ * hook), which on a cold pooler left every sales / presales action button
+ * blank for a few seconds — the "new buttons render delayed" complaint.
+ * Computing them on the server and seeding the client lets the buttons
+ * paint on first render.
+ *
+ * This is a faithful mirror of the previous client logic — same allow-lists,
+ * no behaviour change — just moved earlier in the request.
+ */
+export interface CrmCaps {
+  /** Presales / admin: design + upload + send quotations in-app. */
+  canAuthorQuotation: boolean;
+  /** Sales / sales_manager: raise a Request for Quotation. */
+  canRequestQuotation: boolean;
+  /** Sales + presales + admin: the shared deal-economics view. */
+  canSeeFinancialOffer: boolean;
+  /** Presales / admin only: the engineering deliverable view. */
+  canSeeTechnicalProposal: boolean;
+}
+
+export async function getCrmCaps(user: SessionUser): Promise<CrmCaps> {
+  const isAdmin = user.role === "admin";
+  const grants = isAdmin ? [] : await getUserModuleRoles(user.id);
+  const crm = grants
+    .filter((g) => g.module === "crm")
+    .map((g) => g.role);
+  const hasPresales =
+    crm.includes("presales") || crm.includes("presales_manager");
+  const hasSales = crm.includes("sales") || crm.includes("sales_manager");
+  return {
+    canAuthorQuotation: isAdmin || hasPresales,
+    canRequestQuotation: hasSales,
+    canSeeFinancialOffer: isAdmin || hasPresales || hasSales,
+    canSeeTechnicalProposal: isAdmin || hasPresales,
+  };
+}
+
+/**
  * True when the user holds any role in `module` whose name ends in
  * `_manager` (e.g. sales_manager, presales_manager, manager). Phase 3
  * uses this to widen visibility scope to team-member rows.
