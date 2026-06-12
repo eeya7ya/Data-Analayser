@@ -48,16 +48,32 @@ type StorageObjectRow = {
 async function listProjectFileObjects(
   q: ReturnType<typeof sql>,
 ): Promise<StorageObjectRow[]> {
-  return (await q`
+  const rows = (await q`
     select
       name,
-      ((metadata->>'size')::bigint) as size_bytes,
+      (metadata->>'size') as size_text,
       (metadata->>'mimetype') as mimetype
     from storage.objects
     where bucket_id = ${PROJECT_FILES_BUCKET}
       and name not like '%.emptyFolderPlaceholder'
     order by name
-  `) as StorageObjectRow[];
+  `) as Array<{
+    name: string;
+    size_text: string | null;
+    mimetype: string | null;
+  }>;
+  // `metadata->>'size'` is text, and the postgres driver returns ::bigint as a
+  // string too. Coerce to a real number here once, so the byte total sums
+  // numerically (string `+` would concatenate and overflow to Infinity) and
+  // the R2 skip check compares number-to-number rather than number-to-string.
+  return rows.map((r) => {
+    const n = r.size_text == null ? NaN : Number(r.size_text);
+    return {
+      name: r.name,
+      size_bytes: Number.isFinite(n) ? n : null,
+      mimetype: r.mimetype,
+    };
+  });
 }
 
 export async function GET() {
@@ -97,11 +113,26 @@ export async function POST() {
     const q = sql();
     const objects = await listProjectFileObjects(q);
 
+    // Time-box the sweep so we always respond *before* the function's
+    // wall-clock limit. If we let it run over, Vercel kills the request and
+    // the browser gets a 504 with an HTML body — which is exactly the
+    // "Unexpected token 'A'… is not valid JSON" failure this replaces.
+    //
+    // We stop *starting* new files once past the deadline and report
+    // `done: false` so the client calls again. The copy is idempotent, so the
+    // next call skips everything already in R2 (a cheap HEAD) and resumes
+    // where this one left off. Sequential keeps peak memory at a single file
+    // (videos can be up to 200 MB).
+    const DEADLINE_MS = 40_000;
+    const startedAt = Date.now();
+
     const results: MirrorResult[] = [];
-    // Sequential on purpose: each file is buffered fully in memory while it's
-    // copied (videos can be up to 200 MB), so processing one at a time caps
-    // peak memory at a single file instead of the whole bucket.
+    let stoppedEarly = false;
     for (const obj of objects) {
+      if (Date.now() - startedAt > DEADLINE_MS) {
+        stoppedEarly = true;
+        break;
+      }
       results.push(
         await mirrorStorageObjectToR2(obj.name, {
           contentType: obj.mimetype || undefined,
@@ -113,7 +144,11 @@ export async function POST() {
     const mirrored = results.filter((r) => r.outcome === "mirrored");
     return NextResponse.json({
       ok: true,
-      total: results.length,
+      total: objects.length,
+      processed: results.length,
+      // True once every object was attempted in this single call — i.e. the
+      // whole bucket is reconciled and the client can stop looping.
+      done: !stoppedEarly,
       mirrored: mirrored.length,
       skipped: results.filter((r) => r.outcome === "skipped").length,
       missing: results.filter((r) => r.outcome === "missing").length,
