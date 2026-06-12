@@ -2760,9 +2760,23 @@ async function _ensureSchemaOnce(): Promise<void> {
     // so the sales project can still surface the resulting quotation. Backfill
     // existing rows with the current project_id (best-effort).
     await q`alter table leads add column if not exists sales_project_id integer`;
+    // Backfill: recover the ORIGINAL sales project from the claim event log
+    // (assign-and-claim records previous_project_id when it overwrites
+    // project_id). Falls back to the current project_id when there's no such
+    // event (e.g. leads that were never re-filed).
     await q`
-      update leads set sales_project_id = project_id
-      where sales_project_id is null and project_id is not null
+      update leads l set sales_project_id = coalesce(
+        (
+          select (e.meta_json->>'previous_project_id')::int
+          from lead_events e
+          where e.lead_id = l.id
+            and e.meta_json->>'previous_project_id' is not null
+          order by e.created_at asc
+          limit 1
+        ),
+        l.project_id
+      )
+      where l.sales_project_id is null
     `;
     await q`
       create index if not exists leads_sales_project_idx on leads(sales_project_id)
