@@ -130,7 +130,7 @@ export default function RequestQuotationButton({
       <>
         <div className="flex flex-wrap items-center gap-2">
           <a
-            href={`/quotation?id=${rfq.quote_id}`}
+            href={`/quotation?id=${rfq.quote_id}&view=1`}
             className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
           >
             View quotation{rfq.quote_ref ? ` · ${rfq.quote_ref}` : ""}
