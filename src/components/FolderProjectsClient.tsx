@@ -1301,7 +1301,7 @@ function FileUploader({
       setProgressLabel("Requesting upload URL…");
       try {
         // Phase 1 — sign-upload. Server validates project ownership and
-        // size cap before issuing a Supabase signed URL.
+        // size cap before issuing a presigned Cloudflare R2 upload URL.
         const signRes = await fetch("/api/project-files/sign-upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1322,9 +1322,9 @@ function FileUploader({
           throw new Error(signData.error || `HTTP ${signRes.status}`);
         }
 
-        // Phase 2 — upload the bytes directly to Supabase Storage.
-        // Vercel never sees the body, so the only effective limit is
-        // our own per-MIME cap enforced in /sign-upload.
+        // Phase 2 — upload the bytes directly to Cloudflare R2 via the
+        // presigned PUT URL. Vercel never sees the body, so the only
+        // effective limit is our own per-MIME cap enforced in /sign-upload.
         setProgressLabel(`Uploading ${file.name}…`);
         const uploadRes = await fetch(signData.signedUrl, {
           method: "PUT",

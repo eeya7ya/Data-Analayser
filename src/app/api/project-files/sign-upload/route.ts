@@ -4,33 +4,47 @@ import { requireUser } from "@/lib/auth";
 import { canAuthorQuotation } from "@/lib/modules";
 import {
   buildStoragePath,
-  createSignedUploadUrl,
   maxBytesForMime,
   normalizeFileKind,
 } from "@/lib/storage";
+import { isR2Configured, r2PresignUploadUrl } from "@/lib/file-backup";
 
 export const runtime = "nodejs";
 
 /**
  * POST /api/project-files/sign-upload
  *
- * Two-phase upload, phase one. The browser asks us for a signed URL it
- * can PUT a file directly to in Supabase Storage. We:
+ * Two-phase upload, phase one. The browser asks us for a presigned URL it
+ * can PUT a file directly to in Cloudflare R2. We:
  *
  *   - confirm the project exists and belongs to the caller,
  *   - reject the request if the declared file size exceeds our
  *     per-MIME cap (so a 50 MB PDF is refused before the round-trip
- *     consumes Storage egress),
+ *     consumes egress),
  *   - mint a path under `<owner>/<project>/<random>-<safe-filename>`
- *     and ask Supabase to issue a single-use upload URL for it.
+ *     and presign a short-lived R2 PUT URL for it.
  *
- * The browser then PUTs the file straight to the signed URL and on
+ * The browser then PUTs the file straight to the presigned URL and on
  * success calls POST /api/project-files to register the metadata.
+ *
+ * Browser→R2 is cross-origin, so the R2 bucket needs a CORS policy that
+ * allows the app origin with PUT/GET/HEAD.
  */
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
+    if (!isR2Configured()) {
+      return NextResponse.json(
+        {
+          error:
+            "File storage (Cloudflare R2) is not configured on the server. " +
+            "Set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_R2_ACCESS_KEY_ID and " +
+            "CLOUDFLARE_R2_SECRET_ACCESS_KEY.",
+        },
+        { status: 503 },
+      );
+    }
     const body = (await req.json()) as {
       project_id?: number;
       kind?: string;
@@ -93,12 +107,14 @@ export async function POST(req: NextRequest) {
       projectId,
       filename,
     });
-    const signed = await createSignedUploadUrl(storagePath);
+    // Presigned R2 PUT URL — the browser uploads the bytes straight to R2.
+    // `signedUrl` keeps its name so the client's PUT-the-file-here flow is
+    // unchanged; only the destination moved from Supabase to R2.
+    const signedUrl = r2PresignUploadUrl(storagePath);
 
     return NextResponse.json({
-      signedUrl: signed.signedUrl,
-      token: signed.token,
-      storage_path: signed.path,
+      signedUrl,
+      storage_path: storagePath,
       kind: normalizeFileKind(body.kind),
     });
   } catch (err) {
