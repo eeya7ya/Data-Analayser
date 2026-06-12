@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { sql } from "@/lib/db";
 import { getAppSettings } from "@/lib/settings";
 import QuotationViewer from "@/components/QuotationViewer";
+import BackButton from "@/components/BackButton";
 
 /**
  * Verifies a quotation exists, then renders the existing QuotationViewer
@@ -32,9 +33,17 @@ export default async function ProjectQuotationViewerSection({
   if (rows.length === 0) notFound();
 
   const appSettings = await getAppSettings();
+  // This viewer renders as a standalone full-screen page (no TopBar chrome),
+  // so it carries its own back control — otherwise there's no way out of a
+  // successfully-loaded quotation except the browser button.
   return (
-    <section className="rounded-2xl border border-magic-border bg-white p-5">
-      <QuotationViewer quotationId={quotationId} appSettings={appSettings} />
-    </section>
+    <div className="mx-auto max-w-screen-xl px-4 py-4 sm:px-6">
+      <div className="mb-3">
+        <BackButton fallbackHref="/crm" fallbackLabel="Back" />
+      </div>
+      <section className="rounded-2xl border border-magic-border bg-white p-5">
+        <QuotationViewer quotationId={quotationId} appSettings={appSettings} />
+      </section>
+    </div>
   );
 }

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, LogOut } from "lucide-react";
+import { Menu, LogOut, ArrowLeft } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import NotificationsBell, {
   clearNotificationsCache,
@@ -33,10 +33,26 @@ let moduleRolesCache: ModuleRole[] | null = null;
  */
 export default function TopBar({ user }: { user: SessionUser }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [moduleRoles, setModuleRoles] = useState<ModuleRole[] | null>(
     moduleRolesCache
   );
   const [navOpen, setNavOpen] = useState(false);
+
+  // The dashboard ("/") is the top of the hierarchy — nothing to go back to —
+  // so the global Back control is hidden there and shown on every other page.
+  const showBack = pathname !== "/";
+
+  function goBack() {
+    // history.length > 1 means there's a real previous entry to pop. When the
+    // page was opened directly (deep link, new tab), fall back to the
+    // dashboard so the button is never a dead end.
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/");
+    }
+  }
 
   useEffect(() => {
     if (moduleRolesCache) return;
@@ -70,6 +86,18 @@ export default function TopBar({ user }: { user: SessionUser }) {
       <header className="sticky top-0 z-40 border-b border-white/40 bg-white/70 backdrop-blur-xl shadow-[0_1px_0_rgba(17,24,39,0.04),0_10px_30px_-20px_rgba(17,24,39,0.25)]">
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-2">
+            {showBack && (
+              <button
+                type="button"
+                onClick={goBack}
+                aria-label="Go back to the previous page"
+                title="Back"
+                className="inline-flex h-9 items-center gap-2 rounded-xl border border-magic-border/70 bg-white/70 px-3 text-magic-ink/80 shadow-sm hover:border-magic-red/40 hover:text-magic-red transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden text-xs font-semibold sm:inline">Back</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setNavOpen(true)}
