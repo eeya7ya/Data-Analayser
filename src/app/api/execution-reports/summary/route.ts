@@ -90,12 +90,26 @@ export async function GET(req: NextRequest) {
             select 1 from execution_reports r
             where r.project_id = s.id and r.kind = 'done'
           ) then 100
-          else coalesce((
+          when exists (
+            select 1 from execution_reports r
+            where r.project_id = s.id and r.progress is not null
+          ) then (
             select r.progress from execution_reports r
             where r.project_id = s.id and r.progress is not null
             order by r.created_at desc
             limit 1
-          ), 0)
+          )
+          when exists (
+            select 1 from project_tasks t
+            where t.project_id = s.id and t.deleted_at is null
+          ) then (
+            select round(
+              100.0 * count(*) filter (where t.done) / nullif(count(*), 0)
+            )::int
+            from project_tasks t
+            where t.project_id = s.id and t.deleted_at is null
+          )
+          else 0
         end::int as completion,
         (
           select count(*) from execution_reports r

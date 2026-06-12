@@ -87,12 +87,26 @@ export default async function DashboardPage() {
                  select 1 from execution_reports r
                  where r.project_id = p.id and r.kind = 'done'
                ) then 100
-               else coalesce((
+               when exists (
+                 select 1 from execution_reports r
+                 where r.project_id = p.id and r.progress is not null
+               ) then (
                  select r.progress from execution_reports r
                  where r.project_id = p.id and r.progress is not null
                  order by r.created_at desc
                  limit 1
-               ), 0)
+               )
+               when exists (
+                 select 1 from project_tasks t
+                 where t.project_id = p.id and t.deleted_at is null
+               ) then (
+                 select round(
+                   100.0 * count(*) filter (where t.done) / nullif(count(*), 0)
+                 )::int
+                 from project_tasks t
+                 where t.project_id = p.id and t.deleted_at is null
+               )
+               else 0
              end::int as completion
       from project_assignments pa
       join projects p on p.id = pa.project_id and p.deleted_at is null
