@@ -24,6 +24,9 @@ interface OpenRfq {
   ref: string;
   status: string;
   assigned_to_username: string | null;
+  /** Latest quotation built for this RFQ, once presales has produced one. */
+  quote_id: number | null;
+  quote_ref: string | null;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -53,6 +56,7 @@ export default function RequestQuotationButton({
   );
   const [rfq, setRfq] = useState<OpenRfq | null>(null);
   const [open, setOpen] = useState(false);
+  const [modifyOpen, setModifyOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -64,11 +68,14 @@ export default function RequestQuotationButton({
         return;
       }
       const data = (await res.json()) as { leads?: OpenRfq[] };
-      const openOne =
-        (data.leads ?? []).find(
-          (l) => l.status === "new" || l.status === "in_progress",
-        ) ?? null;
-      setRfq(openOne);
+      const leads = data.leads ?? [];
+      // Prefer a lead that already has a quotation (so we can show "view +
+      // request modification"); otherwise the open RFQ status chip.
+      const active =
+        leads.find((l) => l.quote_id) ??
+        leads.find((l) => l.status === "new" || l.status === "in_progress") ??
+        null;
+      setRfq(active);
     } catch {
       setRfq(null);
     }
@@ -114,6 +121,41 @@ export default function RequestQuotationButton({
   }, [canRequest, refresh]);
 
   if (canRequest !== true) return null;
+
+  // Presales has produced a quotation — sales can view it (read-only) and,
+  // instead of a fresh RFQ, request a modification that goes straight to the
+  // presales who designed it. No longer "Request for Quotation".
+  if (rfq && rfq.quote_id) {
+    return (
+      <>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={`/quotation?id=${rfq.quote_id}`}
+            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
+          >
+            View quotation{rfq.quote_ref ? ` · ${rfq.quote_ref}` : ""}
+          </a>
+          <button
+            onClick={() => setModifyOpen(true)}
+            className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+          >
+            Request for Modification
+          </button>
+        </div>
+        {modifyOpen && (
+          <ModificationModal
+            leadId={rfq.id}
+            presales={rfq.assigned_to_username}
+            onClose={() => setModifyOpen(false)}
+            onDone={() => {
+              setModifyOpen(false);
+              void refresh();
+            }}
+          />
+        )}
+      </>
+    );
+  }
 
   if (rfq) {
     const tone =
@@ -289,6 +331,103 @@ function RequestQuotationModal({
           <button
             onClick={() => void submit()}
             disabled={busy || !title.trim()}
+            className="px-3 py-1.5 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+          >
+            {busy ? "Sending…" : "Send request"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Request for Modification" — the salesperson reviewed the quotation and
+ * wants changes. Routed directly to the presales who designed it (the lead's
+ * assignee) via /api/leads/:id/request-modification, not the shared queue.
+ */
+function ModificationModal({
+  leadId,
+  presales,
+  onClose,
+  onDone,
+}: {
+  leadId: number;
+  presales: string | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/request-modification`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ note: note.trim() || null }),
+      });
+      if (!res.ok) {
+        const b = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(b.error || `HTTP ${res.status}`);
+      }
+      onDone();
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-magic-ink/40 px-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl"
+      >
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="font-semibold text-magic-ink">Request for Modification</h3>
+          <button
+            onClick={onClose}
+            className="text-magic-ink/50 hover:text-magic-ink"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <p className="mb-3 text-xs text-magic-ink/60">
+          Goes straight to{" "}
+          {presales ? `@${presales}` : "the presales who designed it"} — not the
+          shared queue.
+        </p>
+        <textarea
+          rows={4}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="What needs changing? (pricing, scope, items…)"
+          className="w-full rounded border border-magic-border bg-white px-2 py-1.5 text-sm"
+        />
+        {error && (
+          <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            {error}
+          </p>
+        )}
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="px-3 py-1.5 text-xs font-semibold rounded border border-magic-border text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => void submit()}
+            disabled={busy}
             className="px-3 py-1.5 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
           >
             {busy ? "Sending…" : "Send request"}
