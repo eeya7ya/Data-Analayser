@@ -78,6 +78,21 @@ async function canViewProjectRoster(
   return false;
 }
 
+/** Sentinel returned by normSchedDate for a malformed date string. */
+const INVALID = Symbol("invalid-date");
+
+/**
+ * Normalize a scheduling date for a PATCH: undefined / null → null (clears
+ * the field), a strict YYYY-MM-DD string → itself, anything else → INVALID.
+ */
+function normSchedDate(
+  raw: string | null | undefined,
+): string | null | typeof INVALID {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return INVALID;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
@@ -307,7 +322,12 @@ export async function PATCH(req: NextRequest) {
     await ensureSchema();
     await requireModuleAllowLegacy(user, "crm");
 
-    const body = (await req.json()) as { id?: number };
+    const body = (await req.json()) as {
+      id?: number;
+      start_date?: string | null;
+      end_date?: string | null;
+      user_id?: number;
+    };
     const id = Number(body.id);
     if (!Number.isInteger(id) || id <= 0) {
       return NextResponse.json({ error: "invalid id" }, { status: 400 });
@@ -330,6 +350,65 @@ export async function PATCH(req: NextRequest) {
     }
     if (!(await canManageAssignments(user.id, user.role, rows[0].owner_id))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    // Reschedule / reassign (the day scheduler) vs. soft-revoke (unassign).
+    // A scheduling PATCH always carries start_date + end_date (string or
+    // null) and optionally user_id; a bare { id } means unassign, preserving
+    // the original revoke behaviour for existing callers.
+    const isReschedule =
+      body.start_date !== undefined ||
+      body.end_date !== undefined ||
+      body.user_id !== undefined;
+
+    if (isReschedule) {
+      const start = normSchedDate(body.start_date);
+      const end = normSchedDate(body.end_date);
+      if (start === INVALID || end === INVALID) {
+        return NextResponse.json(
+          { error: "start_date and end_date must be YYYY-MM-DD or null" },
+          { status: 400 },
+        );
+      }
+      let newUserId: number | null = null;
+      if (body.user_id !== undefined) {
+        newUserId = Number(body.user_id);
+        if (!Number.isInteger(newUserId) || newUserId <= 0) {
+          return NextResponse.json({ error: "invalid user_id" }, { status: 400 });
+        }
+        const ux = (await q`select id from users where id = ${newUserId}`) as Array<{
+          id: number;
+        }>;
+        if (ux.length === 0) {
+          return NextResponse.json({ error: "user not found" }, { status: 404 });
+        }
+      }
+
+      if (newUserId !== null) {
+        await q`
+          update project_assignments
+          set start_date = ${start}, end_date = ${end}, user_id = ${newUserId}
+          where id = ${id}
+        `;
+      } else {
+        await q`
+          update project_assignments
+          set start_date = ${start}, end_date = ${end}
+          where id = ${id}
+        `;
+      }
+
+      await q`
+        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        values (${user.id}, 'project_assignment', ${id}, 'reschedule',
+                ${JSON.stringify({
+                  start_date: start,
+                  end_date: end,
+                  user_id: newUserId,
+                })}::jsonb)
+      `;
+
+      return NextResponse.json({ ok: true });
     }
 
     await q`

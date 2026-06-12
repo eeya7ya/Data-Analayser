@@ -8,6 +8,7 @@ import {
   Building2,
   ShieldCheck,
   CalendarDays,
+  CalendarClock,
   NotebookPen,
   Megaphone,
   Library,
@@ -88,6 +89,12 @@ export default function SideNav({
   const primary: NavItem[] = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/crm", label: "CRM", icon: Building2, show: has("crm") || has("projects") },
+    {
+      href: "/projects/schedule",
+      label: "Day schedule",
+      icon: CalendarClock,
+      show: has("projects"),
+    },
     {
       href: "/catalog",
       label: "Catalogue Modifier",
