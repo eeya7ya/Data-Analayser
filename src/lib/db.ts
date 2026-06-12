@@ -405,6 +405,8 @@ const PROJECT_TASKS_FLAG = "project_tasks_v1_2026_06";
 const PRODUCT_BARCODE_FLAG = "product_barcode_v1_2026_06";
 // One-time cleanup of company-kind client folders whose company is gone.
 const ORPHAN_FOLDER_CLEANUP_FLAG = "orphan_company_folder_cleanup_v1_2026_06";
+// Installation calculator rate book (conduit/cable/labor/location/accessory).
+const INSTALLATION_RATES_FLAG = "installation_rates_v1_2026_06";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
@@ -490,6 +492,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let projectTasksApplied = false;
   let productBarcodeApplied = false;
   let orphanFolderCleanupApplied = false;
+  let installationRatesApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -505,7 +508,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${NOTIFICATION_STATE_FLAG}, ${PROJECT_HANDOFFS_FLAG},
         ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}, ${USER_TOOLS_FLAG},
         ${V14A_FLAG}, ${LEAD_SHARED_QUEUE_FLAG}, ${PROJECT_TASKS_FLAG},
-        ${PRODUCT_BARCODE_FLAG}, ${ORPHAN_FOLDER_CLEANUP_FLAG}
+        ${PRODUCT_BARCODE_FLAG}, ${ORPHAN_FOLDER_CLEANUP_FLAG},
+        ${INSTALLATION_RATES_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -541,6 +545,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     projectTasksApplied = keys.has(PROJECT_TASKS_FLAG);
     productBarcodeApplied = keys.has(PRODUCT_BARCODE_FLAG);
     orphanFolderCleanupApplied = keys.has(ORPHAN_FOLDER_CLEANUP_FLAG);
+    installationRatesApplied = keys.has(INSTALLATION_RATES_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -578,7 +583,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     leadSharedQueueApplied &&
     projectTasksApplied &&
     productBarcodeApplied &&
-    orphanFolderCleanupApplied
+    orphanFolderCleanupApplied &&
+    installationRatesApplied
   )
     return;
 
@@ -2692,6 +2698,52 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${ORPHAN_FOLDER_CLEANUP_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!installationRatesApplied) {
+    // Installation calculator rate book. One flexible table holds every
+    // priced input the calculator combines: conduit & cable (per metre),
+    // labour (engineer/technician per day), location/region uplift, and misc
+    // accessories. `unit` tells the calculator how to apply unit_cost
+    // (meter | day | piece | percent | fixed).
+    await q`
+      create table if not exists installation_rates (
+        id         bigserial primary key,
+        category   text not null
+                     check (category in ('conduit','cable','labor','location','accessory')),
+        name       text not null,
+        unit       text not null default 'meter'
+                     check (unit in ('meter','day','piece','percent','fixed')),
+        unit_cost  numeric not null default 0,
+        sort       integer not null default 0,
+        active     boolean not null default true,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      )
+    `;
+    await q`
+      create index if not exists installation_rates_cat_idx
+        on installation_rates(category, sort) where active
+    `;
+    // Seed the rows the user named so the admin opens to a usable structure.
+    // Only when empty, so re-running never duplicates.
+    const seeded = (await q`select 1 from installation_rates limit 1`) as Array<{
+      "?column?": number;
+    }>;
+    if (seeded.length === 0) {
+      await q`
+        insert into installation_rates (category, name, unit, unit_cost, sort) values
+          ('labor', 'Engineer', 'day', 0, 0),
+          ('labor', 'Technician', 'day', 0, 1),
+          ('location', 'Middle', 'percent', 0, 0),
+          ('location', 'North', 'percent', 0, 1),
+          ('location', 'South', 'percent', 0, 2)
+      `;
+    }
+    await q`
+      insert into migration_flags (key) values (${INSTALLATION_RATES_FLAG})
       on conflict (key) do nothing
     `;
   }
