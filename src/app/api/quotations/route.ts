@@ -7,6 +7,10 @@ import {
   canAuthorQuotation,
 } from "@/lib/modules";
 import { ensureDefaultProject } from "@/lib/projects";
+import {
+  getLinkedProjectIds,
+  userOwnsProjectOrLinked,
+} from "@/lib/projectAccess";
 import { d1Query } from "@/lib/db-d1";
 import { resolveR2OverflowsInRows } from "@/lib/r2";
 import type { Sql } from "postgres";
@@ -324,14 +328,28 @@ export async function GET(req: NextRequest) {
           projectRows = result.results;
         }
       } else {
+        // Lead-linked surfacing: the salesperson's project and the presales
+        // project of the SAME lead share one workspace, so a quotation
+        // presales built under project Y shows (read-only) in the sales
+        // project X's Quotations tab too — instead of "0 quotations". We
+        // expand the owner-isolation to the linked set only when there IS a
+        // link (and the caller is part of the deal), so a plain standalone
+        // project keeps its exact prior owner-only behaviour.
+        const linkedIds = await getLinkedProjectIds(projectId);
+        const hasLink = linkedIds.length > 1;
+        const sharesDeal =
+          hasLink &&
+          (canReadAll(user) ||
+            (await userOwnsProjectOrLinked(projectId, user.id)));
         projectRows =
-          canReadAll(user)
+          canReadAll(user) || sharesDeal
             ? ((await q!`
                 select id, ref, project_name, client_name, site_name,
                        folder_id, contact_id, project_id, owner_id, status, parent_ref,
                        created_at, updated_at
                 from quotations
-                where project_id = ${projectId} and deleted_at is null
+                where project_id = any(${hasLink ? linkedIds : [projectId]}::int[])
+                  and deleted_at is null
                 order by id desc
                 limit 500
               `) as Array<Record<string, unknown>>)
@@ -347,7 +365,14 @@ export async function GET(req: NextRequest) {
                 limit 500
               `) as Array<Record<string, unknown>>);
       }
-      return NextResponse.json({ quotations: projectRows });
+      // Flag rows that belong to the LINKED counterpart project (not the one
+      // being viewed) so the UI can render them read-only — the salesperson
+      // views the presales quotation, they don't edit / move / delete it.
+      const annotatedRows = projectRows.map((r) => ({
+        ...r,
+        read_only: Number(r.project_id) !== projectId,
+      }));
+      return NextResponse.json({ quotations: annotatedRows });
     }
 
     // Per-folder list. Powers the Company page's "quotations for this
