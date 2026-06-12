@@ -195,6 +195,7 @@ function DatabasePanel() {
           both are removed so admins see a single, unambiguous "back up
           everything" button. */}
       <BackupPanel />
+      <R2FileBackupPanel />
     </div>
   );
 }
@@ -397,6 +398,165 @@ function BackupPanel() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+type R2Preview = {
+  configured: boolean;
+  bucket: string;
+  totalFiles: number;
+  totalBytes: number;
+};
+
+type R2BackupReport = {
+  ok: boolean;
+  error?: string;
+  total?: number;
+  mirrored?: number;
+  skipped?: number;
+  missing?: number;
+  failed?: number;
+  bytesMirrored?: number;
+  errors?: Array<{ path: string; error: string }>;
+};
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  const mb = n / (1024 * 1024);
+  if (mb < 1024) return `${mb.toFixed(2)} MB`;
+  return `${(mb / 1024).toFixed(2)} GB`;
+}
+
+/**
+ * Mirror every Supabase Storage file into Cloudflare R2. Uploads land in
+ * Supabase directly (the browser PUTs to a signed URL), so this is how an
+ * admin gets a durable second copy in R2. New uploads are mirrored
+ * automatically; this sweep covers the existing backlog and any stragglers.
+ */
+function R2FileBackupPanel() {
+  const [preview, setPreview] = useState<R2Preview | null>(null);
+  const [previewErr, setPreviewErr] = useState<string | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [report, setReport] = useState<R2BackupReport | null>(null);
+
+  async function refreshPreview() {
+    setLoadingPreview(true);
+    setPreviewErr(null);
+    try {
+      const res = await fetch("/api/admin/backup-files-r2", { method: "GET" });
+      const data = (await res.json()) as R2Preview & { error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setPreview(data);
+    } catch (err) {
+      setPreviewErr((err as Error).message);
+    } finally {
+      setLoadingPreview(false);
+    }
+  }
+
+  async function runBackup() {
+    setRunning(true);
+    setReport(null);
+    try {
+      const res = await fetch("/api/admin/backup-files-r2", { method: "POST" });
+      const data = (await res.json()) as R2BackupReport;
+      setReport(data);
+      // Re-read the preview so the file count reflects reality afterwards.
+      void refreshPreview();
+    } catch (err) {
+      setReport({ ok: false, error: (err as Error).message });
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-magic-border bg-white p-5">
+      <h3 className="font-semibold text-magic-ink mb-1">
+        Back up files to Cloudflare R2
+      </h3>
+      <p className="text-sm text-magic-ink/60 mb-4">
+        Project files (BOQs, POs, PDFs, photos) are uploaded straight into
+        Supabase Storage. This copies every one of them into your Cloudflare
+        R2 bucket so R2 holds a durable second copy. New uploads are mirrored
+        automatically — use this to back up everything uploaded before that,
+        or to re-check that R2 is fully in sync. It&apos;s safe to run
+        repeatedly: files already in R2 with the same size are skipped.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={runBackup}
+          disabled={running}
+          className="px-4 py-2 text-sm font-medium rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+        >
+          {running ? "Backing up to R2…" : "Back up files to R2 now"}
+        </button>
+        <button
+          onClick={refreshPreview}
+          disabled={loadingPreview}
+          className="px-4 py-2 text-sm font-medium rounded-lg border border-magic-border text-magic-ink hover:bg-magic-soft disabled:opacity-50 transition-colors"
+        >
+          {loadingPreview ? "Checking…" : "Check what's in Supabase"}
+        </button>
+      </div>
+
+      {preview && (
+        <p className="mt-3 text-sm text-magic-ink/70">
+          Bucket <code>{preview.bucket}</code>:{" "}
+          <strong>{preview.totalFiles}</strong> file
+          {preview.totalFiles === 1 ? "" : "s"} (
+          {formatBytes(preview.totalBytes)}) in Supabase Storage.
+          {!preview.configured && (
+            <span className="block mt-1 text-red-700">
+              ⚠ R2 is not configured — set CLOUDFLARE_ACCOUNT_ID,
+              CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY
+              in your environment.
+            </span>
+          )}
+        </p>
+      )}
+      {previewErr && (
+        <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          Error: {previewErr}
+        </p>
+      )}
+
+      {report && (
+        <div
+          className={`mt-3 text-sm rounded-lg px-3 py-2 ${
+            report.ok
+              ? "text-green-700 bg-green-50 border border-green-200"
+              : "text-red-700 bg-red-50 border border-red-200"
+          }`}
+        >
+          {report.ok ? (
+            <>
+              <div>
+                Backed up <strong>{report.mirrored ?? 0}</strong> new file
+                {report.mirrored === 1 ? "" : "s"} (
+                {formatBytes(report.bytesMirrored ?? 0)}) to R2.{" "}
+                {report.skipped ?? 0} already up to date
+                {report.missing ? `, ${report.missing} missing in Supabase` : ""}
+                {report.failed ? `, ${report.failed} failed` : ""}.
+              </div>
+              {report.errors && report.errors.length > 0 && (
+                <ul className="mt-2 list-disc pl-5">
+                  {report.errors.map((e) => (
+                    <li key={e.path} className="text-red-700">
+                      {e.path}: {e.error}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <>Error: {report.error}</>
+          )}
+        </div>
+      )}
     </div>
   );
 }

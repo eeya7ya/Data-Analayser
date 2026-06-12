@@ -217,6 +217,75 @@ export async function r2GetObject(key: string): Promise<string> {
 }
 
 /**
+ * HEAD a single object in R2. Returns whether it exists and its size in
+ * bytes (from Content-Length). The file-backup mirror uses this to skip
+ * objects already present in R2 with a matching size, so re-running a
+ * backup is cheap and idempotent — no needless Supabase egress or R2 PUTs.
+ */
+export async function r2HeadObject(
+  key: string,
+): Promise<{ exists: boolean; size: number | null }> {
+  const { accountId, accessKeyId, secretAccessKey, bucket } = readR2Config();
+  const host = `${accountId}.r2.cloudflarestorage.com`;
+  const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+  const url = `https://${host}/${bucket}/${encodedKey}`;
+
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const dateStamp = amzDate.slice(0, 8);
+  const payloadHash = sha256Hex(""); // empty body for HEAD
+
+  const canonicalHeaders =
+    `host:${host}\n` +
+    `x-amz-content-sha256:${payloadHash}\n` +
+    `x-amz-date:${amzDate}\n`;
+  const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+
+  const canonicalRequest = [
+    "HEAD",
+    `/${bucket}/${encodedKey}`,
+    "",
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join("\n");
+
+  const credentialScope = `${dateStamp}/${REGION}/${SERVICE}/aws4_request`;
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    sha256Hex(canonicalRequest),
+  ].join("\n");
+
+  const signingKey = deriveSigningKey(secretAccessKey, dateStamp);
+  const signature = createHmac("sha256", signingKey)
+    .update(stringToSign)
+    .digest("hex");
+
+  const authorization =
+    `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, ` +
+    `SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  const res = await fetch(url, {
+    method: "HEAD",
+    headers: {
+      Host: host,
+      "X-Amz-Date": amzDate,
+      "X-Amz-Content-Sha256": payloadHash,
+      Authorization: authorization,
+    },
+  });
+
+  if (res.status === 404) return { exists: false, size: null };
+  if (!res.ok) {
+    throw new Error(`R2 HEAD ${res.status}`);
+  }
+  const len = res.headers.get("content-length");
+  return { exists: true, size: len ? Number(len) : null };
+}
+
+/**
  * Type guard: true when the value is a parsed R2 overflow reference.
  */
 export function isR2OverflowRef(value: unknown): value is R2Overflow {
