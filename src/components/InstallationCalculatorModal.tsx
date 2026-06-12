@@ -147,14 +147,8 @@ export default function InstallationCalculatorModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-magic-ink/40 px-4"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-magic-ink/40 px-4">
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-base font-semibold text-magic-ink">
             Installation Calculator

@@ -10,6 +10,14 @@ export const dynamic = "force-dynamic";
 interface SearchParams {
   id?: string;
   tab?: string;
+  /**
+   * `view=1` forces the standalone read-only viewer instead of forwarding into
+   * the CRM drill-down. Used by the sales "View quotation" link: the quotation
+   * lives under the PRESALES folder/project, which the requesting salesperson
+   * can't open in the CRM — but they can view it read-only here (the
+   * /api/quotations GET grants them read as the RFQ requester).
+   */
+  view?: string;
 }
 
 /**
@@ -80,7 +88,10 @@ export default async function QuotationPage({
     home = undefined;
   }
 
-  if (home) {
+  // `view=1` skips the CRM redirect and renders the standalone read-only
+  // viewer below — so a salesperson who can't open the presales' CRM folder
+  // can still view the quotation they requested.
+  if (home && sp.view !== "1") {
     redirect(
       home.company_id
         ? `/crm/company/${home.company_id}/clients/${home.folder_id}/${home.project_id}/quotations/${home.id}`
