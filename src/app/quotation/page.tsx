@@ -4,6 +4,7 @@ import { sql, ensureSchema } from "@/lib/db";
 import { getAppSettings } from "@/lib/settings";
 import TopBar from "@/components/TopBar";
 import QuotationViewer from "@/components/QuotationViewer";
+import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
 
@@ -99,16 +100,29 @@ export default async function QuotationPage({
     );
   }
 
-  // Fallback — project-less quotation with no CRM home. Render the read-only
-  // viewer directly (the same component the CRM viewer uses).
+  // View-only / fallback surface. Reached either by the sales "View
+  // quotation" link (`view=1`) for a quotation that lives under the presales
+  // folder they can't open in the CRM, or by a project-less quotation with no
+  // CRM home. Render the SAME read-only QuotationViewer the CRM uses, inside
+  // the same back-button + card chrome, so it reads as "inside the quotation"
+  // rather than a disconnected page — just without the authoring affordances
+  // (the viewer already locks editing for sales).
   const appSettings = await getAppSettings();
   return (
     <div className="min-h-screen bg-magic-soft/40 print-root">
       <div className="no-print">
         <TopBar user={user} />
       </div>
-      <main className="max-w-5xl mx-auto p-6 print-main">
-        <QuotationViewer quotationId={quotationId} appSettings={appSettings} />
+      <main className="mx-auto max-w-screen-xl px-4 py-4 sm:px-6 print-main">
+        <div className="no-print mb-3 flex items-center justify-between gap-3">
+          <BackButton fallbackHref="/crm" fallbackLabel="Back" />
+          <span className="inline-flex items-center rounded-full border border-magic-border bg-white px-2.5 py-1 text-xs font-semibold text-magic-ink/60">
+            View only
+          </span>
+        </div>
+        <section className="rounded-2xl border border-magic-border bg-white p-5">
+          <QuotationViewer quotationId={quotationId} appSettings={appSettings} />
+        </section>
       </main>
     </div>
   );

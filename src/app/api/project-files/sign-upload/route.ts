@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canAuthorQuotation } from "@/lib/modules";
+import { userOwnsProjectOrLinked } from "@/lib/projectAccess";
 import {
   buildStoragePath,
   maxBytesForMime,
@@ -95,9 +96,14 @@ export async function POST(req: NextRequest) {
         { status: 404 },
       );
     }
+    // The project owner uploads to their own project; either side of a
+    // lead-linked deal (sales ↔ presales) may also contribute to the shared
+    // workspace — so a salesperson can attach the client's PO / a DWG to the
+    // deal even though the quotation lives under the presales project.
     if (
       user.role !== "admin" &&
-      projectRows[0].owner_id !== user.id
+      projectRows[0].owner_id !== user.id &&
+      !(await userOwnsProjectOrLinked(projectId, user.id))
     ) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }

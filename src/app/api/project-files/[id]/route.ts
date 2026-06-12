@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
 import { hasModule } from "@/lib/modules";
+import { getLinkedProjectIds } from "@/lib/projectAccess";
 import {
   createSignedDownloadUrl,
   deleteStorageObject,
@@ -80,8 +81,35 @@ async function loadFileRow(
 }
 
 /**
- * Read access: admin / owner always; otherwise a projects-module user (or
- * an assigned member) may read it only when it's been shared to projects.
+ * True when the caller owns (or owns the client folder of) a project that is
+ * lead-linked to the file's project — i.e. the file lives on the other side of
+ * the same sales ↔ presales deal. Lets Raghad (presales) open the DWG Mosa
+ * (sales) attached on their project, and vice-versa, without the file ever
+ * being duplicated.
+ */
+async function userOwnsLinkedProject(
+  q: ReturnType<typeof sql>,
+  fileProjectId: number,
+  userId: number,
+): Promise<boolean> {
+  const others = (await getLinkedProjectIds(fileProjectId)).filter(
+    (id) => id !== fileProjectId,
+  );
+  if (others.length === 0) return false;
+  const rows = (await q`
+    select 1 from projects p
+    join client_folders cf on cf.id = p.folder_id
+    where p.id = any(${others}::int[]) and p.deleted_at is null
+      and (p.owner_id = ${userId} or cf.owner_id = ${userId})
+    limit 1
+  `) as Array<{ "?column?": number }>;
+  return rows.length > 0;
+}
+
+/**
+ * Read access: admin / owner always; the sales ↔ presales counterpart on the
+ * same lead always (shared file workspace); otherwise a projects-module user
+ * (or an assigned member) may read it only when it's been shared to projects.
  */
 async function canReadFile(
   q: ReturnType<typeof sql>,
@@ -89,6 +117,7 @@ async function canReadFile(
   user: { id: number; role: string },
 ): Promise<boolean> {
   if (canReadAll(user) || file.owner_id === user.id) return true;
+  if (await userOwnsLinkedProject(q, file.project_id, user.id)) return true;
   if (!file.shared_to_projects) return false;
   if (await hasModule(user.id, "projects")) return true;
   const assigned = (await q`

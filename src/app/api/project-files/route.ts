@@ -4,6 +4,10 @@ import { canReadAll, requireUser } from "@/lib/auth";
 import { canAuthorQuotation, hasModule } from "@/lib/modules";
 import { normalizeFileKind } from "@/lib/storage";
 import { notifyPresalesOfProjectUpload } from "@/lib/leads";
+import {
+  getLinkedProjectIds,
+  userOwnsProjectOrLinked,
+} from "@/lib/projectAccess";
 
 export const runtime = "nodejs";
 
@@ -83,7 +87,40 @@ async function projectFileAccess(
 }
 
 /**
- * GET /api/project-files?project_id=X — list files in a project.
+ * Resolve file access across the lead-linked workspace.
+ *
+ * Files + BOQ are shared between the salesperson's project and the presales
+ * project of the SAME lead (see `getLinkedProjectIds`). So the caller's tier
+ * is the strongest tier they hold on ANY of the linked projects, and the list
+ * is drawn from all of them — Mosa sees the DWG Raghad attached, and Raghad
+ * sees Mosa's, with one row apiece. The strongest tier wins so a salesperson
+ * who owns their side ("full") sees the whole deal's files, not just the ones
+ * explicitly flagged for the projects team.
+ */
+async function linkedProjectFileAccess(
+  q: ReturnType<typeof sql>,
+  projectId: number,
+  user: { id: number; role: string },
+): Promise<{ tier: "full" | "shared" | null; projectIds: number[] }> {
+  const projectIds = await getLinkedProjectIds(projectId);
+  if (projectIds.length === 0) {
+    return { tier: await projectFileAccess(q, projectId, user), projectIds: [projectId] };
+  }
+  let best: "full" | "shared" | null = null;
+  for (const pid of projectIds) {
+    const tier = await projectFileAccess(q, pid, user);
+    if (tier === "full") {
+      best = "full";
+      break;
+    }
+    if (tier === "shared") best = "shared";
+  }
+  return { tier: best, projectIds };
+}
+
+/**
+ * GET /api/project-files?project_id=X — list files in a project (and the
+ * lead-linked sibling project, so sales + presales share one file space).
  * Optional &kind=quotation|po|boq|other narrows to the matching tab.
  */
 export async function GET(req: NextRequest) {
@@ -99,7 +136,7 @@ export async function GET(req: NextRequest) {
       );
     }
     const q = sql();
-    const tier = await projectFileAccess(q, projectId, user);
+    const { tier, projectIds } = await linkedProjectFileAccess(q, projectId, user);
     if (!tier) {
       return NextResponse.json({ files: [] });
     }
@@ -110,7 +147,7 @@ export async function GET(req: NextRequest) {
           select id, project_id, owner_id, kind, filename, mime, size_bytes,
                  storage_path, shared_to_projects, created_at
           from project_files
-          where project_id = ${projectId}
+          where project_id = any(${projectIds}::int[])
             and kind = ${kindParam}
             and deleted_at is null
             and (${sharedOnly}::boolean = false or shared_to_projects = true)
@@ -121,7 +158,7 @@ export async function GET(req: NextRequest) {
           select id, project_id, owner_id, kind, filename, mime, size_bytes,
                  storage_path, shared_to_projects, created_at
           from project_files
-          where project_id = ${projectId}
+          where project_id = any(${projectIds}::int[])
             and deleted_at is null
             and (${sharedOnly}::boolean = false or shared_to_projects = true)
           order by created_at desc, id desc
@@ -174,8 +211,12 @@ export async function POST(req: NextRequest) {
       );
     }
     const q = sql();
+    // Write gate: the project owner (tier "full") always; either side of a
+    // lead-linked deal may also register a file into the shared workspace.
     const tier = await projectFileAccess(q, projectId, user);
-    if (tier !== "full") {
+    const canWrite =
+      tier === "full" || (await userOwnsProjectOrLinked(projectId, user.id));
+    if (!canWrite) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     // Mirrors POST /api/quotations and /sign-upload: registering a

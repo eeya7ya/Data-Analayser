@@ -378,7 +378,11 @@ export default function QuotationViewer({
 
   return (
     <div>
-      <QuotationApprovalBar quotationId={id} initial={approvalState} />
+      <QuotationApprovalBar
+        quotationId={id}
+        initial={approvalState}
+        projectId={(row.project_id as number | null) ?? null}
+      />
       <div className="no-print flex flex-wrap justify-end mb-3 gap-2">
         {salesLocked ? (
           <button
