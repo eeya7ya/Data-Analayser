@@ -413,6 +413,8 @@ type R2BackupReport = {
   ok: boolean;
   error?: string;
   total?: number;
+  processed?: number;
+  done?: boolean;
   mirrored?: number;
   skipped?: number;
   missing?: number;
@@ -422,10 +424,31 @@ type R2BackupReport = {
 };
 
 function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "—";
   if (n < 1024) return `${n} B`;
   const mb = n / (1024 * 1024);
   if (mb < 1024) return `${mb.toFixed(2)} MB`;
   return `${(mb / 1024).toFixed(2)} GB`;
+}
+
+/** POST one backup batch and parse it defensively. A timed-out function
+ * returns an HTML 504 page, not JSON — read as text first so we surface a
+ * readable error instead of "Unexpected token '<'". */
+async function postBackupBatch(): Promise<R2BackupReport> {
+  const res = await fetch("/api/admin/backup-files-r2", { method: "POST" });
+  const text = await res.text();
+  let data: R2BackupReport | null = null;
+  try {
+    data = JSON.parse(text) as R2BackupReport;
+  } catch {
+    /* non-JSON body (timeout / proxy error) */
+  }
+  if (!res.ok || !data || data.ok === false) {
+    throw new Error(
+      data?.error || `Server error (HTTP ${res.status}). ${text.slice(0, 140)}`,
+    );
+  }
+  return data;
 }
 
 /**
@@ -439,6 +462,7 @@ function R2FileBackupPanel() {
   const [previewErr, setPreviewErr] = useState<string | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [report, setReport] = useState<R2BackupReport | null>(null);
 
   async function refreshPreview() {
@@ -446,8 +470,17 @@ function R2FileBackupPanel() {
     setPreviewErr(null);
     try {
       const res = await fetch("/api/admin/backup-files-r2", { method: "GET" });
-      const data = (await res.json()) as R2Preview & { error?: string };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const text = await res.text();
+      const data = (() => {
+        try {
+          return JSON.parse(text) as R2Preview & { error?: string };
+        } catch {
+          return null;
+        }
+      })();
+      if (!res.ok || !data) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
       setPreview(data);
     } catch (err) {
       setPreviewErr((err as Error).message);
@@ -459,16 +492,55 @@ function R2FileBackupPanel() {
   async function runBackup() {
     setRunning(true);
     setReport(null);
+    setProgress(null);
+    // The server time-boxes each call so it never hits the 60s function
+    // limit; it returns `done: false` when more files remain. Loop until it
+    // reports done, accumulating the unique "mirrored" tally (a file copied
+    // on one pass is skipped on the next, so it's only counted once). The
+    // pass cap is a safety net against an unexpected non-terminating loop.
+    let cumMirrored = 0;
+    let cumBytes = 0;
+    let last: R2BackupReport | null = null;
     try {
-      const res = await fetch("/api/admin/backup-files-r2", { method: "POST" });
-      const data = (await res.json()) as R2BackupReport;
-      setReport(data);
+      for (let pass = 0; pass < 100; pass++) {
+        const data = await postBackupBatch();
+        cumMirrored += data.mirrored ?? 0;
+        cumBytes += data.bytesMirrored ?? 0;
+        last = data;
+        if (data.done) break;
+        setProgress(
+          `Backing up… ${cumMirrored} file${cumMirrored === 1 ? "" : "s"} copied so far (${formatBytes(cumBytes)}). Still working…`,
+        );
+      }
+      const total = last?.total ?? 0;
+      const failed = last?.failed ?? 0;
+      const missing = last?.missing ?? 0;
+      setReport({
+        ok: true,
+        total,
+        mirrored: cumMirrored,
+        bytesMirrored: cumBytes,
+        // Everything that wasn't newly copied, failed, or missing was already
+        // safely in R2.
+        skipped: Math.max(0, total - cumMirrored - failed - missing),
+        missing,
+        failed,
+        errors: last?.errors,
+        done: last?.done,
+      });
       // Re-read the preview so the file count reflects reality afterwards.
       void refreshPreview();
     } catch (err) {
-      setReport({ ok: false, error: (err as Error).message });
+      // Partial progress is real (the copy is idempotent), so tell the user
+      // what landed and that another click resumes from there.
+      const tail =
+        cumMirrored > 0
+          ? ` — ${cumMirrored} file(s) were copied before this stopped; click "Back up files to R2 now" again to continue.`
+          : "";
+      setReport({ ok: false, error: (err as Error).message + tail });
     } finally {
       setRunning(false);
+      setProgress(null);
     }
   }
 
@@ -502,6 +574,12 @@ function R2FileBackupPanel() {
           {loadingPreview ? "Checking…" : "Check what's in Supabase"}
         </button>
       </div>
+
+      {progress && (
+        <p className="mt-3 text-sm text-magic-ink/70 bg-magic-soft border border-magic-border rounded-lg px-3 py-2">
+          {progress}
+        </p>
+      )}
 
       {preview && (
         <p className="mt-3 text-sm text-magic-ink/70">
