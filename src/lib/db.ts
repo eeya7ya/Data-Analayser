@@ -403,6 +403,8 @@ const LEAD_SHARED_QUEUE_FLAG = "lead_shared_queue_v1_4a_2026_05";
 const PROJECT_TASKS_FLAG = "project_tasks_v1_2026_06";
 // Barcode/QR code on products for stock scanning.
 const PRODUCT_BARCODE_FLAG = "product_barcode_v1_2026_06";
+// One-time cleanup of company-kind client folders whose company is gone.
+const ORPHAN_FOLDER_CLEANUP_FLAG = "orphan_company_folder_cleanup_v1_2026_06";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
@@ -487,6 +489,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let leadSharedQueueApplied = false;
   let projectTasksApplied = false;
   let productBarcodeApplied = false;
+  let orphanFolderCleanupApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -502,7 +505,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${NOTIFICATION_STATE_FLAG}, ${PROJECT_HANDOFFS_FLAG},
         ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}, ${USER_TOOLS_FLAG},
         ${V14A_FLAG}, ${LEAD_SHARED_QUEUE_FLAG}, ${PROJECT_TASKS_FLAG},
-        ${PRODUCT_BARCODE_FLAG}
+        ${PRODUCT_BARCODE_FLAG}, ${ORPHAN_FOLDER_CLEANUP_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -537,6 +540,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     leadSharedQueueApplied = keys.has(LEAD_SHARED_QUEUE_FLAG);
     projectTasksApplied = keys.has(PROJECT_TASKS_FLAG);
     productBarcodeApplied = keys.has(PRODUCT_BARCODE_FLAG);
+    orphanFolderCleanupApplied = keys.has(ORPHAN_FOLDER_CLEANUP_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -573,7 +577,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     v14aApplied &&
     leadSharedQueueApplied &&
     projectTasksApplied &&
-    productBarcodeApplied
+    productBarcodeApplied &&
+    orphanFolderCleanupApplied
   )
     return;
 
@@ -2654,6 +2659,39 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${PRODUCT_BARCODE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!orphanFolderCleanupApplied) {
+    // One-time cleanup of orphaned 'company'-kind client folders: a folder
+    // tagged as a company client whose company has been deleted (or was never
+    // linked) used to survive as an active "client folder" sitting under
+    // "0 companies". Soft-delete those folders — and any projects filed under
+    // them — so they land in Trash like a normal removal. Going forward, the
+    // trash purge of a company also removes its folders, so this won't recur.
+    await q`
+      update projects set deleted_at = now(), updated_at = now()
+      where deleted_at is null
+        and folder_id in (
+          select cf.id from client_folders cf
+          where cf.deleted_at is null and cf.kind = 'company'
+            and not exists (
+              select 1 from companies c
+              where c.id = cf.company_id and c.deleted_at is null
+            )
+        )
+    `;
+    await q`
+      update client_folders cf set deleted_at = now(), updated_at = now()
+      where cf.deleted_at is null and cf.kind = 'company'
+        and not exists (
+          select 1 from companies c
+          where c.id = cf.company_id and c.deleted_at is null
+        )
+    `;
+    await q`
+      insert into migration_flags (key) values (${ORPHAN_FOLDER_CLEANUP_FLAG})
       on conflict (key) do nothing
     `;
   }
