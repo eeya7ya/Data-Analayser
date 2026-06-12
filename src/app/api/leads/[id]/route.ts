@@ -25,6 +25,7 @@ async function loadLead(id: number) {
   const rows = (await q`
     select l.*,
            cu.username as created_by_username, cu.display_name as created_by_name,
+           cu.phone as created_by_phone, cu.email as created_by_email,
            au.username as assigned_to_username, au.display_name as assigned_to_name,
            pmu.username as presales_manager_username,
            exu.username as execution_assignee_username, exu.display_name as execution_assignee_name,

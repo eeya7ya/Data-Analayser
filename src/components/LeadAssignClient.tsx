@@ -28,6 +28,16 @@ interface LeadRow {
   assigned_to_username: string | null;
   company_name: string | null;
   folder_name: string | null;
+  // Who raised the RFQ (the salesperson) and how to reach them.
+  created_by_name: string | null;
+  created_by_username: string | null;
+  created_by_phone: string | null;
+  created_by_email: string | null;
+  // The client contact sales attached, if any.
+  contact_first_name: string | null;
+  contact_last_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
 }
 
 interface CompanyOpt {
@@ -331,6 +341,71 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
             {[lead.company_name, lead.folder_name].filter(Boolean).join(" · ")}
           </p>
         )}
+
+        {/* Contact details sales sent with the RFQ. The salesperson (who to
+            ask for clarification) and the client contact (who to serve) —
+            phone + email each, shown only when present. */}
+        {(() => {
+          const salesName = lead.created_by_name || lead.created_by_username;
+          const contactName = [lead.contact_first_name, lead.contact_last_name]
+            .filter(Boolean)
+            .join(" ");
+          const hasSales =
+            salesName || lead.created_by_phone || lead.created_by_email;
+          const hasContact =
+            contactName || lead.contact_phone || lead.contact_email;
+          if (!hasSales && !hasContact) return null;
+          return (
+            <div className="mt-3 space-y-1.5 rounded-lg border border-magic-border/60 bg-magic-soft/30 px-3 py-2 text-xs">
+              {hasSales && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  <span className="font-semibold text-magic-ink/70">
+                    Raised by{salesName ? ` ${salesName}` : ""}
+                  </span>
+                  {lead.created_by_phone && (
+                    <a
+                      href={`tel:${lead.created_by_phone}`}
+                      className="text-magic-red hover:underline"
+                    >
+                      {lead.created_by_phone}
+                    </a>
+                  )}
+                  {lead.created_by_email && (
+                    <a
+                      href={`mailto:${lead.created_by_email}`}
+                      className="text-magic-red hover:underline"
+                    >
+                      {lead.created_by_email}
+                    </a>
+                  )}
+                </div>
+              )}
+              {hasContact && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  <span className="font-semibold text-magic-ink/70">
+                    Client contact{contactName ? ` · ${contactName}` : ""}
+                  </span>
+                  {lead.contact_phone && (
+                    <a
+                      href={`tel:${lead.contact_phone}`}
+                      className="text-magic-red hover:underline"
+                    >
+                      {lead.contact_phone}
+                    </a>
+                  )}
+                  {lead.contact_email && (
+                    <a
+                      href={`mailto:${lead.contact_email}`}
+                      className="text-magic-red hover:underline"
+                    >
+                      {lead.contact_email}
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       <div className="rounded-2xl border border-magic-border bg-white p-5 shadow-sm">
