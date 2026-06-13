@@ -350,16 +350,6 @@ export default function QuotationApprovalBar({
               Reject
             </button>
           )}
-          {canConvert && fullyApproved && !rejected && !transferred && (
-            <button
-              onClick={() => setConverting(true)}
-              disabled={busy}
-              title="Forward this deal to the project manager with site / contact details"
-              className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
-            >
-              {converted ? "Proceed to Execution ✓ — send again" : "Proceed to Execution"}
-            </button>
-          )}
         </div>
       </div>
 
@@ -414,10 +404,26 @@ export default function QuotationApprovalBar({
                   <button
                     onClick={() => setHoldOpen((v) => !v)}
                     disabled={outcomeBusy || !fullyApproved}
-                    title={fullyApproved ? "Stage for the projects team" : "Approve the quotation first"}
+                    title={
+                      fullyApproved
+                        ? "Park the won deal — stage it (optionally on a schedule) before it goes to the projects team"
+                        : "Approve the quotation first"
+                    }
                     className="px-3 py-1 text-xs font-semibold rounded border border-magic-red text-magic-red hover:bg-magic-red hover:text-white disabled:opacity-50 transition-colors"
                   >
                     Hold for execution
+                  </button>
+                  <button
+                    onClick={() => setConverting(true)}
+                    disabled={outcomeBusy || !fullyApproved || rejected}
+                    title={
+                      fullyApproved
+                        ? "Forward the deal to the project manager now — capture site / contact details and hand it off"
+                        : "Approve the quotation first"
+                    }
+                    className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+                  >
+                    {converted ? "Proceed to Execution ✓" : "Proceed to Execution"}
                   </button>
                 </>
               )}

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { canReadAll, getSessionUser } from "@/lib/auth";
 import { getCrmCaps } from "@/lib/modules";
 import { sql, ensureSchema } from "@/lib/db";
-import { userHasLeadAccessToFolder } from "@/lib/leads";
+import { getActiveRfqForProject, userHasLeadAccessToFolder } from "@/lib/leads";
 import { userHasAssignedProjectInFolder } from "@/lib/projectAccess";
 import TopBar from "@/components/TopBar";
 import FolderProjectsClient from "@/components/FolderProjectsClient";
@@ -98,6 +98,16 @@ export default async function IndividualClientPage({
     );
   }
 
+  // Resolve the active RFQ for the preselected project on the server so the
+  // "View quotation" affordance paints on first render (no client-fetch swap).
+  const validInitialProjectId =
+    Number.isFinite(initialProjectId) && initialProjectId > 0
+      ? initialProjectId
+      : undefined;
+  const initialRfq = validInitialProjectId
+    ? await getActiveRfqForProject(user, validInitialProjectId)
+    : null;
+
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
@@ -160,13 +170,11 @@ export default async function IndividualClientPage({
         <FolderProjectsClient
           folderId={folder.id}
           folderName={folder.name}
-          initialProjectId={
-            Number.isFinite(initialProjectId) && initialProjectId > 0
-              ? initialProjectId
-              : undefined
-          }
+          initialProjectId={validInitialProjectId}
           initialTab={tab}
           initialCaps={await getCrmCaps(user)}
+          initialRfq={initialRfq}
+          initialRfqProjectId={validInitialProjectId}
         />
       </main>
     </div>

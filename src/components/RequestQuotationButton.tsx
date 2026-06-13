@@ -38,6 +38,7 @@ export default function RequestQuotationButton({
   projectId,
   projectName,
   canRequestHint,
+  initialRfq,
 }: {
   projectId: number;
   projectName: string;
@@ -50,11 +51,24 @@ export default function RequestQuotationButton({
    * the button take ~5 s to appear on a cold pooler.
    */
   canRequestHint?: boolean;
+  /**
+   * The project's active RFQ, resolved on the SERVER and seeded here so the
+   * correct button ("View quotation" / "Request for Modification" / status
+   * chip) paints on first render. Without it the button defaulted to
+   * "Request for Quotation" and then visibly swapped once a client
+   * `/api/leads` fetch resolved — the "buttons re-render" complaint.
+   * `undefined` means "not seeded" (we'll fetch + show a skeleton meanwhile);
+   * `null` means "seeded, and there is no open RFQ".
+   */
+  initialRfq?: OpenRfq | null;
 }) {
   const [canRequest, setCanRequest] = useState<boolean | null>(
     canRequestHint === undefined ? null : canRequestHint,
   );
-  const [rfq, setRfq] = useState<OpenRfq | null>(null);
+  const [rfq, setRfq] = useState<OpenRfq | null>(initialRfq ?? null);
+  // Seeded → already resolved; otherwise we wait for the fetch before we
+  // commit to a button so we never flash the wrong one.
+  const [rfqLoaded, setRfqLoaded] = useState<boolean>(initialRfq !== undefined);
   const [open, setOpen] = useState(false);
   const [modifyOpen, setModifyOpen] = useState(false);
 
@@ -78,6 +92,8 @@ export default function RequestQuotationButton({
       setRfq(active);
     } catch {
       setRfq(null);
+    } finally {
+      setRfqLoaded(true);
     }
   }, [projectId]);
 
@@ -121,6 +137,18 @@ export default function RequestQuotationButton({
   }, [canRequest, refresh]);
 
   if (canRequest !== true) return null;
+
+  // Status not resolved yet AND not seeded by the server — show a neutral
+  // skeleton rather than defaulting to "Request for Quotation", which would
+  // then visibly swap to "View quotation" once the lead lands.
+  if (!rfqLoaded) {
+    return (
+      <div
+        className="h-8 w-44 animate-pulse rounded-lg border border-magic-border bg-magic-soft/40"
+        aria-hidden
+      />
+    );
+  }
 
   // Presales has produced a quotation — sales can view it (read-only) and,
   // instead of a fresh RFQ, request a modification that goes straight to the

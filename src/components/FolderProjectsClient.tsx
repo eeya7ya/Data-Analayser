@@ -31,6 +31,23 @@ interface QuotationRow {
   status?: string | null;
   parent_ref?: string | null;
   created_at: string;
+  /** True when this quotation lives under the lead-linked counterpart
+   * project (e.g. the presales quotation surfaced into the salesperson's
+   * project). Such rows are view-only here — no edit / move / delete. */
+  read_only?: boolean;
+}
+
+/** The project's active RFQ, resolved on the server and threaded down to
+ * RequestQuotationButton so the "View quotation" affordance paints on first
+ * render instead of swapping in after a client fetch. Shape mirrors the
+ * button's own OpenRfq. */
+export interface ProjectRfqSeed {
+  id: number;
+  ref: string;
+  status: string;
+  assigned_to_username: string | null;
+  quote_id: number | null;
+  quote_ref: string | null;
 }
 
 interface PoRow {
@@ -192,6 +209,8 @@ export default function FolderProjectsClient({
   initialProjectId,
   initialTab,
   initialCaps,
+  initialRfq,
+  initialRfqProjectId,
 }: {
   folderId: number;
   folderName: string;
@@ -203,6 +222,10 @@ export default function FolderProjectsClient({
   /** CRM caps resolved on the server so the sales / presales buttons paint
    * immediately instead of after a client /api/auth/me round-trip. */
   initialCaps?: InitialCrmCaps;
+  /** Server-resolved active RFQ for `initialRfqProjectId`, seeded into the
+   * project header so "View quotation" paints on first render. */
+  initialRfq?: ProjectRfqSeed | null;
+  initialRfqProjectId?: number;
 }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
@@ -477,6 +500,9 @@ export default function FolderProjectsClient({
           <ProjectPanel
             project={activeProject}
             initialTab={initialTab}
+            initialRfq={
+              initialRfqProjectId === activeProject.id ? initialRfq : undefined
+            }
             refreshKey={refreshKey}
             onDragStart={(kind, id) =>
               setDragInfo({ kind, id, sourceProjectId: activeProject.id })
@@ -636,6 +662,7 @@ const LINKABLE_TABS: ReadonlyArray<ProjectTab> = [
 function ProjectPanel({
   project,
   initialTab,
+  initialRfq,
   refreshKey,
   onDragStart,
   onDragEnd,
@@ -644,6 +671,7 @@ function ProjectPanel({
 }: {
   project: Project;
   initialTab?: string;
+  initialRfq?: ProjectRfqSeed | null;
   refreshKey: number;
   onDragStart: (kind: DragKind, id: number) => void;
   onDragEnd: () => void;
@@ -682,6 +710,7 @@ function ProjectPanel({
         onProjectUpdate={onProjectUpdate}
         onProjectDelete={onProjectDelete}
         canRequestQuotation={caps.canRequestQuotation}
+        initialRfq={initialRfq}
       />
       <div className="border-b border-magic-border px-2 sm:px-4 flex gap-1 overflow-x-auto">
         {tabs.map(([key, label]) => {
@@ -753,11 +782,13 @@ function ProjectHeader({
   onProjectUpdate,
   onProjectDelete,
   canRequestQuotation,
+  initialRfq,
 }: {
   project: Project;
   onProjectUpdate: (p: Project) => void;
   onProjectDelete: (id: number) => void;
   canRequestQuotation: boolean;
+  initialRfq?: ProjectRfqSeed | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(project.name);
@@ -878,6 +909,7 @@ function ProjectHeader({
             projectId={project.id}
             projectName={project.name}
             canRequestHint
+            initialRfq={initialRfq}
           />
         )}
         <button
@@ -1001,45 +1033,76 @@ function QuotationsTab({
         </div>
       ) : (
         <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
-          {items.map((row) => (
-            <li
-              key={row.id}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", String(row.id));
-                onDragStart("quotation", row.id);
-              }}
-              onDragEnd={onDragEnd}
-              className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40 cursor-grab active:cursor-grabbing"
-              title="Drag onto a project in the sidebar to move this quotation"
-            >
-              <div className="min-w-0">
-                <Link
-                  href={`/quotation?id=${row.id}`}
-                  className="font-mono text-sm text-magic-red hover:underline"
-                  draggable={false}
-                >
-                  {row.ref}
-                </Link>
-                <span className="ml-2 text-sm text-magic-ink truncate">
-                  {row.project_name || "—"}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <QuotationRowActions
-                  quotationId={row.id}
-                  currentProjectId={project.id}
-                  currentFolderId={project.folder_id}
-                  currentProjectName={project.name}
-                  onChanged={() => setReloadToken((t) => t + 1)}
-                />
-                <span className="text-[10px] uppercase text-magic-ink/50">
-                  {row.status || "active"}
-                </span>
-              </div>
-            </li>
-          ))}
+          {items.map((row) =>
+            row.read_only ? (
+              // Surfaced from the lead-linked presales project — view-only.
+              // Links to the standalone read-only viewer (the sales user can't
+              // open the presales folder in the CRM) and carries no move /
+              // copy / delete affordances.
+              <li
+                key={row.id}
+                className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40"
+              >
+                <div className="min-w-0">
+                  <Link
+                    href={`/quotation?id=${row.id}&view=1`}
+                    className="font-mono text-sm text-magic-red hover:underline"
+                  >
+                    {row.ref}
+                  </Link>
+                  <span className="ml-2 text-sm text-magic-ink truncate">
+                    {row.project_name || "—"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="rounded-full border border-magic-border bg-magic-soft/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-magic-ink/50">
+                    View only
+                  </span>
+                  <span className="text-[10px] uppercase text-magic-ink/50">
+                    {row.status || "active"}
+                  </span>
+                </div>
+              </li>
+            ) : (
+              <li
+                key={row.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", String(row.id));
+                  onDragStart("quotation", row.id);
+                }}
+                onDragEnd={onDragEnd}
+                className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40 cursor-grab active:cursor-grabbing"
+                title="Drag onto a project in the sidebar to move this quotation"
+              >
+                <div className="min-w-0">
+                  <Link
+                    href={`/quotation?id=${row.id}`}
+                    className="font-mono text-sm text-magic-red hover:underline"
+                    draggable={false}
+                  >
+                    {row.ref}
+                  </Link>
+                  <span className="ml-2 text-sm text-magic-ink truncate">
+                    {row.project_name || "—"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <QuotationRowActions
+                    quotationId={row.id}
+                    currentProjectId={project.id}
+                    currentFolderId={project.folder_id}
+                    currentProjectName={project.name}
+                    onChanged={() => setReloadToken((t) => t + 1)}
+                  />
+                  <span className="text-[10px] uppercase text-magic-ink/50">
+                    {row.status || "active"}
+                  </span>
+                </div>
+              </li>
+            ),
+          )}
         </ul>
       )}
 

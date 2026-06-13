@@ -286,6 +286,62 @@ export async function getLeadVisibility(user: SessionUser): Promise<LeadVisibili
 }
 
 /**
+ * The active RFQ (lead) for a project, in the exact shape
+ * RequestQuotationButton renders — so the server page can seed the button's
+ * first paint instead of letting it flash "Request for Quotation" and then
+ * swap to "View quotation" once a client `/api/leads` round-trip lands.
+ *
+ * Mirrors the selection `/api/leads` makes: prefer a lead that already has a
+ * quotation, else the most recent open one. Matches the project on EITHER
+ * side of a claim (`project_id` OR `sales_project_id`) and respects the same
+ * visibility (the salesperson sees the lead they opened; presales / admin see
+ * the shared queue).
+ */
+export interface ActiveRfq {
+  id: number;
+  ref: string;
+  status: string;
+  assigned_to_username: string | null;
+  quote_id: number | null;
+  quote_ref: string | null;
+}
+
+export async function getActiveRfqForProject(
+  user: SessionUser,
+  projectId: number,
+): Promise<ActiveRfq | null> {
+  if (!Number.isFinite(projectId) || projectId <= 0) return null;
+  const vis = await getLeadVisibility(user);
+  const q = sql();
+  const rows = (await q`
+    select l.id, l.ref, l.status, au.username as assigned_to_username,
+           ql.id as quote_id, ql.ref as quote_ref
+    from leads l
+    left join users au on au.id = l.assigned_to_id
+    left join lateral (
+      select qq.id, qq.ref
+      from quotations qq
+      where qq.project_id = l.project_id and qq.deleted_at is null
+      order by qq.created_at desc
+      limit 1
+    ) ql on true
+    where l.deleted_at is null
+      and (l.project_id = ${projectId} or l.sales_project_id = ${projectId})
+      and l.completed_at is null
+      and (
+        ${vis.full}::boolean
+        or l.created_by = ${vis.userId}
+        or l.assigned_to_id = ${vis.userId}
+      )
+    order by
+      case when ql.id is not null then 0 else 1 end,
+      l.created_at desc
+    limit 1
+  `) as ActiveRfq[];
+  return rows[0] ?? null;
+}
+
+/**
  * Folder-level access granted *through* a lead. A presales engineer who
  * gets a lead distributed to them (or the salesperson who opened it)
  * doesn't own the client folder it's linked to, so the plain
