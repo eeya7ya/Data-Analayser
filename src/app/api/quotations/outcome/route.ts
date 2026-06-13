@@ -129,13 +129,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if ((outcome === "accepted" || outcome === "held") && !quotation.approved_at) {
-      return NextResponse.json(
-        { error: "the quotation must be approved before it can be accepted or held" },
-        { status: 409 },
-      );
-    }
-
     const reason =
       outcome === "rejected"
         ? String(body.reason || "").trim().slice(0, 2000) || null

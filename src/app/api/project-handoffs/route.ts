@@ -174,18 +174,34 @@ export async function POST(req: NextRequest) {
     const isAdmin = canReadAll(user);
     const isSalesManager =
       isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
+    // The presales author owns the quotation row, but the salesperson who
+    // raised the RFQ drives the deal — so they may push it to execution too,
+    // not just the owner.
+    let raisedRfq = false;
     if (!isAdmin && !isSalesManager && quotation.owner_id !== user.id) {
+      const leadRows = (await q`
+        select 1 from leads
+        where deleted_at is null and created_by = ${user.id}
+          and (
+            quotation_id = ${quotation.id}
+            or (${quotation.project_id}::int is not null and (
+              project_id = ${quotation.project_id}
+              or sales_project_id = ${quotation.project_id}
+            ))
+          )
+        limit 1
+      `) as Array<{ "?column?": number }>;
+      raisedRfq = leadRows.length > 0;
+    }
+    if (
+      !isAdmin &&
+      !isSalesManager &&
+      quotation.owner_id !== user.id &&
+      !raisedRfq
+    ) {
       return NextResponse.json(
         { error: "you can only convert your own quotations" },
         { status: 403 },
-      );
-    }
-
-    // Approved / won gate — only signed-off quotations become projects.
-    if (!quotation.approved_at) {
-      return NextResponse.json(
-        { error: "quotation must be fully approved before it can be converted" },
-        { status: 409 },
       );
     }
 

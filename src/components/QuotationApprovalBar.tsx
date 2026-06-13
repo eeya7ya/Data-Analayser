@@ -387,8 +387,8 @@ export default function QuotationApprovalBar({
                 <>
                   <button
                     onClick={() => void markOutcome("accepted")}
-                    disabled={outcomeBusy || !fullyApproved}
-                    title={fullyApproved ? "Client accepted the quotation" : "Approve the quotation first"}
+                    disabled={outcomeBusy}
+                    title="Client accepted — record the win, then upload their signed PO"
                     className="px-3 py-1 text-xs font-semibold rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
                   >
                     Accepted
@@ -403,24 +403,16 @@ export default function QuotationApprovalBar({
                   </button>
                   <button
                     onClick={() => setHoldOpen((v) => !v)}
-                    disabled={outcomeBusy || !fullyApproved}
-                    title={
-                      fullyApproved
-                        ? "Park the won deal — stage it (optionally on a schedule) before it goes to the projects team"
-                        : "Approve the quotation first"
-                    }
+                    disabled={outcomeBusy}
+                    title="Park the won deal — set a reminder time to auto-transfer it to the projects team"
                     className="px-3 py-1 text-xs font-semibold rounded border border-magic-red text-magic-red hover:bg-magic-red hover:text-white disabled:opacity-50 transition-colors"
                   >
                     Hold for execution
                   </button>
                   <button
                     onClick={() => setConverting(true)}
-                    disabled={outcomeBusy || !fullyApproved || rejected}
-                    title={
-                      fullyApproved
-                        ? "Forward the deal to the project manager now — capture site / contact details and hand it off"
-                        : "Approve the quotation first"
-                    }
+                    disabled={outcomeBusy || rejected}
+                    title="Forward the deal to the project manager now — capture site / contact details and hand it off"
                     className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
                   >
                     {converted ? "Proceed to Execution ✓" : "Proceed to Execution"}
