@@ -38,7 +38,14 @@ export default async function ProjectQuotationViewerSection({
   // successfully-loaded quotation except the browser button.
   return (
     <div className="mx-auto max-w-screen-xl px-4 py-4 sm:px-6">
-      <div className="mb-3">
+      {/* `no-print` so the back link is stripped from the printed PDF. The
+          surrounding ProjectDrillDownShell supplies `print-root`/`print-main`,
+          which force every non-`.no-print` element inside the print area to
+          `display: block` — without this class the "← Back" link rendered at
+          the top of page 1 and pushed the full-bleed cover sheet off the
+          first page, exactly the broken view-page print the designer's
+          (already `no-print`-wrapped) back button never had. */}
+      <div className="no-print mb-3">
         <BackButton fallbackHref="/crm" fallbackLabel="Back" />
       </div>
       <section className="rounded-2xl border border-magic-border bg-white p-5">
