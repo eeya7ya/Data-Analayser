@@ -12,6 +12,7 @@ import { runQuotationPrint } from "@/lib/printQuotation";
 import QuotationApprovalBar from "./QuotationApprovalBar";
 import QuotationStockCheckPanel from "./QuotationStockCheckPanel";
 import PageLoader from "./PageLoader";
+import ActionMenu from "./ActionMenu";
 
 interface SavedConfig {
   showPictures?: boolean;
@@ -404,44 +405,53 @@ export default function QuotationViewer({
             Edit
           </button>
         )}
-        <button
-          onClick={() => runPrint(false)}
-          className="rounded-md bg-magic-red text-white px-4 py-2 text-sm font-semibold hover:bg-red-700"
-        >
-          Print / PDF
-        </button>
-        <button
-          onClick={() => runPrint(true)}
-          title="Print without the cover and about-us pages (internal draft)"
-          className="rounded-md border border-magic-red text-magic-red px-4 py-2 text-sm font-semibold hover:bg-magic-red hover:text-white transition-colors"
-        >
-          Print Draft
-        </button>
-        <button
-          onClick={runPrintBoq}
-          title="Print the Bill of Quantities — items only, no pricing columns or totals"
-          className="rounded-md border border-magic-red text-magic-red px-4 py-2 text-sm font-semibold hover:bg-magic-red hover:text-white transition-colors"
-        >
-          Print BOQ
-        </button>
-        <button
-          onClick={() =>
-            window.open(`/financial-proposal?id=${id}`, "_blank", "noopener")
-          }
-          title="Open the Financial Proposal document — cover, contact details, items table and terms, ready to print or save as PDF"
-          className="rounded-md border border-magic-red text-magic-red px-4 py-2 text-sm font-semibold hover:bg-magic-red hover:text-white transition-colors"
-        >
-          Financial Proposal
-        </button>
-        <button
-          onClick={() =>
-            window.open(`/technical-proposal?id=${id}`, "_blank", "noopener")
-          }
-          title="Open the Technical Proposal — auto-pulls detailed descriptions from the catalogue, with click-to-upload diagrams and certificates"
-          className="rounded-md border border-magic-red text-magic-red px-4 py-2 text-sm font-semibold hover:bg-magic-red hover:text-white transition-colors"
-        >
-          Technical Proposal
-        </button>
+        <ActionMenu
+          label="Export as"
+          variant="primary"
+          size="md"
+          title="Print, save as PDF, or open the proposal documents"
+          items={[
+            {
+              label: "PDF Full",
+              onClick: () => runPrint(false),
+              title: "Print the full quotation — cover, about-us and items",
+            },
+            {
+              label: "PDF Draft",
+              onClick: () => runPrint(true),
+              title:
+                "Print without the cover and about-us pages (internal draft)",
+            },
+            {
+              label: "BOQ",
+              onClick: runPrintBoq,
+              title:
+                "Print the Bill of Quantities — items only, no pricing columns or totals",
+            },
+            {
+              label: "Financial Proposal",
+              onClick: () =>
+                window.open(
+                  `/financial-proposal?id=${id}`,
+                  "_blank",
+                  "noopener",
+                ),
+              title:
+                "Open the Financial Proposal document — cover, contact details, items table and terms, ready to print or save as PDF",
+            },
+            {
+              label: "Technical Proposal",
+              onClick: () =>
+                window.open(
+                  `/technical-proposal?id=${id}`,
+                  "_blank",
+                  "noopener",
+                ),
+              title:
+                "Open the Technical Proposal — auto-pulls detailed descriptions from the catalogue, with click-to-upload diagrams and certificates",
+            },
+          ]}
+        />
       </div>
       {requestDone && (
         <div className="no-print mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">

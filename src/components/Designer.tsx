@@ -29,6 +29,7 @@ import QuickCatalogPicker from "./QuickCatalogPicker";
 import CataloguePickerModal from "./CataloguePickerModal";
 import InstallationCalculatorModal from "./InstallationCalculatorModal";
 import ExcelImportModal from "./ExcelImportModal";
+import ActionMenu from "./ActionMenu";
 import {
   BRAND_VARIANTS,
   DEFAULT_BRAND_VARIANT_ID,
@@ -1912,27 +1913,36 @@ export default function Designer({
             >
               {quickPickerOpen ? "Hide picker" : "Show picker"}
             </button>
-            <button
-              onClick={() => setCataloguePickerOpen(true)}
-              title="Browse and search the full product catalogue without leaving the editor"
-              className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors"
-            >
-              + Add from Catalogue
-            </button>
-            <button
-              onClick={() => setInstallationCalculatorOpen(true)}
-              title="Price an installation from conduits, cables, labour and location, then add it as one row to the quotation under the selected system. Rates are set at Admin → Installation Calculator."
-              className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors"
-            >
-              Installation Calculator
-            </button>
-            <button
-              onClick={() => setExcelImportOpen(true)}
-              title="Import items from an Excel or CSV file (auto-detects Brand / Model / Description / Quantity / Unit Price)"
-              className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors"
-            >
-              Import Excel
-            </button>
+            {/*
+             * Content-adding actions grouped under one "Add" menu:
+             * full catalogue picker, installation calculator and Excel/CSV
+             * import all funnel new rows into the quotation.
+             */}
+            <ActionMenu
+              label="Add"
+              variant="outline"
+              title="Add items to the quotation"
+              items={[
+                {
+                  label: "From Catalogue",
+                  onClick: () => setCataloguePickerOpen(true),
+                  title:
+                    "Browse and search the full product catalogue without leaving the editor",
+                },
+                {
+                  label: "Installation Calculator",
+                  onClick: () => setInstallationCalculatorOpen(true),
+                  title:
+                    "Price an installation from conduits, cables, labour and location, then add it as one row to the quotation under the selected system. Rates are set at Admin → Installation Calculator.",
+                },
+                {
+                  label: "Import Excel",
+                  onClick: () => setExcelImportOpen(true),
+                  title:
+                    "Import items from an Excel or CSV file (auto-detects Brand / Model / Description / Quantity / Unit Price)",
+                },
+              ]}
+            />
             <button
               onClick={clearAll}
               disabled={items.length === 0 || saving}
@@ -1940,83 +1950,80 @@ export default function Designer({
             >
               Clear
             </button>
-            <button
-              onClick={exportToExcel}
-              disabled={items.length === 0}
-              title="Export the quotation as an Excel file"
-              className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
-            >
-              Export Excel
-            </button>
-            <button
-              onClick={() => printQuotation(false)}
-              disabled={items.length === 0}
-              title="Print the current quotation preview"
-              className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
-            >
-              Print / PDF
-            </button>
-            <button
-              onClick={() => printQuotation(true)}
-              disabled={items.length === 0}
-              title="Print without the cover and about-us pages (internal draft)"
-              className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors disabled:opacity-50"
-            >
-              Print Draft
-            </button>
-            <button
-              onClick={printBoq}
-              disabled={items.length === 0}
-              title="Print the Bill of Quantities — items only, no pricing columns or totals"
-              className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors disabled:opacity-50"
-            >
-              Print BOQ
-            </button>
-            <button
-              onClick={() => saveQuotation("save")}
-              disabled={
-                items.length === 0 || saving || (!editMode && !folderId)
-              }
-              title={
-                !editMode && !folderId
-                  ? "Select a client before saving"
-                  : undefined
-              }
-              className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
-            >
-              {saving
-                ? "Saving…"
-                : editMode
-                  ? "Save updates"
-                  : "Save & open printable"}
-            </button>
             {/*
-             * Draft / Review snapshots clone the currently-loaded quotation
-             * into a NEW row whose ref carries a D<m> / R<m> suffix — see
-             * src/app/api/quotations/route.ts genSuffixedRef(). Only exposed
-             * in edit mode because the suffix counter needs an existing
-             * parent to anchor against.
+             * All export / print outputs grouped under one "Export as" menu.
              */}
-            {editMode && existing && (
-              <>
-                <button
-                  onClick={() => saveQuotation("draft")}
-                  disabled={items.length === 0 || saving}
-                  title="Save a draft snapshot of this quotation (ref ends with D<n>)"
-                  className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors disabled:opacity-50"
-                >
-                  Save as Draft
-                </button>
-                <button
-                  onClick={() => saveQuotation("review")}
-                  disabled={items.length === 0 || saving}
-                  title="Save a review snapshot of this quotation (ref ends with R<n>)"
-                  className="rounded-md border border-magic-red text-magic-red px-3 py-1.5 text-xs font-semibold hover:bg-magic-red hover:text-white transition-colors disabled:opacity-50"
-                >
-                  Save as Review
-                </button>
-              </>
-            )}
+            <ActionMenu
+              label="Export as"
+              variant="primary"
+              disabled={items.length === 0}
+              title="Export or print the quotation"
+              items={[
+                {
+                  label: "PDF Full",
+                  onClick: () => printQuotation(false),
+                  title: "Print the current quotation preview",
+                },
+                {
+                  label: "Excel",
+                  onClick: exportToExcel,
+                  title: "Export the quotation as an Excel file",
+                },
+                {
+                  label: "BOQ",
+                  onClick: printBoq,
+                  title:
+                    "Print the Bill of Quantities — items only, no pricing columns or totals",
+                },
+                {
+                  label: "PDF Draft",
+                  onClick: () => printQuotation(true),
+                  title:
+                    "Print without the cover and about-us pages (internal draft)",
+                },
+              ]}
+            />
+            {/*
+             * Saving grouped under one "Save as" menu. "Update" persists in
+             * place; Draft / Review clone the currently-loaded quotation into
+             * a NEW row whose ref carries a D<m> / R<m> suffix — see
+             * src/app/api/quotations/route.ts genSuffixedRef(). The snapshot
+             * items are only shown in edit mode because the suffix counter
+             * needs an existing parent to anchor against.
+             */}
+            <ActionMenu
+              label={saving ? "Saving…" : "Save as"}
+              variant="primary"
+              disabled={saving}
+              items={[
+                {
+                  label: editMode ? "Update" : "Save & open printable",
+                  onClick: () => saveQuotation("save"),
+                  disabled:
+                    items.length === 0 || saving || (!editMode && !folderId),
+                  title:
+                    !editMode && !folderId
+                      ? "Select a client before saving"
+                      : undefined,
+                },
+                {
+                  label: "New Draft",
+                  onClick: () => saveQuotation("draft"),
+                  disabled: items.length === 0 || saving,
+                  title:
+                    "Save a draft snapshot of this quotation (ref ends with D<n>)",
+                  hidden: !(editMode && existing),
+                },
+                {
+                  label: "New Revision",
+                  onClick: () => saveQuotation("review"),
+                  disabled: items.length === 0 || saving,
+                  title:
+                    "Save a review snapshot of this quotation (ref ends with R<n>)",
+                  hidden: !(editMode && existing),
+                },
+              ]}
+            />
           </div>
         </div>
         <div className="flex flex-col lg:flex-row gap-4 items-start">

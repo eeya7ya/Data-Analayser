@@ -590,52 +590,66 @@ function NewProjectButton({
       </button>
     );
   }
+  function close() {
+    setOpen(false);
+    setName("");
+    setDescription("");
+    setError(null);
+  }
+
+  // Centered modal overlay rather than an absolutely-positioned popover:
+  // the old popover used a fixed negative margin and could render
+  // off-screen when the trigger sat near the left edge of the sidebar.
   return (
-    <div className="absolute z-30 mt-9 ml-[-260px] w-[260px] rounded-2xl border border-magic-border bg-white p-4 shadow-2xl">
-      <div className="text-xs font-semibold uppercase text-magic-ink/60 mb-2">
-        New project
-      </div>
-      <input
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Project name"
-        className="w-full rounded-md border border-magic-border px-2 py-1.5 text-sm mb-2"
-      />
-      <textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        rows={2}
-        placeholder="Optional description"
-        className="w-full rounded-md border border-magic-border px-2 py-1.5 text-xs mb-2"
-      />
-      {error && (
-        <div className="mb-2 rounded-md bg-red-50 px-2 py-1 text-[10px] text-red-700">
-          {error}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={close}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl border border-magic-border bg-white p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-xs font-semibold uppercase text-magic-ink/60 mb-3">
+          New project
         </div>
-      )}
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setOpen(false);
-            setName("");
-            setDescription("");
-            setError(null);
-          }}
-          disabled={busy}
-          className="rounded-md border border-magic-border px-2 py-1 text-xs hover:bg-magic-soft disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={busy || !name.trim()}
-          className="rounded-md bg-magic-red text-white px-2 py-1 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
-        >
-          {busy ? "Creating…" : "Create"}
-        </button>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Project name"
+          autoFocus
+          className="w-full rounded-md border border-magic-border px-3 py-2 text-sm mb-2"
+        />
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          placeholder="Optional description"
+          className="w-full rounded-md border border-magic-border px-3 py-2 text-sm mb-2"
+        />
+        {error && (
+          <div className="mb-2 rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">
+            {error}
+          </div>
+        )}
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={close}
+            disabled={busy}
+            className="rounded-md border border-magic-border px-3 py-1.5 text-xs hover:bg-magic-soft disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy || !name.trim()}
+            className="rounded-md bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
+          >
+            {busy ? "Creating…" : "Create"}
+          </button>
+        </div>
       </div>
     </div>
   );
