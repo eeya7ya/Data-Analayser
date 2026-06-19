@@ -94,6 +94,26 @@ export async function deleteR2ObjectForPath(
   await r2DeleteObject(r2KeyForStoragePath(storagePath));
 }
 
+/**
+ * Fetch a stored file's raw bytes from R2. Returns null when the object is
+ * absent (or R2 isn't configured), so callers can fall back to another source.
+ * Uses a short-lived presigned GET so binary payloads (PDFs, images, CAD)
+ * round-trip safely — unlike r2GetObject(), which decodes the body as UTF-8.
+ * Used by the full system backup to embed files that live only in R2.
+ */
+export async function fetchR2BytesForPath(
+  storagePath: string,
+): Promise<Buffer | null> {
+  if (!isR2Configured()) return null;
+  const url = r2PresignDownloadUrl(storagePath, { expiresSeconds: 300 });
+  const res = await fetch(url);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`R2 GET ${res.status} for ${storagePath}`);
+  }
+  return Buffer.from(await res.arrayBuffer());
+}
+
 export type MirrorOutcome = "mirrored" | "skipped" | "missing" | "error";
 
 export type MirrorResult = {
