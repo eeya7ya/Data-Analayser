@@ -3,7 +3,8 @@ import JSZip from "jszip";
 import { createHash } from "node:crypto";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { downloadStorageObject } from "@/lib/storage";
+import { downloadStorageObject, PROJECT_FILES_BUCKET } from "@/lib/storage";
+import { fetchR2BytesForPath, isR2Configured } from "@/lib/file-backup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -270,8 +271,14 @@ export async function GET() {
       bytes: number | null;
       sha256: string | null;
       embedded: boolean;
+      /** Where the embedded bytes came from. */
+      source?: "supabase" | "r2";
       error?: string;
     }> = [];
+
+    // Track every (bucket/path) we've already embedded so the R2 backfill
+    // below doesn't duplicate a file that Supabase Storage still holds.
+    const embeddedKeys = new Set<string>();
 
     for (const obj of storageObjects) {
       try {
@@ -279,12 +286,14 @@ export async function GET() {
         if (bytes) {
           zip.file(`storage/${obj.bucket_id}/${obj.name}`, bytes);
           const sha256 = createHash("sha256").update(bytes).digest("hex");
+          embeddedKeys.add(`${obj.bucket_id}/${obj.name}`);
           storageManifest.push({
             bucket: obj.bucket_id,
             path: obj.name,
             bytes: bytes.byteLength,
             sha256,
             embedded: true,
+            source: "supabase",
           });
         } else {
           storageManifest.push({
@@ -307,6 +316,63 @@ export async function GET() {
         });
       }
     }
+
+    // ─── Cloudflare R2 file bytes ──────────────────────────────────────────
+    // Uploads now land directly in R2 (see project-files/sign-upload), so any
+    // file added after the R2 cutover lives ONLY in R2 — it never appears in
+    // storage.objects above and would otherwise be a dangling pointer in this
+    // backup. Walk every storage_path the DB references and embed the bytes
+    // straight from R2 for anything we didn't already grab from Supabase. The
+    // R2 key prefix matches PROJECT_FILES_BUCKET, so these embed at the same
+    // storage/project-files/<path> location and round-trip identically.
+    if (isR2Configured()) {
+      const fileRows = (await q`
+        select distinct storage_path
+        from project_files
+        where storage_path is not null and storage_path <> ''
+        order by storage_path
+      `) as Array<{ storage_path: string }>;
+
+      for (const { storage_path } of fileRows) {
+        const key = `${PROJECT_FILES_BUCKET}/${storage_path}`;
+        if (embeddedKeys.has(key)) continue;
+        try {
+          const bytes = await fetchR2BytesForPath(storage_path);
+          if (bytes) {
+            zip.file(`storage/${key}`, bytes);
+            const sha256 = createHash("sha256").update(bytes).digest("hex");
+            embeddedKeys.add(key);
+            storageManifest.push({
+              bucket: PROJECT_FILES_BUCKET,
+              path: storage_path,
+              bytes: bytes.byteLength,
+              sha256,
+              embedded: true,
+              source: "r2",
+            });
+          } else {
+            storageManifest.push({
+              bucket: PROJECT_FILES_BUCKET,
+              path: storage_path,
+              bytes: null,
+              sha256: null,
+              embedded: false,
+              error: "not found in Supabase Storage or R2",
+            });
+          }
+        } catch (e) {
+          storageManifest.push({
+            bucket: PROJECT_FILES_BUCKET,
+            path: storage_path,
+            bytes: null,
+            sha256: null,
+            embedded: false,
+            error: (e as Error).message,
+          });
+        }
+      }
+    }
+
     zip.file("storage/_manifest.json", JSON.stringify(storageManifest, null, 2));
 
     // ─── Finalize D1 helpers ───────────────────────────────────────────────
@@ -837,8 +903,9 @@ Supabase Storage, plus integrity hashes so you can prove nothing was lost.
   d1/schema.sql            SQLite CREATE TABLE (starter — see caveats below)
   d1/data/<table>.sql      SQLite INSERT statements per table
   d1/import.sh             \`bash d1/import.sh <db-name>\` runs both via wrangler
-  storage/<bucket>/<path>  actual file bytes from Supabase Storage
-  storage/_manifest.json   bucket / path / size / SHA-256 per blob
+  storage/<bucket>/<path>  actual file bytes (from Supabase Storage and/or
+                           Cloudflare R2 — R2 is the primary store for uploads)
+  storage/_manifest.json   bucket / path / size / SHA-256 / source per blob
   r2/upload-to-r2.sh       \`bash r2/upload-to-r2.sh <bucket-name>\` → R2
 
 ## Populated tables (${manifest.tableCount} total, ${manifest.tables.filter((t) => t.rows > 0).length} non-empty)
