@@ -42,6 +42,9 @@ type FileRow = {
   id: number;
   project_id: number;
   owner_id: number | null;
+  /** Username of the uploader (owner_id), null if the user was deleted.
+   *  Surfaced so the Files panel can show and sort/filter files by user. */
+  owner_name: string | null;
   kind: string;
   filename: string;
   mime: string;
@@ -144,24 +147,28 @@ export async function GET(req: NextRequest) {
     const kindParam = searchParams.get("kind");
     const rows = kindParam
       ? ((await q`
-          select id, project_id, owner_id, kind, filename, mime, size_bytes,
-                 storage_path, shared_to_projects, created_at
-          from project_files
-          where project_id = any(${projectIds}::int[])
-            and kind = ${kindParam}
-            and deleted_at is null
-            and (${sharedOnly}::boolean = false or shared_to_projects = true)
-          order by created_at desc, id desc
+          select pf.id, pf.project_id, pf.owner_id, u.username as owner_name,
+                 pf.kind, pf.filename, pf.mime, pf.size_bytes,
+                 pf.storage_path, pf.shared_to_projects, pf.created_at
+          from project_files pf
+          left join users u on u.id = pf.owner_id
+          where pf.project_id = any(${projectIds}::int[])
+            and pf.kind = ${kindParam}
+            and pf.deleted_at is null
+            and (${sharedOnly}::boolean = false or pf.shared_to_projects = true)
+          order by pf.created_at desc, pf.id desc
           limit 500
         `) as FileRow[])
       : ((await q`
-          select id, project_id, owner_id, kind, filename, mime, size_bytes,
-                 storage_path, shared_to_projects, created_at
-          from project_files
-          where project_id = any(${projectIds}::int[])
-            and deleted_at is null
-            and (${sharedOnly}::boolean = false or shared_to_projects = true)
-          order by created_at desc, id desc
+          select pf.id, pf.project_id, pf.owner_id, u.username as owner_name,
+                 pf.kind, pf.filename, pf.mime, pf.size_bytes,
+                 pf.storage_path, pf.shared_to_projects, pf.created_at
+          from project_files pf
+          left join users u on u.id = pf.owner_id
+          where pf.project_id = any(${projectIds}::int[])
+            and pf.deleted_at is null
+            and (${sharedOnly}::boolean = false or pf.shared_to_projects = true)
+          order by pf.created_at desc, pf.id desc
           limit 500
         `) as FileRow[]);
     return NextResponse.json({ files: rows, access: tier });

@@ -122,13 +122,113 @@ export default function AdminTabs({
       )}
 
       {tab === "export" && (
-        <section>
-          <h2 className="text-lg font-semibold text-magic-ink mb-3">
-            Bulk export
-          </h2>
-          <AdminQuotationExport />
+        <section className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-magic-ink mb-3">
+              Bulk export
+            </h2>
+            <AdminQuotationExport />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-magic-ink mb-3">
+              Presales backup
+            </h2>
+            <PresalesBackupPanel />
+          </div>
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * One-click download of everything in the Presales workspace (leads, presales
+ * & lead-linked quotations, pricing sheets, and every attached file in its
+ * original format) as a single ZIP. Server route: GET /api/admin/presales-backup.
+ */
+function PresalesBackupPanel() {
+  const [exporting, setExporting] = useState(false);
+  const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
+    null,
+  );
+
+  async function downloadPresalesBackup() {
+    setExporting(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/presales-backup", { method: "GET" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("content-disposition") || "";
+      const match = cd.match(/filename="?([^";]+)"?/i);
+      const filename = match
+        ? match[1]
+        : `presales-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      const mb = (blob.size / (1024 * 1024)).toFixed(2);
+      setMsg({
+        kind: "ok",
+        text: `Presales backup downloaded: ${filename} (${mb} MB). Files are kept in their original format.`,
+      });
+    } catch (err) {
+      setMsg({ kind: "error", text: (err as Error).message });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-magic-border bg-white p-5">
+      <h3 className="font-semibold text-magic-ink mb-1">
+        Back up the Presales workspace
+      </h3>
+      <p className="text-sm text-magic-ink/60 mb-4">
+        One click bundles everything in Presales into a single ZIP: every lead,
+        the quotations presales authored (or that are linked to a lead, with
+        their items / totals / config), the per-manufacturer pricing sheets,
+        and <strong>every attached file in its original format</strong> — the
+        exact PDFs, Excel sheets and DWGs as uploaded, not re-rendered copies.
+        Read-only: nothing in the database is changed.
+      </p>
+      <div className="space-y-2 md:max-w-md">
+        <button
+          onClick={downloadPresalesBackup}
+          disabled={exporting}
+          className="w-full px-4 py-2 text-sm font-medium rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+        >
+          {exporting
+            ? "Preparing presales backup…"
+            : "Back up Presales (.zip)"}
+        </button>
+        <p className="text-xs text-magic-ink/50">
+          Contains <code>data/leads.json</code>,{" "}
+          <code>data/quotations.json</code>,{" "}
+          <code>data/pricing_*.json</code> and{" "}
+          <code>files/&lt;kind&gt;/&lt;name&gt;</code> (original file bytes),
+          plus a <code>README.txt</code> explaining the layout.
+        </p>
+        {msg && (
+          <p
+            className={`mt-2 text-sm rounded-lg px-3 py-2 ${
+              msg.kind === "ok"
+                ? "text-green-700 bg-green-50 border border-green-200"
+                : "text-red-700 bg-red-50 border border-red-200"
+            }`}
+          >
+            {msg.text}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

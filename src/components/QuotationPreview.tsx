@@ -652,21 +652,24 @@ export default function QuotationPreview({
   }
 
   /**
-   * Prompts for a page (system) name and adds an empty row to it.
-   * Used from the empty-state so the user can start typing without first
-   * having to go through the catalog or the AI designer.
+   * Prompts for a table (system) name and creates a brand-new table for it,
+   * seeded with one blank row so the new page actually renders. In this
+   * quotation each "system" prints as its own table on its own page, so
+   * "add a new table" is exactly "introduce a new system and start it off
+   * with a row the user can fill in by hand". Used from the empty-state so
+   * the user can start typing without first going through the catalog or
+   * the AI designer, and from each page footer to spin up another table.
    */
-  function addManualItem() {
+  function addNewTable() {
     if (!setItems) return;
     const existingPages = Array.from(
       new Set(items.map((it) => it.system).filter(Boolean)),
     );
-    const suggestion = existingPages[0] || "General";
     const page = window.prompt(
       existingPages.length > 0
-        ? `Add a new item to which page?\nExisting pages: ${existingPages.join(", ")}`
-        : "Name the first page of this quotation (e.g. CCTV, Sound System)",
-      suggestion,
+        ? `Name the new table (system) to add.\nExisting tables: ${existingPages.join(", ")}`
+        : "Name the first table of this quotation (e.g. CCTV, Sound System)",
+      "",
     );
     if (!page || !page.trim()) return;
     addRowToSystem(page.trim());
@@ -1264,11 +1267,11 @@ export default function QuotationPreview({
           {editable && (
             <div className="no-print flex flex-wrap items-center justify-center gap-2">
               <button
-                onClick={addManualItem}
+                onClick={addNewTable}
                 className="rounded-md bg-magic-red text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-red-700"
-                title="Create a new page and add a blank row you can fill in by hand"
+                title="Create a new table (system page) and start it with a blank row you can fill in by hand"
               >
-                + Add manual item
+                + Add a new table
               </button>
               <button
                 onClick={addExtraColumn}
@@ -1356,11 +1359,11 @@ export default function QuotationPreview({
                 + Section divider
               </button>
               <button
-                onClick={addManualItem}
+                onClick={addNewTable}
                 className="rounded-md border border-magic-border px-3 py-1 text-[11px] hover:bg-magic-soft"
-                title="Add a blank row to any page (existing or brand new)"
+                title="Create another table (system page) seeded with a blank row"
               >
-                + Add manual item
+                + Add a new table
               </button>
               <button
                 onClick={undoLastMerge}

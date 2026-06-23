@@ -63,6 +63,9 @@ interface PoRow {
 interface FileRow {
   id: number;
   project_id: number;
+  owner_id: number | null;
+  /** Username of the uploader; null if that user was removed. */
+  owner_name: string | null;
   kind: "quotation" | "po" | "boq" | "other" | string;
   filename: string;
   mime: string;
@@ -1321,6 +1324,9 @@ function FilesTab({
   const [files, setFiles] = useState<FileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Per-user controls: filter to one uploader and/or order by uploader.
+  const [userFilter, setUserFilter] = useState<string>("all");
+  const [sortByUser, setSortByUser] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -1344,7 +1350,7 @@ function FilesTab({
     void reload();
   }, [reload, refreshKey]);
 
-  const visible = useMemo(
+  const kindFiltered = useMemo(
     () =>
       variant === "boq"
         ? files.filter((f) => f.kind === "boq")
@@ -1354,6 +1360,34 @@ function FilesTab({
           ),
     [files, variant],
   );
+
+  // Distinct uploaders present in this tab, for the filter dropdown.
+  const owners = useMemo(() => {
+    const set = new Set<string>();
+    for (const f of kindFiltered) set.add(f.owner_name || "Unknown");
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [kindFiltered]);
+
+  const ownerLabel = useCallback(
+    (f: FileRow) => f.owner_name || "Unknown",
+    [],
+  );
+
+  const visible = useMemo(() => {
+    let list =
+      userFilter === "all"
+        ? kindFiltered
+        : kindFiltered.filter((f) => ownerLabel(f) === userFilter);
+    if (sortByUser) {
+      // Group by uploader (A→Z), newest first within each uploader.
+      list = [...list].sort((a, b) => {
+        const cmp = ownerLabel(a).localeCompare(ownerLabel(b));
+        if (cmp !== 0) return cmp;
+        return b.created_at.localeCompare(a.created_at);
+      });
+    }
+    return list;
+  }, [kindFiltered, userFilter, sortByUser, ownerLabel]);
 
   const uploadKind: FileKind = variant === "boq" ? "boq" : "other";
   const emptyLabel =
@@ -1376,13 +1410,55 @@ function FilesTab({
         </div>
       )}
 
-      <div className="mt-4">
+      {!loading && kindFiltered.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] text-magic-ink/60">
+          <label className="flex items-center gap-1">
+            <span>User:</span>
+            <select
+              value={userFilter}
+              onChange={(e) => setUserFilter(e.target.value)}
+              className="rounded-md border border-magic-border px-2 py-1 text-[11px] bg-white"
+            >
+              <option value="all">All users</option>
+              {owners.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setSortByUser((v) => !v)}
+            className={`rounded-md border px-2 py-1 text-[11px] ${
+              sortByUser
+                ? "border-magic-red text-magic-red bg-magic-red/5"
+                : "border-magic-border hover:bg-magic-soft"
+            }`}
+            title="Group the files by who uploaded them"
+          >
+            {sortByUser ? "✓ Sorted by user" : "Sort by user"}
+          </button>
+          {(userFilter !== "all" || sortByUser) && (
+            <span className="text-magic-ink/40">
+              {visible.length} of {kindFiltered.length} file
+              {kindFiltered.length === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3">
         {loading ? (
           <div className="py-6 flex justify-center">
             <Spinner size={20} label="Loading files…" />
           </div>
-        ) : visible.length === 0 ? (
+        ) : kindFiltered.length === 0 ? (
           <div className="text-xs text-magic-ink/50">{emptyLabel}</div>
+        ) : visible.length === 0 ? (
+          <div className="text-xs text-magic-ink/50">
+            No files uploaded by {userFilter}.
+          </div>
         ) : (
           <ul className="divide-y divide-magic-border/60 rounded-lg border border-magic-border overflow-hidden">
             {visible.map((f) => (
@@ -1614,7 +1690,8 @@ function FileRowItem({
       <div className="min-w-0">
         <div className="text-sm text-magic-ink truncate">{file.filename}</div>
         <div className="text-[10px] text-magic-ink/50">
-          {file.mime} · {formatBytes(file.size_bytes)}
+          {file.mime} · {formatBytes(file.size_bytes)} · by{" "}
+          {file.owner_name || "Unknown"}
         </div>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
