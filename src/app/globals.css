@@ -257,7 +257,8 @@ body > * {
   box-shadow: inset 3px 0 0 0 #16a34a;
 }
 
-.quotation-sheet .footer-address {
+.quotation-sheet .footer-address,
+.print-fixed-footer.footer-address {
   background: var(--mt-header);
   color: var(--mt-red);
   text-align: center;
@@ -266,6 +267,12 @@ body > * {
   border: 1px solid #cfbebc;
   font-size: 10.5px;
   line-height: 1.4;
+}
+
+/* The single fixed running footer is a print-only device — never shown on
+ * screen, where each sheet's own <tfoot> address bar already renders. */
+.print-fixed-footer {
+  display: none;
 }
 
 /* On-screen only: pin the address footer to the very bottom of each A4
@@ -551,22 +558,23 @@ body > * {
     display: none !important;
   }
 
-  /* ---- 5. Page-frame table — running header (thead) + running footer (tfoot)
+  /* ---- 5. Page-frame table — running header (thead) + footer reservation
    * The outer .sheet-layout table is the spine of every printed page. Its
-   * <thead> carries the brand strip and repeats at the top of every page; its
-   * <tfoot> carries the address bar and repeats at the bottom. This keeps the
-   * full-bleed cover / about-us sheets header/footer-free (separate sheets, no
-   * table) and is the browser-RELIABLE way to repeat them. A position:fixed
-   * footer was tried but is flaky in Chrome's print engine — it landed at the
-   * TOP of the following page — so we stick with the table running groups.
+   * <thead> carries the brand strip and repeats at the top of every page.
+   *
+   * The <tfoot> still RESERVES the bottom strip on every page (so the body
+   * content never collides with the address bar) but its ink is hidden — the
+   * visible address is now drawn by a single `position: fixed` footer
+   * (.print-fixed-footer, see below). The old table footer-group worked on
+   * full pages but floated up under the content on the short last page of a
+   * multi-page system — a fixed element pins to the bottom of EVERY physical
+   * page, including that partial one. (The earlier fixed-footer attempt failed
+   * because it had no per-sheet height reservation; keeping the tfoot as an
+   * invisible spacer is what makes it land correctly now.)
    *
    * The body cell carries a `height` floor (treated as a MINIMUM) so a short /
-   * single-page sheet is padded out and the running footer drops to the bottom
-   * of the page instead of floating up under the content; a long items table
-   * grows past it and fragments, with the footer reserved + repeated per page.
-   * (On the last, partial page of a very long multi-page system the footer
-   * still sits just under the content — a known limit of a table running footer
-   * that can't be padded per fragment in pure CSS.) */
+   * single-page sheet is padded out and the reserved footer strip drops to the
+   * bottom of the page; a long items table grows past it and fragments. */
   .quotation-sheet > table.sheet-layout {
     /* Hold the page-frame table a hair inside the @page safe area. With
      * `border-collapse: collapse` the table's right edge border is drawn
@@ -597,6 +605,37 @@ body > * {
   .quotation-sheet > table.sheet-layout > tfoot > tr > td {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+  /* Hide the per-sheet footer INK but keep its box so the footer-group still
+   * reserves the bottom strip on every page. The visible bar is the fixed
+   * footer below. `visibility: hidden` preserves layout/height. */
+  .quotation-sheet > table.sheet-layout > tfoot .footer-address {
+    visibility: hidden;
+  }
+
+  /* The single visible running footer. Fixed to the bottom of every printed
+   * page, so it lands at the page bottom even on the short last page of a
+   * multi-page system. z-index 0 keeps it above the static page content; the
+   * full-bleed cover / about-us sheets sit at z-index 1 (below) so they paint
+   * over it and stay footer-free. */
+  .print-fixed-footer {
+    display: block !important;
+    position: fixed;
+    /* Insets are 0 because Chrome positions a fixed element relative to the
+     * page CONTENT area (inside the @page margins), so this lands flush with
+     * the page-frame table's width and just above the bottom margin — exactly
+     * where the per-sheet <tfoot> reserved its strip. */
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+    margin: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .quotation-sheet.full-bleed {
+    position: relative;
+    z-index: 1;
   }
 
   /* ---- 6. Inner items table (per system) ---------------------------------
