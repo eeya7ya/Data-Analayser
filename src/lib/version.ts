@@ -5,5 +5,5 @@
  * version; `package.json` carries the semver, this carries the brand
  * label the product team uses ("v1.3a").
  */
-export const APP_VERSION = "1.4D";
+export const APP_VERSION = "1.6A";
 export const APP_VERSION_LABEL = `v${APP_VERSION}`;

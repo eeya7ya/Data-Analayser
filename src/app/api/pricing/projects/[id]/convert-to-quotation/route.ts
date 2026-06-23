@@ -199,6 +199,17 @@ export async function POST(
     const intro = body.includeOptionalIntro
       ? `Quotation generated from pricing sheet "${project.name}" for ${project.manufacturer_name}.`
       : undefined;
+    // Seed a clean, professional Project Scope Summary. A converted pricing
+    // sheet drops every line into one synthetic "Equipment" system, so if we
+    // left the scope blank the quotation preview would auto-generate
+    // "...covering Equipment..." — which reads wrong on the printed offer.
+    // Providing real copy here keeps that auto-fill from firing; the user can
+    // still edit it freely in the Designer afterwards.
+    const scopeSummary =
+      `We sincerely appreciate the opportunity to collaborate with you on ` +
+      `${project.name} and thank you for your continued trust in Magic ` +
+      `Technology. The following investment reflects the fully engineered ` +
+      `scope of works outlined in this proposal.`;
 
     const upstream = await fetch(`${origin}/api/quotations`, {
       method: "POST",
@@ -230,7 +241,7 @@ export async function POST(
           // Prices are already tax-exclusive; block the Designer's one-time
           // legacy divide-by-(1+rate) migration for taxInclusive configs.
           taxPricesNormalized: true,
-          scopeIntro: intro,
+          scopeIntro: intro ?? scopeSummary,
           origin: { pricingProjectId: projectId },
         },
         folder_id: body.folderId ?? null,

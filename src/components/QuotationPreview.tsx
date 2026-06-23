@@ -1466,6 +1466,17 @@ export default function QuotationPreview({
           />
         </QuotationPage>
       )}
+
+      {/* Print-only running footer. The per-sheet <tfoot> reserves the bottom
+       * strip on every page (so content never collides with this bar) but its
+       * ink is hidden in print — this single fixed element supplies the
+       * visible address on EVERY physical page, including the short last page
+       * of a multi-page system where a table footer-group would otherwise
+       * float up under the content. Full-bleed cover / about-us sheets paint
+       * over it via a higher stacking layer, so they stay footer-free. */}
+      <div className="print-fixed-footer footer-address whitespace-pre-wrap">
+        {resolvedFooterText}
+      </div>
     </div>
   );
 }
