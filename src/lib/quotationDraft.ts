@@ -49,6 +49,8 @@ export interface QuotationDraft {
   taxPercent: number;
   showPictures: boolean;
   terms: string[];
+  /** Optional free-text notes shown under the Terms and conditions block. */
+  notes: string;
   /** User-added manual columns shared across every system table. */
   extraColumns: QuotationExtraColumn[];
   /** Optional custom project-scope paragraph shown above Final Totals. */
@@ -209,6 +211,7 @@ export function emptyDraft(): QuotationDraft {
     // built-in hardcoded list. See Designer.tsx hydration for the
     // `d.terms.length > 0 ? d.terms : adminDefaultTerms` switch.
     terms: [],
+    notes: "",
     extraColumns: [],
     scopeIntro: "",
     // Presales Engineer is resolved by the Designer against the logged-in
@@ -313,6 +316,7 @@ function editDraftKey(id: number): string {
 export interface EditModeDraft {
   items: QuotationItem[];
   terms: string[];
+  notes?: string;
   extraColumns: QuotationExtraColumn[];
   scopeIntro: string;
   designEng: string;

@@ -17,6 +17,7 @@ import ActionMenu from "./ActionMenu";
 interface SavedConfig {
   showPictures?: boolean;
   terms?: string[];
+  notes?: string;
   salesPhone?: string;
   extraColumns?: QuotationExtraColumn[];
   scopeIntro?: string;
@@ -525,6 +526,7 @@ export default function QuotationViewer({
               ? config.terms
               : [...fallbackTerms]
           }
+          notes={typeof config.notes === "string" ? config.notes : ""}
           includeTax={config.includeTax !== false}
           taxInclusive={Boolean(config.taxInclusive)}
           footerText={appSettings.footerText}

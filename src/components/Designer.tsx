@@ -63,6 +63,7 @@ export interface ExistingQuotation {
   config_json: {
     showPictures?: boolean;
     terms?: string[];
+    notes?: string;
     salesPhone?: string;
     extraColumns?: QuotationExtraColumn[];
     scopeIntro?: string;
@@ -187,6 +188,7 @@ export default function Designer({
   const [saveStatus, setSaveStatus] = useState("");
   const [showPictures, setShowPictures] = useState(false);
   const [terms, setTerms] = useState<string[]>([...adminDefaultTerms]);
+  const [notes, setNotes] = useState("");
   const [extraColumns, setExtraColumns] = useState<QuotationExtraColumn[]>([]);
   const [scopeIntro, setScopeIntro] = useState("");
   const [designEng, setDesignEngState] = useState("");
@@ -665,6 +667,7 @@ export default function Designer({
             : []),
       );
       setScopeIntro(editDraft?.scopeIntro ?? (existing.config_json?.scopeIntro || ""));
+      setNotes(editDraft?.notes ?? (existing.config_json?.notes || ""));
       // Presales Engineer: prefer whatever the quotation was saved with so
       // reopening an old record is lossless; otherwise anchor to the
       // logged-in user's display name. The previous fallback chain also
@@ -790,6 +793,7 @@ export default function Designer({
     setTerms(d.terms.length > 0 ? d.terms : [...adminDefaultTerms]);
     setExtraColumns(d.extraColumns || []);
     setScopeIntro(d.scopeIntro || "");
+    setNotes(d.notes || "");
     // Presales Engineer for a brand-new quotation is ALWAYS the logged-in
     // user. We deliberately ignore anything `loadDraft()` returned for
     // `designEng` so switching accounts on a shared browser doesn't
@@ -959,6 +963,7 @@ export default function Designer({
       taxPercent,
       showPictures,
       terms,
+      notes,
       extraColumns,
       scopeIntro,
       designEng,
@@ -988,6 +993,7 @@ export default function Designer({
     taxPercent,
     showPictures,
     terms,
+    notes,
     extraColumns,
     scopeIntro,
     designEng,
@@ -1020,6 +1026,7 @@ export default function Designer({
     saveEditDraft(existing.id, {
       items,
       terms,
+      notes,
       extraColumns,
       scopeIntro,
       designEng,
@@ -1045,6 +1052,7 @@ export default function Designer({
     existing,
     items,
     terms,
+    notes,
     extraColumns,
     scopeIntro,
     designEng,
@@ -1250,6 +1258,7 @@ export default function Designer({
         config: {
           showPictures,
           terms,
+          notes,
           salesPhone,
           extraColumns,
           scopeIntro,
@@ -1381,6 +1390,7 @@ export default function Designer({
     setSiteName("");
     setShowPictures(false);
     setTerms([...adminDefaultTerms]);
+    setNotes("");
     setPricingCategoryState("si");
     if (!editMode) clearDraft();
   }
@@ -2082,6 +2092,8 @@ export default function Designer({
               showPictures={showPictures}
               terms={terms}
               setTerms={setTerms}
+              notes={notes}
+              setNotes={setNotes}
               includeTax={includeTax}
               taxInclusive={taxInclusive}
               clientLocked={clientLocked}
