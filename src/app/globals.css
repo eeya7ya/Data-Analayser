@@ -221,6 +221,13 @@ body > * {
   border-top: 1px solid #cfbebc;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+  /* Section banners read left-aligned in the editor (the label sits at the
+   * left edge of the row). The generic `.quotation-sheet td { text-align:
+   * center }` rule is more specific than a Tailwind `text-left` utility, so
+   * without this explicit override the readonly / printed view re-centres the
+   * label — the editor showed it on the left but every print method pushed it
+   * to the middle. Pin it left here so screen and all print paths match. */
+  text-align: left;
 }
 
 /* Drag-and-drop reorder feedback. The dragged row dims to ~40 % opacity
@@ -233,6 +240,21 @@ body > * {
 }
 .quotation-sheet tr.qt-row-drop-target > td {
   box-shadow: inset 0 2px 0 0 var(--mt-red);
+}
+
+/* "Mark" highlight — a per-row flag the user toggles to make important line
+ * items pop on screen and on the printed/exported sheet. Deliberately a
+ * different colour from the totals-row yellow (var(--mt-highlight)) so a
+ * marked product row never reads like a subtotal. print-color-adjust forces
+ * the tint onto paper the same way the totals / banner rows print. */
+.quotation-sheet tr.qt-row-marked > td {
+  background: #d8f5e3;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+/* Keep the left "No." accent strip readable on a marked row. */
+.quotation-sheet tr.qt-row-marked > td:first-child {
+  box-shadow: inset 3px 0 0 0 #16a34a;
 }
 
 .quotation-sheet .footer-address {
@@ -284,9 +306,15 @@ body > * {
   textarea.description-input:focus {
     position: absolute;
     top: 4px;
-    left: -8em;
-    width: calc(100% + 16em);
-    min-height: 14em;
+    /* Pop the editor out only a little wider than its cell. The old
+     * `-8em / +16em / 14em` blew the box far past the column on every focus,
+     * which the user found jarring ("expands too much"). A modest overhang
+     * keeps typing comfortable without swallowing neighbouring cells. */
+    left: -3em;
+    width: calc(100% + 6em);
+    min-height: 8em;
+    max-height: 18em;
+    overflow: auto;
     padding: 6px 8px;
     background: #ffffff;
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.28);
@@ -333,20 +361,23 @@ body > * {
      * editor appeared to fly upward away from the cell on focus. */
     top: 50%;
     transform: translateY(-50%);
-    left: -4em;
-    width: calc(100% + 8em);
-    min-height: 3em;
+    /* Smaller overhang than before (-4em / +8em / 8em) so short-text cells
+     * grow just enough to type in without ballooning over their neighbours. */
+    left: -2em;
+    width: calc(100% + 4em);
+    min-height: 2.5em;
     padding: 6px 8px;
     background: #ffffff;
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.28);
     outline: none;
-    overflow: visible;
+    overflow: auto;
     text-overflow: clip;
     white-space: normal;
     z-index: 10;
   }
   textarea.cell-input:focus {
-    min-height: 8em;
+    min-height: 4.5em;
+    max-height: 14em;
   }
   /* Top-aligned cells (manual extra columns) keep the editor at the
    * top, where the value already sits. */
@@ -537,7 +568,16 @@ body > * {
    * still sits just under the content — a known limit of a table running footer
    * that can't be padded per fragment in pure CSS.) */
   .quotation-sheet > table.sheet-layout {
-    width: 100%;
+    /* Hold the page-frame table a hair inside the @page safe area. With
+     * `border-collapse: collapse` the table's right edge border is drawn
+     * centred on the 100 % boundary, so ~0.5–1px of it falls outside the
+     * printable region and Chrome clips it — the printed sheet came out with
+     * its right-hand outer border sliced off while the left border was fine.
+     * Reserving 2px and centring the table (1px each side) keeps both the
+     * left and right outer borders fully inside the page. */
+    width: calc(100% - 2px);
+    margin-left: auto;
+    margin-right: auto;
     height: 100%;
     border-collapse: collapse;
     table-layout: fixed;

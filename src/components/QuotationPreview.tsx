@@ -63,6 +63,13 @@ export interface QuotationItem {
    */
   optional?: boolean;
   /**
+   * When true, the row is visually highlighted (a soft green "mark" tint)
+   * on screen and in print so the user can flag important line items they
+   * want the reader's eye to land on. Purely presentational — it has no
+   * effect on totals, numbering, or merging.
+   */
+  marked?: boolean;
+  /**
    * Row type. Default ("item") is a normal product row with the usual
    * brand / model / quantity / price columns. "section" rows render as a
    * full-width banner inside the system table whose only payload is
@@ -133,6 +140,13 @@ interface Props {
   showPictures?: boolean;
   terms?: string[];
   setTerms?: (terms: string[]) => void;
+  /**
+   * Optional free-text notes shown under the Terms and conditions block.
+   * Editable inline when `setNotes` is supplied; on the readonly / printed
+   * view the block only renders when there's actually something to show.
+   */
+  notes?: string;
+  setNotes?: (notes: string) => void;
   /** When false, tax is excluded from the total cost. Defaults to true. */
   includeTax?: boolean;
   /** When true, entered prices already contain tax — back-calculate base. */
@@ -144,6 +158,23 @@ interface Props {
    * values come from the folder and are edited in the folder card.
    */
   clientLocked?: boolean;
+  /**
+   * When provided (and editable), the Client header field renders as a
+   * dropdown so the user can choose which identity prints on the "Client:"
+   * line — typically the individual client vs. the company it belongs to.
+   * The parent owns the actual name / email / phone values; this only
+   * reports the chosen key back so the parent can swap them.
+   */
+  clientOptions?: { key: string; label: string }[];
+  /** Currently-selected client identity key (matches a `clientOptions` key). */
+  clientIdentity?: string;
+  /** Fired when the user picks a different client identity from the dropdown. */
+  onClientIdentityChange?: (key: string) => void;
+  /**
+   * When true, the Project header field is read-only — its value is the name
+   * of the project the quotation lives in and isn't free-text editable here.
+   */
+  projectLocked?: boolean;
   /**
    * Printable footer text shown at the bottom of every sheet. Admin-editable
    * via the Settings tab. Falls back to the historical hardcoded company
@@ -496,9 +527,15 @@ export default function QuotationPreview({
   showPictures = false,
   terms = [],
   setTerms,
+  notes = "",
+  setNotes,
   includeTax = true,
   taxInclusive = false,
   clientLocked = false,
+  clientOptions,
+  clientIdentity,
+  onClientIdentityChange,
+  projectLocked = false,
   footerText,
   boqMode = false,
 }: Props) {
@@ -997,6 +1034,18 @@ export default function QuotationPreview({
     setItems(next);
   }
 
+  // Flips the `marked` highlight flag on a row. Purely visual — it tints the
+  // row green on screen and in print so the user can call attention to key
+  // line items without touching totals, numbering, or merge state.
+  function toggleMark(globalIndex: number) {
+    if (!setItems) return;
+    const next = items.slice();
+    const cur = next[globalIndex];
+    if (!cur) return;
+    next[globalIndex] = { ...cur, marked: !cur.marked };
+    setItems(next);
+  }
+
   function renameSystem(oldName: string, newName: string) {
     if (!setItems || !newName.trim() || newName === oldName) return;
     setItems(
@@ -1201,6 +1250,10 @@ export default function QuotationPreview({
           editable={editable}
           logoUrl={resolvedLogoUrl}
           clientLocked={clientLocked}
+          clientOptions={clientOptions}
+          clientIdentity={clientIdentity}
+          onClientIdentityChange={onClientIdentityChange}
+          projectLocked={projectLocked}
           footerText={resolvedFooterText}
           isLast={!editable}
         >
@@ -1251,6 +1304,10 @@ export default function QuotationPreview({
           editable={editable}
           logoUrl={resolvedLogoUrl}
           clientLocked={clientLocked}
+          clientOptions={clientOptions}
+          clientIdentity={clientIdentity}
+          onClientIdentityChange={onClientIdentityChange}
+          projectLocked={projectLocked}
           footerText={resolvedFooterText}
           isLast={false}
         >
@@ -1276,6 +1333,7 @@ export default function QuotationPreview({
             onUnmergeCell={unmergeCell}
             onToggleMergeLeft={toggleMergeLeft}
             onToggleOptional={toggleOptional}
+            onToggleMark={toggleMark}
             onMoveSection={moveSectionRow}
             onMoveRow={moveRowWithinGroup}
             onRenameExtraColumn={renameExtraColumn}
@@ -1402,6 +1460,8 @@ export default function QuotationPreview({
             terms={terms}
             setTerms={setTerms}
             editable={editable}
+            notes={notes}
+            setNotes={setNotes}
             presalesEngineer={header.design_engineer || header.sales_engineer}
           />
         </QuotationPage>
@@ -1441,6 +1501,10 @@ function QuotationPage({
   isLast,
   hideInfoHeader,
   clientLocked = false,
+  clientOptions,
+  clientIdentity,
+  onClientIdentityChange,
+  projectLocked = false,
   footerText,
   children,
 }: {
@@ -1453,6 +1517,12 @@ function QuotationPage({
   hideInfoHeader?: boolean;
   /** When true, the client name/email/phone inputs render read-only. */
   clientLocked?: boolean;
+  /** Client-identity dropdown options (Client vs Company). */
+  clientOptions?: { key: string; label: string }[];
+  clientIdentity?: string;
+  onClientIdentityChange?: (key: string) => void;
+  /** When true, the Project field is read-only (driven by the project). */
+  projectLocked?: boolean;
   /** Admin-editable printable footer line. */
   footerText?: string;
   children: React.ReactNode;
@@ -1542,18 +1612,39 @@ function QuotationPage({
               <HeaderField
                 value={header.project_name}
                 placeholder="—"
-                editable={editable && !!setHeader}
+                editable={editable && !!setHeader && !projectLocked}
                 onChange={(v) => setHeader?.({ project_name: v })}
               />
             </div>
             <div className="text-left font-bold">Client:</div>
             <div className="text-left">
-              <HeaderField
-                value={header.client_name || ""}
-                placeholder="—"
-                editable={editable && !!setHeader && !clientLocked}
-                onChange={(v) => setHeader?.({ client_name: v })}
-              />
+              {editable && clientOptions && clientOptions.length > 1 ? (
+                // Pick which identity prints on the Client line — the client
+                // folder, or the company it belongs to. Only shown when there
+                // is a genuine choice (the folder belongs to a company); a
+                // standalone client just renders its locked name below. The
+                // parent swaps the name / email / phone to match the key.
+                <select
+                  value={clientIdentity || clientOptions[0].key}
+                  onChange={(e) => onClientIdentityChange?.(e.target.value)}
+                  aria-label="Client identity"
+                  title="Choose whether the client name or the company name appears here — its email and phone fill in automatically."
+                  className="w-full bg-transparent outline-none border-b border-dotted border-magic-border focus:border-magic-red"
+                >
+                  {clientOptions.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <HeaderField
+                  value={header.client_name || ""}
+                  placeholder="—"
+                  editable={editable && !!setHeader && !clientLocked}
+                  onChange={(v) => setHeader?.({ client_name: v })}
+                />
+              )}
             </div>
             <div className="text-left font-bold">EMAIL:</div>
             <div className="text-left">
@@ -1842,6 +1933,7 @@ function SystemTable({
   onUnmergeCell,
   onToggleMergeLeft,
   onToggleOptional,
+  onToggleMark,
   onMoveSection,
   onMoveRow,
   onRenameExtraColumn,
@@ -1864,6 +1956,8 @@ function SystemTable({
   onUnmergeCell: (anchorGlobalIndex: number, col: MergeCol) => void;
   onToggleMergeLeft: (globalIndex: number, col: HMergeCol) => void;
   onToggleOptional: (globalIndex: number) => void;
+  /** Toggle the green "mark" highlight on a row (presentational only). */
+  onToggleMark: (globalIndex: number) => void;
   /**
    * Reorder a section row up (-1) or down (+1) within its system group
    * by swapping it with the adjacent sibling. Section rows have no
@@ -2261,9 +2355,9 @@ function SystemTable({
           return (
           <tr
             key={globalIndex}
-            className={`${isDropTarget ? "qt-row-drop-target" : ""} ${
-              isBeingDragged ? "qt-row-dragging" : ""
-            }`.trim()}
+            className={`${item.marked ? "qt-row-marked" : ""} ${
+              isDropTarget ? "qt-row-drop-target" : ""
+            } ${isBeingDragged ? "qt-row-dragging" : ""}`.trim()}
             onDragOver={onRowDragOver(globalIndex)}
             onDragLeave={onRowDragLeave(globalIndex)}
             onDrop={onRowDrop(globalIndex)}
@@ -2456,6 +2550,22 @@ function SystemTable({
                     }`}
                   >
                     Opt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onToggleMark(globalIndex)}
+                    title={
+                      item.marked
+                        ? "Remove the highlight from this row"
+                        : "Mark / highlight this row in green to make it stand out"
+                    }
+                    className={`w-auto px-1 h-4 text-[9px] leading-none rounded ${
+                      item.marked
+                        ? "bg-emerald-500 text-white"
+                        : "bg-white/80 text-magic-ink/50 border border-magic-border hover:bg-magic-soft"
+                    }`}
+                  >
+                    Mark
                   </button>
                   <button
                     type="button"
@@ -2725,11 +2835,15 @@ function TermsBlock({
   terms,
   setTerms,
   editable,
+  notes = "",
+  setNotes,
   presalesEngineer,
 }: {
   terms: string[];
   setTerms?: (t: string[]) => void;
   editable: boolean;
+  notes?: string;
+  setNotes?: (n: string) => void;
   presalesEngineer?: string;
 }) {
   function update(i: number, v: string) {
@@ -2785,6 +2899,29 @@ function TermsBlock({
           + Add term
         </button>
       )}
+
+      {/* Optional Notes — a free-text block under the terms. In the editor it
+       * always shows so the user can type into it; on the readonly / printed
+       * sheet it only renders when there's actually something to display, so
+       * a quotation with no notes prints exactly as before. */}
+      {(editable || notes.trim().length > 0) && (
+        <div className="mt-3">
+          <div className="border-b border-magic-ink/40 inline-block font-bold italic mb-1">
+            Notes
+          </div>
+          {editable ? (
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes?.(e.target.value)}
+              placeholder="Optional notes (left blank, this section is hidden on the printed quotation)…"
+              className="mt-1 w-full min-h-[3em] resize-y rounded-md border border-dotted border-magic-border bg-transparent px-2 py-1 outline-none focus:border-magic-red"
+            />
+          ) : (
+            <p className="mt-1 whitespace-pre-wrap">{notes}</p>
+          )}
+        </div>
+      )}
+
       <p className="mt-3 font-bold italic">
         Presales Engineer: {presalesEngineer || "—"}
       </p>

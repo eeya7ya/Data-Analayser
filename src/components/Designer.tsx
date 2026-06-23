@@ -63,7 +63,9 @@ export interface ExistingQuotation {
   config_json: {
     showPictures?: boolean;
     terms?: string[];
+    notes?: string;
     salesPhone?: string;
+    clientIdentity?: "client" | "company";
     extraColumns?: QuotationExtraColumn[];
     scopeIntro?: string;
     designEng?: string;
@@ -96,6 +98,7 @@ interface ClientFolder {
   client_phone?: string | null;
   client_company?: string | null;
   company_name?: string | null;
+  company_id?: number | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -187,6 +190,7 @@ export default function Designer({
   const [saveStatus, setSaveStatus] = useState("");
   const [showPictures, setShowPictures] = useState(false);
   const [terms, setTerms] = useState<string[]>([...adminDefaultTerms]);
+  const [notes, setNotes] = useState("");
   const [extraColumns, setExtraColumns] = useState<QuotationExtraColumn[]>([]);
   const [scopeIntro, setScopeIntro] = useState("");
   const [designEng, setDesignEngState] = useState("");
@@ -225,6 +229,22 @@ export default function Designer({
   const [projectId, setProjectId] = useState<number | null>(
     initialProjectId ?? null,
   );
+  // Which identity prints on the "Client:" line — the individual client
+  // folder, or the company that folder belongs to. The header dropdown
+  // flips this and the client name / email / phone follow the choice. We
+  // default to "company" so a company-route quotation keeps showing the
+  // company up top (its historical behaviour); folders with no company
+  // gracefully fall back to the only available option (the client).
+  const [clientIdentity, setClientIdentity] = useState<"client" | "company">(
+    "company",
+  );
+  // Email / phone for the company identity. Companies carry no contact
+  // columns of their own, so we pull the company's first saved contact and
+  // surface its email / phone when the user selects the company identity.
+  const [companyContact, setCompanyContact] = useState<{
+    email: string;
+    phone: string;
+  } | null>(null);
   // When true, the embedded QuotationPreview is rendered in non-editable
   // mode for the duration of a browser print dialog, so the printed output
   // matches the /quotation viewer exactly (no editable chrome, no extra
@@ -298,6 +318,51 @@ export default function Designer({
   const selectedFolder =
     folderId != null ? folders.find((f) => f.id === folderId) || null : null;
   const clientLocked = !!selectedFolder;
+  // A quotation always lives inside a project (the project folder it was
+  // created in), so when we have a project the Project header field is
+  // driven by that project's name and shown read-only.
+  const projectLocked = projectId != null;
+
+  // The identities offered in the header's Client dropdown: the individual
+  // client folder, plus the company it belongs to (when it has one). Each
+  // option carries its own contact details so selecting it fills the
+  // client name / email / phone in one go.
+  const clientOptions = useMemo(() => {
+    if (!selectedFolder) return [] as Array<{
+      key: "client" | "company";
+      label: string;
+      name: string;
+      email: string;
+      phone: string;
+    }>;
+    const opts: Array<{
+      key: "client" | "company";
+      label: string;
+      name: string;
+      email: string;
+      phone: string;
+    }> = [
+      {
+        key: "client",
+        label: `${selectedFolder.name || "Client"} — Client`,
+        name: selectedFolder.name || "",
+        email: selectedFolder.client_email || "",
+        phone: selectedFolder.client_phone || "",
+      },
+    ];
+    const companyName =
+      selectedFolder.company_name || selectedFolder.client_company || "";
+    if (companyName) {
+      opts.push({
+        key: "company",
+        label: `${companyName} — Company`,
+        name: companyName,
+        email: companyContact?.email || "",
+        phone: companyContact?.phone || "",
+      });
+    }
+    return opts;
+  }, [selectedFolder, companyContact]);
 
   /**
    * The Designer always shows the full design UI now — the previous "Step 1
@@ -665,6 +730,10 @@ export default function Designer({
             : []),
       );
       setScopeIntro(editDraft?.scopeIntro ?? (existing.config_json?.scopeIntro || ""));
+      setNotes(editDraft?.notes ?? (existing.config_json?.notes || ""));
+      setClientIdentity(
+        existing.config_json?.clientIdentity === "client" ? "client" : "company",
+      );
       // Presales Engineer: prefer whatever the quotation was saved with so
       // reopening an old record is lossless; otherwise anchor to the
       // logged-in user's display name. The previous fallback chain also
@@ -790,6 +859,8 @@ export default function Designer({
     setTerms(d.terms.length > 0 ? d.terms : [...adminDefaultTerms]);
     setExtraColumns(d.extraColumns || []);
     setScopeIntro(d.scopeIntro || "");
+    setNotes(d.notes || "");
+    setClientIdentity(d.clientIdentity === "client" ? "client" : "company");
     // Presales Engineer for a brand-new quotation is ALWAYS the logged-in
     // user. We deliberately ignore anything `loadDraft()` returned for
     // `designEng` so switching accounts on a shared browser doesn't
@@ -900,16 +971,72 @@ export default function Designer({
   // (or one restored from a saved quotation) is never clobbered.
   useEffect(() => {
     if (!selectedFolder) return;
-    const folderName = selectedFolder.name || "";
-    const realClient =
-      selectedFolder.company_name ||
-      selectedFolder.client_company ||
-      folderName;
-    setProjectName((prev) => prev || folderName);
-    setClientName(realClient);
-    setClientEmail(selectedFolder.client_email || "");
-    setClientPhone(selectedFolder.client_phone || "");
-  }, [selectedFolder]);
+    // Apply whichever identity is selected; fall back to the first available
+    // option (the client) when the chosen one doesn't exist for this folder
+    // — e.g. an individual folder has no company option.
+    const chosen =
+      clientOptions.find((o) => o.key === clientIdentity) ?? clientOptions[0];
+    if (!chosen) return;
+    setClientName(chosen.name);
+    setClientEmail(chosen.email);
+    setClientPhone(chosen.phone);
+  }, [selectedFolder, clientIdentity, clientOptions]);
+
+  // Folders not filed under a project still seed the Project field from the
+  // folder name (legacy ad-hoc quotations). When a project IS present the
+  // dedicated fetch below owns the field, so this only fills the gap.
+  useEffect(() => {
+    if (projectId != null) return;
+    if (!selectedFolder) return;
+    setProjectName((prev) => prev || selectedFolder.name || "");
+  }, [projectId, selectedFolder]);
+
+  // Pull the company's first saved contact so the "Company" client identity
+  // can surface a real email / phone (companies have no contact columns of
+  // their own). Cleared when the selected folder has no company.
+  useEffect(() => {
+    const companyId = selectedFolder?.company_id ?? null;
+    if (!companyId) {
+      setCompanyContact(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/contacts?company_id=${companyId}`, { cache: "no-store" })
+      .then((r) => readJson(r))
+      .then((d) => {
+        if (cancelled) return;
+        const list = Array.isArray(d.contacts) ? d.contacts : [];
+        const c = list[0];
+        setCompanyContact(
+          c ? { email: c.email || "", phone: c.phone || "" } : null,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setCompanyContact(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFolder?.company_id]);
+
+  // The Project header always mirrors the name of the project the quotation
+  // lives in — "just put the same name of the project folder". Fetched once
+  // per project id; failures leave whatever name was already in place.
+  useEffect(() => {
+    if (projectId == null) return;
+    let cancelled = false;
+    fetch(`/api/projects?id=${projectId}`, { cache: "no-store" })
+      .then((r) => readJson(r))
+      .then((d) => {
+        if (cancelled) return;
+        const name = d?.project?.name;
+        if (typeof name === "string" && name.trim()) setProjectName(name);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   // ── Keep the editing context in sync with the current parent folder ─────
   // The catalogue's "Back" button routes off whatever `loadEditingContext()`
@@ -959,6 +1086,8 @@ export default function Designer({
       taxPercent,
       showPictures,
       terms,
+      notes,
+      clientIdentity,
       extraColumns,
       scopeIntro,
       designEng,
@@ -988,6 +1117,8 @@ export default function Designer({
     taxPercent,
     showPictures,
     terms,
+    notes,
+    clientIdentity,
     extraColumns,
     scopeIntro,
     designEng,
@@ -1020,6 +1151,8 @@ export default function Designer({
     saveEditDraft(existing.id, {
       items,
       terms,
+      notes,
+      clientIdentity,
       extraColumns,
       scopeIntro,
       designEng,
@@ -1045,6 +1178,8 @@ export default function Designer({
     existing,
     items,
     terms,
+    notes,
+    clientIdentity,
     extraColumns,
     scopeIntro,
     designEng,
@@ -1250,6 +1385,8 @@ export default function Designer({
         config: {
           showPictures,
           terms,
+          notes,
+          clientIdentity,
           salesPhone,
           extraColumns,
           scopeIntro,
@@ -1381,6 +1518,7 @@ export default function Designer({
     setSiteName("");
     setShowPictures(false);
     setTerms([...adminDefaultTerms]);
+    setNotes("");
     setPricingCategoryState("si");
     if (!editMode) clearDraft();
   }
@@ -2082,9 +2220,20 @@ export default function Designer({
               showPictures={showPictures}
               terms={terms}
               setTerms={setTerms}
+              notes={notes}
+              setNotes={setNotes}
               includeTax={includeTax}
               taxInclusive={taxInclusive}
               clientLocked={clientLocked}
+              clientOptions={clientOptions.map((o) => ({
+                key: o.key,
+                label: o.label,
+              }))}
+              clientIdentity={clientIdentity}
+              onClientIdentityChange={(key) =>
+                setClientIdentity(key === "company" ? "company" : "client")
+              }
+              projectLocked={projectLocked}
               footerText={appSettings.footerText}
               brandVariantId={brandVariantId}
               boqMode={boqMode}
