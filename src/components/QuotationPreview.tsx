@@ -159,6 +159,23 @@ interface Props {
    */
   clientLocked?: boolean;
   /**
+   * When provided (and editable), the Client header field renders as a
+   * dropdown so the user can choose which identity prints on the "Client:"
+   * line — typically the individual client vs. the company it belongs to.
+   * The parent owns the actual name / email / phone values; this only
+   * reports the chosen key back so the parent can swap them.
+   */
+  clientOptions?: { key: string; label: string }[];
+  /** Currently-selected client identity key (matches a `clientOptions` key). */
+  clientIdentity?: string;
+  /** Fired when the user picks a different client identity from the dropdown. */
+  onClientIdentityChange?: (key: string) => void;
+  /**
+   * When true, the Project header field is read-only — its value is the name
+   * of the project the quotation lives in and isn't free-text editable here.
+   */
+  projectLocked?: boolean;
+  /**
    * Printable footer text shown at the bottom of every sheet. Admin-editable
    * via the Settings tab. Falls back to the historical hardcoded company
    * address when no setting has been saved yet.
@@ -515,6 +532,10 @@ export default function QuotationPreview({
   includeTax = true,
   taxInclusive = false,
   clientLocked = false,
+  clientOptions,
+  clientIdentity,
+  onClientIdentityChange,
+  projectLocked = false,
   footerText,
   boqMode = false,
 }: Props) {
@@ -1229,6 +1250,10 @@ export default function QuotationPreview({
           editable={editable}
           logoUrl={resolvedLogoUrl}
           clientLocked={clientLocked}
+          clientOptions={clientOptions}
+          clientIdentity={clientIdentity}
+          onClientIdentityChange={onClientIdentityChange}
+          projectLocked={projectLocked}
           footerText={resolvedFooterText}
           isLast={!editable}
         >
@@ -1279,6 +1304,10 @@ export default function QuotationPreview({
           editable={editable}
           logoUrl={resolvedLogoUrl}
           clientLocked={clientLocked}
+          clientOptions={clientOptions}
+          clientIdentity={clientIdentity}
+          onClientIdentityChange={onClientIdentityChange}
+          projectLocked={projectLocked}
           footerText={resolvedFooterText}
           isLast={false}
         >
@@ -1472,6 +1501,10 @@ function QuotationPage({
   isLast,
   hideInfoHeader,
   clientLocked = false,
+  clientOptions,
+  clientIdentity,
+  onClientIdentityChange,
+  projectLocked = false,
   footerText,
   children,
 }: {
@@ -1484,6 +1517,12 @@ function QuotationPage({
   hideInfoHeader?: boolean;
   /** When true, the client name/email/phone inputs render read-only. */
   clientLocked?: boolean;
+  /** Client-identity dropdown options (Client vs Company). */
+  clientOptions?: { key: string; label: string }[];
+  clientIdentity?: string;
+  onClientIdentityChange?: (key: string) => void;
+  /** When true, the Project field is read-only (driven by the project). */
+  projectLocked?: boolean;
   /** Admin-editable printable footer line. */
   footerText?: string;
   children: React.ReactNode;
@@ -1573,18 +1612,39 @@ function QuotationPage({
               <HeaderField
                 value={header.project_name}
                 placeholder="—"
-                editable={editable && !!setHeader}
+                editable={editable && !!setHeader && !projectLocked}
                 onChange={(v) => setHeader?.({ project_name: v })}
               />
             </div>
             <div className="text-left font-bold">Client:</div>
             <div className="text-left">
-              <HeaderField
-                value={header.client_name || ""}
-                placeholder="—"
-                editable={editable && !!setHeader && !clientLocked}
-                onChange={(v) => setHeader?.({ client_name: v })}
-              />
+              {editable && clientOptions && clientOptions.length > 1 ? (
+                // Pick which identity prints on the Client line — the client
+                // folder, or the company it belongs to. Only shown when there
+                // is a genuine choice (the folder belongs to a company); a
+                // standalone client just renders its locked name below. The
+                // parent swaps the name / email / phone to match the key.
+                <select
+                  value={clientIdentity || clientOptions[0].key}
+                  onChange={(e) => onClientIdentityChange?.(e.target.value)}
+                  aria-label="Client identity"
+                  title="Choose whether the client name or the company name appears here — its email and phone fill in automatically."
+                  className="w-full bg-transparent outline-none border-b border-dotted border-magic-border focus:border-magic-red"
+                >
+                  {clientOptions.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <HeaderField
+                  value={header.client_name || ""}
+                  placeholder="—"
+                  editable={editable && !!setHeader && !clientLocked}
+                  onChange={(v) => setHeader?.({ client_name: v })}
+                />
+              )}
             </div>
             <div className="text-left font-bold">EMAIL:</div>
             <div className="text-left">
