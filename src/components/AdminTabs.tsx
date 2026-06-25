@@ -288,14 +288,13 @@ function DatabasePanel() {
         )}
       </div>
 
-      {/* V1.4D — the Database tab now hosts ONE backup surface (the full
-          system backup ZIP). The legacy Cloudflare D1 connection panel
-          and the Folder-classification "Export everything for R2 + D1"
-          card were dual-run migration helpers from the Cloudflare cutover;
-          both are removed so admins see a single, unambiguous "back up
-          everything" button. */}
+      {/* The primary, single-button backup: one click copies the ENTIRE app —
+          every database row AND every uploaded file — into Cloudflare R2, so
+          nothing depends on Supabase as a single point of failure. The
+          download/restore ZIP below is the secondary off-site-copy + restore
+          surface. */}
+      <FullR2BackupPanel />
       <BackupPanel />
-      <R2FileBackupPanel />
     </div>
   );
 }
@@ -502,27 +501,6 @@ function BackupPanel() {
   );
 }
 
-type R2Preview = {
-  configured: boolean;
-  bucket: string;
-  totalFiles: number;
-  totalBytes: number;
-};
-
-type R2BackupReport = {
-  ok: boolean;
-  error?: string;
-  total?: number;
-  processed?: number;
-  done?: boolean;
-  mirrored?: number;
-  skipped?: number;
-  missing?: number;
-  failed?: number;
-  bytesMirrored?: number;
-  errors?: Array<{ path: string; error: string }>;
-};
-
 function formatBytes(n: number): string {
   if (!Number.isFinite(n) || n < 0) return "—";
   if (n < 1024) return `${n} B`;
@@ -531,15 +509,73 @@ function formatBytes(n: number): string {
   return `${(mb / 1024).toFixed(2)} GB`;
 }
 
-/** POST one backup batch and parse it defensively. A timed-out function
- * returns an HTML 504 page, not JSON — read as text first so we surface a
- * readable error instead of "Unexpected token '<'". */
-async function postBackupBatch(): Promise<R2BackupReport> {
-  const res = await fetch("/api/admin/backup-files-r2", { method: "POST" });
+type LastDbBackup = {
+  takenAt: string;
+  key: string;
+  tableCount: number;
+  totalRows: number;
+  sizeBytes: number;
+};
+
+type FullR2Preview = {
+  configured: boolean;
+  bucket: string;
+  supabaseFiles: { totalFiles: number; totalBytes: number };
+  lastDbBackup: LastDbBackup | null;
+  latestDownloadUrl: string | null;
+};
+
+type FullR2BatchResponse = {
+  ok: boolean;
+  error?: string;
+  done?: boolean;
+  db?: {
+    done: boolean;
+    key: string;
+    tableCount: number;
+    totalRows: number;
+    sizeBytes: number;
+    takenAt: string;
+  } | null;
+  files?: {
+    total: number;
+    processed: number;
+    done: boolean;
+    mirrored: number;
+    skipped: number;
+    missing: number;
+    failed: number;
+    bytesMirrored: number;
+    errors?: Array<{ path: string; error: string }>;
+  };
+};
+
+type FullR2Report = {
+  ok: boolean;
+  error?: string;
+  db?: FullR2BatchResponse["db"];
+  filesTotal: number;
+  filesMirrored: number;
+  filesBytes: number;
+  filesSkipped: number;
+  filesMissing: number;
+  filesFailed: number;
+  errors?: Array<{ path: string; error: string }>;
+};
+
+/** POST one batch and parse defensively. A timed-out function returns an HTML
+ * 504 page, not JSON — read as text first so we surface a readable error
+ * instead of "Unexpected token '<'". */
+async function postFullR2Batch(skipDb: boolean): Promise<FullR2BatchResponse> {
+  const res = await fetch("/api/admin/backup-to-r2", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ skipDb }),
+  });
   const text = await res.text();
-  let data: R2BackupReport | null = null;
+  let data: FullR2BatchResponse | null = null;
   try {
-    data = JSON.parse(text) as R2BackupReport;
+    data = JSON.parse(text) as FullR2BatchResponse;
   } catch {
     /* non-JSON body (timeout / proxy error) */
   }
@@ -552,28 +588,28 @@ async function postBackupBatch(): Promise<R2BackupReport> {
 }
 
 /**
- * Mirror every Supabase Storage file into Cloudflare R2. Uploads land in
- * Supabase directly (the browser PUTs to a signed URL), so this is how an
- * admin gets a durable second copy in R2. New uploads are mirrored
- * automatically; this sweep covers the existing backlog and any stragglers.
+ * THE single backup button. One click copies the entire app into Cloudflare
+ * R2: a complete, restore-ready snapshot of every database row PLUS every
+ * uploaded file. After it runs, nothing the app stores depends on Supabase as
+ * a single point of failure — the DB snapshot and all file blobs live in R2.
  */
-function R2FileBackupPanel() {
-  const [preview, setPreview] = useState<R2Preview | null>(null);
+function FullR2BackupPanel() {
+  const [preview, setPreview] = useState<FullR2Preview | null>(null);
   const [previewErr, setPreviewErr] = useState<string | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
-  const [report, setReport] = useState<R2BackupReport | null>(null);
+  const [report, setReport] = useState<FullR2Report | null>(null);
 
   async function refreshPreview() {
     setLoadingPreview(true);
     setPreviewErr(null);
     try {
-      const res = await fetch("/api/admin/backup-files-r2", { method: "GET" });
+      const res = await fetch("/api/admin/backup-to-r2", { method: "GET" });
       const text = await res.text();
       const data = (() => {
         try {
-          return JSON.parse(text) as R2Preview & { error?: string };
+          return JSON.parse(text) as FullR2Preview & { error?: string };
         } catch {
           return null;
         }
@@ -593,51 +629,65 @@ function R2FileBackupPanel() {
     setRunning(true);
     setReport(null);
     setProgress(null);
-    // The server time-boxes each call so it never hits the 60s function
-    // limit; it returns `done: false` when more files remain. Loop until it
-    // reports done, accumulating the unique "mirrored" tally (a file copied
-    // on one pass is skipped on the next, so it's only counted once). The
-    // pass cap is a safety net against an unexpected non-terminating loop.
+    // First pass snapshots the DB and starts the file mirror; the server
+    // time-boxes each call and returns `done:false` while files remain, so we
+    // loop with skipDb:true (the DB is already snapshotted) until it's done.
+    // The file mirror is idempotent — a file copied on one pass is skipped on
+    // the next — so we accumulate the unique "mirrored" tally. The pass cap is
+    // a safety net against an unexpected non-terminating loop.
+    let dbInfo: FullR2BatchResponse["db"] = null;
     let cumMirrored = 0;
     let cumBytes = 0;
-    let last: R2BackupReport | null = null;
+    let last: FullR2BatchResponse | null = null;
     try {
       for (let pass = 0; pass < 100; pass++) {
-        const data = await postBackupBatch();
-        cumMirrored += data.mirrored ?? 0;
-        cumBytes += data.bytesMirrored ?? 0;
+        const data = await postFullR2Batch(pass > 0);
+        if (data.db) dbInfo = data.db;
+        cumMirrored += data.files?.mirrored ?? 0;
+        cumBytes += data.files?.bytesMirrored ?? 0;
         last = data;
+        if (pass === 0 && dbInfo) {
+          setProgress(
+            `Database snapshot uploaded to R2 (${dbInfo.totalRows} rows across ${dbInfo.tableCount} tables). Now copying files…`,
+          );
+        } else {
+          setProgress(
+            `Backing up files… ${cumMirrored} copied so far (${formatBytes(cumBytes)}). Still working…`,
+          );
+        }
         if (data.done) break;
-        setProgress(
-          `Backing up… ${cumMirrored} file${cumMirrored === 1 ? "" : "s"} copied so far (${formatBytes(cumBytes)}). Still working…`,
-        );
       }
-      const total = last?.total ?? 0;
-      const failed = last?.failed ?? 0;
-      const missing = last?.missing ?? 0;
+      const total = last?.files?.total ?? 0;
+      const failed = last?.files?.failed ?? 0;
+      const missing = last?.files?.missing ?? 0;
       setReport({
         ok: true,
-        total,
-        mirrored: cumMirrored,
-        bytesMirrored: cumBytes,
-        // Everything that wasn't newly copied, failed, or missing was already
-        // safely in R2.
-        skipped: Math.max(0, total - cumMirrored - failed - missing),
-        missing,
-        failed,
-        errors: last?.errors,
-        done: last?.done,
+        db: dbInfo,
+        filesTotal: total,
+        filesMirrored: cumMirrored,
+        filesBytes: cumBytes,
+        // Everything not newly copied, failed, or missing was already in R2.
+        filesSkipped: Math.max(0, total - cumMirrored - failed - missing),
+        filesMissing: missing,
+        filesFailed: failed,
+        errors: last?.files?.errors,
       });
-      // Re-read the preview so the file count reflects reality afterwards.
       void refreshPreview();
     } catch (err) {
-      // Partial progress is real (the copy is idempotent), so tell the user
-      // what landed and that another click resumes from there.
       const tail =
-        cumMirrored > 0
-          ? ` — ${cumMirrored} file(s) were copied before this stopped; click "Back up files to R2 now" again to continue.`
+        cumMirrored > 0 || dbInfo
+          ? ` — partial progress was saved to R2 (the backup is idempotent); click "Back up everything to R2" again to finish.`
           : "";
-      setReport({ ok: false, error: (err as Error).message + tail });
+      setReport({
+        ok: false,
+        error: (err as Error).message + tail,
+        filesTotal: 0,
+        filesMirrored: cumMirrored,
+        filesBytes: cumBytes,
+        filesSkipped: 0,
+        filesMissing: 0,
+        filesFailed: 0,
+      });
     } finally {
       setRunning(false);
       setProgress(null);
@@ -645,32 +695,34 @@ function R2FileBackupPanel() {
   }
 
   return (
-    <div className="rounded-xl border border-magic-border bg-white p-5">
+    <div className="rounded-xl border-2 border-magic-red/40 bg-white p-5">
       <h3 className="font-semibold text-magic-ink mb-1">
-        Back up files to Cloudflare R2
+        Back up everything to Cloudflare R2
       </h3>
       <p className="text-sm text-magic-ink/60 mb-4">
-        New uploads now go straight to Cloudflare R2. This sweep copies any
-        older files that still live only in Supabase Storage (from before the
-        switch) into R2, so nothing from before the cutover is left behind.
-        It&apos;s safe to run repeatedly: files already in R2 with the same
-        size are skipped.
+        One click puts the <strong>entire app</strong> into Cloudflare R2: a
+        complete, restore-ready snapshot of every database row{" "}
+        <em>and</em> every uploaded file. After it finishes, nothing the app
+        stores lives only in Supabase — R2 holds a full copy of the data and
+        all files, so there&apos;s no single point of failure. Safe to run
+        repeatedly: each run writes a fresh, timestamped DB snapshot and skips
+        files already in R2.
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={runBackup}
           disabled={running}
-          className="px-4 py-2 text-sm font-medium rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+          className="px-4 py-2 text-sm font-semibold rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
         >
-          {running ? "Backing up to R2…" : "Back up files to R2 now"}
+          {running ? "Backing up everything to R2…" : "Back up everything to R2"}
         </button>
         <button
           onClick={refreshPreview}
           disabled={loadingPreview}
           className="px-4 py-2 text-sm font-medium rounded-lg border border-magic-border text-magic-ink hover:bg-magic-soft disabled:opacity-50 transition-colors"
         >
-          {loadingPreview ? "Checking…" : "Check what's in Supabase"}
+          {loadingPreview ? "Checking…" : "Check R2 backup status"}
         </button>
       </div>
 
@@ -681,19 +733,52 @@ function R2FileBackupPanel() {
       )}
 
       {preview && (
-        <p className="mt-3 text-sm text-magic-ink/70">
-          Bucket <code>{preview.bucket}</code>:{" "}
-          <strong>{preview.totalFiles}</strong> file
-          {preview.totalFiles === 1 ? "" : "s"} (
-          {formatBytes(preview.totalBytes)}) in Supabase Storage.
-          {!preview.configured && (
-            <span className="block mt-1 text-red-700">
-              ⚠ R2 is not configured — set CLOUDFLARE_ACCOUNT_ID,
-              CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY
-              in your environment.
-            </span>
+        <div className="mt-3 text-sm text-magic-ink/70 space-y-1">
+          <p>
+            Bucket <code>{preview.bucket}</code>.{" "}
+            {preview.supabaseFiles.totalFiles > 0 ? (
+              <>
+                <strong>{preview.supabaseFiles.totalFiles}</strong> file
+                {preview.supabaseFiles.totalFiles === 1 ? "" : "s"} (
+                {formatBytes(preview.supabaseFiles.totalBytes)}) still in
+                Supabase Storage to mirror.
+              </>
+            ) : (
+              <>No legacy files left in Supabase Storage.</>
+            )}
+          </p>
+          {preview.lastDbBackup ? (
+            <p>
+              Last database snapshot:{" "}
+              <strong>
+                {new Date(preview.lastDbBackup.takenAt).toLocaleString()}
+              </strong>{" "}
+              — {preview.lastDbBackup.totalRows} rows,{" "}
+              {preview.lastDbBackup.tableCount} tables (
+              {formatBytes(preview.lastDbBackup.sizeBytes)}).
+              {preview.latestDownloadUrl && (
+                <>
+                  {" "}
+                  <a
+                    href={preview.latestDownloadUrl}
+                    className="text-magic-red underline hover:no-underline"
+                  >
+                    Download latest snapshot
+                  </a>
+                </>
+              )}
+            </p>
+          ) : (
+            <p>No database snapshot in R2 yet — run the backup to create one.</p>
           )}
-        </p>
+          {!preview.configured && (
+            <p className="text-red-700">
+              ⚠ R2 is not configured — set CLOUDFLARE_ACCOUNT_ID,
+              CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY in
+              your environment.
+            </p>
+          )}
+        </div>
       )}
       {previewErr && (
         <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -711,13 +796,23 @@ function R2FileBackupPanel() {
         >
           {report.ok ? (
             <>
-              <div>
-                Backed up <strong>{report.mirrored ?? 0}</strong> new file
-                {report.mirrored === 1 ? "" : "s"} (
-                {formatBytes(report.bytesMirrored ?? 0)}) to R2.{" "}
-                {report.skipped ?? 0} already up to date
-                {report.missing ? `, ${report.missing} missing in Supabase` : ""}
-                {report.failed ? `, ${report.failed} failed` : ""}.
+              {report.db && (
+                <div>
+                  Database snapshot saved to R2:{" "}
+                  <strong>{report.db.totalRows}</strong> rows across{" "}
+                  <strong>{report.db.tableCount}</strong> tables (
+                  {formatBytes(report.db.sizeBytes)}).
+                </div>
+              )}
+              <div className="mt-1">
+                Files: backed up <strong>{report.filesMirrored}</strong> new
+                file{report.filesMirrored === 1 ? "" : "s"} (
+                {formatBytes(report.filesBytes)}). {report.filesSkipped} already
+                up to date
+                {report.filesMissing
+                  ? `, ${report.filesMissing} missing in Supabase`
+                  : ""}
+                {report.filesFailed ? `, ${report.filesFailed} failed` : ""}.
               </div>
               {report.errors && report.errors.length > 0 && (
                 <ul className="mt-2 list-disc pl-5">
