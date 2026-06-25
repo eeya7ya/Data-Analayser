@@ -1058,16 +1058,16 @@ function QuotationsTab({
               // copy / delete affordances.
               <li
                 key={row.id}
-                className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40"
+                className="px-3 py-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 hover:bg-magic-soft/40"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex items-baseline gap-2">
                   <Link
                     href={`/quotation?id=${row.id}&view=1`}
-                    className="font-mono text-sm text-magic-red hover:underline"
+                    className="font-mono text-sm text-magic-red hover:underline shrink-0"
                   >
                     {row.ref}
                   </Link>
-                  <span className="ml-2 text-sm text-magic-ink truncate">
+                  <span className="text-sm text-magic-ink truncate min-w-0">
                     {row.project_name || "—"}
                   </span>
                 </div>
@@ -1090,18 +1090,18 @@ function QuotationsTab({
                   onDragStart("quotation", row.id);
                 }}
                 onDragEnd={onDragEnd}
-                className="px-3 py-2 flex items-center justify-between gap-3 hover:bg-magic-soft/40 cursor-grab active:cursor-grabbing"
+                className="px-3 py-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 hover:bg-magic-soft/40 cursor-grab active:cursor-grabbing"
                 title="Drag onto a project in the sidebar to move this quotation"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex items-baseline gap-2">
                   <Link
                     href={`/quotation?id=${row.id}`}
-                    className="font-mono text-sm text-magic-red hover:underline"
+                    className="font-mono text-sm text-magic-red hover:underline shrink-0"
                     draggable={false}
                   >
                     {row.ref}
                   </Link>
-                  <span className="ml-2 text-sm text-magic-ink truncate">
+                  <span className="text-sm text-magic-ink truncate min-w-0">
                     {row.project_name || "—"}
                   </span>
                 </div>
