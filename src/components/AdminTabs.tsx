@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import JSZip from "jszip";
 import UsersAndRolesPanel from "./UsersAndRolesPanel";
 import AdminSettings from "./AdminSettings";
 import FolderClassificationPanel from "./FolderClassificationPanel";
@@ -112,13 +113,39 @@ export default function AdminTabs({
   );
 }
 
+type BackupFile = {
+  id: number;
+  folder: string;
+  project: string;
+  kind: string;
+  filename: string;
+  zipPath: string;
+  sizeBytes: number;
+  url: string;
+};
+
+type FilesManifest = {
+  ok: boolean;
+  error?: string;
+  generatedAt: string;
+  count: number;
+  totalBytes: number;
+  files: BackupFile[];
+};
+
 /**
  * Download every uploaded file in its original format, laid out in the same
- * Client → Project → Kind folder structure as the app. Server route:
- * GET /api/admin/files-backup. Reads from Cloudflare R2 only — no Supabase.
+ * Client → Project → Kind folder structure as the app.
+ *
+ * The bytes never go through our server: GET /api/admin/files-backup returns
+ * only a list of short-lived presigned R2 URLs, and the browser downloads each
+ * file straight from Cloudflare R2 and zips them locally. That sidesteps every
+ * serverless limit (response size / 60 s / memory) that an all-in-one server
+ * ZIP would hit.
  */
 function FilesBackupPanel() {
   const [exporting, setExporting] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
   );
@@ -126,26 +153,118 @@ function FilesBackupPanel() {
   async function downloadFilesBackup() {
     setExporting(true);
     setMsg(null);
+    setProgress("Listing files…");
     try {
       const res = await fetch("/api/admin/files-backup", { method: "GET" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
+      const data = (await res.json().catch(() => ({}))) as FilesManifest;
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
       }
-      const blob = await res.blob();
-      const filename =
-        filenameFromResponse(res) ||
-        `magictech-files-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
+
+      const zip = new JSZip();
+      const manifest: Array<{
+        id: number;
+        folder: string;
+        project: string;
+        kind: string;
+        filename: string;
+        zipPath: string;
+        embedded: boolean;
+        bytes?: number;
+        error?: string;
+      }> = [];
+      let embedded = 0;
+      let bytes = 0;
+      let corsBlocked = 0;
+
+      for (let i = 0; i < data.files.length; i++) {
+        const f = data.files[i];
+        setProgress(
+          `Downloading files from Cloudflare R2… ${i + 1} of ${data.files.length}`,
+        );
+        const meta = {
+          id: f.id,
+          folder: f.folder,
+          project: f.project,
+          kind: f.kind,
+          filename: f.filename,
+          zipPath: f.zipPath,
+        };
+        try {
+          const r = await fetch(f.url);
+          if (!r.ok) throw new Error(`R2 responded ${r.status}`);
+          const buf = await r.arrayBuffer();
+          zip.file(f.zipPath, buf);
+          embedded++;
+          bytes += buf.byteLength;
+          manifest.push({ ...meta, embedded: true, bytes: buf.byteLength });
+        } catch (err) {
+          // A cross-origin block surfaces as a TypeError "Failed to fetch"
+          // with no status — almost always R2 CORS not allowing GET.
+          if (err instanceof TypeError) corsBlocked++;
+          manifest.push({
+            ...meta,
+            embedded: false,
+            error: (err as Error).message,
+          });
+        }
+      }
+
+      if (data.files.length > 0 && embedded === 0 && corsBlocked > 0) {
+        throw new Error(
+          "The browser was blocked from reading files out of Cloudflare R2 " +
+            "(CORS). Add your app's origin with the GET method to the R2 " +
+            "bucket's CORS policy (R2 → bucket → Settings → CORS Policy), then " +
+            "try again. See .env.example for the exact policy.",
+        );
+      }
+
+      const failed = manifest.length - embedded;
+      zip.file("_manifest.json", JSON.stringify(manifest, null, 2));
+      zip.file(
+        "README.txt",
+        [
+          "MagicTech — Files Backup",
+          "========================",
+          `Generated: ${data.generatedAt}`,
+          "",
+          "Every uploaded file, in its ORIGINAL format. Layout:",
+          "  <Client folder>/<Project>/<Kind>/<filename>",
+          "",
+          "Kind folders (Quotations, Purchase Orders, BOQs, Other) mirror the",
+          "tabs in each project's Files panel. Unzip and the files land in",
+          "folders/sub-folders that match the app one-to-one.",
+          "",
+          `Included: ${embedded} file(s), ${(bytes / (1024 * 1024)).toFixed(2)} MB`,
+          `Missing:  ${failed} file(s)` +
+            (failed ? " (see _manifest.json)" : ""),
+        ].join("\n"),
+      );
+
+      setProgress("Building ZIP…");
+      const blob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 },
+      });
+      const stamp = data.generatedAt.replace(/[:.]/g, "-");
+      const filename = `magictech-files-backup-${stamp}.zip`;
       triggerDownload(blob, filename);
+
       const mb = (blob.size / (1024 * 1024)).toFixed(2);
       setMsg({
         kind: "ok",
-        text: `Files backup downloaded: ${filename} (${mb} MB). Unzip it and the files sit in the same folder/sub-folder layout as the app.`,
+        text:
+          `Files backup downloaded: ${filename} (${mb} MB, ${embedded} file(s)).` +
+          (failed
+            ? ` ${failed} file(s) couldn't be read — see _manifest.json.`
+            : " Unzip it and the files sit in the same folder/sub-folder layout as the app."),
       });
     } catch (err) {
       setMsg({ kind: "error", text: (err as Error).message });
     } finally {
       setExporting(false);
+      setProgress(null);
     }
   }
 
@@ -169,6 +288,11 @@ function FilesBackupPanel() {
         >
           {exporting ? "Preparing files backup…" : "Download all files (.zip)"}
         </button>
+        {progress && (
+          <p className="text-sm text-magic-ink/70 bg-magic-soft border border-magic-border rounded-lg px-3 py-2">
+            {progress}
+          </p>
+        )}
         <p className="text-xs text-magic-ink/50">
           Layout:{" "}
           <code>&lt;Client&gt;/&lt;Project&gt;/&lt;Quotations|Purchase Orders|BOQs|Other&gt;/&lt;file&gt;</code>

@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import JSZip from "jszip";
-import { createHash } from "node:crypto";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { fetchR2BytesForPath, isR2Configured } from "@/lib/file-backup";
+import { isR2Configured, r2PresignDownloadUrl } from "@/lib/file-backup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,21 +10,29 @@ export const maxDuration = 60;
 /**
  * GET /api/admin/files-backup
  *
- * THE files backup. One click downloads every uploaded file — PDFs, DWGs,
- * Excel sheets, photos — in its EXACT original format, laid out in the same
- * Client → Project → Kind folder structure you see in the app:
+ * Returns the MANIFEST for a files backup — NOT the bytes. For every uploaded
+ * file it gives the target path inside the ZIP and a short-lived presigned R2
+ * GET URL. The browser then downloads each file straight from Cloudflare R2 and
+ * assembles the ZIP locally (see FilesBackupPanel in AdminTabs.tsx).
  *
+ * Why the browser does the assembly
+ * ─────────────────────────────────
+ * A Vercel serverless function can't be the pipe for every file: a buffered
+ * response is capped at ~4.5 MB, the function is killed at 60 s, and holding
+ * every file in memory risks an OOM. Routing the bytes through it is exactly
+ * what produced net::ERR_FAILED. The app already moves files browser↔R2
+ * directly (uploads PUT to a presigned R2 URL); this mirrors that for download.
+ * The response here is tiny (just paths + URLs), so it can't hit any of those
+ * limits.
+ *
+ * The browser fetches the presigned URLs cross-origin, so the R2 bucket's CORS
+ * policy must allow GET from the app origin (the same policy that already
+ * allows PUT for uploads — see .env.example).
+ *
+ * Layout (computed here, deduped so nothing collides in the archive):
  *   <Client folder>/<Project>/<Quotations|Purchase Orders|BOQs|Other>/<filename>
  *
- * Unzip the result and every file lands back in a matching folder/sub-folder,
- * so it can be dropped straight onto disk. Read-only on the database.
- *
- * Storage source: Cloudflare R2 ONLY. Uploads land directly in R2 (see
- * src/app/api/project-files/sign-upload), so this never touches Supabase.
- * Files whose bytes can't be found in R2 are listed in `_manifest.json`
- * (embedded:false) rather than silently dropped.
- *
- * Admin only. Exposed from Admin → Backups.
+ * Admin only. Read-only on the database.
  */
 export async function GET() {
   try {
@@ -52,11 +58,8 @@ export async function GET() {
     // define its place in the tree. folder_id is NOT NULL on projects, but we
     // coalesce defensively so a file is never dropped over a missing name.
     const files = (await q`
-      select pf.id, pf.kind, pf.filename, pf.mime, pf.size_bytes,
-             pf.storage_path, pf.created_at,
-             p.id   as project_id,
+      select pf.id, pf.kind, pf.filename, pf.size_bytes, pf.storage_path,
              coalesce(nullif(p.name, ''), 'Project ' || p.id::text)  as project_name,
-             cf.id  as folder_id,
              coalesce(nullif(cf.name, ''), 'Unfiled')                as folder_name
       from project_files pf
       join projects p on p.id = pf.project_id
@@ -67,165 +70,39 @@ export async function GET() {
       id: number;
       kind: string;
       filename: string;
-      mime: string;
       size_bytes: number;
       storage_path: string;
-      created_at: string;
-      project_id: number;
       project_name: string;
-      folder_id: number | null;
       folder_name: string;
     }>;
 
-    const generatedAt = new Date().toISOString();
-    const zip = new JSZip();
-
-    // Track the zip paths already used (case-insensitively) so two files with
-    // the same name in the same folder don't overwrite each other inside the
-    // archive — the second one gets a " (id)" suffix before its extension.
     const usedPaths = new Set<string>();
-
-    const manifest: Array<{
-      id: number;
-      folder: string;
-      project: string;
-      kind: string;
-      filename: string;
-      zip_path: string | null;
-      bytes: number | null;
-      sha256: string | null;
-      embedded: boolean;
-      error?: string;
-    }> = [];
-
-    let embedded = 0;
     let totalBytes = 0;
 
-    for (const f of files) {
+    const items = files.map((f) => {
       const dir = `${safeSegment(f.folder_name)}/${safeSegment(f.project_name)}/${kindFolder(f.kind)}`;
       const zipPath = uniquePath(usedPaths, dir, f.filename, f.id);
-
-      let bytes: Buffer | null = null;
-      let error: string | undefined;
-      try {
-        bytes = await fetchR2BytesForPath(f.storage_path);
-      } catch (e) {
-        error = (e as Error).message;
-      }
-
-      if (bytes) {
-        zip.file(zipPath, bytes);
-        embedded++;
-        totalBytes += bytes.byteLength;
-        manifest.push({
-          id: f.id,
-          folder: f.folder_name,
-          project: f.project_name,
-          kind: f.kind,
-          filename: f.filename,
-          zip_path: zipPath,
-          bytes: bytes.byteLength,
-          sha256: createHash("sha256").update(bytes).digest("hex"),
-          embedded: true,
-        });
-      } else {
-        manifest.push({
-          id: f.id,
-          folder: f.folder_name,
-          project: f.project_name,
-          kind: f.kind,
-          filename: f.filename,
-          zip_path: null,
-          bytes: f.size_bytes ?? null,
-          sha256: null,
-          embedded: false,
-          error: error || "bytes not found in Cloudflare R2",
-        });
-      }
-    }
-
-    const failed = manifest.length - embedded;
-
-    zip.file("_manifest.json", JSON.stringify(manifest, null, 2));
-    zip.file(
-      "README.txt",
-      [
-        "MagicTech — Files Backup",
-        "========================",
-        `Generated: ${generatedAt}`,
-        "",
-        "Every uploaded file, in its ORIGINAL format (the exact PDF, DWG, Excel,",
-        "image, … bytes as uploaded — nothing re-rendered or converted).",
-        "",
-        "Layout",
-        "------",
-        "  <Client folder>/<Project>/<Kind>/<filename>",
-        "",
-        "  Kind folders: Quotations, Purchase Orders, BOQs, Other — these mirror",
-        "  the tabs in each project's Files panel.",
-        "",
-        "Unzip this archive and the files land in folders/sub-folders that match",
-        "the app one-to-one, so you can copy them straight onto disk.",
-        "",
-        "Source",
-        "------",
-        "  Files are read directly from Cloudflare R2. Nothing here touches",
-        "  Supabase.",
-        "",
-        "Files",
-        "-----",
-        `  Included: ${embedded} file(s), ${(totalBytes / (1024 * 1024)).toFixed(2)} MB`,
-        `  Missing:  ${failed} file(s)` +
-          (failed ? " (see _manifest.json for which and why)" : ""),
-        "",
-        "_manifest.json lists every file with its folder/project/kind, original",
-        "name, size and SHA-256 so the archive can be audited against the app.",
-      ].join("\n"),
-    );
-
-    const stamp = generatedAt.replace(/[:.]/g, "-");
-    const filename = `magictech-files-backup-${stamp}.zip`;
-
-    // Stream the ZIP out instead of buffering it into the response. Vercel
-    // serverless functions cap a *buffered* response body at ~4.5 MB — a
-    // single real PDF/DWG already blows past that, which drops the connection
-    // (the browser sees net::ERR_FAILED). A chunked/streamed response is not
-    // subject to that cap, so we hand JSZip's incremental output straight to
-    // the client. No Content-Length → the platform sends it chunked.
-    const zipStream = zip.generateInternalStream({
-      type: "uint8array",
-      compression: "DEFLATE",
-      compressionOptions: { level: 6 },
-      streamFiles: true,
+      totalBytes += Number(f.size_bytes) || 0;
+      return {
+        id: f.id,
+        folder: f.folder_name,
+        project: f.project_name,
+        kind: f.kind,
+        filename: f.filename,
+        zipPath,
+        sizeBytes: Number(f.size_bytes) || 0,
+        // 2-hour window: plenty of time for the browser to pull every file
+        // even on a large backup over a slow connection.
+        url: r2PresignDownloadUrl(f.storage_path, { expiresSeconds: 7200 }),
+      };
     });
 
-    const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        zipStream
-          .on("data", (chunk: Uint8Array) => {
-            controller.enqueue(chunk);
-            // Apply backpressure: if the client is draining slower than JSZip
-            // produces, pause so chunks don't pile up in memory.
-            if ((controller.desiredSize ?? 1) <= 0) zipStream.pause();
-          })
-          .on("error", (err: Error) => controller.error(err))
-          .on("end", () => controller.close());
-      },
-      pull() {
-        zipStream.resume();
-      },
-      cancel() {
-        zipStream.pause();
-      },
-    });
-
-    return new NextResponse(body, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-        "Cache-Control": "no-store",
-      },
+    return NextResponse.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      count: items.length,
+      totalBytes,
+      files: items,
     });
   } catch (err) {
     const msg = (err as Error).message;
@@ -260,8 +137,8 @@ function kindFolder(kind: string): string {
 function safeSegment(raw: string): string {
   const cleaned = String(raw || "")
     .replace(/[/\\:*?"<>|]/g, "_") // path separators + Windows-forbidden chars
-    .replace(/\s+/g, " ")
-    .replace(/^[.\s]+|[.\s]+$/g, "")
+    .replace(/\s+/g, " ") // collapse runs of whitespace to single spaces
+    .replace(/^[.\s]+|[.\s]+$/g, "") // trim leading/trailing dots & spaces
     .slice(0, 120);
   return cleaned || "Unnamed";
 }
