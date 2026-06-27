@@ -4,13 +4,8 @@ import { canReadAll, requireUser } from "@/lib/auth";
 import { hasModule } from "@/lib/modules";
 import { getLinkedProjectIds } from "@/lib/projectAccess";
 import {
-  createSignedDownloadUrl,
-  deleteStorageObject,
-} from "@/lib/storage";
-import {
   deleteR2ObjectForPath,
   isR2Configured,
-  r2ObjectExistsForPath,
   r2PresignDownloadUrl,
 } from "@/lib/file-backup";
 
@@ -23,11 +18,11 @@ export const runtime = "nodejs";
  *   GET    /api/project-files/[id]?download=1 → minted download URL
  *   DELETE /api/project-files/[id]            → soft-delete + remove blob
  *
- * Files live in Cloudflare R2 (presigned GET to view/download), with a
- * Supabase signed-URL fallback for any blob that predates the R2 cutover.
- * Owner-isolation is enforced for non-admins. Storage URLs are signed
- * for 5 minutes and never persisted on the client; every access mints a
- * fresh one so a leaked URL stops working quickly.
+ * Files live in Cloudflare R2 — every view/download is a short-lived
+ * presigned R2 GET, and there is no Supabase storage dependency. Owner-
+ * isolation is enforced for non-admins. Storage URLs are signed for 5
+ * minutes and never persisted on the client; every access mints a fresh
+ * one so a leaked URL stops working quickly.
  */
 
 interface FileRecord {
@@ -41,29 +36,22 @@ interface FileRecord {
 }
 
 /**
- * Mint a short-lived URL the browser fetches the file from. R2 is the primary
- * store for uploads, so we presign an R2 GET when the object is there and fall
- * back to a Supabase signed URL for any file that predates the R2 cutover and
- * isn't mirrored. `downloadName` forces an attachment download with that name;
- * omit it for inline viewing (the eyeball / iframe preview).
+ * Mint a short-lived URL the browser fetches the file from. Files live in
+ * Cloudflare R2, so this presigns an R2 GET. `downloadName` forces an
+ * attachment download with that name; omit it for inline viewing (the
+ * eyeball / iframe preview).
  */
 async function resolveDownloadUrl(
   storagePath: string,
   downloadName?: string,
 ): Promise<string> {
-  if (isR2Configured()) {
-    try {
-      if (await r2ObjectExistsForPath(storagePath)) {
-        return r2PresignDownloadUrl(storagePath, {
-          downloadFilename: downloadName,
-        });
-      }
-    } catch {
-      // R2 hiccup — fall through to the Supabase copy below.
-    }
+  if (!isR2Configured()) {
+    throw new Error(
+      "File storage (Cloudflare R2) is not configured on the server.",
+    );
   }
-  return createSignedDownloadUrl(storagePath, {
-    download: downloadName ?? false,
+  return r2PresignDownloadUrl(storagePath, {
+    downloadFilename: downloadName,
   });
 }
 
@@ -302,21 +290,15 @@ export async function DELETE(
       set deleted_at = now()
       where id = ${id}
     `;
-    // Best-effort blob cleanup from both stores: R2 (primary) and Supabase
-    // (legacy copy / read-fallback). A failure on either is tolerated — the
-    // row is already soft-deleted, and a future sweep can reconcile orphan
-    // blobs vs rows.
+    // Best-effort blob cleanup from R2. A failure is tolerated — the row is
+    // already soft-deleted, and a future sweep can reconcile orphan blobs vs
+    // rows.
     if (isR2Configured()) {
       try {
         await deleteR2ObjectForPath(file.storage_path);
       } catch {
         // already-gone / network blip
       }
-    }
-    try {
-      await deleteStorageObject(file.storage_path);
-    } catch {
-      // already-gone / network blip
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

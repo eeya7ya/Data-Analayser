@@ -1,20 +1,11 @@
 /**
- * Supabase Storage helper for project files (PDFs, spreadsheets, BOQs).
+ * Pure helpers for project files (PDFs, spreadsheets, BOQs, CAD).
  *
- * Why a dedicated module
- * ──────────────────────
- * The rest of the app talks to Postgres directly via the `postgres`
- * driver. Files are different: Vercel hard-caps request bodies at 4.5 MB
- * for the Hobby plan and ~50 MB on Pro, so we *cannot* tunnel uploads
- * through a Next.js route handler. The browser has to hit Supabase
- * Storage directly. This module mints two kinds of URLs:
- *
- *   - signed UPLOAD URLs (token + path) the browser PUTs the binary to
- *   - signed DOWNLOAD URLs (short-lived) the browser GETs through
- *
- * Both flows go via the service-role key on the server so an authed user
- * can never see another user's files. Browser code never sees the
- * service role key — it only ever receives a single-use signed URL.
+ * Storage itself lives in Cloudflare R2 — uploads PUT to a presigned R2 URL,
+ * reads/downloads GET from a presigned R2 URL, and deletes remove the R2
+ * object (see src/lib/file-backup.ts and src/lib/r2.ts). This module holds only
+ * the provider-agnostic bits: the per-MIME size caps, filename sanitisation,
+ * and the canonical storage-path layout. There is no Supabase dependency here.
  *
  * Per-file caps
  * ─────────────
@@ -30,9 +21,7 @@
  * readable error before round-tripping a refused payload.
  */
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-
-/** Bucket name created on first run (private). */
+/** Logical name for the project-files store (the R2 key prefix). */
 export const PROJECT_FILES_BUCKET = "project-files";
 
 /** Per-MIME-class size caps — see the module-level comment for context. */
@@ -93,13 +82,12 @@ export function maxBytesForMime(mime: string, filename?: string): number {
 
 /**
  * Sanitise an arbitrary user-supplied filename into something safe to use
- * as a Supabase Storage object key. Supabase rejects keys containing
- * non-ASCII characters (e.g. Arabic) and many symbols with a 400 on
- * upload, so we collapse anything outside [A-Za-z0-9._-] to "_". The
- * extension is preserved (lower-cased, alnum-only) so MIME guessing and
- * downloads stay consistent. The human-readable name is kept separately
- * in project_files.filename for display, so flattening the key here is
- * lossless to the user. Empty / pathological input falls back to "file".
+ * as a storage object key. Non-ASCII characters (e.g. Arabic) and many
+ * symbols are collapsed to "_". The extension is preserved (lower-cased,
+ * alnum-only) so MIME guessing and downloads stay consistent. The
+ * human-readable name is kept separately in project_files.filename for
+ * display, so flattening the key here is lossless to the user. Empty /
+ * pathological input falls back to "file".
  */
 export function safeFilename(raw: string): string {
   const input = String(raw || "");
@@ -117,64 +105,12 @@ export function safeFilename(raw: string): string {
   return ext ? `${name}.${ext}` : name;
 }
 
-let cachedClient: SupabaseClient | null = null;
-function adminClient(): SupabaseClient {
-  if (cachedClient) return cachedClient;
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error(
-      "Supabase Storage is not configured: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.",
-    );
-  }
-  cachedClient = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  return cachedClient;
-}
-
-let bucketEnsured = false;
 /**
- * Make sure the project-files bucket exists. The Supabase JS SDK throws a
- * "duplicate bucket" error if it already exists, which we swallow — the
- * `listBuckets` precheck would race anyway. The bucket is **private**;
- * every read goes through a signed URL minted server-side.
- */
-async function ensureBucket(): Promise<void> {
-  if (bucketEnsured) return;
-  const sb = adminClient();
-  try {
-    const { data, error } = await sb.storage.listBuckets();
-    if (error) throw error;
-    if (!data?.some((b) => b.name === PROJECT_FILES_BUCKET)) {
-      const { error: createErr } = await sb.storage.createBucket(
-        PROJECT_FILES_BUCKET,
-        { public: false },
-      );
-      // Tolerate "already exists" raced from a sibling request.
-      if (
-        createErr &&
-        !/already exists/i.test(createErr.message) &&
-        !/duplicate/i.test(createErr.message)
-      ) {
-        throw createErr;
-      }
-    }
-  } catch {
-    // Bucket-listing failures shouldn't crash the upload flow — the
-    // bucket may simply not be readable through listBuckets() under
-    // certain projects' RLS configs. Let the actual upload return the
-    // real error if it ever fails.
-  }
-  bucketEnsured = true;
-}
-
-/**
- * Object key under the bucket. Layout:
+ * Object key under the project-files store. Layout:
  *   <ownerId>/<projectId>/<random>-<safe-filename>
- * The owner prefix gives us a clean per-user namespace for future
- * Storage RLS, and including the project id makes deletion of an entire
- * project's files a single prefix delete.
+ * The owner prefix gives a clean per-user namespace, and including the
+ * project id makes deletion of an entire project's files a single prefix
+ * delete.
  */
 export function buildStoragePath(opts: {
   ownerId: number;
@@ -186,87 +122,4 @@ export function buildStoragePath(opts: {
   // hex chars is enough collision resistance for human-scale uploads.
   const rand = Math.random().toString(16).slice(2, 10);
   return `${opts.ownerId}/${opts.projectId}/${rand}-${safe}`;
-}
-
-/**
- * Mint a signed upload URL the browser can PUT a file directly to.
- * Returns both the URL and the canonical storage path so the caller can
- * persist the path in `project_files` once the upload succeeds.
- */
-export async function createSignedUploadUrl(
-  storagePath: string,
-): Promise<{ signedUrl: string; token: string; path: string }> {
-  await ensureBucket();
-  const sb = adminClient();
-  const { data, error } = await sb.storage
-    .from(PROJECT_FILES_BUCKET)
-    .createSignedUploadUrl(storagePath);
-  if (error || !data) {
-    throw new Error(error?.message || "failed to mint upload URL");
-  }
-  return {
-    signedUrl: data.signedUrl,
-    token: data.token,
-    path: data.path ?? storagePath,
-  };
-}
-
-/**
- * Mint a short-lived signed download URL for a stored file. Default
- * expiry of 5 minutes is plenty for the user to click through; the
- * client never holds onto these URLs. `download` adds a
- * `Content-Disposition: attachment` so the browser saves rather than
- * inlines (used by the explicit "Download" button — preview/view uses
- * the inline form).
- */
-export async function createSignedDownloadUrl(
-  storagePath: string,
-  opts?: { expiresInSeconds?: number; download?: boolean | string },
-): Promise<string> {
-  await ensureBucket();
-  const sb = adminClient();
-  const expiresIn = Math.max(60, opts?.expiresInSeconds ?? 5 * 60);
-  const { data, error } = await sb.storage
-    .from(PROJECT_FILES_BUCKET)
-    .createSignedUrl(storagePath, expiresIn, {
-      download: opts?.download,
-    });
-  if (error || !data?.signedUrl) {
-    throw new Error(error?.message || "failed to mint download URL");
-  }
-  return data.signedUrl;
-}
-
-/**
- * Download a stored object's raw bytes. Used by the admin backup flow to
- * embed file blobs inside the migration ZIP — the DB backup alone only
- * captures the metadata rows, not the binaries living in Storage. Returns
- * null when the object is missing (it survives the backup loop instead of
- * aborting it).
- */
-export async function downloadStorageObject(
-  bucket: string,
-  storagePath: string,
-): Promise<Uint8Array | null> {
-  const sb = adminClient();
-  const { data, error } = await sb.storage.from(bucket).download(storagePath);
-  if (error || !data) return null;
-  const buf = await data.arrayBuffer();
-  return new Uint8Array(buf);
-}
-
-/**
- * Delete the object behind a project_files row. We swallow "not found"
- * so a row that lost its blob (manual bucket cleanup, dev-environment
- * reset) can still be removed from Postgres without leaving a tombstone.
- */
-export async function deleteStorageObject(storagePath: string): Promise<void> {
-  await ensureBucket();
-  const sb = adminClient();
-  const { error } = await sb.storage
-    .from(PROJECT_FILES_BUCKET)
-    .remove([storagePath]);
-  if (error && !/not found/i.test(error.message)) {
-    throw new Error(error.message);
-  }
 }
