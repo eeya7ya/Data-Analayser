@@ -10,7 +10,11 @@
       "maxDuration": 60,
       "memory": 1024
     },
-    "src/app/api/admin/backup-files-r2/route.ts": {
+    "src/app/api/admin/files-backup/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "src/app/api/admin/db-backup/route.ts": {
       "maxDuration": 60,
       "memory": 1024
     }

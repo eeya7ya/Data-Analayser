@@ -7,7 +7,7 @@ import { fetchR2BytesForPath, isR2Configured } from "@/lib/file-backup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 /**
  * GET /api/admin/files-backup
@@ -183,22 +183,47 @@ export async function GET() {
       ].join("\n"),
     );
 
-    const bytes = await zip.generateAsync({
-      type: "nodebuffer",
-      compression: "DEFLATE",
-      compressionOptions: { level: 6 },
-    });
-
     const stamp = generatedAt.replace(/[:.]/g, "-");
     const filename = `magictech-files-backup-${stamp}.zip`;
 
-    const body = new Blob([new Uint8Array(bytes)], { type: "application/zip" });
+    // Stream the ZIP out instead of buffering it into the response. Vercel
+    // serverless functions cap a *buffered* response body at ~4.5 MB — a
+    // single real PDF/DWG already blows past that, which drops the connection
+    // (the browser sees net::ERR_FAILED). A chunked/streamed response is not
+    // subject to that cap, so we hand JSZip's incremental output straight to
+    // the client. No Content-Length → the platform sends it chunked.
+    const zipStream = zip.generateInternalStream({
+      type: "uint8array",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 },
+      streamFiles: true,
+    });
+
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        zipStream
+          .on("data", (chunk: Uint8Array) => {
+            controller.enqueue(chunk);
+            // Apply backpressure: if the client is draining slower than JSZip
+            // produces, pause so chunks don't pile up in memory.
+            if ((controller.desiredSize ?? 1) <= 0) zipStream.pause();
+          })
+          .on("error", (err: Error) => controller.error(err))
+          .on("end", () => controller.close());
+      },
+      pull() {
+        zipStream.resume();
+      },
+      cancel() {
+        zipStream.pause();
+      },
+    });
+
     return new NextResponse(body, {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${filename}"`,
-        "Content-Length": String(bytes.byteLength),
         "Cache-Control": "no-store",
       },
     });
