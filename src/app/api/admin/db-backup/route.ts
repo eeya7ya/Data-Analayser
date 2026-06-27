@@ -36,15 +36,16 @@ export async function GET() {
     const stamp = manifest.generatedAt.replace(/[:.]/g, "-");
     const filename = `magictech-database-backup-${stamp}.zip`;
 
-    const body = new Blob([new Uint8Array(buffer)], {
-      type: "application/zip",
-    });
+    // Stream the snapshot in chunks rather than returning it as one buffered
+    // body. Vercel caps a buffered serverless response at ~4.5 MB; a large
+    // database would exceed that and drop the connection. A chunked/streamed
+    // response (no Content-Length) isn't subject to that cap.
+    const body = bufferToStream(buffer);
     return new NextResponse(body, {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${filename}"`,
-        "Content-Length": String(buffer.byteLength),
         "Cache-Control": "no-store",
       },
     });
@@ -54,4 +55,20 @@ export async function GET() {
       msg === "FORBIDDEN" ? 403 : msg === "UNAUTHENTICATED" ? 401 : 500;
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
+}
+
+/** Chunk a Buffer into a web ReadableStream so the response is sent chunked. */
+function bufferToStream(buffer: Buffer, chunkSize = 1 << 20): ReadableStream<Uint8Array> {
+  let offset = 0;
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (offset >= buffer.byteLength) {
+        controller.close();
+        return;
+      }
+      const end = Math.min(offset + chunkSize, buffer.byteLength);
+      controller.enqueue(new Uint8Array(buffer.subarray(offset, end)));
+      offset = end;
+    },
+  });
 }
