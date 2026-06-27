@@ -124,6 +124,48 @@ type BackupFile = {
   url: string;
 };
 
+type QuotationIndexEntry = {
+  id: number;
+  ref: string;
+  folder: string;
+  project: string;
+};
+
+type PricingLine = {
+  position: number;
+  itemModel: string;
+  priceUsd: string;
+  quantity: number;
+  shippingOverride: string | null;
+  customsOverride: string | null;
+  shippingRateOverride: string | null;
+  customsRateOverride: string | null;
+  profitRateOverride: string | null;
+};
+type PricingConstants = {
+  currencyRate: string;
+  shippingRate: string;
+  customsRate: string;
+  profitMargin: string;
+  taxRate: string;
+  targetCurrency: string;
+  sourceCurrency: string;
+};
+type PricingProject = {
+  id: number;
+  name: string;
+  date: string | null;
+  responsiblePerson: string | null;
+  createdAt: string;
+  constants: PricingConstants | null;
+  productLines: PricingLine[];
+};
+type PricingManufacturer = {
+  id: number;
+  name: string;
+  projects: PricingProject[];
+};
+
 type FilesManifest = {
   ok: boolean;
   error?: string;
@@ -131,17 +173,22 @@ type FilesManifest = {
   count: number;
   totalBytes: number;
   files: BackupFile[];
+  quotations: QuotationIndexEntry[];
+  pricing: { manufacturers: PricingManufacturer[] };
 };
 
 /**
- * Download every uploaded file in its original format, laid out in the same
- * Client → Project → Kind folder structure as the app.
+ * Download a complete backup of everything the app produces, laid out in the
+ * same Client → Project structure as the app, assembled in the browser:
  *
- * The bytes never go through our server: GET /api/admin/files-backup returns
- * only a list of short-lived presigned R2 URLs, and the browser downloads each
- * file straight from Cloudflare R2 and zips them locally. That sidesteps every
- * serverless limit (response size / 60 s / memory) that an all-in-one server
- * ZIP would hit.
+ *   1. Uploaded files (PDFs, DWGs, …) pulled straight from Cloudflare R2 →
+ *      <Client>/<Project>/<Kind>/<filename>, original bytes.
+ *   2. Designed quotations rendered to PDF (hidden iframe → html2canvas →
+ *      jsPDF) → <Client>/<Project>/Quotations/<Ref>.pdf.
+ *   3. The pricing module written to one .xlsx per manufacturer → Pricing/.
+ *
+ * Everything is zipped client-side, so no file bytes ever transit our server
+ * (which is what made the old all-in-one server ZIP fail with net::ERR_FAILED).
  */
 function FilesBackupPanel() {
   const [exporting, setExporting] = useState(false);
@@ -153,7 +200,8 @@ function FilesBackupPanel() {
   async function downloadFilesBackup() {
     setExporting(true);
     setMsg(null);
-    setProgress("Listing files…");
+    setProgress("Listing everything to back up…");
+    let iframe: HTMLIFrameElement | null = null;
     try {
       const res = await fetch("/api/admin/files-backup", { method: "GET" });
       const data = (await res.json().catch(() => ({}))) as FilesManifest;
@@ -162,31 +210,23 @@ function FilesBackupPanel() {
       }
 
       const zip = new JSZip();
-      const manifest: Array<{
-        id: number;
-        folder: string;
-        project: string;
-        kind: string;
-        filename: string;
-        zipPath: string;
-        embedded: boolean;
-        bytes?: number;
-        error?: string;
-      }> = [];
+      const manifest: Array<Record<string, unknown>> = [];
+
+      // ── 1. Uploaded files (original bytes from R2) ───────────────────────
       let embedded = 0;
       let bytes = 0;
       let corsBlocked = 0;
-
       for (let i = 0; i < data.files.length; i++) {
         const f = data.files[i];
         setProgress(
           `Downloading files from Cloudflare R2… ${i + 1} of ${data.files.length}`,
         );
         const meta = {
+          kind: "uploaded-file",
           id: f.id,
           folder: f.folder,
           project: f.project,
-          kind: f.kind,
+          fileKind: f.kind,
           filename: f.filename,
           zipPath: f.zipPath,
         };
@@ -209,7 +249,6 @@ function FilesBackupPanel() {
           });
         }
       }
-
       if (data.files.length > 0 && embedded === 0 && corsBlocked > 0) {
         throw new Error(
           "The browser was blocked from reading files out of Cloudflare R2 " +
@@ -219,25 +258,112 @@ function FilesBackupPanel() {
         );
       }
 
-      const failed = manifest.length - embedded;
+      // ── 2. Designed quotations → PDF ─────────────────────────────────────
+      const quotations = data.quotations ?? [];
+      let quotePdfs = 0;
+      if (quotations.length > 0) {
+        const [{ jsPDF }, { default: html2canvas }] = await Promise.all([
+          import("jspdf"),
+          import("html2canvas"),
+        ]);
+        iframe = createHiddenIframe();
+        for (let i = 0; i < quotations.length; i++) {
+          const qn = quotations[i];
+          setProgress(
+            `Rendering designed quotations to PDF… ${i + 1} of ${quotations.length}` +
+              (qn.ref ? ` (${qn.ref})` : ""),
+          );
+          const dir = `${safeSeg(qn.folder)}/${safeSeg(qn.project)}/Quotations`;
+          const zipPath = uniqueZipPath(
+            zip,
+            `${dir}/${safeSeg(qn.ref || `quotation-${qn.id}`)}.pdf`,
+          );
+          try {
+            const pdfBlob = await renderQuotationPdf(
+              iframe,
+              qn.id,
+              jsPDF,
+              html2canvas,
+            );
+            zip.file(zipPath, pdfBlob);
+            quotePdfs++;
+            manifest.push({
+              kind: "designed-quotation",
+              id: qn.id,
+              ref: qn.ref,
+              folder: qn.folder,
+              project: qn.project,
+              zipPath,
+              embedded: true,
+            });
+          } catch (err) {
+            manifest.push({
+              kind: "designed-quotation",
+              id: qn.id,
+              ref: qn.ref,
+              embedded: false,
+              error: (err as Error).message,
+            });
+          }
+        }
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        iframe = null;
+      }
+
+      // ── 3. Pricing module → one .xlsx per manufacturer ───────────────────
+      const manufacturers = data.pricing?.manufacturers ?? [];
+      let pricingFiles = 0;
+      const manufacturersWithData = manufacturers.filter(
+        (m) => m.projects.length > 0,
+      );
+      if (manufacturersWithData.length > 0) {
+        setProgress("Building pricing workbooks…");
+        const XLSX = await import("xlsx");
+        const usedNames = new Set<string>();
+        for (const m of manufacturersWithData) {
+          let name = safeSeg(m.name || `manufacturer-${m.id}`);
+          while (usedNames.has(name.toLowerCase())) name = `${name} (${m.id})`;
+          usedNames.add(name.toLowerCase());
+          const buf = buildPricingWorkbook(XLSX, m);
+          zip.file(`Pricing/${name}.xlsx`, buf);
+          pricingFiles++;
+          manifest.push({
+            kind: "pricing-workbook",
+            manufacturer: m.name,
+            projects: m.projects.length,
+            zipPath: `Pricing/${name}.xlsx`,
+            embedded: true,
+          });
+        }
+      }
+
+      // ── Manifest + README ────────────────────────────────────────────────
+      const failedFiles = data.files.length - embedded;
       zip.file("_manifest.json", JSON.stringify(manifest, null, 2));
       zip.file(
         "README.txt",
         [
-          "MagicTech — Files Backup",
-          "========================",
+          "MagicTech — Full Backup",
+          "=======================",
           `Generated: ${data.generatedAt}`,
           "",
-          "Every uploaded file, in its ORIGINAL format. Layout:",
-          "  <Client folder>/<Project>/<Kind>/<filename>",
+          "Layout",
+          "------",
+          "  <Client>/<Project>/<Kind>/<file>        uploaded files (original)",
+          "  <Client>/<Project>/Quotations/<Ref>.pdf designed quotations (PDF)",
+          "  Pricing/<Manufacturer>.xlsx             pricing module (Excel)",
           "",
           "Kind folders (Quotations, Purchase Orders, BOQs, Other) mirror the",
-          "tabs in each project's Files panel. Unzip and the files land in",
-          "folders/sub-folders that match the app one-to-one.",
+          "tabs in each project's Files panel.",
           "",
-          `Included: ${embedded} file(s), ${(bytes / (1024 * 1024)).toFixed(2)} MB`,
-          `Missing:  ${failed} file(s)` +
-            (failed ? " (see _manifest.json)" : ""),
+          "Contents",
+          "--------",
+          `  Uploaded files:      ${embedded} (${(bytes / (1024 * 1024)).toFixed(2)} MB)` +
+            (failedFiles ? `, ${failedFiles} unreadable (see _manifest.json)` : ""),
+          `  Quotation PDFs:      ${quotePdfs} of ${quotations.length}`,
+          `  Pricing workbooks:   ${pricingFiles}`,
+          "",
+          "_manifest.json lists every item with its source and any errors.",
         ].join("\n"),
       );
 
@@ -248,21 +374,23 @@ function FilesBackupPanel() {
         compressionOptions: { level: 6 },
       });
       const stamp = data.generatedAt.replace(/[:.]/g, "-");
-      const filename = `magictech-files-backup-${stamp}.zip`;
+      const filename = `magictech-full-backup-${stamp}.zip`;
       triggerDownload(blob, filename);
 
       const mb = (blob.size / (1024 * 1024)).toFixed(2);
       setMsg({
         kind: "ok",
         text:
-          `Files backup downloaded: ${filename} (${mb} MB, ${embedded} file(s)).` +
-          (failed
-            ? ` ${failed} file(s) couldn't be read — see _manifest.json.`
-            : " Unzip it and the files sit in the same folder/sub-folder layout as the app."),
+          `Backup downloaded: ${filename} (${mb} MB). ` +
+          `${embedded} file(s), ${quotePdfs} quotation PDF(s), ${pricingFiles} pricing workbook(s).` +
+          (failedFiles
+            ? ` ${failedFiles} file(s) couldn't be read — see _manifest.json.`
+            : ""),
       });
     } catch (err) {
       setMsg({ kind: "error", text: (err as Error).message });
     } finally {
+      if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
       setExporting(false);
       setProgress(null);
     }
@@ -272,13 +400,15 @@ function FilesBackupPanel() {
     <div className="rounded-xl border-2 border-magic-red/40 bg-white p-5">
       <h3 className="font-semibold text-magic-ink mb-1">Files backup</h3>
       <p className="text-sm text-magic-ink/60 mb-4">
-        Downloads <strong>every uploaded file</strong> — PDFs, DWGs, Excel
-        sheets, photos — in its <strong>exact original format</strong> (the bytes
-        as uploaded, never re-rendered), bundled into a single ZIP. Inside, the
-        files are organised exactly like the app:{" "}
-        <code>Client&nbsp;folder / Project / Kind / filename</code>. Unzip it and
-        every file drops straight back into a matching folder and sub-folder, so
-        you can copy them onto disk as-is.
+        Bundles <strong>everything the app produces</strong> into one ZIP,
+        organised exactly like the app (<code>Client / Project / …</code>):
+        every <strong>uploaded file</strong> (PDFs, DWGs, Excel, photos) in its
+        original format; every <strong>designed quotation</strong> rendered to{" "}
+        <strong>PDF</strong> under each project's <code>Quotations</code> folder;
+        and the whole <strong>pricing module</strong> as one{" "}
+        <strong>Excel workbook per manufacturer</strong> under{" "}
+        <code>Pricing/</code>. It's assembled in your browser, so keep this tab
+        in front while it runs.
       </p>
       <div className="space-y-2 md:max-w-lg">
         <button
@@ -286,7 +416,7 @@ function FilesBackupPanel() {
           disabled={exporting}
           className="w-full px-4 py-2 text-sm font-semibold rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
         >
-          {exporting ? "Preparing files backup…" : "Download all files (.zip)"}
+          {exporting ? "Preparing backup…" : "Download files backup (.zip)"}
         </button>
         {progress && (
           <p className="text-sm text-magic-ink/70 bg-magic-soft border border-magic-border rounded-lg px-3 py-2">
@@ -294,11 +424,11 @@ function FilesBackupPanel() {
           </p>
         )}
         <p className="text-xs text-magic-ink/50">
-          Layout:{" "}
-          <code>&lt;Client&gt;/&lt;Project&gt;/&lt;Quotations|Purchase Orders|BOQs|Other&gt;/&lt;file&gt;</code>
-          , plus a <code>_manifest.json</code> (folder / project / size / SHA-256
-          per file) and a <code>README.txt</code>. Files come straight from
-          Cloudflare R2 — nothing is read from Supabase.
+          Layout: <code>&lt;Client&gt;/&lt;Project&gt;/&lt;Kind&gt;/&lt;file&gt;</code>,{" "}
+          <code>&lt;Client&gt;/&lt;Project&gt;/Quotations/&lt;Ref&gt;.pdf</code>,{" "}
+          <code>Pricing/&lt;Manufacturer&gt;.xlsx</code>, plus{" "}
+          <code>_manifest.json</code> and <code>README.txt</code>. Uploaded
+          files come straight from Cloudflare R2 — nothing is read from Supabase.
         </p>
         {msg && (
           <p
@@ -530,6 +660,201 @@ function triggerDownload(blob: Blob, filename: string): void {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Path-segment sanitiser that MIRRORS the server's safeSegment (in
+ * src/app/api/admin/files-backup/route.ts) exactly, so quotation PDFs and
+ * pricing files nest into the same <Client>/<Project> folders as the
+ * server-computed uploaded-file paths.
+ */
+function safeSeg(raw: string): string {
+  const cleaned = String(raw || "")
+    .replace(/[/\\:*?"<>|]/g, "_")
+    .replace(/\s+/g, " ")
+    .replace(/^[.\s]+|[.\s]+$/g, "")
+    .slice(0, 120);
+  return cleaned || "Unnamed";
+}
+
+/** Return a zip path that isn't already taken, suffixing " (n)" if needed. */
+function uniqueZipPath(zip: JSZip, path: string): string {
+  if (!zip.file(path)) return path;
+  const dot = path.lastIndexOf(".");
+  const base = dot > 0 ? path.slice(0, dot) : path;
+  const ext = dot > 0 ? path.slice(dot) : "";
+  let n = 2;
+  while (zip.file(`${base} (${n})${ext}`)) n++;
+  return `${base} (${n})${ext}`;
+}
+
+/** A 900×1400 off-screen iframe used to render quotation sheets for capture. */
+function createHiddenIframe(): HTMLIFrameElement {
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-10000px";
+  iframe.style.top = "0";
+  iframe.style.border = "0";
+  iframe.style.width = "900px";
+  iframe.style.height = "1400px";
+  iframe.setAttribute("aria-hidden", "true");
+  document.body.appendChild(iframe);
+  return iframe;
+}
+
+/**
+ * Render one designed quotation to a multi-page A4 PDF by loading its
+ * read-only printable view (`/quotation?id=<n>`) in the hidden iframe and
+ * snapshotting each `.quotation-sheet` with html2canvas.
+ */
+async function renderQuotationPdf(
+  iframe: HTMLIFrameElement,
+  id: number,
+  JsPDF: typeof import("jspdf").jsPDF,
+  html2canvas: typeof import("html2canvas").default,
+): Promise<Blob> {
+  // `view=1` forces the standalone read-only viewer to render inline instead
+  // of redirecting into the CRM drill-down, so the iframe lands directly on a
+  // page that paints `.quotation-sheet`.
+  await loadIframe(iframe, `/quotation?id=${id}&view=1`);
+  await waitForRender(iframe);
+  const doc = iframe.contentDocument;
+  if (!doc) throw new Error("iframe document unreachable");
+  const sheets = Array.from(
+    doc.querySelectorAll(".quotation-sheet"),
+  ) as HTMLElement[];
+  if (sheets.length === 0) throw new Error("no rendered sheets");
+  const pdf = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  for (let s = 0; s < sheets.length; s++) {
+    const canvas = await html2canvas(sheets[s], {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      windowWidth: iframe.contentWindow?.innerWidth || 900,
+      windowHeight: iframe.contentWindow?.innerHeight || 1400,
+    });
+    const imgData = canvas.toDataURL("image/jpeg", 0.92);
+    if (s > 0) pdf.addPage();
+    pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
+  }
+  return pdf.output("blob");
+}
+
+/** Resolve when the iframe finishes loading `src`, or reject after 30 s. */
+function loadIframe(iframe: HTMLIFrameElement, src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(
+      () => reject(new Error("iframe load timed out (30 s)")),
+      30_000,
+    );
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      iframe.onload = null;
+      iframe.onerror = null;
+    };
+    iframe.onload = () => {
+      cleanup();
+      resolve();
+    };
+    iframe.onerror = () => {
+      cleanup();
+      reject(new Error("iframe load error"));
+    };
+    iframe.src = src;
+  });
+}
+
+/** Wait for the quotation viewer's tree, images and fonts to settle. */
+async function waitForRender(iframe: HTMLIFrameElement): Promise<void> {
+  const doc = iframe.contentDocument;
+  if (!doc) return;
+  const deadline = Date.now() + 25_000;
+  while (Date.now() < deadline) {
+    if (doc.querySelector(".quotation-sheet")) break;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  const imgs = Array.from(doc.images);
+  await Promise.all(
+    imgs.map((img) =>
+      img.complete && img.naturalWidth > 0
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            const done = () => {
+              img.removeEventListener("load", done);
+              img.removeEventListener("error", done);
+              resolve();
+            };
+            img.addEventListener("load", done, { once: true });
+            img.addEventListener("error", done, { once: true });
+          }),
+    ),
+  );
+  try {
+    const docWithFonts = doc as Document & {
+      fonts?: { ready?: Promise<unknown> };
+    };
+    if (docWithFonts.fonts?.ready) await docWithFonts.fonts.ready;
+  } catch {
+    /* older browsers */
+  }
+  await new Promise((r) => setTimeout(r, 500));
+}
+
+/** Build one .xlsx (Projects + Product Lines sheets) for a manufacturer. */
+function buildPricingWorkbook(
+  XLSX: typeof import("xlsx"),
+  m: PricingManufacturer,
+): ArrayBuffer {
+  const wb = XLSX.utils.book_new();
+
+  const projectRows = m.projects.map((p) => ({
+    Project: p.name,
+    Date: p.date ?? "",
+    Responsible: p.responsiblePerson ?? "",
+    "Created At": p.createdAt,
+    "Currency Rate": p.constants?.currencyRate ?? "",
+    "Shipping Rate": p.constants?.shippingRate ?? "",
+    "Customs Rate": p.constants?.customsRate ?? "",
+    "Profit Margin": p.constants?.profitMargin ?? "",
+    "Tax Rate": p.constants?.taxRate ?? "",
+    "Target Currency": p.constants?.targetCurrency ?? "",
+    "Source Currency": p.constants?.sourceCurrency ?? "",
+  }));
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      projectRows.length ? projectRows : [{ Project: "(no projects)" }],
+    ),
+    "Projects",
+  );
+
+  const lineRows: Array<Record<string, unknown>> = [];
+  for (const p of m.projects) {
+    for (const l of p.productLines) {
+      lineRows.push({
+        Project: p.name,
+        Position: l.position,
+        "Item / Model": l.itemModel,
+        "Price USD": l.priceUsd,
+        Quantity: l.quantity,
+        "Shipping Override": l.shippingOverride ?? "",
+        "Customs Override": l.customsOverride ?? "",
+        "Shipping Rate Override": l.shippingRateOverride ?? "",
+        "Customs Rate Override": l.customsRateOverride ?? "",
+        "Profit Rate Override": l.profitRateOverride ?? "",
+      });
+    }
+  }
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      lineRows.length ? lineRows : [{ Project: "(no product lines)" }],
+    ),
+    "Product Lines",
+  );
+
+  return XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
 }
 
 function TabButton({
