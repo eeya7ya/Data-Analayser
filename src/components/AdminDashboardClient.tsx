@@ -10,11 +10,13 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import Link from "next/link";
 import {
   Users,
   ShieldCheck,
   KeyRound,
   Building2,
+  ArrowLeftRight,
   type LucideIcon,
 } from "lucide-react";
 import MessagesPanel from "@/components/MessagesPanel";
@@ -54,6 +56,17 @@ export default function AdminDashboardClient({
         <p className="mt-0.5 text-sm text-magic-ink/60">
           Administration overview — people, roles and departments at a glance.
         </p>
+      </div>
+
+      {/* Quick actions */}
+      <div className="flex flex-wrap gap-3">
+        <Link
+          href="/admin?tab=clients"
+          className="inline-flex items-center gap-2 rounded-xl border border-magic-border bg-white px-4 py-2.5 text-sm font-semibold text-magic-ink shadow-mt-soft transition-colors hover:border-magic-red/40 hover:bg-magic-soft"
+        >
+          <ArrowLeftRight className="h-4 w-4 text-magic-red" />
+          Move a client to another presales user
+        </Link>
       </div>
 
       {/* Admin KPI strip */}

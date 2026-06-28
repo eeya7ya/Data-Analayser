@@ -6,7 +6,11 @@ import { getAppSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   // Kick the settings fetch off in parallel with the auth check so its
   // DB round-trip overlaps with the JWT verification. `fresh: true`
   // bypasses the per-instance cache so the admin always seeds the form
@@ -19,6 +23,7 @@ export default async function AdminPage() {
   if (!canReadAll(user)) redirect("/crm");
   const readOnly = user.role !== "admin";
   const settings = await settingsPromise;
+  const sp = await searchParams;
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
@@ -30,7 +35,11 @@ export default async function AdminPage() {
             visible, but Save / Create / Delete actions are disabled.
           </div>
         )}
-        <AdminTabs initialSettings={settings} readOnly={readOnly} />
+        <AdminTabs
+          initialSettings={settings}
+          readOnly={readOnly}
+          initialTab={sp.tab}
+        />
       </main>
     </div>
   );

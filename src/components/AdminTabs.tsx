@@ -21,9 +21,21 @@ type Tab =
   | "branding"
   | "backups";
 
+const TABS: Tab[] = [
+  "users",
+  "clients",
+  "folders",
+  "news",
+  "email",
+  "settings",
+  "branding",
+  "backups",
+];
+
 export default function AdminTabs({
   initialSettings,
   readOnly = false,
+  initialTab,
 }: {
   initialSettings: AppSettings;
   /**
@@ -32,8 +44,14 @@ export default function AdminTabs({
    * `requireAdmin()` — `readOnly` is the UX mirror of that gate.
    */
   readOnly?: boolean;
+  /** Tab to open on mount (e.g. from `/admin?tab=clients`). */
+  initialTab?: string;
 }) {
-  const [tab, setTab] = useState<Tab>("users");
+  const [tab, setTab] = useState<Tab>(
+    (TABS as string[]).includes(initialTab ?? "")
+      ? (initialTab as Tab)
+      : "users",
+  );
 
   return (
     <div className="space-y-4">
