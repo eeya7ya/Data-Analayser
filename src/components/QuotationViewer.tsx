@@ -531,6 +531,7 @@ export default function QuotationViewer({
           taxInclusive={Boolean(config.taxInclusive)}
           footerText={appSettings.footerText}
           brandVariantId={config.brandVariantId}
+          brandVariants={appSettings.brandVariants}
           boqMode={boqMode}
         />
       </div>

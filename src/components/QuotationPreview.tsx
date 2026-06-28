@@ -137,6 +137,13 @@ interface Props {
    * render the exact same sheets they always did.
    */
   brandVariantId?: string;
+  /**
+   * Admin-configured brand bundles (from app settings). When supplied,
+   * `brandVariantId` is resolved against this list so the printed cover /
+   * about-us / logo reflect what the admin set up. Falls back to the
+   * built-in defaults when omitted.
+   */
+  brandVariants?: BrandVariant[];
   showPictures?: boolean;
   terms?: string[];
   setTerms?: (terms: string[]) => void;
@@ -524,6 +531,7 @@ export default function QuotationPreview({
   editable = false,
   logoUrl,
   brandVariantId,
+  brandVariants,
   showPictures = false,
   terms = [],
   setTerms,
@@ -541,7 +549,7 @@ export default function QuotationPreview({
 }: Props) {
   const resolvedFooterText =
     footerText && footerText.trim().length > 0 ? footerText : DEFAULT_FOOTER_TEXT;
-  const brand: BrandVariant = getBrandVariant(brandVariantId);
+  const brand: BrandVariant = getBrandVariant(brandVariantId, brandVariants);
   const resolvedLogoUrl = logoUrl || brand.logoUrl;
   // Resolve merged cells when summing so the Final Totals page matches
   // the per-group subtotals (and what the user visually sees in each

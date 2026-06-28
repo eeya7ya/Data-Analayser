@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { getAppSettings, saveAppSettings, type AppSettings } from "@/lib/settings";
+import { sanitizeBrandVariants } from "@/lib/brandVariants";
 
 export const runtime = "nodejs";
 
@@ -43,6 +44,12 @@ export async function PATCH(req: NextRequest) {
     }
     if (typeof body.footerText === "string") {
       patch.footerText = body.footerText;
+    }
+    if (Array.isArray(body.brandVariants)) {
+      // Sanitise here too (not just on read) so a malformed entry can never
+      // reach the jsonb column and so the admin gets back exactly what will
+      // be used at print time.
+      patch.brandVariants = sanitizeBrandVariants(body.brandVariants);
     }
     const settings = await saveAppSettings(patch);
     return NextResponse.json({ settings });

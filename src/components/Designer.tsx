@@ -166,6 +166,13 @@ export default function Designer({
     appSettings.defaultTerms && appSettings.defaultTerms.length > 0
       ? appSettings.defaultTerms
       : DEFAULT_TERMS;
+  // Brand bundles come from the admin Branding tab; fall back to the built-in
+  // defaults if the settings row predates the feature. Drives both the Brand
+  // dropdown and the cover/about-us artwork the preview prints.
+  const brandVariants =
+    appSettings.brandVariants && appSettings.brandVariants.length > 0
+      ? appSettings.brandVariants
+      : BRAND_VARIANTS;
   const router = useRouter();
   const editMode = !!existing;
   const [projectName, setProjectName] = useState("");
@@ -794,6 +801,7 @@ export default function Designer({
           editDraft?.brandVariantId ??
             existing.config_json?.brandVariantId ??
             DEFAULT_BRAND_VARIANT_ID,
+          brandVariants,
         ).id,
       );
 
@@ -890,7 +898,8 @@ export default function Designer({
     setDiscountPercent(Number(d.discountPercent) || 0);
     setDiscountAmount(Number(d.discountAmount) || 0);
     setBrandVariantId(
-      getBrandVariant(d.brandVariantId || DEFAULT_BRAND_VARIANT_ID).id,
+      getBrandVariant(d.brandVariantId || DEFAULT_BRAND_VARIANT_ID, brandVariants)
+        .id,
     );
     // Restore the previously picked client folder so a full-page refresh
     // no longer drops the user back into the "pick a client" hero. The
@@ -2003,7 +2012,7 @@ export default function Designer({
                 title="Select the logo, cover page and about-us page artwork for this quotation"
                 className="mt-1 rounded-md border border-magic-border px-2 py-1 text-sm min-w-[180px]"
               >
-                {BRAND_VARIANTS.map((v) => (
+                {brandVariants.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.label}
                   </option>
@@ -2236,6 +2245,7 @@ export default function Designer({
               projectLocked={projectLocked}
               footerText={appSettings.footerText}
               brandVariantId={brandVariantId}
+              brandVariants={brandVariants}
               boqMode={boqMode}
             />
           </div>

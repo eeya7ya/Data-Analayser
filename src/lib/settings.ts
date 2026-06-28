@@ -1,5 +1,10 @@
 import { sql, ensureSchema } from "./db";
 import { DEFAULT_TERMS } from "./quotationDraft";
+import {
+  BRAND_VARIANTS,
+  sanitizeBrandVariants,
+  type BrandVariant,
+} from "./brandVariants";
 
 /**
  * Global, admin-editable presets for every printable quotation.
@@ -11,12 +16,19 @@ import { DEFAULT_TERMS } from "./quotationDraft";
 export interface AppSettings {
   defaultTerms: string[];
   footerText: string;
+  /**
+   * Admin-managed brand bundles. Each pairs a logo with the two full-bleed
+   * "company profile" sheets (cover + about-us) printed before a quotation,
+   * so picking a logo in the Designer prints its matching company profile.
+   */
+  brandVariants: BrandVariant[];
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   defaultTerms: [...DEFAULT_TERMS],
   footerText:
     "Address: Amman- Gardens street- Khawaja Complex No.65- Tel: +962 65560272 Fax: +962 65560275",
+  brandVariants: [...BRAND_VARIANTS],
 };
 
 const KEY = "global";
@@ -54,6 +66,10 @@ function normalize(value: unknown): AppSettings {
       typeof v.footerText === "string"
         ? v.footerText
         : DEFAULT_APP_SETTINGS.footerText,
+    // `sanitizeBrandVariants` falls back to the built-in defaults when the
+    // field is missing (legacy rows) or empty, so printing always has at
+    // least one brand bundle to resolve against.
+    brandVariants: sanitizeBrandVariants(v.brandVariants),
   };
 }
 
