@@ -91,6 +91,7 @@ interface TpOverrides {
   networkDiagramNote?: string;
   storageParamsNote?: string;
   notesAssumptions?: string;
+  generalNotes?: string;
   serviceContract?: string;
   localSupport?: string;
   serviceLevel?: string;
@@ -549,6 +550,7 @@ export default function TechnicalProposalView({
   const notesAssumptions = overrides.notesAssumptions ?? "—";
   const serviceContract = overrides.serviceContract ?? DEFAULT_SERVICE_CONTRACT;
   const localSupport = overrides.localSupport ?? DEFAULT_LOCAL_SUPPORT;
+  const generalNotes = overrides.generalNotes ?? "";
   const serviceLevel = overrides.serviceLevel ?? DEFAULT_SERVICE_LEVEL;
   const teamCapabilities = overrides.teamCapabilities ?? DEFAULT_TEAM;
   const references = overrides.references ?? DEFAULT_REFERENCES;
@@ -1159,6 +1161,18 @@ export default function TechnicalProposalView({
                 </div>
               ))}
             </div>
+
+            {/* General Notes — a free-text note to the client, under T&C. */}
+            <div className="fp-section" style={{ marginTop: 14 }}>
+              <div className="fp-section-heading">General Notes</div>
+              <TpTextarea
+                value={generalNotes}
+                onChange={(v) => setOverrides({ generalNotes: v })}
+                className="fp-bullet-text"
+                rows={4}
+                placeholder="Add a general note for the client…"
+              />
+            </div>
           </TpSheet>
         </div>
       </div>
@@ -1237,17 +1251,20 @@ function TpTextarea({
   onChange,
   rows,
   className,
+  placeholder,
 }: {
   value: string;
   onChange: (v: string) => void;
   rows?: number;
   className?: string;
+  placeholder?: string;
 }) {
   return (
     <textarea
       value={value}
       onChange={(e) => onChange(e.target.value)}
       rows={rows ?? 3}
+      placeholder={placeholder}
       className={`fp-textarea ${className || ""}`}
     />
   );

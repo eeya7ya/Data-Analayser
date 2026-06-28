@@ -78,6 +78,8 @@ interface FpOverrides {
   aboutUs?: string;
   disclaimer?: string[];
   sections?: FpSection[];
+  /** Free-text note to the client, shown under the Terms & Conditions. */
+  generalNotes?: string;
   /**
    * Optional margin multiplier applied to every unit price on this
    * proposal (e.g. 1.10 = +10%). Display-only: it scales the printed
@@ -409,6 +411,7 @@ export default function FinancialProposalView({
   const aboutUs = overrides.aboutUs ?? DEFAULT_ABOUT_US;
   const disclaimer = overrides.disclaimer ?? DEFAULT_DISCLAIMER;
   const sections = overrides.sections ?? DEFAULT_SECTIONS;
+  const generalNotes = overrides.generalNotes ?? "";
 
   // Flatten items into a single Description column. The docx template
   // shows just one row per line item (no per-system pages), so we
@@ -792,6 +795,18 @@ export default function FinancialProposalView({
                   </button>
                 </div>
               ))}
+            </div>
+
+            {/* General Notes — a free-text note to the client, under T&C. */}
+            <div className="fp-section" style={{ marginTop: 14 }}>
+              <div className="fp-section-heading">General Notes</div>
+              <FpTextarea
+                value={generalNotes}
+                onChange={(v) => setOverrides({ generalNotes: v })}
+                className="fp-bullet-text"
+                rows={4}
+                placeholder="Add a general note for the client…"
+              />
             </div>
           </FpSheet>
         </div>

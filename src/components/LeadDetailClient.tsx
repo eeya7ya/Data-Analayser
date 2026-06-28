@@ -190,9 +190,16 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
     );
   }
   if (error || !lead || !me || !flags) {
+    // A 404 from /api/leads/:id ("not found") just means this lead no longer
+    // exists — it was purged, or converted into a company/project and cleared
+    // from the queue. Show that plainly instead of a cryptic "not found".
+    const message =
+      error === "not found"
+        ? "This lead no longer exists — it may have been converted or removed from the queue."
+        : (error ?? "Lead not available.");
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
-        {error ?? "Lead not available."}
+        {message}
       </div>
     );
   }
