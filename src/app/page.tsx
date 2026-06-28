@@ -1,9 +1,13 @@
 import { redirect } from "next/navigation";
 import { canReadAll, getSessionUser } from "@/lib/auth";
+import { getTenantUserIds } from "@/lib/scope";
 import { sql, ensureSchema } from "@/lib/db";
 import { hasModuleRole, getUserModuleRoles } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 import DashboardClient, { type DashboardData } from "@/components/DashboardClient";
+import AdminDashboardClient, {
+  type AdminDashboardData,
+} from "@/components/AdminDashboardClient";
 import ExecutionDashboardClient, {
   type ExecutionProject,
 } from "@/components/ExecutionDashboardClient";
@@ -45,6 +49,14 @@ export default async function DashboardPage() {
   // "Sales outcomes" (Won / Lost / Held) is a salesperson's scoreboard —
   // only sales roles (and admins) should see it on the dashboard.
   const isSales = isSalesManager || hasGrant("crm", "sales");
+  // A salesperson SELLS — they don't author quotations (presales do), so a
+  // "Quotations created" chart is meaningless for them. When the user's lens is
+  // sales-only (no presales hat), the dashboard reframes around the deals THEY
+  // close: the headline trend, primary KPI and outcome scoreboard scope to the
+  // deals they decided (sales_outcome_by), not the quotations they own.
+  const isPresales =
+    hasGrant("crm", "presales") || hasGrant("crm", "presales_manager");
+  const salesLens = isSales && !isPresales;
 
   if (!isAdmin && isProjects && !isCrm) {
     const me = user.id;
@@ -175,24 +187,83 @@ export default async function DashboardPage() {
     );
   }
 
+  // Admins get an administration board: people, roles and departments —
+  // not the salesperson's quotation analytics. (They can still open the CRM
+  // module for the sales view.)
+  if (isAdmin) {
+    const qa = sql();
+    const adminKpiRows = (await qa`
+      select
+        (select count(*) from users)::int as users,
+        (select count(*) from users where role = 'admin')::int as admins,
+        (select count(distinct user_id) from user_module_roles
+          where revoked_at is null)::int as with_role,
+        (select count(distinct department_code) from users
+          where coalesce(department_code, '') <> '')::int as departments
+    `) as Array<{
+      users: number;
+      admins: number;
+      with_role: number;
+      departments: number;
+    }>;
+
+    const deptRows = (await qa`
+      select
+        coalesce(nullif(u.department_code, ''), 'Unassigned') as code,
+        count(distinct u.id)::int as users,
+        count(q.id)::int as quotations
+      from users u
+      left join quotations q
+        on q.owner_id = u.id and q.deleted_at is null
+      group by 1
+      order by users desc, code asc
+    `) as Array<{ code: string; users: number; quotations: number }>;
+
+    const adminData: AdminDashboardData = {
+      kpis: {
+        users: Number(adminKpiRows[0].users),
+        admins: Number(adminKpiRows[0].admins),
+        withRole: Number(adminKpiRows[0].with_role),
+        departments: Number(adminKpiRows[0].departments),
+      },
+      departments: deptRows.map((r) => ({
+        code: r.code,
+        users: Number(r.users),
+        quotations: Number(r.quotations),
+      })),
+    };
+
+    return (
+      <div className="min-h-screen bg-magic-soft/40">
+        <TopBar user={user} />
+        <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
+          <AdminDashboardClient
+            data={adminData}
+            greetingName={user.display_name || user.username}
+          />
+        </main>
+      </div>
+    );
+  }
+
   // Non-admins see only their own rows; admins see everything.
-  const scope = isAdmin ? null : user.id;
+  const scope = isAdmin ? await getTenantUserIds(user.id) : [user.id];
   const q = sql();
 
   const kpiRows = (await q`
     select
       (select count(*) from quotations
         where deleted_at is null
-          and (${scope}::int is null or owner_id = ${scope}))::int as quotations,
+          and owner_id = any(${scope}::int[]))::int as quotations,
       (select count(*) from client_folders
         where deleted_at is null
-          and (${scope}::int is null or owner_id = ${scope}))::int as clients,
+          and owner_id = any(${scope}::int[]))::int as clients,
       (select count(*) from companies
         where deleted_at is null
-          and (${scope}::int is null or owner_id = ${scope}))::int as companies,
+          and owner_id = any(${scope}::int[]))::int as companies,
       (select count(*) from projects
         where deleted_at is null
-          and (${scope}::int is null or owner_id = ${scope}))::int as projects
+          and owner_id = any(${scope}::int[]))::int as projects
   `) as Array<{ quotations: number; clients: number; companies: number; projects: number }>;
   const kpi = kpiRows[0];
 
@@ -208,6 +279,16 @@ export default async function DashboardPage() {
     pendingApprovals = Number(rows[0].n);
   }
 
+  // The trend either counts quotations CREATED (default — presales/mixed) or
+  // deals WON (sales lens). The date column and filter swap accordingly; the
+  // generate_series scaffolding is identical.
+  const trendDate = salesLens
+    ? q`coalesce(sales_outcome_at, updated_at)`
+    : q`created_at`;
+  const trendWhere = salesLens
+    ? q`sales_outcome_by = ${user.id} and (sales_outcome = 'accepted' or transferred_at is not null)`
+    : q`owner_id = any(${scope}::int[])`;
+
   // Three granularities for the trend chart, all computed in one pass so
   // the client can flip between them without a round-trip (V1.3D toggle).
   const monthlyRows = (await q`
@@ -218,11 +299,11 @@ export default async function DashboardPage() {
       interval '1 month'
     ) as m
     left join (
-      select date_trunc('month', created_at) as mm, count(*)::int as n
+      select date_trunc('month', ${trendDate}) as mm, count(*)::int as n
       from quotations
       where deleted_at is null
-        and created_at > now() - interval '6 months'
-        and (${scope}::int is null or owner_id = ${scope})
+        and ${trendDate} > now() - interval '6 months'
+        and ${trendWhere}
       group by mm
     ) c on c.mm = m
     order by m
@@ -236,11 +317,11 @@ export default async function DashboardPage() {
       interval '1 week'
     ) as m
     left join (
-      select date_trunc('week', created_at) as ww, count(*)::int as n
+      select date_trunc('week', ${trendDate}) as ww, count(*)::int as n
       from quotations
       where deleted_at is null
-        and created_at > now() - interval '12 weeks'
-        and (${scope}::int is null or owner_id = ${scope})
+        and ${trendDate} > now() - interval '12 weeks'
+        and ${trendWhere}
       group by ww
     ) c on c.ww = m
     order by m
@@ -254,17 +335,21 @@ export default async function DashboardPage() {
       interval '1 day'
     ) as m
     left join (
-      select date_trunc('day', created_at) as dd, count(*)::int as n
+      select date_trunc('day', ${trendDate}) as dd, count(*)::int as n
       from quotations
       where deleted_at is null
-        and created_at > now() - interval '30 days'
-        and (${scope}::int is null or owner_id = ${scope})
+        and ${trendDate} > now() - interval '30 days'
+        and ${trendWhere}
       group by dd
     ) c on c.dd = m
     order by m
   `) as Array<{ label: string; count: number }>;
 
-  // Sales outcome breakdown — Won / Lost / Held for the outcome panel.
+  // Sales outcome breakdown — Won / Lost / Held for the outcome panel. In the
+  // sales lens this counts the deals THIS user decided, not quotations they own.
+  const outcomeWhere = salesLens
+    ? q`sales_outcome_by = ${user.id}`
+    : q`owner_id = any(${scope}::int[])`;
   const outcomeRows = (await q`
     select
       count(*) filter (
@@ -276,14 +361,14 @@ export default async function DashboardPage() {
       )::int as held
     from quotations
     where deleted_at is null
-      and (${scope}::int is null or owner_id = ${scope})
+      and ${outcomeWhere}
   `) as Array<{ won: number; lost: number; held: number }>;
 
   const statusRows = (await q`
     select coalesce(nullif(status, ''), 'active') as name, count(*)::int as value
     from quotations
     where deleted_at is null
-      and (${scope}::int is null or owner_id = ${scope})
+      and owner_id = any(${scope}::int[])
     group by 1
     order by value desc
   `) as Array<{ name: string; value: number }>;
@@ -295,12 +380,14 @@ export default async function DashboardPage() {
       count(*) filter (where approved_at is null and rejected_at is null)::int as pending
     from quotations
     where deleted_at is null
-      and (${scope}::int is null or owner_id = ${scope})
+      and owner_id = any(${scope}::int[])
   `) as Array<{ approved: number; rejected: number; pending: number }>;
 
   const data: DashboardData = {
     kpis: {
-      quotations: kpi.quotations,
+      // In the sales lens the lead KPI is "Deals won" (their closed deals),
+      // since a salesperson owns ~no quotations.
+      quotations: salesLens ? Number(outcomeRows[0].won) : kpi.quotations,
       clients: kpi.clients,
       companies: kpi.companies,
       projects: kpi.projects,
@@ -334,6 +421,9 @@ export default async function DashboardPage() {
           greetingName={user.display_name || user.username}
           showApprovals={isSalesManager}
           showOutcomes={isSales}
+          primaryKpiLabel={salesLens ? "Deals won" : "Quotations"}
+          chartTitle={salesLens ? "Deals won" : "Quotations created"}
+          chartNoun={salesLens ? "Deals won" : "Quotations"}
         />
       </main>
     </div>
