@@ -1,0 +1,182 @@
+/**
+ * Shared Quote-to-Delivery pipeline logic — used by the board API and the AI
+ * briefing endpoint so the two never disagree about what stage a deal is in or
+ * what the next action should be.
+ */
+
+export type Stage =
+  | "quoting"
+  | "approved"
+  | "won"
+  | "held"
+  | "execution"
+  | "delivered"
+  | "lost";
+
+export const STAGES: Stage[] = [
+  "quoting",
+  "approved",
+  "won",
+  "held",
+  "execution",
+  "delivered",
+  "lost",
+];
+
+export const STAGE_LABEL: Record<Stage, string> = {
+  quoting: "Quoting & Approval",
+  approved: "Approved · with client",
+  won: "Won",
+  held: "Held → Handoff",
+  execution: "In Execution",
+  delivered: "Delivered",
+  lost: "Lost",
+};
+
+// Win probability per stage, used for the weighted forecast. Terminal stages
+// (delivered = booked, lost = dead) are excluded from the weighted total.
+export const STAGE_PROBABILITY: Record<Stage, number> = {
+  quoting: 0.25,
+  approved: 0.55,
+  won: 0.9,
+  held: 0.9,
+  execution: 0.97,
+  delivered: 1,
+  lost: 0,
+};
+
+// Grace period (days) a deal can sit in a stage before stall decay kicks in —
+// mirrors the next-best-action attention thresholds. Terminal stages never decay.
+export const STAGE_GRACE_DAYS: Record<Stage, number> = {
+  quoting: 5,
+  approved: 7,
+  won: 5,
+  held: 7,
+  execution: 30,
+  delivered: 100000,
+  lost: 100000,
+};
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+/**
+ * Phase 4 — dynamic win probability. Starts from the stage's base rate and
+ * adjusts it per deal using observable signals, returning the probability plus
+ * human-readable "drivers" so the score is always explainable:
+ *
+ *   • Stall decay — a deal sitting well past its stage's grace period is less
+ *     likely to close (linear decay, capped at −40%).
+ *   • Client track record — blend toward how this specific client has actually
+ *     converted historically vs the overall baseline (±25%), but only when
+ *     there's enough history to trust it.
+ *
+ * Deterministic and instant (no LLM per deal). When the historical inputs are
+ * absent it cleanly falls back to the static stage base. This is the on-ramp to
+ * a trained model once enough closed deals exist to fit real weights.
+ */
+export function winProbability(
+  stage: Stage,
+  ageDays: number,
+  opts: {
+    clientWinRate?: number | null;
+    baselineWinRate?: number | null;
+    clientSample?: number;
+  } = {},
+): { p: number; drivers: string[] } {
+  if (stage === "delivered") return { p: 1, drivers: [] };
+  if (stage === "lost") return { p: 0, drivers: [] };
+
+  let p = STAGE_PROBABILITY[stage];
+  const drivers: string[] = [];
+
+  const grace = STAGE_GRACE_DAYS[stage];
+  if (ageDays > grace) {
+    const decay = clamp(((ageDays - grace) / 30) * 0.4, 0, 0.4);
+    if (decay >= 0.05) {
+      p *= 1 - decay;
+      drivers.push(`stalled ${ageDays}d (−${Math.round(decay * 100)}%)`);
+    }
+  }
+
+  const { clientWinRate, baselineWinRate, clientSample } = opts;
+  if (
+    clientWinRate != null &&
+    baselineWinRate != null &&
+    (clientSample ?? 0) >= 2
+  ) {
+    const lift = clamp(clientWinRate - baselineWinRate, -0.5, 0.5);
+    const adj = 0.5 * lift; // ±25% at the extremes
+    if (Math.abs(adj) >= 0.03) {
+      p *= 1 + adj;
+      drivers.push(
+        `client wins ${Math.round(clientWinRate * 100)}% historically (${
+          adj >= 0 ? "+" : "−"
+        }${Math.round(Math.abs(adj) * 100)}%)`,
+      );
+    }
+  }
+
+  return { p: clamp(p, 0.02, 0.98), drivers };
+}
+
+export interface StageInputs {
+  transferred_at: string | null;
+  project_status: string | null;
+  sales_outcome: string | null;
+  rejected_at: string | null;
+  approved_at: string | null;
+}
+
+/**
+ * Derives the pipeline stage from the live workflow columns — there is no
+ * stored "stage" field, so the board can never drift out of sync with reality.
+ */
+export function deriveStage(r: StageInputs): Stage {
+  if (r.transferred_at) {
+    return r.project_status === "completed" ? "delivered" : "execution";
+  }
+  if (r.sales_outcome === "accepted") return "won";
+  if (r.sales_outcome === "held") return "held";
+  if (r.sales_outcome === "rejected") return "lost";
+  if (r.rejected_at) return "lost";
+  if (r.approved_at) return "approved";
+  return "quoting";
+}
+
+/**
+ * Deterministic next-best-action + stall risk per deal. No AI cost: the move
+ * and the "needs attention" flag fall out of the stage and how long the deal
+ * has sat there.
+ */
+export function insight(
+  stage: Stage,
+  ageDays: number,
+): { action: string; attention: boolean } {
+  switch (stage) {
+    case "quoting":
+      return {
+        action: ageDays >= 5 ? "Chase internal sign-off" : "Awaiting approval",
+        attention: ageDays >= 5,
+      };
+    case "approved":
+      return {
+        action:
+          ageDays >= 7
+            ? "Follow up with the client"
+            : "Awaiting client decision",
+        attention: ageDays >= 7,
+      };
+    case "won":
+      return { action: "Confirm PO & hand off", attention: ageDays >= 5 };
+    case "held":
+      return { action: "Schedule handoff to projects", attention: ageDays >= 7 };
+    case "execution":
+      return { action: "Track delivery", attention: false };
+    case "delivered":
+      return { action: "Close & collect", attention: false };
+    case "lost":
+      return { action: "", attention: false };
+  }
+}

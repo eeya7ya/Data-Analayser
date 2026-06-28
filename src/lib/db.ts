@@ -2839,6 +2839,36 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`
       create index if not exists users_tenant_idx on users(tenant_id)
     `;
+    // jsonb normalization helpers. items_json / totals_json are written via
+    // `${JSON.stringify(x)}::jsonb`, which the postgres driver stores as a jsonb
+    // *scalar string* (the array/object JSON wrapped one extra level), not a
+    // real jsonb array/object — so `totals_json->>'total'` is NULL and
+    // `jsonb_array_elements(items_json)` can't read it. The app's JS readers
+    // already JSON.parse defensively; these functions give SQL the same
+    // tolerance, accepting BOTH the double-encoded string form and a proper
+    // array/object. Used by the pipeline-board queries.
+    await q`
+      create or replace function jsonb_as_array(j jsonb) returns jsonb
+      language sql immutable as $$
+        select case
+          when jsonb_typeof(j) = 'array' then j
+          when jsonb_typeof(j) = 'string' and left(j #>> '{}', 1) = '['
+            then (j #>> '{}')::jsonb
+          else '[]'::jsonb
+        end
+      $$
+    `;
+    await q`
+      create or replace function jsonb_as_object(j jsonb) returns jsonb
+      language sql immutable as $$
+        select case
+          when jsonb_typeof(j) = 'object' then j
+          when jsonb_typeof(j) = 'string' and left(j #>> '{}', 1) = '{'
+            then (j #>> '{}')::jsonb
+          else '{}'::jsonb
+        end
+      $$
+    `;
     await q`
       insert into migration_flags (key) values (${MULTITENANCY_FLAG})
       on conflict (key) do nothing
