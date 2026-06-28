@@ -17,8 +17,11 @@ export interface BrandVariant {
   logoUrl: string;
   /** Full-bleed A4 cover page printed first. */
   coverUrl: string;
-  /** Full-bleed A4 about-us page printed second. */
-  aboutUrl: string;
+  /**
+   * Optional full-bleed A4 about-us page printed second. When omitted, only
+   * the cover sheet prints before the quotation.
+   */
+  aboutUrl?: string;
 }
 
 /**
@@ -75,10 +78,11 @@ export function getBrandVariant(
 /**
  * Coerce an untrusted value (admin form payload or a persisted settings row)
  * into a clean BrandVariant[]. Drops entries missing the fields a printable
- * brand actually needs (id, label, logo, cover, about) and de-duplicates ids
- * so the dropdown never shows two "magic-tech" rows. Returns the built-in
- * defaults when nothing usable is supplied, guaranteeing printing always has
- * at least one brand to fall back on.
+ * brand actually needs (id, label, logo, cover) and de-duplicates ids so the
+ * dropdown never shows two "magic-tech" rows. The about-us page is optional,
+ * so a blank one is kept as `undefined` rather than rejecting the brand.
+ * Returns the built-in defaults when nothing usable is supplied, guaranteeing
+ * printing always has at least one brand to fall back on.
  */
 export function sanitizeBrandVariants(value: unknown): BrandVariant[] {
   if (!Array.isArray(value)) return [...BRAND_VARIANTS];
@@ -92,7 +96,7 @@ export function sanitizeBrandVariants(value: unknown): BrandVariant[] {
     const logoUrl = String(v.logoUrl ?? "").trim();
     const coverUrl = String(v.coverUrl ?? "").trim();
     const aboutUrl = String(v.aboutUrl ?? "").trim();
-    if (!id || !label || !logoUrl || !coverUrl || !aboutUrl) continue;
+    if (!id || !label || !logoUrl || !coverUrl) continue;
     if (seen.has(id)) continue;
     seen.add(id);
     out.push({
@@ -102,7 +106,9 @@ export function sanitizeBrandVariants(value: unknown): BrandVariant[] {
         typeof v.description === "string" ? v.description : undefined,
       logoUrl,
       coverUrl,
-      aboutUrl,
+      // About-us is optional — store undefined when blank so the printer
+      // skips the second sheet rather than rendering an empty page.
+      aboutUrl: aboutUrl || undefined,
     });
   }
   return out.length > 0 ? out : [...BRAND_VARIANTS];
