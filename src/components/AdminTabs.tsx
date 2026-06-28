@@ -4,12 +4,20 @@ import { useRef, useState } from "react";
 import JSZip from "jszip";
 import UsersAndRolesPanel from "./UsersAndRolesPanel";
 import AdminSettings from "./AdminSettings";
+import BrandingAdmin from "./BrandingAdmin";
 import FolderClassificationPanel from "./FolderClassificationPanel";
 import NewsAdminPanel from "./NewsAdminPanel";
 import EmailAdminPanel from "./EmailAdminPanel";
 import type { AppSettings } from "@/lib/settings";
 
-type Tab = "users" | "folders" | "news" | "email" | "settings" | "backups";
+type Tab =
+  | "users"
+  | "folders"
+  | "news"
+  | "email"
+  | "settings"
+  | "branding"
+  | "backups";
 
 export default function AdminTabs({
   initialSettings,
@@ -45,6 +53,12 @@ export default function AdminTabs({
           onClick={() => setTab("settings")}
         >
           Settings
+        </TabButton>
+        <TabButton
+          active={tab === "branding"}
+          onClick={() => setTab("branding")}
+        >
+          Branding
         </TabButton>
         <TabButton active={tab === "backups"} onClick={() => setTab("backups")}>
           Backups
@@ -93,6 +107,15 @@ export default function AdminTabs({
             Global presets
           </h2>
           <AdminSettings initialSettings={initialSettings} />
+        </section>
+      )}
+
+      {tab === "branding" && (
+        <section>
+          <h2 className="text-lg font-semibold text-magic-ink mb-3">
+            Branding — logos &amp; company profiles
+          </h2>
+          <BrandingAdmin initialSettings={initialSettings} readOnly={readOnly} />
         </section>
       )}
 

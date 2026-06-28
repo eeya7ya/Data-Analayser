@@ -51,7 +51,70 @@ export const BRAND_VARIANTS: BrandVariant[] = [
   },
 ];
 
-export function getBrandVariant(id?: string | null): BrandVariant {
-  if (!id) return BRAND_VARIANTS[0];
-  return BRAND_VARIANTS.find((v) => v.id === id) || BRAND_VARIANTS[0];
+/**
+ * Resolve a variant id to its bundle. When `variants` is supplied (the
+ * admin-configured list persisted in app settings) it takes precedence, so
+ * the cover/about/logo a quotation prints reflect whatever the admin set up
+ * for that brand. Lookups fall back to the built-in list and finally to the
+ * first available variant, so a quotation whose stored id was later removed
+ * from the admin panel still prints *something* rather than crashing.
+ */
+export function getBrandVariant(
+  id?: string | null,
+  variants?: BrandVariant[] | null,
+): BrandVariant {
+  const list = variants && variants.length > 0 ? variants : BRAND_VARIANTS;
+  if (!id) return list[0];
+  return (
+    list.find((v) => v.id === id) ||
+    BRAND_VARIANTS.find((v) => v.id === id) ||
+    list[0]
+  );
+}
+
+/**
+ * Coerce an untrusted value (admin form payload or a persisted settings row)
+ * into a clean BrandVariant[]. Drops entries missing the fields a printable
+ * brand actually needs (id, label, logo, cover, about) and de-duplicates ids
+ * so the dropdown never shows two "magic-tech" rows. Returns the built-in
+ * defaults when nothing usable is supplied, guaranteeing printing always has
+ * at least one brand to fall back on.
+ */
+export function sanitizeBrandVariants(value: unknown): BrandVariant[] {
+  if (!Array.isArray(value)) return [...BRAND_VARIANTS];
+  const seen = new Set<string>();
+  const out: BrandVariant[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const v = raw as Partial<BrandVariant>;
+    const id = String(v.id ?? "").trim();
+    const label = String(v.label ?? "").trim();
+    const logoUrl = String(v.logoUrl ?? "").trim();
+    const coverUrl = String(v.coverUrl ?? "").trim();
+    const aboutUrl = String(v.aboutUrl ?? "").trim();
+    if (!id || !label || !logoUrl || !coverUrl || !aboutUrl) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      label,
+      description:
+        typeof v.description === "string" ? v.description : undefined,
+      logoUrl,
+      coverUrl,
+      aboutUrl,
+    });
+  }
+  return out.length > 0 ? out : [...BRAND_VARIANTS];
+}
+
+/** Turn a free-text label into a stable, url-safe variant id. */
+export function brandVariantIdFromLabel(label: string): string {
+  return (
+    String(label || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "brand"
+  );
 }
