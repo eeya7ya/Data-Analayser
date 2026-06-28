@@ -13,6 +13,7 @@ import QuotationApprovalBar from "./QuotationApprovalBar";
 import QuotationStockCheckPanel from "./QuotationStockCheckPanel";
 import PageLoader from "./PageLoader";
 import ActionMenu from "./ActionMenu";
+import { exportQuotationExcel } from "@/lib/exportQuotationExcel";
 
 interface SavedConfig {
   showPictures?: boolean;
@@ -356,6 +357,34 @@ export default function QuotationViewer({
     setBoqMode(true);
   }
 
+  // Build a brand-matched .xlsx from the loaded quotation. Mirrors the Excel
+  // produced from the Designer so the same workbook is offered read-only here.
+  function exportExcel() {
+    void exportQuotationExcel({
+      items,
+      extraColumns: header.extra_columns,
+      refCode: header.ref,
+      projectName: header.project_name,
+      clientName: header.client_name,
+      clientEmail: header.client_email,
+      clientPhone: header.client_phone,
+      designEng: header.design_engineer,
+      salesEng: header.sales_engineer,
+      salesPhone: header.sales_phone,
+      preparedBy: header.prepared_by,
+      terms:
+        Array.isArray(config.terms) && config.terms.length > 0
+          ? config.terms
+          : [...fallbackTerms],
+      includeTax: config.includeTax !== false,
+      taxPercent: header.tax_percent,
+      taxInclusive: Boolean(config.taxInclusive),
+      discountMode: header.discount_mode,
+      discountPercent: header.discount_percent,
+      discountAmount: header.discount_amount,
+    });
+  }
+
   const approvalState = {
     sales_approved_by: (row.sales_approved_by as number | null) ?? null,
     sales_approved_at: (row.sales_approved_at as string | null) ?? null,
@@ -428,6 +457,12 @@ export default function QuotationViewer({
               onClick: runPrintBoq,
               title:
                 "Print the Bill of Quantities — items only, no pricing columns or totals",
+            },
+            {
+              label: "Excel",
+              onClick: exportExcel,
+              title:
+                "Export the quotation as a brand-matched .xlsx workbook (items, totals and terms)",
             },
             {
               label: "Financial Proposal",
