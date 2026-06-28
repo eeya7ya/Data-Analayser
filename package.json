@@ -2,7 +2,7 @@
   "name": "magictech-quotation-designer",
   "version": "1.4.4",
   "private": true,
-  "description": "MagicTech AI Quotation Designer — Next.js 15 + Vercel 2026 + Supabase Postgres + Groq",
+  "description": "MagicTech AI Quotation Designer — Next.js 15 + Vercel 2026 + Postgres + Groq",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -14,7 +14,6 @@
     "vapid:gen": "node scripts/gen-vapid.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.58.0",
     "clsx": "^2.1.1",
     "exceljs": "^4.4.0",
     "groq-sdk": "^0.12.0",

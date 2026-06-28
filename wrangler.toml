@@ -5,10 +5,9 @@
 # invoked locally for D1 / R2 admin tasks (e.g. `wrangler d1 execute`).
 #
 # Bindings:
-#   - magictech : the D1 SQLite database that will replace Supabase Postgres
+#   - magictech : the D1 SQLite database that will replace Postgres
 #                 after the dual-run validation period.
-#   - FILES     : the R2 bucket that will replace Supabase Storage for
-#                 project_files uploads.
+#   - FILES     : the R2 bucket used for project_files uploads.
 #
 # The compatibility_date pins the Workers runtime feature set so a future
 # Cloudflare update doesn't silently change behaviour under us. Bump it

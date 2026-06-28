@@ -2,12 +2,12 @@ import postgres, { type Sql } from "postgres";
 import { RELEASE_NOTES } from "./releaseNotes";
 
 /**
- * Supabase Postgres client for Vercel serverless runtimes.
+ * Postgres client for Vercel serverless runtimes.
  *
- * The connection URL should point at the Supabase **Transaction Pooler**
- * (Supavisor) on port `6543` — e.g.:
+ * The connection URL should point at a **transaction pooler** (e.g. port
+ * `6543`) — e.g.:
  *
- *   postgres://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+ *   postgres://<user>:<password>@<host>:6543/<database>
  *
  * Transaction mode is required for serverless because each function
  * invocation briefly checks out a pooled connection. This mode does NOT
@@ -15,8 +15,8 @@ import { RELEASE_NOTES } from "./releaseNotes";
  *
  * Env var resolution order (first non-empty wins):
  *   1. DATABASE_URL            — manual setup (our docs).
- *   2. POSTGRES_URL            — injected by the Supabase→Vercel native
- *                                integration; points at the pooled endpoint.
+ *   2. POSTGRES_URL            — common alias (also injected by some Vercel
+ *                                Postgres integrations); pooled endpoint.
  *   3. POSTGRES_PRISMA_URL     — same source, Prisma-flavoured pooled URL.
  *   4. POSTGRES_URL_NON_POOLING — last-resort direct connection (NOT
  *                                 recommended for serverless — see note).
@@ -40,11 +40,10 @@ function getUrl(): string {
     process.env.POSTGRES_URL_NON_POOLING;
   if (!url) {
     throw new Error(
-      "No Supabase connection string found. Expected one of DATABASE_URL, " +
+      "No Postgres connection string found. Expected one of DATABASE_URL, " +
         "POSTGRES_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL_NON_POOLING in " +
-        "the Vercel project env (Project Settings → Environment Variables). " +
-        "The Supabase→Vercel integration normally injects POSTGRES_URL " +
-        "automatically; redeploy after linking it.",
+        "your host's environment variables (e.g. Vercel → Project Settings → " +
+        "Environment Variables); redeploy after setting it.",
     );
   }
   return url;
@@ -59,9 +58,9 @@ function getUrl(): string {
 export function sql(): Sql {
   if (!globalForDb.__mtSql) {
     globalForDb.__mtSql = postgres(getUrl(), {
-      // Supabase requires TLS for every connection.
+      // The pooler requires TLS for every connection.
       ssl: "require",
-      // Required for Supabase Transaction Pooler (pgbouncer-in-transaction-mode)
+      // Required for transaction-mode poolers (pgbouncer-in-transaction-mode)
       // because prepared statements cannot span pooled connections.
       prepare: false,
       // Small pool per lambda — three sockets is the sweet spot for the CRM
@@ -97,7 +96,7 @@ const globalForSchema = globalThis as unknown as {
  * in `migration_flags` to short-circuit the bootstrap on warm deployments.
  *
  * The full DDL block is ~35 sequential statements and each one is a
- * Supabase round-trip. Running them on every Vercel cold start was adding
+ * database round-trip. Running them on every Vercel cold start was adding
  * 2-3 seconds of pure wait time to every request that landed on a new
  * serverless instance, which is what drove the "every page takes way too
  * long to open" complaint. With the fingerprint marker we turn the
@@ -230,7 +229,7 @@ const CATALOGUE_PICTURE_FLAG = "catalogue_picture_v1_2026_04";
  *      `purchase_orders`. Nullable so legacy readers that don't filter
  *      by project still see every row.
  *   3. Creates `project_files` for arbitrary uploads (PDFs / sheets)
- *      whose binary lives in Supabase Storage; this table only stores
+ *      whose binary lives in object storage (R2); this table only stores
  *      the filename, mime, byte size and the storage path.
  *   4. Backfills: for every client_folders row that doesn't already
  *      have a project, creates a "Default Project" and assigns every
@@ -1528,7 +1527,7 @@ async function _ensureSchemaOnce(): Promise<void> {
       create index if not exists purchase_orders_project_idx on purchase_orders(project_id)
     `;
 
-    // 3. project_files table. The binary itself lives in Supabase Storage;
+    // 3. project_files table. The binary itself lives in object storage (R2);
     //    `storage_path` is the bucket-relative key the upload flow signs
     //    against. `kind` partitions the Files panel into Quotation / PO /
     //    BOQ / Other tabs without forcing four separate tables.
