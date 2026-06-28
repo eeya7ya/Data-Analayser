@@ -2,6 +2,7 @@ import { sql } from "./db";
 import type { SessionUser } from "./auth";
 import { canReadAll } from "./auth";
 import { hasModule, hasModuleRole } from "./modules";
+import { getTenantUserIds } from "./scope";
 import type { LeadStatus, LeadMessageKind } from "./leadConstants";
 
 /**
@@ -264,6 +265,12 @@ export interface LeadVisibility {
   presales: boolean;
   /** Effective user id used for assigned_to / created_by filters. */
   userId: number;
+  /**
+   * The requester's tenant user ids. Even a `full` (shared-queue) viewer only
+   * sees leads created by a user in their own tenant, never the global queue.
+   * In a single-tenant DB this is every user (unchanged).
+   */
+  tenantUserIds: number[];
 }
 
 export async function getLeadVisibility(user: SessionUser): Promise<LeadVisibility> {
@@ -282,6 +289,7 @@ export async function getLeadVisibility(user: SessionUser): Promise<LeadVisibili
     sales: isSales,
     presales: isPresales,
     userId: user.id,
+    tenantUserIds: await getTenantUserIds(user.id),
   };
 }
 
@@ -329,7 +337,7 @@ export async function getActiveRfqForProject(
       and (l.project_id = ${projectId} or l.sales_project_id = ${projectId})
       and l.completed_at is null
       and (
-        ${vis.full}::boolean
+        (${vis.full}::boolean and l.created_by = any(${vis.tenantUserIds}::int[]))
         or l.created_by = ${vis.userId}
         or l.assigned_to_id = ${vis.userId}
       )
