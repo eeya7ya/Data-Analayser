@@ -1,4 +1,5 @@
 import postgres, { type Sql } from "postgres";
+import { RELEASE_NOTES } from "./releaseNotes";
 
 /**
  * Supabase Postgres client for Vercel serverless runtimes.
@@ -409,11 +410,23 @@ const ORPHAN_FOLDER_CLEANUP_FLAG = "orphan_company_folder_cleanup_v1_2026_06";
 const INSTALLATION_RATES_FLAG = "installation_rates_v1_2026_06";
 // Remember the sales project an RFQ was raised from (survives presales filing).
 const LEADS_SALES_PROJECT_FLAG = "leads_sales_project_v1_2026_06";
+// Multi-tenancy: a `tenants` table + `users.tenant_id`, seeded with one default
+// tenant and every existing user backfilled into it (single-tenant-preserving).
+const MULTITENANCY_FLAG = "multitenancy_tenants_v1_2026_06";
+// Per-user department code (e.g. "ITD1") — the leading segment of every
+// auto-generated quotation reference (<DEPT>-FO<YY>-<HEX>).
+const DEPARTMENT_CODE_FLAG = "user_department_code_v1_2026_06";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
-  globalForSchema.__mtSchemaPromise = _ensureSchemaOnce();
+  // Ensure DDL first, then seed the release-notes changelog. The seed lives
+  // outside _ensureSchemaOnce's "nothing to do" early return so it still runs
+  // on warm, already-bootstrapped databases.
+  globalForSchema.__mtSchemaPromise = (async () => {
+    await _ensureSchemaOnce();
+    await _seedReleaseNotes();
+  })();
   return globalForSchema.__mtSchemaPromise;
 }
 
@@ -496,6 +509,8 @@ async function _ensureSchemaOnce(): Promise<void> {
   let orphanFolderCleanupApplied = false;
   let installationRatesApplied = false;
   let leadsSalesProjectApplied = false;
+  let multitenancyApplied = false;
+  let departmentCodeApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -512,7 +527,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}, ${USER_TOOLS_FLAG},
         ${V14A_FLAG}, ${LEAD_SHARED_QUEUE_FLAG}, ${PROJECT_TASKS_FLAG},
         ${PRODUCT_BARCODE_FLAG}, ${ORPHAN_FOLDER_CLEANUP_FLAG},
-        ${INSTALLATION_RATES_FLAG}, ${LEADS_SALES_PROJECT_FLAG}
+        ${INSTALLATION_RATES_FLAG}, ${LEADS_SALES_PROJECT_FLAG},
+        ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -550,6 +566,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     orphanFolderCleanupApplied = keys.has(ORPHAN_FOLDER_CLEANUP_FLAG);
     installationRatesApplied = keys.has(INSTALLATION_RATES_FLAG);
     leadsSalesProjectApplied = keys.has(LEADS_SALES_PROJECT_FLAG);
+    multitenancyApplied = keys.has(MULTITENANCY_FLAG);
+    departmentCodeApplied = keys.has(DEPARTMENT_CODE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -589,7 +607,9 @@ async function _ensureSchemaOnce(): Promise<void> {
     productBarcodeApplied &&
     orphanFolderCleanupApplied &&
     installationRatesApplied &&
-    leadsSalesProjectApplied
+    leadsSalesProjectApplied &&
+    multitenancyApplied &&
+    departmentCodeApplied
   )
     return;
 
@@ -2784,6 +2804,84 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`
       insert into migration_flags (key) values (${LEADS_SALES_PROJECT_FLAG})
       on conflict (key) do nothing
+    `;
+  }
+
+  if (!multitenancyApplied) {
+    // Each user belongs to one tenant (company). A single default tenant is
+    // seeded and every existing user is backfilled into it, so an existing
+    // single-company deployment keeps behaving exactly as before. Per-feature
+    // isolation is layered on top by scoping "see all" reads to the requester's
+    // tenant (see getTenantUserIds in src/lib/scope.ts). Additive + idempotent.
+    await q`
+      create table if not exists tenants (
+        id         serial primary key,
+        name       text not null,
+        slug       text unique,
+        plan       text not null default 'trial',
+        created_at timestamptz not null default now()
+      )
+    `;
+    await q`
+      insert into tenants (name, slug)
+      values ('MagicTech', 'magictech')
+      on conflict (slug) do nothing
+    `;
+    await q`
+      alter table users add column if not exists tenant_id integer references tenants(id)
+    `;
+    // Backfill any user without a tenant into the default tenant. Runs every
+    // boot, so a freshly-seeded admin or a row that slipped through self-heals.
+    await q`
+      update users set tenant_id = (select id from tenants where slug = 'magictech')
+      where tenant_id is null
+    `;
+    await q`
+      create index if not exists users_tenant_idx on users(tenant_id)
+    `;
+    await q`
+      insert into migration_flags (key) values (${MULTITENANCY_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!departmentCodeApplied) {
+    // Per-user department code (e.g. "ITD1") assigned by an admin. It forms the
+    // leading segment of every auto-generated quotation reference
+    // (<DEPT>-FO<YY>-<HEX>). Empty until an admin assigns one. Additive, so
+    // databases that predate this column gain it here.
+    await q`alter table users add column if not exists department_code text not null default ''`;
+    await q`
+      insert into migration_flags (key) values (${DEPARTMENT_CODE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+}
+
+/**
+ * Seed the release-notes changelog (src/lib/releaseNotes.ts) into `news_posts`
+ * so the Product-updates feed always reflects the shipped version.
+ *
+ * Runs once per process AFTER `_ensureSchemaOnce` (so `news_posts` exists),
+ * and crucially OUTSIDE its "all migrations applied — nothing to do" early
+ * return, so the changelog still seeds on warm/already-bootstrapped databases.
+ * It is NOT gated by a migration flag and is idempotent by title, so adding a
+ * note in releaseNotes.ts surfaces it on the next cold start with no
+ * fingerprint bump. `created_by` is null (a system post) and the `all`
+ * audience makes it visible to every role.
+ */
+async function _seedReleaseNotes(): Promise<void> {
+  const q = sql();
+  for (const note of RELEASE_NOTES) {
+    await q`
+      insert into news_posts
+        (title, body, audience_modules, audience_roles, pinned, created_by, created_at)
+      select ${note.title}, ${note.body},
+             ${note.audience_modules}::text[], ${note.audience_roles}::text[],
+             ${note.pinned}, null, ${note.date}::timestamptz
+      where not exists (
+        select 1 from news_posts where title = ${note.title}
+      )
     `;
   }
 }
