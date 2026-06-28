@@ -1252,7 +1252,9 @@ export default function QuotationPreview({
        * The artwork tracks the selected brand variant, so swapping the
        * printed logo also swaps in its paired cover / about-us sheets. */}
       <StaticSheet src={brand.coverUrl} alt={`${brand.label} cover page`} />
-      <StaticSheet src={brand.aboutUrl} alt={`${brand.label} about us page`} />
+      {brand.aboutUrl && (
+        <StaticSheet src={brand.aboutUrl} alt={`${brand.label} about us page`} />
+      )}
 
       {systemPages.length === 0 && (
         <QuotationPage

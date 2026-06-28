@@ -71,18 +71,15 @@ export default function BrandingAdmin({
     setStatus(null);
     try {
       // Mirror the server's validity rule so the admin gets a clear message
-      // instead of silently losing a half-filled bundle on save.
+      // instead of silently losing a half-filled bundle on save. Page 2
+      // (about us) is optional, so it's not required here.
       const incomplete = variants.filter(
-        (v) =>
-          !v.label.trim() ||
-          !v.logoUrl.trim() ||
-          !v.coverUrl.trim() ||
-          !v.aboutUrl.trim(),
+        (v) => !v.label.trim() || !v.logoUrl.trim() || !v.coverUrl.trim(),
       );
       if (incomplete.length > 0) {
         throw new Error(
-          "Every brand needs a name, a logo, a company profile page 1 and a " +
-            "page 2 before it can be saved. Complete or remove the highlighted " +
+          "Every brand needs a name, a logo and a company profile page 1 " +
+            "before it can be saved. Complete or remove the highlighted " +
             "brand(s).",
         );
       }
@@ -109,22 +106,17 @@ export default function BrandingAdmin({
 
   const incompleteIds = new Set(
     variants
-      .filter(
-        (v) =>
-          !v.label.trim() ||
-          !v.logoUrl.trim() ||
-          !v.coverUrl.trim() ||
-          !v.aboutUrl.trim(),
-      )
+      .filter((v) => !v.label.trim() || !v.logoUrl.trim() || !v.coverUrl.trim())
       .map((v) => v.id),
   );
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-magic-ink/70">
-        Each <strong>brand</strong> bundles a logo with the two company-profile
+        Each <strong>brand</strong> bundles a logo with the company-profile
         sheets printed before every quotation: <strong>page 1</strong> (cover)
-        and <strong>page 2</strong> (about us). In the Designer, choosing a
+        and an optional <strong>page 2</strong> (about us). In the Designer,
+        choosing a
         logo from the <em>Brand</em> dropdown prints its matching company
         profile — so picking <em>logo&nbsp;1</em> prints company profile&nbsp;1,
         <em>logo&nbsp;2</em> prints company profile&nbsp;2, and so on. Existing
@@ -188,8 +180,8 @@ export default function BrandingAdmin({
               />
               <ImageSlot
                 title="Company profile — page 2 (about us)"
-                hint="Full-page A4 about-us, printed second."
-                value={v.aboutUrl}
+                hint="Optional. Full-page A4 about-us, printed second. Leave empty to print the cover only."
+                value={v.aboutUrl ?? ""}
                 kind="page"
                 readOnly={readOnly}
                 onChange={(next) => patchVariant(i, { aboutUrl: next })}
