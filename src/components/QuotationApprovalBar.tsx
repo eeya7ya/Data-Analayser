@@ -4,13 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import ConvertToProjectDialog from "@/components/ConvertToProjectDialog";
 
 /**
- * Dual-approval bar surfaced inside QuotationViewer. Shows the current
- * approval state and offers Approve / Reject buttons gated by the
- * caller's module roles.
+ * Action bar surfaced inside QuotationViewer. Presales hands the quotation
+ * to sales ("Send to sales"); sales records the client outcome (Accepted /
+ * Lost / Held) and pushes a won deal to the projects team. There is no
+ * sales-manager approval step — sales asks presales for changes via the RFQ
+ * "Request for Modification" flow rather than approving their work.
  *
- * Server-side enforcement lives in /api/quotations/approve and /reject —
- * this UI only hides buttons the user can't action, but the API will
- * 403 either way. Admin users always see all three actions.
+ * Server-side enforcement lives in /api/quotations/outcome, /reject and
+ * /project-handoffs — this UI only hides buttons the user can't action.
  *
  * Re-fetches the quotation snapshot after each action so the pill
  * reflects the new state without a full page refresh.
@@ -49,12 +50,21 @@ export default function QuotationApprovalBar({
   quotationId,
   initial,
   projectId,
+  readOnly = false,
 }: {
   quotationId: number;
   initial: ApprovalState;
   /** The quotation's project, so an Accepted deal can attach the client's
    * signed PO straight into the Purchase Orders tab. */
   projectId?: number | null;
+  /**
+   * Read-only mode (default for this view now): the sales-outcome controls
+   * (Reject, Accepted / Rejected / Hold, Proceed to Execution) are redundant —
+   * sales drive those from the Quote-to-Delivery pipeline — so they are hidden
+   * and the bar shows STATUS only. The presales "Send to sales" handoff and the
+   * post-win PO upload (which have no pipeline equivalent) remain.
+   */
+  readOnly?: boolean;
 }) {
   const [state, setState] = useState<ApprovalState>(initial);
   const [me, setMe] = useState<MeResponse | null>(null);
@@ -92,9 +102,10 @@ export default function QuotationApprovalBar({
     isAdmin ||
     !!me?.module_roles.some((r) => r.module === module && r.role === role);
 
-  // 1.4A — sales-only approval. Presales does not sign off on quotations.
-  const canApproveSales = hasRole("crm", "sales_manager");
-  const canReject = canApproveSales;
+  // Sales can reject a quotation (send it back) but no longer "approves"
+  // presales' work — they ask for modifications via the RFQ flow instead.
+  const canReject =
+    isAdmin || hasRole("crm", "sales") || hasRole("crm", "sales_manager");
   const canConvert =
     isAdmin || hasRole("crm", "sales") || hasRole("crm", "sales_manager");
 
@@ -111,33 +122,6 @@ export default function QuotationApprovalBar({
   const canSendToSales = isPresalesAuthor;
   const sentToSales = !!state.sent_to_sales_at;
   const salesAccepted = !!state.sales_accepted_at;
-  // The endpoint enforces "must be the lead creator", but the role check
-  // here hides the button for users who have no chance of being it.
-  const canSalesAccept =
-    sentToSales &&
-    !salesAccepted &&
-    (isAdmin || hasRole("crm", "sales") || hasRole("crm", "sales_manager"));
-
-  async function approve() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/quotations/approve", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: quotationId }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
-      await refetch();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function sendToSales() {
     if (
@@ -152,27 +136,6 @@ export default function QuotationApprovalBar({
     setError(null);
     try {
       const res = await fetch("/api/quotations/send-to-sales", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: quotationId }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
-      await refetch();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function salesAccept() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/quotations/sales-accept", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: quotationId }),
@@ -273,12 +236,22 @@ export default function QuotationApprovalBar({
     }
   }
 
-  const fullyApproved = !!state.approved_at;
   const accepted = !!state.accepted_at || state.sales_outcome === "accepted";
   const rejected = !!state.rejected_at;
   const outcome = state.sales_outcome;
   const transferred = !!state.transferred_at;
   const heldPending = outcome === "held" && !transferred;
+
+  // In read-only mode the only thing this bar carries that the Quote-to-Delivery
+  // pipeline has no equivalent for is the presales "Send to sales" handoff. The
+  // status strip ("Sent to sales / Sales reviewed / Client accepted") is pure
+  // duplication of the pipeline, and the post-win client-PO upload has its own
+  // home in the project's Purchase Orders tab — so for anyone who can't hand the
+  // quotation to sales (every salesperson / viewer), the bar renders nothing at
+  // all instead of a redundant strip on top of every quotation.
+  if (readOnly && !canSendToSales) {
+    return null;
+  }
 
   return (
     <div className="no-print rounded-xl border border-magic-border bg-white px-4 py-3 mb-3">
@@ -292,12 +265,7 @@ export default function QuotationApprovalBar({
           ) : (
             isPresalesAuthor && <Pill tone="muted">Not yet sent to sales</Pill>
           )}
-          {salesAccepted && <Pill tone="ok">Sales accepted</Pill>}
-          {fullyApproved ? (
-            <Pill tone="strong">Approved by sales manager</Pill>
-          ) : (
-            <Pill tone="muted">Awaiting sales manager sign-off</Pill>
-          )}
+          {salesAccepted && <Pill tone="ok">Sales reviewed</Pill>}
           {accepted && <Pill tone="strong">Client accepted</Pill>}
           {rejected && (
             <Pill tone="warn">
@@ -322,26 +290,7 @@ export default function QuotationApprovalBar({
               {sentToSales ? "Re-send to sales" : "Send to sales"}
             </button>
           )}
-          {canSalesAccept && (
-            <button
-              onClick={() => void salesAccept()}
-              disabled={busy}
-              title="Accept the quotation — presales gets a notification and it moves on to the sales manager"
-              className="px-3 py-1 text-xs font-semibold rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
-            >
-              Approve quotation
-            </button>
-          )}
-          {canApproveSales && !fullyApproved && (
-            <button
-              onClick={() => void approve()}
-              disabled={busy}
-              className="px-3 py-1 text-xs font-semibold rounded border border-magic-red text-magic-red hover:bg-magic-red hover:text-white disabled:opacity-50 transition-colors"
-            >
-              Approve quotation
-            </button>
-          )}
-          {canReject && !rejected && (
+          {canReject && !rejected && !readOnly && (
             <button
               onClick={() => void reject()}
               disabled={busy}
@@ -355,8 +304,10 @@ export default function QuotationApprovalBar({
 
       {/* V1.3D — sales records the client outcome. Accept / Reject can be
           marked any time; Hold for Execution stages the deal and (with a
-          time set) auto-transfers it to the projects team. */}
-      {canConvert && (
+          time set) auto-transfers it to the projects team. In read-only mode
+          (e.g. the presales view) only the status pills render — sales drive
+          the outcome from the Quote-to-Delivery pipeline now. */}
+      {(canConvert || outcome || transferred) && (
         <div className="mt-3 border-t border-magic-border/60 pt-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -382,13 +333,14 @@ export default function QuotationApprovalBar({
                 <span className="text-magic-ink/45">Not set yet</span>
               )}
             </div>
+            {!readOnly && (
             <div className="flex flex-wrap items-center gap-2">
               {!transferred && (
                 <>
                   <button
                     onClick={() => void markOutcome("accepted")}
-                    disabled={outcomeBusy || !fullyApproved}
-                    title={fullyApproved ? "Client accepted the quotation" : "Approve the quotation first"}
+                    disabled={outcomeBusy}
+                    title="Client accepted the quotation"
                     className="px-3 py-1 text-xs font-semibold rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
                   >
                     Accepted
@@ -403,23 +355,19 @@ export default function QuotationApprovalBar({
                   </button>
                   <button
                     onClick={() => setHoldOpen((v) => !v)}
-                    disabled={outcomeBusy || !fullyApproved}
-                    title={
-                      fullyApproved
-                        ? "Park the won deal — stage it (optionally on a schedule) before it goes to the projects team"
-                        : "Approve the quotation first"
-                    }
+                    disabled={outcomeBusy}
+                    title="Park the won deal — stage it (optionally on a schedule) before it goes to the projects team"
                     className="px-3 py-1 text-xs font-semibold rounded border border-magic-red text-magic-red hover:bg-magic-red hover:text-white disabled:opacity-50 transition-colors"
                   >
                     Hold for execution
                   </button>
                   <button
                     onClick={() => setConverting(true)}
-                    disabled={outcomeBusy || !fullyApproved || rejected}
+                    disabled={outcomeBusy || rejected || (!accepted && !heldPending)}
                     title={
-                      fullyApproved
+                      accepted || heldPending
                         ? "Forward the deal to the project manager now — capture site / contact details and hand it off"
-                        : "Approve the quotation first"
+                        : "Mark the quotation Accepted or Held first"
                     }
                     className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
                   >
@@ -437,11 +385,12 @@ export default function QuotationApprovalBar({
                 </button>
               )}
             </div>
+            )}
           </div>
           {accepted && projectId ? (
             <PoUploadInline projectId={projectId} />
           ) : null}
-          {holdOpen && !transferred && (
+          {!readOnly && holdOpen && !transferred && (
             <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg border border-magic-border bg-magic-soft/40 p-3">
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wide text-magic-ink/60">

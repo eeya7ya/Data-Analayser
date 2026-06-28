@@ -413,6 +413,7 @@ export default function QuotationViewer({
         quotationId={id}
         initial={approvalState}
         projectId={(row.project_id as number | null) ?? null}
+        readOnly
       />
       <div className="no-print flex flex-wrap justify-end mb-3 gap-2">
         {salesLocked ? (
