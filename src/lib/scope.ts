@@ -30,6 +30,31 @@ export interface Scope {
   projectIds: number[];
 }
 
+/**
+ * All user IDs in the same tenant as `userId` (multi-tenancy ceiling).
+ *
+ * This is the hard limit for any cross-user visibility: an admin/viewer/manager
+ * may only ever see rows owned by users in their OWN tenant. The list always
+ * contains at least the requester, so filtering `owner_id = any(result)` fails
+ * closed (returns nothing) rather than leaking across tenants.
+ *
+ * `is not distinct from` treats a legacy NULL tenant as equal to NULL, so a
+ * not-yet-backfilled deployment behaves exactly as before (one tenant = all
+ * users). In the current single-tenant DB this returns every user, which makes
+ * the tenant-scoping behaviour-preserving in production.
+ */
+export async function getTenantUserIds(userId: number): Promise<number[]> {
+  const q = sql();
+  const rows = (await q`
+    select u2.id from users u2
+    where u2.tenant_id is not distinct from
+          (select tenant_id from users where id = ${userId})
+  `) as Array<{ id: number }>;
+  const ids = rows.map((r) => r.id);
+  // Defensive: never return empty (would be ambiguous at call sites).
+  return ids.length > 0 ? ids : [userId];
+}
+
 /** Team IDs where this user is the configured manager, scoped to one module. */
 export async function getManagedTeamIds(
   userId: number,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LEAD_STATUS_LABEL } from "@/lib/leadConstants";
@@ -30,6 +30,8 @@ import PageLoader from "@/components/PageLoader";
 interface Lead {
   id: number;
   ref: string;
+  /** Reference of the quotation raised for this lead, once presales builds one. */
+  quote_ref: string | null;
   title: string;
   description: string | null;
   source: string | null;
@@ -156,6 +158,42 @@ export default function LeadsClient({
       cancelled = true;
     };
   }, [tab, isPresales, junk, reloadKey]);
+
+  // Silent background refresh — updates the list in place WITHOUT the loading
+  // skeleton, so polling never makes the rows/icons flash. Used by the poll +
+  // focus listeners below; transient errors are ignored (the list stays put).
+  const silentRefresh = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (junk) params.set("view", "junk");
+    else if (isPresales && tab !== "all") params.set("status", tab);
+    try {
+      const r = await fetch(`/api/leads?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const data = (await r.json()) as { leads?: Lead[]; error?: string };
+      if (!data.error && Array.isArray(data.leads)) setLeads(data.leads);
+    } catch {
+      /* keep the current list on a transient failure */
+    }
+  }, [tab, isPresales, junk]);
+
+  // Keep the shared queue live: leads created, claimed or DELETED by other
+  // users (e.g. sales removing an RFQ) won't push to this tab. Poll quietly
+  // and refresh when the tab regains focus, so a deleted lead drops out on its
+  // own — without the flicker a full reload would cause.
+  useEffect(() => {
+    const id = window.setInterval(() => void silentRefresh(), 30_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void silentRefresh();
+    };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [silentRefresh]);
 
   // Lead junk actions. Move-to-junk / restore / delete-forever all hit the
   // leads API and then re-fetch so the row leaves (or returns to) the view.
@@ -426,7 +464,7 @@ function LeadRowCard({
       <div className="flex flex-1 flex-col gap-1 px-3 py-2.5">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[11px] font-semibold text-magic-ink/55">
-            {lead.ref}
+            {lead.quote_ref ?? "No reference yet"}
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] text-magic-ink/55">
             <span
@@ -511,7 +549,7 @@ function LeadDetailPane({
       <div className="border-b border-magic-border/60 px-5 py-4">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[11px] font-semibold text-magic-ink/55">
-            {lead.ref}
+            {lead.quote_ref ?? "No reference yet"}
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] text-magic-ink/55">
             <span

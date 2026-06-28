@@ -217,7 +217,7 @@ export async function GET() {
       severity: "info",
       title: `${heldPending} quotation${heldPending === 1 ? "" : "s"} held for execution`,
       body: "Scheduled holds transfer automatically; transfer the rest when you're ready.",
-      action: { label: "Open pipeline", href: "/crm/sales-pipeline" },
+      action: { label: "Open pipeline", href: "/crm/pipeline" },
     });
   }
 

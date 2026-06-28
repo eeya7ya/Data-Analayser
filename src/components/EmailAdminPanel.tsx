@@ -56,6 +56,10 @@ export default function EmailAdminPanel() {
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [testErr, setTestErr] = useState<string | null>(null);
 
+  // Per-mailbox test feedback (which row is testing + last error surfaced).
+  const [testingUserId, setTestingUserId] = useState<number | null>(null);
+  const [accErr, setAccErr] = useState<string | null>(null);
+
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [editing, setEditing] = useState<AccountRow | null>(null);
 
@@ -129,18 +133,36 @@ export default function EmailAdminPanel() {
   }
 
   async function testAccount(userId: number) {
-    setAccounts((prev) =>
-      prev.map((a) =>
-        a.user_id === userId ? { ...a, last_test_error: "Testing…" } : a,
-      ),
-    );
+    setTestingUserId(userId);
+    setAccErr(null);
     try {
-      await fetch("/api/admin/email/test", {
+      const res = await fetch("/api/admin/email/test", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ user_id: userId }),
       });
+      const d = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        imap?: { ok: boolean; error?: string };
+        smtp?: { ok: boolean; error?: string };
+      };
+      if (!res.ok) {
+        // e.g. missing EMAIL_ENCRYPTION_KEY, no server config, no mailbox.
+        setAccErr(d.error || `Test failed (HTTP ${res.status}).`);
+      } else if (d.imap && d.smtp && !(d.imap.ok && d.smtp.ok)) {
+        setAccErr(
+          [
+            d.imap.ok ? null : `IMAP: ${d.imap.error || "failed"}`,
+            d.smtp.ok ? null : `SMTP: ${d.smtp.error || "failed"}`,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        );
+      }
+    } catch (e) {
+      setAccErr((e as Error).message);
     } finally {
+      setTestingUserId(null);
       await loadAccounts();
     }
   }
@@ -329,7 +351,11 @@ export default function EmailAdminPanel() {
                     )}
                   </td>
                   <td className="px-3 py-2">
-                    {!a.email_address ? (
+                    {testingUserId === a.user_id ? (
+                      <span className="text-xs font-semibold text-magic-ink/60">
+                        Testing… (can take ~15s)
+                      </span>
+                    ) : !a.email_address ? (
                       <span className="text-xs text-magic-ink/40">unassigned</span>
                     ) : a.last_test_ok === true ? (
                       <span className="text-xs font-semibold text-emerald-700">
@@ -360,9 +386,10 @@ export default function EmailAdminPanel() {
                         <>
                           <button
                             onClick={() => void testAccount(a.user_id)}
-                            className="rounded border border-magic-border px-2 py-1 text-xs font-medium text-magic-ink/70 hover:bg-magic-soft"
+                            disabled={testingUserId !== null}
+                            className="rounded border border-magic-border px-2 py-1 text-xs font-medium text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50"
                           >
-                            Test
+                            {testingUserId === a.user_id ? "Testing…" : "Test"}
                           </button>
                           <button
                             onClick={() => void removeAccount(a.user_id)}
@@ -386,6 +413,11 @@ export default function EmailAdminPanel() {
             </tbody>
           </table>
         </div>
+        {accErr && (
+          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {accErr}
+          </div>
+        )}
       </div>
 
       {editing && (

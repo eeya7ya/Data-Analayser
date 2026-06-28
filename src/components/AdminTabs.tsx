@@ -8,10 +8,12 @@ import BrandingAdmin from "./BrandingAdmin";
 import FolderClassificationPanel from "./FolderClassificationPanel";
 import NewsAdminPanel from "./NewsAdminPanel";
 import EmailAdminPanel from "./EmailAdminPanel";
+import ClientOwnershipPanel from "./ClientOwnershipPanel";
 import type { AppSettings } from "@/lib/settings";
 
 type Tab =
   | "users"
+  | "clients"
   | "folders"
   | "news"
   | "email"
@@ -19,9 +21,21 @@ type Tab =
   | "branding"
   | "backups";
 
+const TABS: Tab[] = [
+  "users",
+  "clients",
+  "folders",
+  "news",
+  "email",
+  "settings",
+  "branding",
+  "backups",
+];
+
 export default function AdminTabs({
   initialSettings,
   readOnly = false,
+  initialTab,
 }: {
   initialSettings: AppSettings;
   /**
@@ -30,14 +44,23 @@ export default function AdminTabs({
    * `requireAdmin()` — `readOnly` is the UX mirror of that gate.
    */
   readOnly?: boolean;
+  /** Tab to open on mount (e.g. from `/admin?tab=clients`). */
+  initialTab?: string;
 }) {
-  const [tab, setTab] = useState<Tab>("users");
+  const [tab, setTab] = useState<Tab>(
+    (TABS as string[]).includes(initialTab ?? "")
+      ? (initialTab as Tab)
+      : "users",
+  );
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 border-b border-magic-border">
         <TabButton active={tab === "users"} onClick={() => setTab("users")}>
           Users &amp; Roles
+        </TabButton>
+        <TabButton active={tab === "clients"} onClick={() => setTab("clients")}>
+          Clients
         </TabButton>
         <TabButton active={tab === "folders"} onClick={() => setTab("folders")}>
           Folders
@@ -71,6 +94,15 @@ export default function AdminTabs({
             Users &amp; Roles
           </h2>
           <UsersAndRolesPanel readOnly={readOnly} />
+        </section>
+      )}
+
+      {tab === "clients" && (
+        <section>
+          <h2 className="text-lg font-semibold text-magic-ink mb-3">
+            Client ownership
+          </h2>
+          <ClientOwnershipPanel readOnly={readOnly} />
         </section>
       )}
 

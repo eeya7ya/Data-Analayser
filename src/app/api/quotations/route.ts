@@ -20,59 +20,48 @@ export const runtime = "nodejs";
 type QuotationMode = "active" | "draft" | "review";
 
 /**
- * Extract the leading initial for the owner of a quotation. We prefer the
- * display name (human-friendly, usually the first name) and fall back to the
- * username, finally 'X' for the exotic case of a user with no readable
- * identifier at all. Uppercased so the REF stays ASCII-stable.
+ * Auto REF for a brand-new active quotation.
+ *
+ * Format: <DEPT>-FO<YY>-<HEX4>   e.g. ITD1-FO26-0001
+ *   DEPT  — the author's admin-assigned department code (per user); "GEN"
+ *           when the user has no code yet.
+ *   FO    — literal, fixed.
+ *   YY    — last two digits of the current year.
+ *   HEX4  — incremental counter in uppercase hexadecimal, zero-padded to 4
+ *           digits. Scoped PER DEPARTMENT and PER YEAR (both live in the
+ *           prefix), so it restarts at 0001 each year for each department.
+ *           Picks the lowest positive integer no live active quotation holds;
+ *           counters held only by soft-deleted (trashed) rows are freed for
+ *           reuse, so a deleted quotation's number is recycled.
+ *
+ * Drafts and reviews never mint a new counter; they inherit the parent's and
+ * append `.D<m>` / `.R<m>` suffixes via {@link genSuffixedRef}. References are
+ * minted for quotations only — leads have their own lifecycle and no REF.
  */
-function ownerInitial(displayName: string | null | undefined, username: string): string {
-  const src = (displayName && displayName.trim()) || (username && username.trim()) || "X";
-  const ch = src.charAt(0);
-  // Only A–Z make sense in a REF; anything else (digits, punctuation, a
-  // non-Latin letter) collapses back to 'X' so the REF stays greppable.
-  return /[A-Za-z]/.test(ch) ? ch.toUpperCase() : "X";
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/**
- * "Smart" REF for a brand-new active quotation.
- *
- * Format: Q<L><MDDYY>MT<n>
- *   L   — first letter of the presales/assigned user's display name
- *   M   — month of creation (unpadded, so April → "4", October → "10")
- *   DD  — zero-padded day of month
- *   YY  — last two digits of the year
- *   MT  — literal, stands for Magic Technology
- *   n   — GLOBAL incremental counter. Picks the lowest positive integer
- *         that no live active quotation currently holds. Counters held
- *         only by soft-deleted rows are freed for reuse so a "test"
- *         quotation that lands in the trash doesn't leave a gap.
- *
- * Drafts and reviews never mint a new `n`; they inherit the parent's
- * counter and append D<m> / R<m> suffixes via {@link genSuffixedRef}.
- *
- * Implementation notes:
- *   - We scan the `MT(\d+)` tail across every non-deleted row (active,
- *     draft and review alike), so a live draft of QA42226MT5 still
- *     reserves the counter 5 until the root active is retired. The
- *     collision probe below is the real safety net — the unique index
- *     on `ref` is the source of truth and catches races.
- *   - Today's example: user "Yasmine" on April 22, 2026, first quotation
- *     of the day in a fresh DB → `QY42226MT1`; the next new one the same
- *     day (or next day, different user) becomes `...MT2`.
- */
+/** 4-digit (min) uppercase hex, e.g. 1 → "0001", 4096 → "1000". */
+function hex4(n: number): string {
+  return n.toString(16).toUpperCase().padStart(4, "0");
+}
+
 async function genActiveRef(
   useD1: boolean,
   q: Sql | null,
-  userInitial: string,
+  departmentCode: string,
 ): Promise<string> {
-  const d = new Date();
-  const m = String(d.getMonth() + 1); // unpadded month, e.g. "4" or "10"
-  const dd = String(d.getDate()).padStart(2, "0");
-  const yy = String(d.getFullYear()).slice(-2);
-  const datePart = `${m}${dd}${yy}`;
+  // <DEPT>-FO<YY>-<HEX4>, e.g. ITD1-FO26-0001. The HEX counter is scoped per
+  // department code AND per calendar year (the year sits in the prefix), so it
+  // restarts at 0001 each year for each department. Soft-deleted rows free
+  // their counter, so deleted numbers are reused (gaps are filled).
+  const dept = (departmentCode || "GEN").trim().toUpperCase() || "GEN";
+  const yy = String(new Date().getFullYear()).slice(-2);
+  const prefix = `${dept}-FO${yy}-`;
 
-  // Every live (non-deleted) ref, regardless of status. Soft-deleted rows
-  // are excluded so their counters become reusable.
+  // Every live (non-deleted) ref. Soft-deleted rows are excluded so their
+  // counters become reusable.
   let rows: Array<{ ref: string }>;
   if (useD1) {
     const result = await d1Query<{ ref: string }>(
@@ -86,10 +75,15 @@ async function genActiveRef(
     `) as Array<{ ref: string }>;
   }
 
+  // Collect used counters for THIS department + year. The counter is exactly
+  // the 4 hex chars right after the prefix; draft/review refs append a
+  // `.D<m>` / `.R<m>` suffix (the dot keeps them out of the hex run), and they
+  // share their root's counter, so reading the leading 4 hex chars is correct.
   const used = new Set<number>();
   for (const { ref } of rows) {
-    const match = /MT(\d+)/.exec(ref || "");
-    if (match) used.add(Number(match[1]));
+    if (!ref || !ref.startsWith(prefix)) continue;
+    const tail = ref.slice(prefix.length, prefix.length + 4);
+    if (/^[0-9A-Fa-f]{4}$/.test(tail)) used.add(parseInt(tail, 16));
   }
 
   // Lowest unused positive integer.
@@ -97,12 +91,10 @@ async function genActiveRef(
   while (used.has(n)) n++;
 
   // Collision probe. The unique index on `ref` is authoritative; this
-  // pre-check just avoids a failed INSERT round-trip if two requests
-  // race on the same counter, and also skips counters that exist on a
-  // soft-deleted row of the same date (we'd generate the same full ref
-  // and hit the unique constraint).
-  for (let attempts = 0; attempts < 100; attempts++) {
-    const candidate = `Q${userInitial}${datePart}MT${n}`;
+  // pre-check just avoids a failed INSERT round-trip if two requests race on
+  // the same counter, and skips counters held by a soft-deleted row.
+  for (let attempts = 0; attempts < 200; attempts++) {
+    const candidate = `${prefix}${hex4(n)}`;
     let existing: Array<Record<string, unknown>>;
     if (useD1) {
       const result = await d1Query<Record<string, unknown>>(
@@ -118,26 +110,25 @@ async function genActiveRef(
     if (existing.length === 0) return candidate;
     n++;
   }
-  // Fall through: 100 consecutive collisions would mean every low integer
-  // is taken on this exact date+initial; hand the highest candidate back
-  // and let the unique index surface the error to the caller.
-  return `Q${userInitial}${datePart}MT${n}`;
+  return `${prefix}${hex4(n)}`;
 }
 
 /**
- * Strip a trailing `R<digits>` / `D<digits>` so every draft/review anchors
+ * Strip a trailing `.R<digits>` / `.D<digits>` so every draft/review anchors
  * to the ROOT active quotation. That way reviewing a draft still produces
- * QA42226MT5R1 (not QA42226MT5D2R1), keeping the REF chain readable.
+ * ITD1-FO26-0001.R1 (not ...0001.D2.R1), keeping the REF chain readable. The
+ * leading `.` matters: the active counter is hex, and the digit `D` would
+ * otherwise be ambiguous with the Draft suffix letter.
  */
 function rootOfRef(ref: string): string {
-  return ref.replace(/(?:[RD])\d+$/, "");
+  return ref.replace(/\.[RD]\d+$/, "");
 }
 
 /**
- * Mint a draft/review REF by appending `D<m>` or `R<m>` to the parent's
- * root REF. `m` is the 1-indexed count of existing drafts (or reviews)
- * that share the same root, so the first draft of QA42226MT5 is
- * QA42226MT5D1, the second is QA42226MT5D2, and so on.
+ * Mint a draft/review REF by appending `.D<m>` or `.R<m>` to the parent's
+ * root REF. `m` is the 1-indexed count of existing drafts (or reviews) that
+ * share the same root, so the first draft of ITD1-FO26-0001 is
+ * ITD1-FO26-0001.D1, the second is ITD1-FO26-0001.D2, and so on.
  */
 async function genSuffixedRef(
   useD1: boolean,
@@ -159,7 +150,7 @@ async function genSuffixedRef(
     `) as Array<{ ref: string }>;
   }
 
-  const pattern = new RegExp(`^${root}${suffix}(\\d+)$`);
+  const pattern = new RegExp(`^${escapeRegExp(root)}\\.${suffix}(\\d+)$`);
   let maxM = 0;
   for (const { ref } of allRefs) {
     const match = pattern.exec(ref || "");
@@ -171,7 +162,7 @@ async function genSuffixedRef(
   let m = maxM + 1;
 
   for (let attempts = 0; attempts < 50; attempts++) {
-    const candidate = `${root}${suffix}${m}`;
+    const candidate = `${root}.${suffix}${m}`;
     let existing: Array<Record<string, unknown>>;
     if (useD1) {
       const result = await d1Query<Record<string, unknown>>(
@@ -187,7 +178,7 @@ async function genSuffixedRef(
     if (existing.length === 0) return candidate;
     m++;
   }
-  return `${root}${suffix}${m}`;
+  return `${root}.${suffix}${m}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -942,8 +933,23 @@ export async function POST(req: NextRequest) {
     if (mode === "active" && body.ref && body.ref.trim()) {
       ref = body.ref.trim();
     } else if (mode === "active") {
-      const initial = ownerInitial(user.display_name, user.username);
-      ref = await genActiveRef(useD1, q, initial);
+      // The reference's leading segment is the author's admin-assigned
+      // department code (e.g. "ITD1"); empty falls back to "GEN".
+      let dept = "";
+      if (useD1) {
+        const r = await d1Query<{ department_code: string }>(
+          `select coalesce(department_code,'') as department_code from users where id = ?`,
+          [user.id],
+        );
+        dept = r.results[0]?.department_code || "";
+      } else {
+        const r = (await q!`
+          select coalesce(department_code,'') as department_code
+          from users where id = ${user.id} limit 1
+        `) as Array<{ department_code: string }>;
+        dept = r[0]?.department_code || "";
+      }
+      ref = await genActiveRef(useD1, q, dept);
     } else {
       ref = await genSuffixedRef(
         useD1,

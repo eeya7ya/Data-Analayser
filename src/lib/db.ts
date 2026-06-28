@@ -1,12 +1,13 @@
 import postgres, { type Sql } from "postgres";
+import { RELEASE_NOTES } from "./releaseNotes";
 
 /**
- * Supabase Postgres client for Vercel serverless runtimes.
+ * Postgres client for Vercel serverless runtimes.
  *
- * The connection URL should point at the Supabase **Transaction Pooler**
- * (Supavisor) on port `6543` — e.g.:
+ * The connection URL should point at a **transaction pooler** (e.g. port
+ * `6543`) — e.g.:
  *
- *   postgres://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+ *   postgres://<user>:<password>@<host>:6543/<database>
  *
  * Transaction mode is required for serverless because each function
  * invocation briefly checks out a pooled connection. This mode does NOT
@@ -14,8 +15,8 @@ import postgres, { type Sql } from "postgres";
  *
  * Env var resolution order (first non-empty wins):
  *   1. DATABASE_URL            — manual setup (our docs).
- *   2. POSTGRES_URL            — injected by the Supabase→Vercel native
- *                                integration; points at the pooled endpoint.
+ *   2. POSTGRES_URL            — common alias (also injected by some Vercel
+ *                                Postgres integrations); pooled endpoint.
  *   3. POSTGRES_PRISMA_URL     — same source, Prisma-flavoured pooled URL.
  *   4. POSTGRES_URL_NON_POOLING — last-resort direct connection (NOT
  *                                 recommended for serverless — see note).
@@ -39,11 +40,10 @@ function getUrl(): string {
     process.env.POSTGRES_URL_NON_POOLING;
   if (!url) {
     throw new Error(
-      "No Supabase connection string found. Expected one of DATABASE_URL, " +
+      "No Postgres connection string found. Expected one of DATABASE_URL, " +
         "POSTGRES_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL_NON_POOLING in " +
-        "the Vercel project env (Project Settings → Environment Variables). " +
-        "The Supabase→Vercel integration normally injects POSTGRES_URL " +
-        "automatically; redeploy after linking it.",
+        "your host's environment variables (e.g. Vercel → Project Settings → " +
+        "Environment Variables); redeploy after setting it.",
     );
   }
   return url;
@@ -58,9 +58,9 @@ function getUrl(): string {
 export function sql(): Sql {
   if (!globalForDb.__mtSql) {
     globalForDb.__mtSql = postgres(getUrl(), {
-      // Supabase requires TLS for every connection.
+      // The pooler requires TLS for every connection.
       ssl: "require",
-      // Required for Supabase Transaction Pooler (pgbouncer-in-transaction-mode)
+      // Required for transaction-mode poolers (pgbouncer-in-transaction-mode)
       // because prepared statements cannot span pooled connections.
       prepare: false,
       // Small pool per lambda — three sockets is the sweet spot for the CRM
@@ -96,7 +96,7 @@ const globalForSchema = globalThis as unknown as {
  * in `migration_flags` to short-circuit the bootstrap on warm deployments.
  *
  * The full DDL block is ~35 sequential statements and each one is a
- * Supabase round-trip. Running them on every Vercel cold start was adding
+ * database round-trip. Running them on every Vercel cold start was adding
  * 2-3 seconds of pure wait time to every request that landed on a new
  * serverless instance, which is what drove the "every page takes way too
  * long to open" complaint. With the fingerprint marker we turn the
@@ -229,7 +229,7 @@ const CATALOGUE_PICTURE_FLAG = "catalogue_picture_v1_2026_04";
  *      `purchase_orders`. Nullable so legacy readers that don't filter
  *      by project still see every row.
  *   3. Creates `project_files` for arbitrary uploads (PDFs / sheets)
- *      whose binary lives in Supabase Storage; this table only stores
+ *      whose binary lives in object storage (R2); this table only stores
  *      the filename, mime, byte size and the storage path.
  *   4. Backfills: for every client_folders row that doesn't already
  *      have a project, creates a "Default Project" and assigns every
@@ -409,11 +409,23 @@ const ORPHAN_FOLDER_CLEANUP_FLAG = "orphan_company_folder_cleanup_v1_2026_06";
 const INSTALLATION_RATES_FLAG = "installation_rates_v1_2026_06";
 // Remember the sales project an RFQ was raised from (survives presales filing).
 const LEADS_SALES_PROJECT_FLAG = "leads_sales_project_v1_2026_06";
+// Multi-tenancy: a `tenants` table + `users.tenant_id`, seeded with one default
+// tenant and every existing user backfilled into it (single-tenant-preserving).
+const MULTITENANCY_FLAG = "multitenancy_tenants_v1_2026_06";
+// Per-user department code (e.g. "ITD1") — the leading segment of every
+// auto-generated quotation reference (<DEPT>-FO<YY>-<HEX>).
+const DEPARTMENT_CODE_FLAG = "user_department_code_v1_2026_06";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
-  globalForSchema.__mtSchemaPromise = _ensureSchemaOnce();
+  // Ensure DDL first, then seed the release-notes changelog. The seed lives
+  // outside _ensureSchemaOnce's "nothing to do" early return so it still runs
+  // on warm, already-bootstrapped databases.
+  globalForSchema.__mtSchemaPromise = (async () => {
+    await _ensureSchemaOnce();
+    await _seedReleaseNotes();
+  })();
   return globalForSchema.__mtSchemaPromise;
 }
 
@@ -496,6 +508,8 @@ async function _ensureSchemaOnce(): Promise<void> {
   let orphanFolderCleanupApplied = false;
   let installationRatesApplied = false;
   let leadsSalesProjectApplied = false;
+  let multitenancyApplied = false;
+  let departmentCodeApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -512,7 +526,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${V13B_FLAG}, ${V13C_FLAG}, ${V13D_FLAG}, ${USER_TOOLS_FLAG},
         ${V14A_FLAG}, ${LEAD_SHARED_QUEUE_FLAG}, ${PROJECT_TASKS_FLAG},
         ${PRODUCT_BARCODE_FLAG}, ${ORPHAN_FOLDER_CLEANUP_FLAG},
-        ${INSTALLATION_RATES_FLAG}, ${LEADS_SALES_PROJECT_FLAG}
+        ${INSTALLATION_RATES_FLAG}, ${LEADS_SALES_PROJECT_FLAG},
+        ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -550,6 +565,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     orphanFolderCleanupApplied = keys.has(ORPHAN_FOLDER_CLEANUP_FLAG);
     installationRatesApplied = keys.has(INSTALLATION_RATES_FLAG);
     leadsSalesProjectApplied = keys.has(LEADS_SALES_PROJECT_FLAG);
+    multitenancyApplied = keys.has(MULTITENANCY_FLAG);
+    departmentCodeApplied = keys.has(DEPARTMENT_CODE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -589,7 +606,9 @@ async function _ensureSchemaOnce(): Promise<void> {
     productBarcodeApplied &&
     orphanFolderCleanupApplied &&
     installationRatesApplied &&
-    leadsSalesProjectApplied
+    leadsSalesProjectApplied &&
+    multitenancyApplied &&
+    departmentCodeApplied
   )
     return;
 
@@ -1508,7 +1527,7 @@ async function _ensureSchemaOnce(): Promise<void> {
       create index if not exists purchase_orders_project_idx on purchase_orders(project_id)
     `;
 
-    // 3. project_files table. The binary itself lives in Supabase Storage;
+    // 3. project_files table. The binary itself lives in object storage (R2);
     //    `storage_path` is the bucket-relative key the upload flow signs
     //    against. `kind` partitions the Files panel into Quotation / PO /
     //    BOQ / Other tabs without forcing four separate tables.
@@ -2784,6 +2803,114 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`
       insert into migration_flags (key) values (${LEADS_SALES_PROJECT_FLAG})
       on conflict (key) do nothing
+    `;
+  }
+
+  if (!multitenancyApplied) {
+    // Each user belongs to one tenant (company). A single default tenant is
+    // seeded and every existing user is backfilled into it, so an existing
+    // single-company deployment keeps behaving exactly as before. Per-feature
+    // isolation is layered on top by scoping "see all" reads to the requester's
+    // tenant (see getTenantUserIds in src/lib/scope.ts). Additive + idempotent.
+    await q`
+      create table if not exists tenants (
+        id         serial primary key,
+        name       text not null,
+        slug       text unique,
+        plan       text not null default 'trial',
+        created_at timestamptz not null default now()
+      )
+    `;
+    await q`
+      insert into tenants (name, slug)
+      values ('MagicTech', 'magictech')
+      on conflict (slug) do nothing
+    `;
+    await q`
+      alter table users add column if not exists tenant_id integer references tenants(id)
+    `;
+    // Backfill any user without a tenant into the default tenant. Runs every
+    // boot, so a freshly-seeded admin or a row that slipped through self-heals.
+    await q`
+      update users set tenant_id = (select id from tenants where slug = 'magictech')
+      where tenant_id is null
+    `;
+    await q`
+      create index if not exists users_tenant_idx on users(tenant_id)
+    `;
+    // jsonb normalization helpers. items_json / totals_json are written via
+    // `${JSON.stringify(x)}::jsonb`, which the postgres driver stores as a jsonb
+    // *scalar string* (the array/object JSON wrapped one extra level), not a
+    // real jsonb array/object — so `totals_json->>'total'` is NULL and
+    // `jsonb_array_elements(items_json)` can't read it. The app's JS readers
+    // already JSON.parse defensively; these functions give SQL the same
+    // tolerance, accepting BOTH the double-encoded string form and a proper
+    // array/object. Used by the pipeline-board queries.
+    await q`
+      create or replace function jsonb_as_array(j jsonb) returns jsonb
+      language sql immutable as $$
+        select case
+          when jsonb_typeof(j) = 'array' then j
+          when jsonb_typeof(j) = 'string' and left(j #>> '{}', 1) = '['
+            then (j #>> '{}')::jsonb
+          else '[]'::jsonb
+        end
+      $$
+    `;
+    await q`
+      create or replace function jsonb_as_object(j jsonb) returns jsonb
+      language sql immutable as $$
+        select case
+          when jsonb_typeof(j) = 'object' then j
+          when jsonb_typeof(j) = 'string' and left(j #>> '{}', 1) = '{'
+            then (j #>> '{}')::jsonb
+          else '{}'::jsonb
+        end
+      $$
+    `;
+    await q`
+      insert into migration_flags (key) values (${MULTITENANCY_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!departmentCodeApplied) {
+    // Per-user department code (e.g. "ITD1") assigned by an admin. It forms the
+    // leading segment of every auto-generated quotation reference
+    // (<DEPT>-FO<YY>-<HEX>). Empty until an admin assigns one. Additive, so
+    // databases that predate this column gain it here.
+    await q`alter table users add column if not exists department_code text not null default ''`;
+    await q`
+      insert into migration_flags (key) values (${DEPARTMENT_CODE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+}
+
+/**
+ * Seed the release-notes changelog (src/lib/releaseNotes.ts) into `news_posts`
+ * so the Product-updates feed always reflects the shipped version.
+ *
+ * Runs once per process AFTER `_ensureSchemaOnce` (so `news_posts` exists),
+ * and crucially OUTSIDE its "all migrations applied — nothing to do" early
+ * return, so the changelog still seeds on warm/already-bootstrapped databases.
+ * It is NOT gated by a migration flag and is idempotent by title, so adding a
+ * note in releaseNotes.ts surfaces it on the next cold start with no
+ * fingerprint bump. `created_by` is null (a system post) and the `all`
+ * audience makes it visible to every role.
+ */
+async function _seedReleaseNotes(): Promise<void> {
+  const q = sql();
+  for (const note of RELEASE_NOTES) {
+    await q`
+      insert into news_posts
+        (title, body, audience_modules, audience_roles, pinned, created_by, created_at)
+      select ${note.title}, ${note.body},
+             ${note.audience_modules}::text[], ${note.audience_roles}::text[],
+             ${note.pinned}, null, ${note.date}::timestamptz
+      where not exists (
+        select 1 from news_posts where title = ${note.title}
+      )
     `;
   }
 }

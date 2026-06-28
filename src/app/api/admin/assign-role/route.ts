@@ -7,22 +7,23 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Single-role assignment.
+ * Multi-role assignment.
  *
- * The admin assigns ONE role to a person — Admin, Viewer, a job role
- * (Sales, Presales Manager, Engineer, …), or "none". That one choice
- * defines both their access level and what the app shows them, so this
- * endpoint collapses the legacy `users.role` column and the
- * `user_module_roles` grants into a single, consistent state:
+ * The admin assigns a SET of roles to a person. `Admin` and `Viewer` are
+ * exclusive, top-level access levels (they clear every job grant); otherwise
+ * a person may hold any combination of job roles (Sales, Presales Manager,
+ * Engineer, Storage Worker, …) at once — e.g. someone who is both Presales
+ * and a Projects Engineer.
  *
- *   role = "admin"      → users.role = 'admin', all module grants cleared
- *   role = "viewer"     → users.role = 'viewer', all module grants cleared
- *   role = "none"       → users.role = 'user',  all module grants cleared
- *   role = "crm.sales"  → users.role = 'user',  exactly that one grant
- *   (any "<module>.<role>" pair from the catalogue)
+ *   roles = ["admin"]                       → users.role = 'admin', grants cleared
+ *   roles = ["viewer"]                      → users.role = 'viewer', grants cleared
+ *   roles = [] | ["none"]                   → users.role = 'user',  grants cleared
+ *   roles = ["crm.presales","projects.engineer"]
+ *                                           → users.role = 'user', exactly those grants
  *
- * Switching roles always revokes the previous module grants first, so a
- * person never ends up holding two jobs at once.
+ * The desired set is made authoritative: any active grant not in the set is
+ * revoked, and every grant in the set is (re)granted. A legacy single `role`
+ * string is still accepted for backward compatibility.
  */
 
 function isModule(s: unknown): s is Module {
@@ -34,9 +35,21 @@ export async function POST(req: Request) {
     const admin = await requireAdmin();
     await ensureSchema();
 
-    const body = (await req.json()) as { user_id?: number; role?: string };
+    const body = (await req.json()) as {
+      user_id?: number;
+      roles?: string[];
+      role?: string; // legacy single-role
+    };
     const userId = Number(body.user_id);
-    const role = String(body.role || "");
+    const roles = (
+      Array.isArray(body.roles)
+        ? body.roles
+        : body.role != null
+          ? [body.role]
+          : []
+    )
+      .map((r) => String(r || ""))
+      .filter((r) => r.length > 0 && r !== "none");
     if (!Number.isInteger(userId) || userId <= 0) {
       return NextResponse.json({ error: "invalid user_id" }, { status: 400 });
     }
@@ -49,38 +62,51 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "user not found" }, { status: 404 });
     }
 
-    // Resolve the requested role into (accessLevel, optional grant).
+    // Resolve the requested roles into (accessLevel, set of grants).
+    // Admin / Viewer are exclusive — they override any job roles and clear grants.
     let accessLevel: "admin" | "viewer" | "user";
-    let grant: { module: Module; role: string } | null = null;
+    let grants: Array<{ module: Module; role: string }> = [];
 
-    if (role === "admin") {
+    if (roles.includes("admin")) {
       accessLevel = "admin";
-    } else if (role === "viewer") {
+    } else if (roles.includes("viewer")) {
       accessLevel = "viewer";
-    } else if (role === "none" || role === "") {
-      accessLevel = "user";
     } else {
-      const [mod, ...rest] = role.split(".");
-      const r = rest.join(".");
-      if (!isModule(mod) || !(ROLES_PER_MODULE[mod] as readonly string[]).includes(r)) {
-        return NextResponse.json({ error: "invalid role" }, { status: 400 });
-      }
       accessLevel = "user";
-      grant = { module: mod, role: r };
+      const seen = new Set<string>();
+      for (const role of roles) {
+        const [mod, ...rest] = role.split(".");
+        const r = rest.join(".");
+        if (
+          !isModule(mod) ||
+          !(ROLES_PER_MODULE[mod] as readonly string[]).includes(r)
+        ) {
+          return NextResponse.json(
+            { error: `invalid role "${role}"` },
+            { status: 400 },
+          );
+        }
+        const key = `${mod}.${r}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          grants.push({ module: mod, role: r });
+        }
+      }
     }
 
     // 1) Set the legacy access level.
     await q`update users set role = ${accessLevel} where id = ${userId}`;
 
-    // 2) Clear every existing module grant (single-role model).
+    // 2) Revoke every existing grant, then re-grant exactly the desired set
+    //    below. This makes the request authoritative without per-tuple diffing.
     await q`
       update user_module_roles
       set revoked_at = now(), revoked_by = ${admin.id}
       where user_id = ${userId} and revoked_at is null
     `;
 
-    // 3) Re-grant the single chosen job role, if any.
-    if (grant) {
+    // 3) (Re)grant each chosen job role. The upsert clears the revoke flags.
+    for (const grant of grants) {
       await q`
         insert into user_module_roles (user_id, module, role, granted_by, created_at)
         values (${userId}, ${grant.module}, ${grant.role}, ${admin.id}, now())
@@ -95,7 +121,7 @@ export async function POST(req: Request) {
     await q`
       insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
       values (${admin.id}, 'user', ${userId}, 'assign_role',
-              ${JSON.stringify({ role })}::jsonb)
+              ${JSON.stringify({ accessLevel, grants: grants.map((g) => `${g.module}.${g.role}`) })}::jsonb)
     `;
 
     return NextResponse.json({ ok: true });

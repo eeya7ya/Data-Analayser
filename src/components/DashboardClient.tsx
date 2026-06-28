@@ -63,6 +63,9 @@ export default function DashboardClient({
   greetingName,
   showApprovals,
   showOutcomes,
+  primaryKpiLabel = "Quotations",
+  chartTitle = "Quotations created",
+  chartNoun = "Quotations",
 }: {
   data: DashboardData;
   greetingName: string;
@@ -73,6 +76,11 @@ export default function DashboardClient({
   showApprovals: boolean;
   /** "Sales outcomes" (Won/Lost/Held) is a sales-only scoreboard. */
   showOutcomes: boolean;
+  /** Label for the lead KPI card (e.g. "Deals won" in the sales lens). */
+  primaryKpiLabel?: string;
+  /** Headline trend-chart title + the metric noun used in the area/tooltip. */
+  chartTitle?: string;
+  chartNoun?: string;
 }) {
   const { kpis, status, approvals, outcomes } = data;
   const [granularity, setGranularity] = useState<Granularity>("monthly");
@@ -106,7 +114,7 @@ export default function DashboardClient({
           showApprovals ? "xl:grid-cols-5" : "xl:grid-cols-4"
         }`}
       >
-        <Kpi label="Quotations" value={kpis.quotations} icon={FileText} tone="red" />
+        <Kpi label={primaryKpiLabel} value={kpis.quotations} icon={FileText} tone="red" />
         <Kpi label="Clients" value={kpis.clients} icon={Users} tone="indigo" />
         <Kpi label="Companies" value={kpis.companies} icon={Building2} tone="cyan" />
         <Kpi label="Projects" value={kpis.projects} icon={FolderKanban} tone="violet" />
@@ -127,7 +135,7 @@ export default function DashboardClient({
             <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h3 className="text-sm font-bold text-magic-ink">
-                  Quotations created
+                  {chartTitle}
                 </h3>
                 <p className="text-xs text-magic-ink/50">
                   {GRANULARITY_META[granularity].subtitle}
@@ -171,7 +179,7 @@ export default function DashboardClient({
                   <Area
                     type="monotone"
                     dataKey="count"
-                    name="Quotations"
+                    name={chartNoun}
                     stroke="#E2231A"
                     strokeWidth={2.5}
                     fill="url(#qGrad)"

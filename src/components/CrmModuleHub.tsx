@@ -198,21 +198,17 @@ export default function CrmModuleHub({
   }, [tab]);
 
   const entryCards: Record<TabId, EntryCard[]> = {
-    // 1.4A — the Sales tab is just the client work + the tracking tool.
-    // Opening an RFQ happens in-context from a client / project, project
-    // handoffs live in the Projects area, and Approvals is a sales-manager
-    // queue (shown only to managers, since approvals are sales-only).
+    // The Sales tab is just the Quote-to-Delivery pipeline — sales drive the
+    // whole quotation lifecycle (value, margin, forecast, client outcome) from
+    // that one board. Opening an RFQ happens in-context from a client/project,
+    // and project handoffs live in the Projects area. There is no separate
+    // Approvals queue: there is no sales-manager sign-off step any more.
     sales: [
-      { href: "/crm/sales-pipeline", title: "Sales pipeline", desc: "Track your Held, Won, and Lost deals." },
-      ...(flags.salesManager
-        ? [
-            {
-              href: "/inbox/approvals",
-              title: "Approvals",
-              desc: "Review and sign off quotations awaiting approval.",
-            },
-          ]
-        : []),
+      {
+        href: "/crm/pipeline",
+        title: "Pipeline",
+        desc: "Quote-to-delivery board: value, margin, forecast and outcomes.",
+      },
     ],
     presales: [
       {

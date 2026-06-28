@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { getTenantUserIds } from "@/lib/scope";
 import {
   canCreateLead,
   generateLeadRef,
@@ -121,7 +122,7 @@ export async function GET(req: NextRequest) {
         )
         and (${junkView}::boolean = true or ${includeDone}::boolean = true or l.completed_at is null)
         and (
-          ${vis.full}::boolean
+          (${vis.full}::boolean and l.created_by = any(${vis.tenantUserIds}::int[]))
           or l.created_by = ${vis.userId}
           or l.assigned_to_id = ${vis.userId}
         )
@@ -199,7 +200,8 @@ export async function POST(req: NextRequest) {
     // Smart-assign context — only persist IDs that actually resolve to a
     // live row (and, for non-admins, one they own) so a stray id from the
     // query string can't attach a lead to someone else's account.
-    const ownerScope = user.role === "admin" ? null : user.id;
+    const ownerIds =
+      user.role === "admin" ? await getTenantUserIds(user.id) : [user.id];
     let folderId: number | null = null;
     let companyId: number | null = null;
     let contactId: number | null = null;
@@ -207,7 +209,7 @@ export async function POST(req: NextRequest) {
       const fr = (await q`
         select id, company_id from client_folders
         where id = ${Number(body.folder_id)} and deleted_at is null
-          and (${ownerScope}::int is null or owner_id = ${ownerScope})
+          and owner_id = any(${ownerIds}::int[])
         limit 1
       `) as Array<{ id: number; company_id: number | null }>;
       if (fr.length > 0) {
@@ -223,7 +225,7 @@ export async function POST(req: NextRequest) {
       const cr = (await q`
         select id from companies
         where id = ${Number(body.company_id)} and deleted_at is null
-          and (${ownerScope}::int is null or owner_id = ${ownerScope})
+          and owner_id = any(${ownerIds}::int[])
         limit 1
       `) as Array<{ id: number }>;
       if (cr.length > 0) companyId = cr[0].id;
@@ -232,7 +234,7 @@ export async function POST(req: NextRequest) {
       const ctr = (await q`
         select id from contacts
         where id = ${Number(body.contact_id)} and deleted_at is null
-          and (${ownerScope}::int is null or owner_id = ${ownerScope})
+          and owner_id = any(${ownerIds}::int[])
         limit 1
       `) as Array<{ id: number }>;
       if (ctr.length > 0) contactId = ctr[0].id;
@@ -260,9 +262,10 @@ export async function POST(req: NextRequest) {
       }>;
       if (
         pr.length > 0 &&
-        (ownerScope === null ||
-          pr[0].project_owner_id === user.id ||
-          pr[0].folder_owner_id === user.id)
+        ((pr[0].project_owner_id != null &&
+          ownerIds.includes(pr[0].project_owner_id)) ||
+          (pr[0].folder_owner_id != null &&
+            ownerIds.includes(pr[0].folder_owner_id)))
       ) {
         projectId = pr[0].id;
         folderId = pr[0].folder_id;

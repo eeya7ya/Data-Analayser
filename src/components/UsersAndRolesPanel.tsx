@@ -5,12 +5,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 /**
  * Admin → Users & Roles.
  *
- * One person, one role. The admin assigns a single role — Admin, Viewer,
- * or a job role (Sales, Presales Manager, Engineer, …) — and that one
- * choice defines both the person's access level and what the app shows
- * them. The (module, role) plumbing is hidden behind friendly names; the
- * assignment goes through POST /api/admin/assign-role, which sets the
- * access level and the single module grant atomically.
+ * A person can hold MULTIPLE job roles at once (e.g. both Presales and a
+ * Projects Engineer). The admin ticks any combination of job roles from a
+ * checklist; `Admin` and `Viewer` are exclusive top-level access levels that
+ * clear every job role. The (module, role) plumbing is hidden behind friendly
+ * names; assignment goes through POST /api/admin/assign-role, which takes the
+ * full set of roles and makes it authoritative in one call.
  */
 
 interface U {
@@ -21,6 +21,8 @@ interface U {
   phone: string;
   /** Work email printed on the user's quotations / financial proposals. */
   email: string;
+  /** Admin-assigned department code — leads every quotation REF (e.g. "ITD1"). */
+  department_code: string;
   created_at: string;
 }
 
@@ -78,12 +80,17 @@ const LABEL_BY_VALUE: Record<string, string> = Object.fromEntries(
   ROLE_GROUPS.flatMap((g) => g.options.map((o) => [o.value, o.label])),
 );
 
-function roleValueFor(u: U, grants: Grant[]): string {
-  if (u.role === "admin") return "admin";
-  if (u.role === "viewer") return "viewer";
-  const g = grants[0];
-  return g ? `${g.module}.${g.role}` : "none";
+/** The full set of role values a user currently holds (for the checklist + chips). */
+function currentRolesFor(u: U, grants: Grant[]): string[] {
+  if (u.role === "admin") return ["admin"];
+  if (u.role === "viewer") return ["viewer"];
+  return grants.map((g) => `${g.module}.${g.role}`);
 }
+
+/** Job-role groups only (Administration access levels handled separately). */
+const JOB_ROLE_GROUPS = ROLE_GROUPS.filter(
+  (g) => g.group !== "Administration" && g.group !== "—",
+);
 
 export default function UsersAndRolesPanel({
   readOnly = false,
@@ -102,15 +109,22 @@ export default function UsersAndRolesPanel({
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [newRole, setNewRole] = useState<string>("crm.sales");
+  const [newDept, setNewDept] = useState("");
+  const [newRoles, setNewRoles] = useState<string[]>(["crm.sales"]);
+  const [createRolesOpen, setCreateRolesOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
+
+  // Roles editor modal (multi-role checklist).
+  const [rolesUser, setRolesUser] = useState<U | null>(null);
+  const [rolesSaving, setRolesSaving] = useState(false);
 
   // Edit modal (display name / phone / email / password).
   const [editUser, setEditUser] = useState<U | null>(null);
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [editDept, setEditDept] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editErr, setEditErr] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -160,21 +174,24 @@ export default function UsersAndRolesPanel({
     return { total: users.length, admins, assigned };
   }, [users, grantsByUser]);
 
-  async function assignRole(userId: number, role: string) {
+  async function assignRoles(userId: number, roles: string[]) {
+    setRolesSaving(true);
     setBusyUserId(userId);
     setError(null);
     try {
       const res = await fetch("/api/admin/assign-role", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ user_id: userId, role }),
+        body: JSON.stringify({ user_id: userId, roles }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setRolesUser(null);
       await loadAll();
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      setRolesSaving(false);
       setBusyUserId(null);
     }
   }
@@ -184,27 +201,35 @@ export default function UsersAndRolesPanel({
     setCreateErr(null);
     setCreating(true);
     try {
-      // Create the account first (as a plain user), then apply the role.
+      // Admin/Viewer are exclusive access levels; otherwise the account is a
+      // plain user that then receives the chosen job-role grants.
+      const accessLevel = newRoles.includes("admin")
+        ? "admin"
+        : newRoles.includes("viewer")
+          ? "viewer"
+          : "user";
+      // Create the account first, then apply the full role set authoritatively.
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username,
           password,
-          role: newRole === "admin" ? "admin" : newRole === "viewer" ? "viewer" : "user",
+          role: accessLevel,
           display_name: displayName,
           phone,
           email,
+          department_code: newDept,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed");
       const newId = data.user?.id;
-      if (newId && newRole.includes(".")) {
+      if (newId && newRoles.length > 0) {
         await fetch("/api/admin/assign-role", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ user_id: newId, role: newRole }),
+          body: JSON.stringify({ user_id: newId, roles: newRoles }),
         });
       }
       setUsername("");
@@ -212,7 +237,8 @@ export default function UsersAndRolesPanel({
       setPhone("");
       setEmail("");
       setPassword("");
-      setNewRole("crm.sales");
+      setNewDept("");
+      setNewRoles(["crm.sales"]);
       await loadAll();
     } catch (e) {
       setCreateErr((e as Error).message);
@@ -237,6 +263,7 @@ export default function UsersAndRolesPanel({
     setEditDisplayName(u.display_name || "");
     setEditPhone(u.phone || "");
     setEditEmail(u.email || "");
+    setEditDept(u.department_code || "");
     setEditPassword("");
     setEditErr(null);
   }
@@ -251,6 +278,7 @@ export default function UsersAndRolesPanel({
         display_name: editDisplayName,
         phone: editPhone,
         email: editEmail,
+        department_code: editDept,
       };
       if (editPassword) body.password = editPassword;
       const res = await fetch(`/api/users?id=${editUser.id}`, {
@@ -289,7 +317,7 @@ export default function UsersAndRolesPanel({
           <h3 className="mb-3 text-sm font-semibold text-magic-ink">
             Create user
           </h3>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-7">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-8">
             <input
               className="rounded-md border border-magic-border px-3 py-2 text-sm"
               placeholder="username"
@@ -325,14 +353,25 @@ export default function UsersAndRolesPanel({
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-            <RoleSelect
-              value={newRole}
-              onChange={setNewRole}
-              includeNone={false}
+            <input
+              className="rounded-md border border-magic-border px-3 py-2 text-sm uppercase"
+              placeholder="department code"
+              title="Leads every quotation reference, formatted DEPT-FO<year>-<hex>"
+              value={newDept}
+              onChange={(e) => setNewDept(e.target.value.toUpperCase())}
             />
             <button
+              type="button"
+              onClick={() => setCreateRolesOpen(true)}
+              className="flex min-h-[38px] flex-wrap items-center gap-1 rounded-md border border-magic-border bg-white px-2 py-1 text-left text-xs hover:border-magic-red/40"
+              title="Choose roles"
+            >
+              <RoleChips values={newRoles} />
+              <span className="ml-auto text-magic-ink/40">▾</span>
+            </button>
+            <button
               disabled={creating}
-              className="rounded-md bg-magic-red px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              className="rounded-md bg-magic-red px-3 py-2 text-sm font-semibold text-white hover:bg-magic-red/85 disabled:opacity-60"
             >
               {creating ? "Creating…" : "Create user"}
             </button>
@@ -361,7 +400,7 @@ export default function UsersAndRolesPanel({
           </thead>
           <tbody>
             {users.map((u) => {
-              const value = roleValueFor(u, grantsByUser.get(u.id) ?? []);
+              const roleValues = currentRolesFor(u, grantsByUser.get(u.id) ?? []);
               const rowBusy = busyUserId === u.id;
               return (
                 <tr key={u.id} className="border-t border-magic-border align-middle">
@@ -374,22 +413,33 @@ export default function UsersAndRolesPanel({
                       {u.phone ? ` · ${u.phone}` : ""}
                       {u.email ? ` · ${u.email}` : ""}
                     </div>
-                    <div className="mt-0.5 font-mono text-[11px] text-magic-ink/40">
-                      #{u.id} · {new Date(u.created_at).toLocaleDateString()}
+                    <div className="mt-0.5 flex items-center gap-2 font-mono text-[11px] text-magic-ink/40">
+                      <span>
+                        #{u.id} · {new Date(u.created_at).toLocaleDateString()}
+                      </span>
+                      {u.department_code && (
+                        <span
+                          className="rounded bg-magic-soft px-1.5 py-0.5 font-semibold text-magic-ink/70"
+                          title="Department code — leads this user's quotation refs"
+                        >
+                          {u.department_code}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="p-3">
-                    {readOnly ? (
-                      <span className="rounded-md border border-magic-border bg-magic-soft px-2 py-1 text-xs text-magic-ink/70">
-                        {LABEL_BY_VALUE[value] ?? value}
-                      </span>
-                    ) : (
-                      <RoleSelect
-                        value={value}
-                        disabled={rowBusy}
-                        onChange={(v) => void assignRole(u.id, v)}
-                      />
-                    )}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <RoleChips values={roleValues} />
+                      {!readOnly && (
+                        <button
+                          onClick={() => setRolesUser(u)}
+                          disabled={rowBusy}
+                          className="rounded border border-magic-border px-2 py-1 text-[11px] font-medium text-magic-ink/70 hover:border-magic-red/40 hover:text-magic-red disabled:opacity-50"
+                        >
+                          Edit roles
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="whitespace-nowrap p-3 text-right">
                     {readOnly ? (
@@ -424,7 +474,7 @@ export default function UsersAndRolesPanel({
       {/* Mobile cards */}
       <div className="space-y-3 lg:hidden">
         {users.map((u) => {
-          const value = roleValueFor(u, grantsByUser.get(u.id) ?? []);
+          const roleValues = currentRolesFor(u, grantsByUser.get(u.id) ?? []);
           const rowBusy = busyUserId === u.id;
           return (
             <div
@@ -451,17 +501,16 @@ export default function UsersAndRolesPanel({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <label className="text-xs text-magic-ink/60">Role</label>
-                {readOnly ? (
-                  <span className="rounded-md border border-magic-border bg-magic-soft px-2 py-1 text-sm text-magic-ink/70">
-                    {LABEL_BY_VALUE[value] ?? value}
-                  </span>
-                ) : (
-                  <RoleSelect
-                    value={value}
+                <label className="text-xs text-magic-ink/60">Roles</label>
+                <RoleChips values={roleValues} />
+                {!readOnly && (
+                  <button
+                    onClick={() => setRolesUser(u)}
                     disabled={rowBusy}
-                    onChange={(v) => void assignRole(u.id, v)}
-                  />
+                    className="rounded border border-magic-border px-2 py-1 text-[11px] font-medium text-magic-ink/70 hover:border-magic-red/40 hover:text-magic-red disabled:opacity-50"
+                  >
+                    Edit roles
+                  </button>
                 )}
               </div>
 
@@ -488,6 +537,34 @@ export default function UsersAndRolesPanel({
           );
         })}
       </div>
+
+      {/* Roles editor modal (multi-role checklist) — existing user */}
+      {rolesUser && (
+        <RolesEditor
+          title={`Roles for ${rolesUser.username}`}
+          initial={currentRolesFor(
+            rolesUser,
+            grantsByUser.get(rolesUser.id) ?? [],
+          )}
+          saving={rolesSaving}
+          onCancel={() => setRolesUser(null)}
+          onSave={(roles) => void assignRoles(rolesUser.id, roles)}
+        />
+      )}
+
+      {/* Roles editor modal — choosing roles for a NEW user before creating */}
+      {createRolesOpen && (
+        <RolesEditor
+          title="Roles for the new user"
+          initial={newRoles}
+          saving={false}
+          onCancel={() => setCreateRolesOpen(false)}
+          onSave={(roles) => {
+            setNewRoles(roles);
+            setCreateRolesOpen(false);
+          }}
+        />
+      )}
 
       {/* Edit modal */}
       {editUser && (
@@ -529,6 +606,13 @@ export default function UsersAndRolesPanel({
               onChange={(e) => setEditEmail(e.target.value)}
             />
             <input
+              className="w-full rounded-md border border-magic-border px-3 py-2 text-sm uppercase"
+              placeholder="department code (leads quotation refs)"
+              title="Leads every quotation reference, formatted DEPT-FO<year>-<hex>"
+              value={editDept}
+              onChange={(e) => setEditDept(e.target.value.toUpperCase())}
+            />
+            <input
               className="w-full rounded-md border border-magic-border px-3 py-2 text-sm"
               type="password"
               placeholder="new password (optional)"
@@ -546,7 +630,7 @@ export default function UsersAndRolesPanel({
               </button>
               <button
                 disabled={editSaving}
-                className="rounded-md bg-magic-red px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                className="rounded-md bg-magic-red px-3 py-2 text-sm font-semibold text-white hover:bg-magic-red/85 disabled:opacity-60"
               >
                 {editSaving ? "Saving…" : "Save"}
               </button>
@@ -567,39 +651,171 @@ function StatCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function RoleSelect({
-  value,
-  onChange,
-  disabled,
-  includeNone = true,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  includeNone?: boolean;
-}) {
+/** Read-only display of the roles a user holds, as small chips. */
+function RoleChips({ values }: { values: string[] }) {
+  if (values.length === 0) {
+    return (
+      <span className="rounded-md border border-magic-border bg-magic-soft px-2 py-1 text-xs text-magic-ink/50">
+        No role yet
+      </span>
+    );
+  }
+  const isGov = values.includes("admin") || values.includes("viewer");
   return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      className="rounded-md border border-magic-border bg-white px-2 py-1.5 text-sm disabled:opacity-60"
+    <>
+      {values.map((v) => (
+        <span
+          key={v}
+          className={`rounded-md px-2 py-1 text-xs ${
+            isGov
+              ? "border border-magic-ink/20 bg-magic-ink/5 font-medium text-magic-ink"
+              : "border border-magic-border bg-white text-magic-ink/75"
+          }`}
+        >
+          {LABEL_BY_VALUE[v] ?? v}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Multi-role checklist. Admin / Viewer are exclusive access levels (ticking
+ * either clears all job roles and disables the rest); otherwise any
+ * combination of job roles can be selected.
+ */
+function RolesEditor({
+  title,
+  initial,
+  saving,
+  onCancel,
+  onSave,
+}: {
+  title: string;
+  initial: string[];
+  saving: boolean;
+  onCancel: () => void;
+  onSave: (roles: string[]) => void;
+}) {
+  const [sel, setSel] = useState<Set<string>>(() => new Set(initial));
+  const isAdmin = sel.has("admin");
+  const isViewer = sel.has("viewer");
+  const exclusive = isAdmin || isViewer;
+
+  function pickExclusive(which: "admin" | "viewer") {
+    setSel((prev) => {
+      // Ticking an already-sole selection unticks it (back to "no role").
+      if (prev.has(which) && prev.size === 1) return new Set();
+      return new Set([which]);
+    });
+  }
+  function toggleJob(value: string) {
+    setSel((prev) => {
+      const next = new Set(prev);
+      next.delete("admin");
+      next.delete("viewer");
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-center"
+      onClick={onCancel}
     >
-      {ROLE_GROUPS.map((g) => {
-        const opts = g.options.filter(
-          (o) => includeNone || o.value !== "none",
-        );
-        if (opts.length === 0) return null;
-        return (
-          <optgroup key={g.group} label={g.group}>
-            {opts.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
+      <div
+        className="max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-t-2xl bg-white p-5 md:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div>
+          <h3 className="font-semibold text-magic-ink">
+            {title}
+          </h3>
+          <p className="mt-1 text-xs text-magic-ink/60">
+            Tick any combination of job roles. Admin / Viewer are exclusive and
+            clear all job roles.
+          </p>
+        </div>
+
+        <div>
+          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-magic-ink/50">
+            Access level
+          </div>
+          <div className="space-y-1">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={isAdmin}
+                onChange={() => pickExclusive("admin")}
+              />
+              Admin (full access)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={isViewer}
+                onChange={() => pickExclusive("viewer")}
+              />
+              Viewer (read-only admin)
+            </label>
+          </div>
+        </div>
+
+        <div
+          className={
+            exclusive ? "pointer-events-none opacity-40 transition-opacity" : ""
+          }
+        >
+          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-magic-ink/50">
+            Job roles (select any combination)
+          </div>
+          <div className="space-y-3">
+            {JOB_ROLE_GROUPS.map((g) => (
+              <div key={g.group}>
+                <div className="mb-1 text-xs font-medium text-magic-ink/60">
+                  {g.group}
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  {g.options.map((o) => (
+                    <label
+                      key={o.value}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={sel.has(o.value)}
+                        disabled={exclusive}
+                        onChange={() => toggleJob(o.value)}
+                      />
+                      {o.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
             ))}
-          </optgroup>
-        );
-      })}
-    </select>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-magic-border px-3 py-2 text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => onSave(Array.from(sel))}
+            className="rounded-md bg-magic-red px-3 py-2 text-sm font-semibold text-white hover:bg-magic-red/85 disabled:opacity-60"
+          >
+            {saving ? "Saving…" : "Save roles"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
