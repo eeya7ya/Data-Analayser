@@ -55,7 +55,7 @@ export default function AdminTabs({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 border-b border-magic-border">
+      <div className="flex items-center gap-2 border-b border-magic-border overflow-x-auto">
         <TabButton active={tab === "users"} onClick={() => setTab("users")}>
           Users &amp; Roles
         </TabButton>
@@ -924,7 +924,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`-mb-px px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+      className={`-mb-px flex-shrink-0 whitespace-nowrap px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
         active
           ? "border-magic-red text-magic-red"
           : "border-transparent text-magic-ink/60 hover:text-magic-ink"
