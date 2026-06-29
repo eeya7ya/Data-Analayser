@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { requireModule } from "@/lib/modules";
 import { sql, ensureSchema } from "@/lib/db";
+import { offloadImages } from "@/lib/imageOffload";
 
 export const runtime = "nodejs";
 
@@ -135,6 +136,9 @@ export async function PATCH(
         );
       }
     }
+
+    // Offload an embedded base64 thumbnail to R2 (no-op unless OFFLOAD_QUOTATION_IMAGES=1).
+    patched.picture_url = await offloadImages(patched.picture_url as string | null);
 
     const updated = (await q`
       update products set
