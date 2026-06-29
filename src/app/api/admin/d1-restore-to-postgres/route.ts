@@ -57,12 +57,46 @@ async function runRestore(req: Request) {
       );
     }
 
-    // Make sure the Postgres schema exists before we load into it.
-    await ensureSchema();
+    const url = new URL(req.url);
+    const probe = url.searchParams.get("probe") === "1";
+    const onlyTable = url.searchParams.get("table");
     const q = getDb();
 
+    // Instant connectivity probe — no writes, returns in ~1s. Use this to see
+    // whether D1 and Neon are reachable and how many rows each already has.
+    if (probe) {
+      const out: Record<string, unknown> = { probe: true };
+      try {
+        const dq = await d1Query<{ c: number }>(`SELECT COUNT(*) AS c FROM "quotations"`);
+        out.d1 = { reachable: true, quotations: Number(dq.results[0]?.c ?? 0) };
+      } catch (e) {
+        out.d1 = { reachable: false, error: (e instanceof Error ? e.message : String(e)).slice(0, 160) };
+      }
+      try {
+        const pt = (await q`select count(*)::int c from information_schema.tables
+                            where table_schema='public' and table_type='BASE TABLE'`) as Array<{ c: number }>;
+        let pqCount = -1;
+        try {
+          const pq = (await q`select count(*)::int c from quotations`) as Array<{ c: number }>;
+          pqCount = pq[0]?.c ?? -1;
+        } catch {
+          /* table may not exist yet */
+        }
+        out.neon = { reachable: true, tables: pt[0]?.c ?? 0, quotations: pqCount };
+      } catch (e) {
+        out.neon = { reachable: false, error: (e instanceof Error ? e.message : String(e)).slice(0, 160) };
+      }
+      return NextResponse.json(out);
+    }
+
+    // Build the schema only if it's actually missing — on a warm DB this saves
+    // the whole DDL/migration pass, which otherwise can eat the function's time
+    // budget before any data is copied.
+    const reg = (await q`select to_regclass('public.quotations') as t`) as Array<{ t: string | null }>;
+    if (!reg[0]?.t) await ensureSchema();
+
     const { tables, colsByTable, pkByTable, fks } = await readPgSchema(q);
-    const ordered = topoSort(tables, fks);
+    const ordered = topoSort(tables, fks).filter((t) => !onlyTable || t === onlyTable);
 
     const PAGE = 500;
     const results: TableResult[] = [];
