@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Factory, BarChart3, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { Plus, Factory, BarChart3, AlertCircle, ScanSearch } from "lucide-react";
 import PageLoader from "@/components/PageLoader";
 import { ManufacturerCard } from "@/components/pricing/ManufacturerCard";
 import { cn } from "@/lib/pricing/utils";
@@ -154,8 +155,15 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Add manufacturer */}
-        <div className="flex-shrink-0">
+        {/* Actions */}
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <Link
+            href="/pricing/deep-search"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 transition-all hover:border-cyan-300 hover:text-cyan-700"
+          >
+            <ScanSearch className="h-4 w-4" />
+            Deep Search
+          </Link>
           {creating ? (
             <div className="flex flex-col gap-3 items-end">
               <div className="flex flex-wrap items-center justify-end gap-2">
