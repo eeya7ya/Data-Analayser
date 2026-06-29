@@ -18,7 +18,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import MessagesPanel from "@/components/MessagesPanel";
-import HandoverPresalesButton from "@/components/HandoverPresalesButton";
 
 export interface DepartmentRow {
   /** Department code (e.g. "ITD1"); "Unassigned" groups users with no code. */
@@ -56,9 +55,6 @@ export default function AdminDashboardClient({
           Administration overview — people, roles and departments at a glance.
         </p>
       </div>
-
-      {/* One-click handover of all presales work */}
-      <HandoverPresalesButton />
 
       {/* Admin KPI strip */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
