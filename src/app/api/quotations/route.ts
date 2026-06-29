@@ -13,6 +13,7 @@ import {
 } from "@/lib/projectAccess";
 import { d1Query } from "@/lib/db-d1";
 import { resolveR2OverflowsInRows } from "@/lib/r2";
+import { offloadImages } from "@/lib/imageOffload";
 import type { Sql } from "postgres";
 
 export const runtime = "nodejs";
@@ -747,6 +748,9 @@ export async function PATCH(req: NextRequest) {
     // CASE guard keeps the existing column value — PostgreSQL CASE
     // short-circuits so the placeholder is never actually evaluated.
     // `'null'::jsonb` is a valid cast just in case that guarantee slips.
+    // Offload embedded base64 images to R2 (no-op unless OFFLOAD_QUOTATION_IMAGES=1).
+    if (hasItems) body.items = await offloadImages(body.items);
+    if (hasConfig) body.config = await offloadImages(body.config);
     const itemsText = hasItems ? JSON.stringify(body.items) : null;
     const totalsText = hasTotals ? JSON.stringify(body.totals) : null;
     const configText = hasConfig ? JSON.stringify(body.config) : null;
@@ -1071,6 +1075,9 @@ export async function POST(req: NextRequest) {
       status: string;
       parent_ref: string | null;
     }>;
+    // Offload embedded base64 images to R2 (no-op unless OFFLOAD_QUOTATION_IMAGES=1).
+    body.items = await offloadImages(body.items ?? []);
+    body.config = await offloadImages(body.config ?? {});
     if (useD1) {
       const nowIso = new Date().toISOString();
       const result = await d1Query<{
