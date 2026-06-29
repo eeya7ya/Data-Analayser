@@ -71,7 +71,6 @@ async function runRestore(req: Request) {
 
     for (const table of ordered) {
       const pgCols = colsByTable.get(table) ?? [];
-      const pgColNames = new Set(pgCols.map((c) => c.name));
       const udtByCol = new Map(pgCols.map((c) => [c.name, c.udt]));
       const pk = pkByTable.get(table) ?? [];
 
@@ -90,6 +89,55 @@ async function runRestore(req: Request) {
       const errors: string[] = [];
       let offset = 0;
 
+      // Column layout + per-column cast/convert, resolved once from the first
+      // row we see (D1 returns the same columns for every row of a table).
+      let cols: string[] | null = null;
+      const convs: Array<(raw: unknown) => unknown> = [];
+      const phs: Array<(n: number) => string> = [];
+      let colIdents = "";
+      let conflict = "";
+
+      let batch: unknown[][] = [];
+      const flushBatch = async () => {
+        if (!cols || cols.length === 0 || batch.length === 0) return;
+        const m = cols.length;
+        const valuesSql: string[] = [];
+        const params: unknown[] = [];
+        let n = 1;
+        for (const rowVals of batch) {
+          const cells: string[] = [];
+          for (let i = 0; i < m; i++) {
+            cells.push(phs[i](n));
+            params.push(rowVals[i]);
+            n++;
+          }
+          valuesSql.push(`(${cells.join(", ")})`);
+        }
+        const stmt = `INSERT INTO "${table}" (${colIdents}) VALUES ${valuesSql.join(", ")} ${conflict}`;
+        try {
+          await q.unsafe(stmt, params as never[]);
+          loaded += batch.length;
+        } catch {
+          // One bad row shouldn't sink the batch — retry each row alone.
+          for (const rowVals of batch) {
+            const cells: string[] = [];
+            const p: unknown[] = [];
+            for (let i = 0; i < m; i++) {
+              cells.push(phs[i](i + 1));
+              p.push(rowVals[i]);
+            }
+            const one = `INSERT INTO "${table}" (${colIdents}) VALUES (${cells.join(", ")}) ${conflict}`;
+            try {
+              await q.unsafe(one, p as never[]);
+              loaded++;
+            } catch (e2) {
+              errors.push((e2 instanceof Error ? e2.message : String(e2)).slice(0, 180));
+            }
+          }
+        }
+        batch = [];
+      };
+
       for (;;) {
         const res = await d1Query<Record<string, unknown>>(
           `SELECT * FROM "${table}" LIMIT ${PAGE} OFFSET ${offset}`,
@@ -99,15 +147,35 @@ async function runRestore(req: Request) {
 
         for (const row of rows) {
           d1Rows++;
-          const cols = Object.keys(row).filter((c) => pgColNames.has(c));
+
+          if (!cols) {
+            cols = pgCols.map((c) => c.name).filter((c) => c in row);
+            colIdents = cols.map((c) => `"${c}"`).join(", ");
+            for (const c of cols) {
+              const info = castInfo(udtByCol.get(c));
+              convs.push(info.conv);
+              phs.push(info.ph);
+            }
+            const updates = cols
+              .filter((c) => !pk.includes(c))
+              .map((c) => `"${c}" = EXCLUDED."${c}"`)
+              .join(", ");
+            conflict =
+              pk.length > 0
+                ? `ON CONFLICT (${pk.map((c) => `"${c}"`).join(", ")}) ${
+                    updates ? `DO UPDATE SET ${updates}` : "DO NOTHING"
+                  }`
+                : "";
+          }
           if (cols.length === 0) continue;
 
-          // Rehydrate any R2-overflowed cells.
-          for (const c of cols) {
-            const v = row[c];
+          const rowVals: unknown[] = [];
+          for (let i = 0; i < cols.length; i++) {
+            const c = cols[i];
+            let v = row[c];
             if (typeof v === "string" && v.includes('"__r2_overflow__"')) {
               try {
-                row[c] = await resolveR2Overflow(v);
+                v = await resolveR2Overflow(v);
                 overflowFetched++;
               } catch (e) {
                 overflowErrors++;
@@ -118,46 +186,19 @@ async function runRestore(req: Request) {
                 );
               }
             }
+            rowVals.push(convs[i](v));
           }
-
-          const placeholders: string[] = [];
-          const values: unknown[] = [];
-          cols.forEach((c, i) => {
-            const { placeholder, value } = buildParam(row[c], udtByCol.get(c), i + 1);
-            placeholders.push(placeholder);
-            values.push(value);
-          });
-
-          const colIdents = cols.map((c) => `"${c}"`).join(", ");
-          const updates = cols
-            .filter((c) => !pk.includes(c))
-            .map((c) => `"${c}" = EXCLUDED."${c}"`)
-            .join(", ");
-          const conflict =
-            pk.length > 0
-              ? `ON CONFLICT (${pk.map((c) => `"${c}"`).join(", ")}) ${
-                  updates ? `DO UPDATE SET ${updates}` : "DO NOTHING"
-                }`
-              : "";
-          const stmt = `INSERT INTO "${table}" (${colIdents}) VALUES (${placeholders.join(
-            ", ",
-          )}) ${conflict}`;
-
-          try {
-            await q.unsafe(stmt, values as never[]);
-            loaded++;
-          } catch (e) {
-            errors.push(
-              `pk=${String(row[pk[0]] ?? "?")}: ${
-                (e instanceof Error ? e.message : String(e)).slice(0, 180)
-              }`,
-            );
+          batch.push(rowVals);
+          // Cap by row count and by total bind params (Postgres limit 65535).
+          if (batch.length >= 200 || batch.length * cols.length >= 40000) {
+            await flushBatch();
           }
         }
 
         if (rows.length < PAGE) break;
         offset += PAGE;
       }
+      await flushBatch();
 
       // Reset the serial sequence so future inserts don't collide.
       if (pk.length === 1 && pk[0] === "id" && loaded > 0) {
@@ -230,51 +271,64 @@ function pgCastFor(udt: string | undefined): string | null {
   return null;
 }
 
-function buildParam(
-  rawValue: unknown,
-  udt: string | undefined,
-  idx: number,
-): { placeholder: string; value: unknown } {
+/**
+ * For a column's Postgres type, returns:
+ *   - ph(n):  the positional placeholder embedding the right cast
+ *   - conv(raw): the D1 scalar converted to the value bound to that placeholder
+ * Resolved once per column, then reused for every row in the batch.
+ */
+function castInfo(udt: string | undefined): {
+  ph: (n: number) => string;
+  conv: (raw: unknown) => unknown;
+} {
   const cast = pgCastFor(udt);
-  if (rawValue === null || rawValue === undefined) {
-    return { placeholder: `$${idx}`, value: null };
-  }
+  const nullable =
+    (fn: (raw: unknown) => unknown) =>
+    (raw: unknown): unknown =>
+      raw === null || raw === undefined ? null : fn(raw);
+
   switch (cast) {
-    case "boolean": {
-      const truthy =
-        rawValue === 1 || rawValue === "1" || rawValue === true || rawValue === "true";
-      return { placeholder: `$${idx}::boolean`, value: truthy };
-    }
+    case "boolean":
+      return {
+        ph: (n) => `$${n}::boolean`,
+        conv: nullable((v) => v === 1 || v === "1" || v === true || v === "true"),
+      };
     case "json":
-    case "jsonb": {
-      const text = typeof rawValue === "string" ? rawValue : JSON.stringify(rawValue);
-      return { placeholder: `$${idx}::${cast}`, value: text };
-    }
+    case "jsonb":
+      return {
+        ph: (n) => `$${n}::${cast}`,
+        conv: nullable((v) => (typeof v === "string" ? v : JSON.stringify(v))),
+      };
     case "bytea-hex":
-      return { placeholder: `decode($${idx}, 'hex')`, value: String(rawValue) };
+      return { ph: (n) => `decode($${n}, 'hex')`, conv: nullable((v) => String(v)) };
     case "array": {
-      let arr: unknown = rawValue;
-      if (typeof rawValue === "string") {
-        try {
-          arr = JSON.parse(rawValue);
-        } catch {
-          arr = [rawValue];
-        }
-      }
-      if (!Array.isArray(arr)) arr = arr == null ? [] : [arr];
       const elem = (udt || "_text").replace(/^_/, "");
-      return { placeholder: `$${idx}::${elem}[]`, value: arr };
+      return {
+        ph: (n) => `$${n}::${elem}[]`,
+        conv: nullable((v) => {
+          let arr: unknown = v;
+          if (typeof v === "string") {
+            try {
+              arr = JSON.parse(v);
+            } catch {
+              arr = [v];
+            }
+          }
+          if (!Array.isArray(arr)) arr = arr == null ? [] : [arr];
+          return arr;
+        }),
+      };
     }
     case "timestamptz":
     case "timestamp":
     case "date":
-      return { placeholder: `$${idx}::${cast}`, value: String(rawValue) };
+      return { ph: (n) => `$${n}::${cast}`, conv: nullable((v) => String(v)) };
     case "uuid":
-      return { placeholder: `$${idx}::uuid`, value: String(rawValue) };
+      return { ph: (n) => `$${n}::uuid`, conv: nullable((v) => String(v)) };
     case "numeric":
-      return { placeholder: `$${idx}::numeric`, value: rawValue };
+      return { ph: (n) => `$${n}::numeric`, conv: nullable((v) => v) };
     default:
-      return { placeholder: `$${idx}`, value: rawValue };
+      return { ph: (n) => `$${n}`, conv: nullable((v) => v) };
   }
 }
 
