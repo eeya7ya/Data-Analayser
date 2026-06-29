@@ -81,6 +81,9 @@ export async function POST(req: NextRequest) {
     const moved = await q.begin(async (tx) => {
       const orNullOwner = isAdmin ? tx`or owner_id is null` : tx``;
       const orNullUser = isAdmin ? tx`or user_id is null` : tx``;
+      const orNullCreatedByUser = isAdmin
+        ? tx`or created_by_user_id is null`
+        : tx``;
       const orNullCreated = isAdmin ? tx`or created_by is null` : tx``;
       const orNullAssigned = isAdmin ? tx`or assigned_to_id is null` : tx``;
       let n = 0;
@@ -93,8 +96,32 @@ export async function POST(req: NextRequest) {
       // Sales / project artifacts owned by the user.
       n += (await tx`update purchase_orders set owner_id = ${to} where owner_id = ${from} ${orNullOwner}`).count;
       n += (await tx`update project_files   set owner_id = ${to} where owner_id = ${from} ${orNullOwner}`).count;
-      // Pricing module — these are owned via user_id, not owner_id.
+      // Pricing projects — owned via user_id, not owner_id.
       n += (await tx`update pricing_projects set user_id = ${to} where user_id = ${from} ${orNullUser}`).count;
+      // Pricing manufacturers: transfer creatorship AND grant the member access.
+      // Non-admins only see manufacturers they hold a pricing_user_manufacturers
+      // grant for, which is why the member's Pricing Dashboard showed "No
+      // manufacturers yet" after a handover.
+      n += (await tx`update pricing_manufacturers set created_by_user_id = ${to} where created_by_user_id = ${from} ${orNullCreatedByUser}`).count;
+      if (isAdmin) {
+        // The admin sees every manufacturer — grant the member all of them.
+        n += (await tx`
+          insert into pricing_user_manufacturers (user_id, manufacturer_id, color, tag)
+          select ${to}, m.id, 'cyan', ''
+          from pricing_manufacturers m
+          where m.deleted_at is null
+          on conflict (user_id, manufacturer_id) do update set deleted_at = null
+        `).count;
+      } else {
+        // Move the source's manufacturer grants to the member.
+        n += (await tx`
+          insert into pricing_user_manufacturers (user_id, manufacturer_id, color, tag)
+          select ${to}, pum.manufacturer_id, pum.color, pum.tag
+          from pricing_user_manufacturers pum
+          where pum.user_id = ${from} and pum.deleted_at is null
+          on conflict (user_id, manufacturer_id) do update set deleted_at = null
+        `).count;
+      }
       // Leads — owned via created_by, plus the assignee.
       n += (await tx`update leads set created_by = ${to} where created_by = ${from} ${orNullCreated}`).count;
       n += (await tx`update leads set assigned_to_id = ${to} where assigned_to_id = ${from} ${orNullAssigned}`).count;

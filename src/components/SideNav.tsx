@@ -74,12 +74,6 @@ export default function SideNav({
     moduleRoles === null ||
     moduleRoles.length === 0 ||
     moduleRoles.some((r) => r.module === m);
-  // STRICT storage check for the Catalogue Modifier — unlike `has()`, this does
-  // NOT fall open when role data is null/empty, so a storage/admin-only surface
-  // never flashes for everyone else.
-  const hasStorage =
-    isAdmin || (moduleRoles?.some((r) => r.module === "storage") ?? false);
-
   // CRM is the single hub for the work modules (Sales / Presales /
   // Storage / Projects / Pricing live as tabs inside it), so the drawer
   // intentionally does NOT repeat them — only the top-level surfaces.
@@ -99,7 +93,7 @@ export default function SideNav({
       href: "/catalog",
       label: "Catalogue Modifier",
       icon: Library,
-      show: hasStorage,
+      show: isAdmin,
     },
     { href: "/calendar", label: "Calendar", icon: CalendarDays, show: true },
     { href: "/email", label: "Email", icon: Mail, show: true },
