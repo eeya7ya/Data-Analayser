@@ -122,6 +122,18 @@ export async function POST(req: NextRequest) {
           on conflict (user_id, manufacturer_id) do update set deleted_at = null
         `).count;
       }
+      // Full move: the source relinquishes its OWN manufacturer pins so the
+      // member becomes the sole owner — a handover is a move, not a copy.
+      // (An admin still sees every workspace by role via the cross-user pin
+      // listing, but the source's own cards now belong to the member; a
+      // non-admin source loses access outright.) Done after the grants above
+      // so the member's freshly-inserted pin — keyed on `to`, never `from`
+      // since `to !== from` — is untouched.
+      n += (await tx`
+        update pricing_user_manufacturers
+        set deleted_at = now()
+        where user_id = ${from} and deleted_at is null
+      `).count;
       // Leads — owned via created_by, plus the assignee.
       n += (await tx`update leads set created_by = ${to} where created_by = ${from} ${orNullCreated}`).count;
       n += (await tx`update leads set assigned_to_id = ${to} where assigned_to_id = ${from} ${orNullAssigned}`).count;
