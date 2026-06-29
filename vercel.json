@@ -17,6 +17,16 @@
     "src/app/api/admin/db-backup/route.ts": {
       "maxDuration": 60,
       "memory": 1024
+    },
+    "src/app/api/cron/db-backup/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/db-backup",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }
