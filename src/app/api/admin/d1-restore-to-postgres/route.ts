@@ -43,6 +43,7 @@ export async function POST(req: Request) {
 }
 
 async function runRestore(req: Request) {
+  let cleanup: (() => Promise<void>) | null = null;
   try {
     await assertAuthorized(req);
 
@@ -103,6 +104,33 @@ async function runRestore(req: Request) {
     let overflowFetched = 0;
     let overflowErrors = 0;
 
+    // One reserved connection for the whole load, with FK enforcement disabled
+    // on it, so circular references (folders <-> companies <-> projects <->
+    // quotations) load regardless of insertion order. Falls back to the pooled
+    // client if the role isn't allowed to set session_replication_role.
+    let conn = q;
+    let fkDisabled = false;
+    try {
+      const reserved = await q.reserve();
+      try {
+        await reserved.unsafe("SET session_replication_role = replica");
+        conn = reserved as unknown as typeof q;
+        fkDisabled = true;
+        cleanup = async () => {
+          try {
+            await reserved.unsafe("SET session_replication_role = DEFAULT");
+          } catch {
+            /* ignore */
+          }
+          reserved.release();
+        };
+      } catch {
+        reserved.release();
+      }
+    } catch {
+      /* reserve() unavailable — use the pooled client and rely on re-runs */
+    }
+
     for (const table of ordered) {
       const pgCols = colsByTable.get(table) ?? [];
       const udtByCol = new Map(pgCols.map((c) => [c.name, c.udt]));
@@ -149,7 +177,7 @@ async function runRestore(req: Request) {
         }
         const stmt = `INSERT INTO "${table}" (${colIdents}) VALUES ${valuesSql.join(", ")} ${conflict}`;
         try {
-          await q.unsafe(stmt, params as never[]);
+          await conn.unsafe(stmt, params as never[]);
           loaded += batch.length;
         } catch {
           // One bad row shouldn't sink the batch — retry each row alone.
@@ -162,7 +190,7 @@ async function runRestore(req: Request) {
             }
             const one = `INSERT INTO "${table}" (${colIdents}) VALUES (${cells.join(", ")}) ${conflict}`;
             try {
-              await q.unsafe(one, p as never[]);
+              await conn.unsafe(one, p as never[]);
               loaded++;
             } catch (e2) {
               errors.push((e2 instanceof Error ? e2.message : String(e2)).slice(0, 180));
@@ -237,7 +265,7 @@ async function runRestore(req: Request) {
       // Reset the serial sequence so future inserts don't collide.
       if (pk.length === 1 && pk[0] === "id" && loaded > 0) {
         try {
-          await q.unsafe(
+          await conn.unsafe(
             `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'),
                     GREATEST((SELECT COALESCE(MAX(id), 1) FROM "${table}"), 1))`,
           );
@@ -259,6 +287,7 @@ async function runRestore(req: Request) {
       totalErrors,
       overflowFetched,
       overflowErrors,
+      fkDisabled,
       tables: results,
     });
   } catch (err) {
@@ -266,6 +295,8 @@ async function runRestore(req: Request) {
     const status =
       msg === "UNAUTHENTICATED" ? 401 : msg === "FORBIDDEN" ? 403 : 500;
     return NextResponse.json({ error: msg }, { status });
+  } finally {
+    if (cleanup) await cleanup();
   }
 }
 
