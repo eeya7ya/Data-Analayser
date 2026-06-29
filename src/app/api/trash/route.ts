@@ -152,10 +152,11 @@ export async function POST(req: NextRequest) {
         set deleted_at = null, updated_at = now()
         where id = ${body.id}
       `;
-      // Cascade-restore the whole subtree (projects, quotations, leads,
-      // POs, files) that was soft-deleted alongside the folder, matched on
-      // a ±2s window around the folder's timestamp so rows trashed on their
-      // own beforehand aren't resurrected.
+      // Cascade-restore the whole subtree (projects, quotations, POs, files)
+      // that was soft-deleted alongside the folder, matched on a ±2s window
+      // around the folder's timestamp so rows trashed on their own beforehand
+      // aren't resurrected. Leads are NOT part of this — they are detached and
+      // kept live on delete, so there is nothing to restore.
       if (body.cascade !== false && rows[0].deleted_at) {
         await cascadeRestoreFolder(q, body.id, rows[0].deleted_at);
       }

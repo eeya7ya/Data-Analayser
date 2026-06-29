@@ -4,21 +4,27 @@ import { sql } from "./db";
  * Cascade soft-delete / restore helpers.
  *
  * A client folder (and a company that owns folders) sits at the top of a
- * tree: folder → projects → {quotations, purchase orders, project files}
- * plus the leads filed against the folder/company/project. Soft-deleting
- * only the top row used to leave every child live — which is why a
- * deleted company's leads kept showing in the lead queue.
- *
+ * tree: folder → projects → {quotations, purchase orders, project files}.
  * These helpers stamp the whole subtree with the SAME `deleted_at`
  * timestamp as the parent, so:
- *   - the lead queue / lists (which all filter `deleted_at is null`)
- *     immediately stop showing orphaned children, and
+ *   - the lists (which all filter `deleted_at is null`) immediately stop
+ *     showing orphaned children, and
  *   - a restore can re-light exactly the rows that went down together
  *     (matched on a ±2s window around the parent's timestamp) without
  *     resurrecting rows that were independently trashed earlier.
  *
  * Every statement guards on `deleted_at is null` so re-running is safe and
  * a child trashed on its own keeps its original timestamp.
+ *
+ * LEADS ARE THE EXCEPTION. A presales lead is a durable work item that
+ * lives in the shared presales queue on its OWN lifecycle (claim → work →
+ * complete / junk). It is not "owned" by the sales-side client/project it
+ * was opened against, so a sales user removing that project, client, or
+ * company must NOT yank the lead out from under presales — the old cascade
+ * that soft-deleted leads here was a destructive "dead link". Instead we
+ * DETACH: the lead stays live in the queue and we null only the references
+ * that just went away, so it carries accurate (empty), not dangling, links
+ * and presales can re-file it under a live tree.
  */
 
 type Q = ReturnType<typeof sql>;
@@ -40,9 +46,24 @@ export async function cascadeSoftDeleteFolder(
       and (folder_id = ${folderId}
            or project_id in (select id from projects where folder_id = ${folderId}))
   `;
+  // Detach — don't delete — any lead filed under (or opened against) this
+  // folder. The lead survives in the presales queue; only the links that just
+  // went away are cleared. The company_id is left intact when it points at a
+  // company that still exists (a folder-only delete).
   await q`
-    update leads set deleted_at = ${ts}, updated_at = now()
-    where deleted_at is null and folder_id = ${folderId}
+    update leads set
+      folder_id = case when folder_id = ${folderId} then null else folder_id end,
+      project_id = case
+        when project_id in (select id from projects where folder_id = ${folderId})
+        then null else project_id end,
+      sales_project_id = case
+        when sales_project_id in (select id from projects where folder_id = ${folderId})
+        then null else sales_project_id end,
+      updated_at = now()
+    where deleted_at is null
+      and (folder_id = ${folderId}
+           or project_id in (select id from projects where folder_id = ${folderId})
+           or sales_project_id in (select id from projects where folder_id = ${folderId}))
   `;
   await q`
     update quotations set deleted_at = ${ts}
@@ -67,12 +88,10 @@ export async function cascadeRestoreFolder(
       and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
       and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
   `;
-  await q`
-    update leads set deleted_at = null, updated_at = now()
-    where folder_id = ${folderId} and deleted_at is not null
-      and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
-      and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
-  `;
+  // Leads are intentionally NOT restored here: they were never trashed with
+  // the folder (they were detached and kept live), so there is nothing to
+  // re-light. Their links stay severed — presales re-files them under a live
+  // tree if the work is still relevant.
   await q`
     update quotations set deleted_at = null, updated_at = now()
     where folder_id = ${folderId} and deleted_at is not null
@@ -121,13 +140,40 @@ export async function cascadeSoftDeleteCompany(
              where cf.company_id = ${companyId}
            ))
   `;
-  // Leads can hang off the company directly (company_id) OR off one of its
-  // folders (folder_id) — catch both.
+  // Detach — don't delete — every lead anchored anywhere in this company's
+  // subtree (directly via company_id, via one of its folders, or via a
+  // project under one of those folders). The whole company is going away, so
+  // each reference is cleared; the lead stays live in the presales queue.
   await q`
-    update leads set deleted_at = ${ts}, updated_at = now()
+    update leads set
+      company_id = case when company_id = ${companyId} then null else company_id end,
+      folder_id = case
+        when folder_id in (select id from client_folders where company_id = ${companyId})
+        then null else folder_id end,
+      project_id = case
+        when project_id in (
+          select p.id from projects p
+          join client_folders cf on cf.id = p.folder_id
+          where cf.company_id = ${companyId}
+        ) then null else project_id end,
+      sales_project_id = case
+        when sales_project_id in (
+          select p.id from projects p
+          join client_folders cf on cf.id = p.folder_id
+          where cf.company_id = ${companyId}
+        ) then null else sales_project_id end,
+      updated_at = now()
     where deleted_at is null
       and (company_id = ${companyId}
-           or folder_id in (select id from client_folders where company_id = ${companyId}))
+           or folder_id in (select id from client_folders where company_id = ${companyId})
+           or project_id in (
+             select p.id from projects p
+             join client_folders cf on cf.id = p.folder_id
+             where cf.company_id = ${companyId})
+           or sales_project_id in (
+             select p.id from projects p
+             join client_folders cf on cf.id = p.folder_id
+             where cf.company_id = ${companyId}))
   `;
   await q`
     update quotations set deleted_at = ${ts}
@@ -165,14 +211,8 @@ export async function cascadeRestoreCompany(
       and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
       and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
   `;
-  await q`
-    update leads set deleted_at = null, updated_at = now()
-    where (company_id = ${companyId}
-           or folder_id in (select id from client_folders where company_id = ${companyId}))
-      and deleted_at is not null
-      and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
-      and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
-  `;
+  // Leads were detached, not trashed, when the company went down (see
+  // cascadeSoftDeleteCompany) — there is nothing to restore here.
   await q`
     update quotations set deleted_at = null, updated_at = now()
     where folder_id in (select id from client_folders where company_id = ${companyId})
@@ -202,5 +242,26 @@ export async function cascadeRestoreCompany(
       )
       and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
       and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
+  `;
+}
+
+/**
+ * Detach (never delete) any presales lead tied to a single project that is
+ * being soft-deleted. Mirrors the folder/company cascades: the lead stays
+ * live in the queue and only its project links are severed — the client
+ * folder it sits under is untouched, so presales can re-file it under another
+ * project of the same client.
+ */
+export async function detachLeadsFromProject(
+  q: Q,
+  projectId: number,
+): Promise<void> {
+  await q`
+    update leads set
+      project_id = case when project_id = ${projectId} then null else project_id end,
+      sales_project_id = case when sales_project_id = ${projectId} then null else sales_project_id end,
+      updated_at = now()
+    where deleted_at is null
+      and (project_id = ${projectId} or sales_project_id = ${projectId})
   `;
 }
