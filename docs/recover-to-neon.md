@@ -37,6 +37,36 @@ Two ways to trigger it:
 
 ## Step 3 — Copy the data from D1 back into Neon
 
+You can do this two ways. **Method A (recommended)** runs inside the deployed
+app on Vercel — no local tools needed, and it works even from networks that
+can't reach Cloudflare's API directly. **Method B** runs the script from a
+computer with Node installed.
+
+### Method A — trigger it from the deployed app (no local setup)
+
+1. In Vercel → Project → Settings → Environment Variables (Production), add:
+   ```
+   CLOUDFLARE_ACCOUNT_ID      = 239f39ee7282d3f24a77177446962cf2
+   CLOUDFLARE_D1_DATABASE_ID  = 385c686f-31a1-46cb-b2ee-a919472ad978
+   CLOUDFLARE_API_TOKEN       = <your D1-Read token>
+   RESTORE_SECRET             = <any long random string you choose>
+   ```
+   (Add `CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY` too
+   only if the run reports R2-overflow rows.)
+2. **Redeploy** so the new env vars take effect.
+3. Trigger the restore — **easiest: paste this URL into your browser** (it
+   accepts GET for convenience):
+   ```
+   https://<your-domain>/api/admin/d1-restore-to-postgres?secret=<RESTORE_SECRET>
+   ```
+   (Terminal equivalent: `curl -X POST "https://<your-domain>/api/admin/d1-restore-to-postgres?secret=<RESTORE_SECRET>"`.)
+4. It returns a JSON report: `{ totalLoaded, tables: [{ name, d1Rows, loaded }] }`.
+   Refresh the app — your data is there.
+5. **Afterwards:** remove `RESTORE_SECRET` from Vercel (and delete the
+   Cloudflare token) so the one-shot endpoint can't be re-triggered.
+
+### Method B — run the script locally
+
 You need a Cloudflare API token with **D1 Read** (and R2 read keys only if any
 row was offloaded to R2 — the script will tell you if so).
 
