@@ -91,17 +91,28 @@ export async function hasModuleRole(
 }
 
 /**
- * Throw FORBIDDEN unless the user can access `module`. Legacy
- * `users.role = 'admin'` always passes — those users were seeded into
- * user_module_roles in Phase 1 but we don't want a fresh admin row
- * (created post-Phase-1) locked out before an admin grants them
- * modules explicitly.
+ * Governance roles (admin / viewer) bypass module gates so they can manage
+ * configuration, users, the catalogue, backups, etc. — EXCEPT the operational
+ * modules `crm` and `projects`. Admin/viewer are central-management roles that
+ * do NOT operate CRM (author/price quotations, work deals) or run project
+ * delivery / the day schedule, so the bypass never applies to those two;
+ * access there requires an explicit role grant.
+ */
+function bypassesModule(user: SessionUser, module: Module): boolean {
+  if (module === "crm" || module === "projects") return false;
+  return canReadAll(user);
+}
+
+/**
+ * Throw FORBIDDEN unless the user can access `module`. Governance roles
+ * (admin / viewer) pass for every module except crm / projects — see
+ * `bypassesModule`.
  */
 export async function requireModule(
   user: SessionUser,
   module: Module,
 ): Promise<void> {
-  if (canReadAll(user)) return;
+  if (bypassesModule(user, module)) return;
   if (await hasModule(user.id, module)) return;
   throw new Error("FORBIDDEN");
 }
@@ -127,7 +138,7 @@ export async function requireModuleAllowLegacy(
   user: SessionUser,
   module: Module,
 ): Promise<void> {
-  if (canReadAll(user)) return;
+  if (bypassesModule(user, module)) return;
   if (await hasModule(user.id, module)) return;
 
   // Presales prepare manufacturer pricing as part of their lifecycle
@@ -148,7 +159,7 @@ export async function requireModuleAllowLegacy(
     limit 1
   `) as Array<{ ok: number }>;
 
-  if (anyRoles.length === 0) {
+  if (anyRoles.length === 0 && !canReadAll(user)) {
     // Legacy bypass. Log it so the admin can see who needs explicit grants.
     // The activity_log INSERT is fire-and-forget for latency — we don't
     // want a slow log write to block the request, but we do want every
@@ -179,7 +190,8 @@ export async function requireModuleAllowLegacy(
  * endpoint can be hit, not what data comes back.
  */
 export async function requireCrmOrProjectsRead(user: SessionUser): Promise<void> {
-  if (canReadAll(user)) return;
+  // crm + projects are operational modules — governance roles (admin / viewer)
+  // are excluded, so there is no canReadAll bypass here.
   if (await hasModule(user.id, "crm")) return;
   if (await hasModule(user.id, "projects")) return;
 
@@ -191,7 +203,7 @@ export async function requireCrmOrProjectsRead(user: SessionUser): Promise<void>
     where user_id = ${user.id} and revoked_at is null
     limit 1
   `) as Array<{ ok: number }>;
-  if (anyRoles.length === 0) {
+  if (anyRoles.length === 0 && !canReadAll(user)) {
     try {
       await q`
         insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
@@ -213,7 +225,7 @@ export async function requireModuleRole(
   module: Module,
   role: string,
 ): Promise<void> {
-  if (canReadAll(user)) return;
+  if (bypassesModule(user, module)) return;
   if (await hasModuleRole(user.id, module, role)) return;
   throw new Error("FORBIDDEN");
 }
@@ -256,7 +268,7 @@ export async function isSalesEditLocked(user: SessionUser): Promise<boolean> {
  * covers it — viewers are read-only and must never mutate.
  */
 export async function canAuthorQuotation(user: SessionUser): Promise<boolean> {
-  if (user.role === "admin") return true;
+  // Admin is governance-only and does not author quotations.
   const grants = await getUserModuleRoles(user.id);
   return grants.some(
     (g) =>
@@ -289,8 +301,9 @@ export interface CrmCaps {
 }
 
 export async function getCrmCaps(user: SessionUser): Promise<CrmCaps> {
-  const isAdmin = user.role === "admin";
-  const grants = isAdmin ? [] : await getUserModuleRoles(user.id);
+  // Admin / viewer are governance roles that do NOT operate CRM, so caps come
+  // purely from explicit crm grants (which they hold none of) — all false.
+  const grants = await getUserModuleRoles(user.id);
   const crm = grants
     .filter((g) => g.module === "crm")
     .map((g) => g.role);
@@ -298,10 +311,10 @@ export async function getCrmCaps(user: SessionUser): Promise<CrmCaps> {
     crm.includes("presales") || crm.includes("presales_manager");
   const hasSales = crm.includes("sales") || crm.includes("sales_manager");
   return {
-    canAuthorQuotation: isAdmin || hasPresales,
+    canAuthorQuotation: hasPresales,
     canRequestQuotation: hasSales,
-    canSeeFinancialOffer: isAdmin || hasPresales || hasSales,
-    canSeeTechnicalProposal: isAdmin || hasPresales,
+    canSeeFinancialOffer: hasPresales || hasSales,
+    canSeeTechnicalProposal: hasPresales,
   };
 }
 

@@ -82,12 +82,18 @@ export default function SideNav({
   // separate group) so they're one tap away.
   const primary: NavItem[] = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard, show: true },
-    { href: "/crm", label: "CRM", icon: Building2, show: has("crm") || has("projects") },
+    {
+      href: "/crm",
+      label: "CRM",
+      icon: Building2,
+      // Admin is governance-only — it does not operate CRM or projects.
+      show: !isAdmin && (has("crm") || has("projects")),
+    },
     {
       href: "/projects/schedule",
       label: "Day schedule",
       icon: CalendarClock,
-      show: has("projects"),
+      show: !isAdmin && has("projects"),
     },
     {
       href: "/catalog",

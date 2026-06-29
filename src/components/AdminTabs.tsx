@@ -8,12 +8,10 @@ import BrandingAdmin from "./BrandingAdmin";
 import FolderClassificationPanel from "./FolderClassificationPanel";
 import NewsAdminPanel from "./NewsAdminPanel";
 import EmailAdminPanel from "./EmailAdminPanel";
-import ClientOwnershipPanel from "./ClientOwnershipPanel";
 import type { AppSettings } from "@/lib/settings";
 
 type Tab =
   | "users"
-  | "clients"
   | "folders"
   | "news"
   | "email"
@@ -23,7 +21,6 @@ type Tab =
 
 const TABS: Tab[] = [
   "users",
-  "clients",
   "folders",
   "news",
   "email",
@@ -59,9 +56,6 @@ export default function AdminTabs({
         <TabButton active={tab === "users"} onClick={() => setTab("users")}>
           Users &amp; Roles
         </TabButton>
-        <TabButton active={tab === "clients"} onClick={() => setTab("clients")}>
-          Clients
-        </TabButton>
         <TabButton active={tab === "folders"} onClick={() => setTab("folders")}>
           Folders
         </TabButton>
@@ -94,15 +88,6 @@ export default function AdminTabs({
             Users &amp; Roles
           </h2>
           <UsersAndRolesPanel readOnly={readOnly} />
-        </section>
-      )}
-
-      {tab === "clients" && (
-        <section>
-          <h2 className="text-lg font-semibold text-magic-ink mb-3">
-            Client ownership
-          </h2>
-          <ClientOwnershipPanel readOnly={readOnly} />
         </section>
       )}
 
