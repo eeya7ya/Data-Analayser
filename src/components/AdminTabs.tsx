@@ -5,16 +5,12 @@ import JSZip from "jszip";
 import UsersAndRolesPanel from "./UsersAndRolesPanel";
 import AdminSettings from "./AdminSettings";
 import BrandingAdmin from "./BrandingAdmin";
-import FolderClassificationPanel from "./FolderClassificationPanel";
 import NewsAdminPanel from "./NewsAdminPanel";
 import EmailAdminPanel from "./EmailAdminPanel";
-import ClientOwnershipPanel from "./ClientOwnershipPanel";
 import type { AppSettings } from "@/lib/settings";
 
 type Tab =
   | "users"
-  | "clients"
-  | "folders"
   | "news"
   | "email"
   | "settings"
@@ -23,8 +19,6 @@ type Tab =
 
 const TABS: Tab[] = [
   "users",
-  "clients",
-  "folders",
   "news",
   "email",
   "settings",
@@ -59,12 +53,6 @@ export default function AdminTabs({
         <TabButton active={tab === "users"} onClick={() => setTab("users")}>
           Users &amp; Roles
         </TabButton>
-        <TabButton active={tab === "clients"} onClick={() => setTab("clients")}>
-          Clients
-        </TabButton>
-        <TabButton active={tab === "folders"} onClick={() => setTab("folders")}>
-          Folders
-        </TabButton>
         <TabButton active={tab === "news"} onClick={() => setTab("news")}>
           News
         </TabButton>
@@ -94,24 +82,6 @@ export default function AdminTabs({
             Users &amp; Roles
           </h2>
           <UsersAndRolesPanel readOnly={readOnly} />
-        </section>
-      )}
-
-      {tab === "clients" && (
-        <section>
-          <h2 className="text-lg font-semibold text-magic-ink mb-3">
-            Client ownership
-          </h2>
-          <ClientOwnershipPanel readOnly={readOnly} />
-        </section>
-      )}
-
-      {tab === "folders" && (
-        <section>
-          <h2 className="text-lg font-semibold text-magic-ink mb-3">
-            Folder classification
-          </h2>
-          <FolderClassificationPanel />
         </section>
       )}
 
@@ -162,6 +132,7 @@ export default function AdminTabs({
           </p>
           <FilesBackupPanel />
           <DatabaseBackupPanel />
+          <D1ResetPanel readOnly={readOnly} />
         </section>
       )}
     </div>
@@ -693,6 +664,150 @@ function DatabaseBackupPanel() {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+type D1ResetResult = {
+  schema?: { applied: number; skipped: number; errors: string[] };
+  data?: {
+    totalMigrated: number;
+    totalErrors: number;
+    tables: Array<{ name: string; pgRows: number; migrated: number; errors: string[] }>;
+  };
+  error?: string;
+};
+
+/**
+ * Rebuild the Cloudflare D1 mirror from the live Supabase/Postgres data in one
+ * click. Runs two admin endpoints back to back:
+ *
+ *   1. POST /api/admin/d1-apply-schema  — (re)creates every D1 table
+ *      (idempotent: CREATE TABLE IF NOT EXISTS).
+ *   2. POST /api/admin/d1-migrate-data  — copies every row from every Postgres
+ *      table into D1 with INSERT OR REPLACE, so existing D1 rows are
+ *      overwritten with the current values.
+ *
+ * The result is a D1 database whose contents match the current Supabase data.
+ * Safe to re-run anytime; it never touches Supabase.
+ */
+function D1ResetPanel({ readOnly = false }: { readOnly?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<string | null>(null);
+  const [result, setResult] = useState<D1ResetResult | null>(null);
+
+  async function resetD1() {
+    const confirmed = window.confirm(
+      "Reset Cloudflare D1 from the current data?\n\n" +
+        "This recreates the D1 schema and copies every row from the live " +
+        "Supabase database into D1, overwriting matching D1 rows by primary " +
+        "key. Supabase itself is never modified.\n\n" +
+        "Continue?",
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      setPhase("Applying D1 schema…");
+      const schemaRes = await fetch("/api/admin/d1-apply-schema", {
+        method: "POST",
+      });
+      const schema = await schemaRes.json().catch(() => ({}));
+      if (!schemaRes.ok) {
+        setResult({ error: schema.error || `Schema step: HTTP ${schemaRes.status}` });
+        return;
+      }
+
+      setPhase("Copying current data into D1…");
+      const dataRes = await fetch("/api/admin/d1-migrate-data", {
+        method: "POST",
+      });
+      const data = await dataRes.json().catch(() => ({}));
+      if (!dataRes.ok) {
+        setResult({ schema, error: data.error || `Data step: HTTP ${dataRes.status}` });
+        return;
+      }
+
+      setResult({ schema, data });
+    } catch (err) {
+      setResult({ error: (err as Error).message });
+    } finally {
+      setBusy(false);
+      setPhase(null);
+    }
+  }
+
+  const tablesWithErrors =
+    result?.data?.tables.filter((t) => t.errors.length > 0) ?? [];
+
+  return (
+    <div className="rounded-xl border-2 border-magic-red/40 bg-white p-5">
+      <h3 className="font-semibold text-magic-ink mb-1">
+        Reset D1 from current data
+      </h3>
+      <p className="text-sm text-magic-ink/60 mb-4">
+        Rebuilds the <strong>Cloudflare D1</strong> mirror from the live
+        Supabase database in one click: it (re)creates the D1 schema, then
+        copies <strong>every row of every table</strong> into D1, overwriting
+        matching rows by primary key. Use this when D1 has drifted from
+        Supabase and you want it to match the current data again. Supabase is
+        read-only here — nothing in it is changed.
+      </p>
+      <div className="space-y-2 md:max-w-lg">
+        <button
+          onClick={resetD1}
+          disabled={busy || readOnly}
+          className="w-full px-4 py-2 text-sm font-semibold rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+        >
+          {busy ? "Resetting D1…" : "Reset D1 from current data"}
+        </button>
+        {phase && (
+          <p className="text-sm text-magic-ink/70 bg-magic-soft border border-magic-border rounded-lg px-3 py-2">
+            {phase}
+          </p>
+        )}
+        {result && (
+          <div
+            className={`mt-2 text-sm rounded-lg px-3 py-2 ${
+              result.error
+                ? "text-red-700 bg-red-50 border border-red-200"
+                : "text-green-700 bg-green-50 border border-green-200"
+            }`}
+          >
+            {result.error ? (
+              <>Error: {result.error}</>
+            ) : (
+              <>
+                <div>
+                  D1 reset complete. Schema: {result.schema?.applied ?? 0}{" "}
+                  statement(s) applied, {result.schema?.skipped ?? 0} skipped.
+                </div>
+                <div className="mt-1">
+                  Data: {result.data?.totalMigrated ?? 0} row(s) copied across{" "}
+                  {result.data?.tables.length ?? 0} table(s),{" "}
+                  {result.data?.totalErrors ?? 0} error(s).
+                </div>
+                {tablesWithErrors.length > 0 && (
+                  <ul className="mt-2 list-disc pl-5">
+                    {tablesWithErrors.map((t) => (
+                      <li key={t.name} className="text-red-700">
+                        {t.name}: {t.errors[0]}
+                        {t.errors.length > 1
+                          ? ` (+${t.errors.length - 1} more)`
+                          : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+        )}
+        <p className="text-xs text-magic-ink/50">
+          Requires the <code>CLOUDFLARE_*</code> env vars to be set. Runs{" "}
+          <code>d1-apply-schema</code> then <code>d1-migrate-data</code>.
+        </p>
       </div>
     </div>
   );
