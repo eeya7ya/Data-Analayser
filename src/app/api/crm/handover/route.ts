@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, canReadAll } from "@/lib/auth";
 import { hasModuleRole } from "@/lib/modules";
 import { getTenantUserIds } from "@/lib/scope";
 
@@ -73,16 +73,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "target is not a presales user" }, { status: 400 });
     }
 
+    // An admin is the de-facto owner of legacy/unowned records (owner_id NULL),
+    // so an admin handover also sweeps those — that's why "not all" moved
+    // before. A non-admin only hands over rows they explicitly own.
+    const isAdmin = canReadAll(user);
     const q = sql();
     const moved = await q.begin(async (tx) => {
+      const orNullOwner = isAdmin ? tx`or owner_id is null` : tx``;
+      const orNullUser = isAdmin ? tx`or user_id is null` : tx``;
+      const orNullCreated = isAdmin ? tx`or created_by is null` : tx``;
+      const orNullAssigned = isAdmin ? tx`or assigned_to_id is null` : tx``;
       let n = 0;
-      n += (await tx`update companies set owner_id = ${to}, updated_at = now() where owner_id = ${from}`).count;
-      n += (await tx`update client_folders set owner_id = ${to}, updated_at = now() where owner_id = ${from}`).count;
-      n += (await tx`update contacts set owner_id = ${to}, updated_at = now() where owner_id = ${from}`).count;
-      n += (await tx`update projects set owner_id = ${to}, updated_at = now() where owner_id = ${from}`).count;
-      n += (await tx`update quotations set owner_id = ${to}, updated_at = now() where owner_id = ${from}`).count;
-      n += (await tx`update leads set created_by = ${to} where created_by = ${from}`).count;
-      n += (await tx`update leads set assigned_to_id = ${to} where assigned_to_id = ${from}`).count;
+      // CRM book of business (kept updated_at fresh so it surfaces for the new owner).
+      n += (await tx`update companies      set owner_id = ${to}, updated_at = now() where owner_id = ${from} ${orNullOwner}`).count;
+      n += (await tx`update client_folders set owner_id = ${to}, updated_at = now() where owner_id = ${from} ${orNullOwner}`).count;
+      n += (await tx`update contacts       set owner_id = ${to}, updated_at = now() where owner_id = ${from} ${orNullOwner}`).count;
+      n += (await tx`update projects       set owner_id = ${to}, updated_at = now() where owner_id = ${from} ${orNullOwner}`).count;
+      n += (await tx`update quotations     set owner_id = ${to}, updated_at = now() where owner_id = ${from} ${orNullOwner}`).count;
+      // Sales / project artifacts owned by the user.
+      n += (await tx`update purchase_orders set owner_id = ${to} where owner_id = ${from} ${orNullOwner}`).count;
+      n += (await tx`update project_files   set owner_id = ${to} where owner_id = ${from} ${orNullOwner}`).count;
+      // Pricing module — these are owned via user_id, not owner_id.
+      n += (await tx`update pricing_projects set user_id = ${to} where user_id = ${from} ${orNullUser}`).count;
+      // Leads — owned via created_by, plus the assignee.
+      n += (await tx`update leads set created_by = ${to} where created_by = ${from} ${orNullCreated}`).count;
+      n += (await tx`update leads set assigned_to_id = ${to} where assigned_to_id = ${from} ${orNullAssigned}`).count;
       return n;
     });
 
