@@ -8,16 +8,22 @@
  * is dormant until the switch is flipped — merging it changes nothing on the
  * live (Postgres) app.
  *
- * ── STATUS: STAGE 1 ──────────────────────────────────────────────────────────
- * Handles the common shapes: parameterised CRUD, `now()`, `::casts`, `ILIKE`,
- * `= any(${array})`, `RETURNING`, and boolean/Date/json params. The hard parts
- * are tracked for later stages and will break until done — verify on a PREVIEW
- * deployment, never straight to production:
- *   - Full-text search (tsvector / @@): needs SQLite FTS5 — src/lib/search.ts.
- *   - JSON filters (->>, @>, jsonb_*): need json_extract() / json_each().
- *   - Interactive transactions (q.begin): D1 REST runs statements inline (no
- *     real transaction); the four call-sites need review.
- *   - generate_series: needs a recursive CTE.
+ * ── STATUS: STAGE 2 ──────────────────────────────────────────────────────────
+ * Handles: parameterised CRUD, `now()`, `::casts`, `ILIKE` (search.ts uses
+ * ILIKE, not tsvector — so search just works), `= any(${array})`, `RETURNING`,
+ * boolean/Date/json params, and the json builder/aggregate functions
+ * (`jsonb_build_object`→`json_object`, `jsonb_agg`→`json_group_array`,
+ * `string_agg`→`group_concat`, …). No `->>`/`@>` operators are used anywhere.
+ *
+ * Remaining gaps (small, countable) — verify on a PREVIEW, never straight to
+ * production; each is fixed per-site as preview testing surfaces it:
+ *   - `jsonb_set(target,'{a,b}',v)`: SQLite path is `$.a.b`, not `{a,b}`.
+ *   - `array_agg`: returns a comma string via group_concat — consumers that
+ *     expect a real array need a JSON.parse (use json_group_array there).
+ *   - Date funcs `to_char` / `date_trunc` / `extract(... from)`: format/semantic
+ *     differences — a few call-sites, rewritten individually.
+ *   - `generate_series`: needs a recursive CTE (≈5 call-sites).
+ *   - Interactive transactions (`q.begin`, 4 sites): D1 REST runs inline.
  */
 import { d1Query } from "./db-d1";
 
@@ -37,6 +43,12 @@ export function translatePgToSqlite(text: string): string {
   s = s.replace(/::\s*"?[a-zA-Z_][a-zA-Z0-9_]*"?(\s*\[\s*\])?/g, "");
   // ILIKE → LIKE (SQLite LIKE is case-insensitive for ASCII)
   s = s.replace(/\bilike\b/gi, "LIKE");
+  // JSON builders / aggregates → SQLite equivalents (clean 1:1 maps).
+  s = s.replace(/\bjsonb?_build_object\b/gi, "json_object");
+  s = s.replace(/\bjsonb?_build_array\b/gi, "json_array");
+  s = s.replace(/\bjsonb?_agg\b/gi, "json_group_array");
+  s = s.replace(/\bjsonb?_object_agg\b/gi, "json_group_object");
+  s = s.replace(/\bstring_agg\b/gi, "group_concat");
   return s;
 }
 
