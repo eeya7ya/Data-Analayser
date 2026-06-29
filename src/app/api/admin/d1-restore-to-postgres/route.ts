@@ -43,6 +43,7 @@ export async function POST(req: Request) {
 }
 
 async function runRestore(req: Request) {
+  let cleanup: (() => Promise<void>) | null = null;
   try {
     await assertAuthorized(req);
 
@@ -57,17 +58,78 @@ async function runRestore(req: Request) {
       );
     }
 
-    // Make sure the Postgres schema exists before we load into it.
-    await ensureSchema();
+    const url = new URL(req.url);
+    const probe = url.searchParams.get("probe") === "1";
+    const onlyTable = url.searchParams.get("table");
     const q = getDb();
 
+    // Instant connectivity probe — no writes, returns in ~1s. Use this to see
+    // whether D1 and Neon are reachable and how many rows each already has.
+    if (probe) {
+      const out: Record<string, unknown> = { probe: true };
+      try {
+        const dq = await d1Query<{ c: number }>(`SELECT COUNT(*) AS c FROM "quotations"`);
+        out.d1 = { reachable: true, quotations: Number(dq.results[0]?.c ?? 0) };
+      } catch (e) {
+        out.d1 = { reachable: false, error: (e instanceof Error ? e.message : String(e)).slice(0, 160) };
+      }
+      try {
+        const pt = (await q`select count(*)::int c from information_schema.tables
+                            where table_schema='public' and table_type='BASE TABLE'`) as Array<{ c: number }>;
+        let pqCount = -1;
+        try {
+          const pq = (await q`select count(*)::int c from quotations`) as Array<{ c: number }>;
+          pqCount = pq[0]?.c ?? -1;
+        } catch {
+          /* table may not exist yet */
+        }
+        out.neon = { reachable: true, tables: pt[0]?.c ?? 0, quotations: pqCount };
+      } catch (e) {
+        out.neon = { reachable: false, error: (e instanceof Error ? e.message : String(e)).slice(0, 160) };
+      }
+      return NextResponse.json(out);
+    }
+
+    // Build the schema only if it's actually missing — on a warm DB this saves
+    // the whole DDL/migration pass, which otherwise can eat the function's time
+    // budget before any data is copied.
+    const reg = (await q`select to_regclass('public.quotations') as t`) as Array<{ t: string | null }>;
+    if (!reg[0]?.t) await ensureSchema();
+
     const { tables, colsByTable, pkByTable, fks } = await readPgSchema(q);
-    const ordered = topoSort(tables, fks);
+    const ordered = topoSort(tables, fks).filter((t) => !onlyTable || t === onlyTable);
 
     const PAGE = 500;
     const results: TableResult[] = [];
     let overflowFetched = 0;
     let overflowErrors = 0;
+
+    // One reserved connection for the whole load, with FK enforcement disabled
+    // on it, so circular references (folders <-> companies <-> projects <->
+    // quotations) load regardless of insertion order. Falls back to the pooled
+    // client if the role isn't allowed to set session_replication_role.
+    let conn = q;
+    let fkDisabled = false;
+    try {
+      const reserved = await q.reserve();
+      try {
+        await reserved.unsafe("SET session_replication_role = replica");
+        conn = reserved as unknown as typeof q;
+        fkDisabled = true;
+        cleanup = async () => {
+          try {
+            await reserved.unsafe("SET session_replication_role = DEFAULT");
+          } catch {
+            /* ignore */
+          }
+          reserved.release();
+        };
+      } catch {
+        reserved.release();
+      }
+    } catch {
+      /* reserve() unavailable — use the pooled client and rely on re-runs */
+    }
 
     for (const table of ordered) {
       const pgCols = colsByTable.get(table) ?? [];
@@ -115,7 +177,7 @@ async function runRestore(req: Request) {
         }
         const stmt = `INSERT INTO "${table}" (${colIdents}) VALUES ${valuesSql.join(", ")} ${conflict}`;
         try {
-          await q.unsafe(stmt, params as never[]);
+          await conn.unsafe(stmt, params as never[]);
           loaded += batch.length;
         } catch {
           // One bad row shouldn't sink the batch — retry each row alone.
@@ -128,7 +190,7 @@ async function runRestore(req: Request) {
             }
             const one = `INSERT INTO "${table}" (${colIdents}) VALUES (${cells.join(", ")}) ${conflict}`;
             try {
-              await q.unsafe(one, p as never[]);
+              await conn.unsafe(one, p as never[]);
               loaded++;
             } catch (e2) {
               errors.push((e2 instanceof Error ? e2.message : String(e2)).slice(0, 180));
@@ -203,7 +265,7 @@ async function runRestore(req: Request) {
       // Reset the serial sequence so future inserts don't collide.
       if (pk.length === 1 && pk[0] === "id" && loaded > 0) {
         try {
-          await q.unsafe(
+          await conn.unsafe(
             `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'),
                     GREATEST((SELECT COALESCE(MAX(id), 1) FROM "${table}"), 1))`,
           );
@@ -225,6 +287,7 @@ async function runRestore(req: Request) {
       totalErrors,
       overflowFetched,
       overflowErrors,
+      fkDisabled,
       tables: results,
     });
   } catch (err) {
@@ -232,6 +295,8 @@ async function runRestore(req: Request) {
     const status =
       msg === "UNAUTHENTICATED" ? 401 : msg === "FORBIDDEN" ? 403 : 500;
     return NextResponse.json({ error: msg }, { status });
+  } finally {
+    if (cleanup) await cleanup();
   }
 }
 
