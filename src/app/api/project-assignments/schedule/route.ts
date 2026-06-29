@@ -63,9 +63,12 @@ export async function GET(req: NextRequest) {
 
     // Board rows: every user holding any projects-module grant, with their
     // role(s) aggregated for a label.
-    const technicians = (await q`
+    // group_concat is the SQLite/D1 equivalent of array_agg; it returns a
+    // comma-separated string (no in-aggregate ORDER BY), so we split + sort the
+    // roles in JS to preserve the original `string[]` shape.
+    const technicianRows = (await q`
       select u.id, u.username, u.display_name,
-             array_agg(distinct umr.role order by umr.role) as roles
+             group_concat(distinct umr.role) as roles
       from users u
       join user_module_roles umr
         on umr.user_id = u.id
@@ -77,16 +80,24 @@ export async function GET(req: NextRequest) {
       id: number;
       username: string;
       display_name: string | null;
-      roles: string[];
+      roles: string | string[] | null;
     }>;
+    const technicians = technicianRows.map((t) => ({
+      ...t,
+      roles: Array.isArray(t.roles)
+        ? t.roles
+        : t.roles
+          ? String(t.roles).split(",").sort()
+          : [],
+    }));
 
     // Assignments with a date that overlaps the requested window.
     const scheduled = (await q`
       select pa.id, pa.project_id, p.name as project_name,
              cf.name as client_name, p.status,
              pa.user_id, pa.role, pa.location,
-             to_char(pa.start_date, 'YYYY-MM-DD') as start_date,
-             to_char(pa.end_date, 'YYYY-MM-DD') as end_date,
+             substr(cast(pa.start_date as text), 1, 10) as start_date,
+             substr(cast(pa.end_date as text), 1, 10) as end_date,
              pa.notes
       from project_assignments pa
       join projects p on p.id = pa.project_id and p.deleted_at is null

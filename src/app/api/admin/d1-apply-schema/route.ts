@@ -70,11 +70,14 @@ export async function POST() {
       }
 
       // Only allow DDL we expect. Belt-and-suspenders guard against anything
-      // unexpected ending up in the schema file.
+      // unexpected ending up in the schema file. ALTER TABLE ... ADD COLUMN is
+      // allowed so an existing D1 database gains columns added after its
+      // original bootstrap (e.g. users.tenant_id / department_code).
       if (
         !upper.startsWith("CREATE TABLE") &&
         !upper.startsWith("CREATE UNIQUE INDEX") &&
         !upper.startsWith("CREATE INDEX") &&
+        !upper.startsWith("ALTER TABLE") &&
         !upper.startsWith("PRAGMA")
       ) {
         skipped++;
@@ -86,8 +89,9 @@ export async function POST() {
         applied++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        // "already exists" is fine — idempotent re-run.
-        if (/already exists/i.test(msg)) {
+        // Idempotent re-run: the table already exists, or the ALTER is adding a
+        // column that's already there. Both are expected on a healthy DB.
+        if (/already exists/i.test(msg) || /duplicate column name/i.test(msg)) {
           skipped++;
           continue;
         }

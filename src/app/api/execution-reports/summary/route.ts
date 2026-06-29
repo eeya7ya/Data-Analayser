@@ -64,6 +64,19 @@ export async function GET(req: NextRequest) {
     const isAdmin = canReadAll(user);
     const q = sql();
 
+    // Start of the chosen period as a YYYY-MM-DD cutoff, computed in JS so it
+    // works on D1/SQLite (no date_trunc). Date-only avoids timestamp-format
+    // mismatches at the boundary (CURRENT_TIMESTAMP vs ISO).
+    const periodStart = new Date();
+    periodStart.setHours(0, 0, 0, 0);
+    if (truncUnit === "week") {
+      const dow = (periodStart.getDay() + 6) % 7; // 0 = Monday
+      periodStart.setDate(periodStart.getDate() - dow);
+    } else if (truncUnit === "month") {
+      periodStart.setDate(1);
+    }
+    const periodCutoff = periodStart.toISOString().slice(0, 10);
+
     // Portfolio + per-project completion. The completion expression forces
     // 100 once any `done` report exists, otherwise takes the most recent
     // non-null progress (0 when nothing's been reported yet).
@@ -137,7 +150,7 @@ export async function GET(req: NextRequest) {
         join projects p on p.id = r.project_id and p.deleted_at is null
         left join users u on u.id = r.author_id
         where r.project_id = any(${ids})
-          and r.created_at >= date_trunc(${truncUnit}, now())
+          and r.created_at >= ${periodCutoff}
         order by r.created_at desc
         limit 400
       `) as ReportRow[];

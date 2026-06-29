@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import JSZip from "jszip";
-import { sql, ensureSchema } from "@/lib/db";
+import { sql, ensureSchema, usingD1 } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -67,16 +67,21 @@ export async function POST(req: NextRequest) {
     };
     const report: Report[] = [];
 
-    // Best-effort: defer FK enforcement so cross-table dependencies in the
-    // backup don't block ingest. Requires `pg_database_owner`-level rights;
-    // silently falls back to plain inserts (which still work because the
-    // manifest preserves topological order) if the role can't toggle it.
+    const d1 = usingD1();
+
+    // Best-effort (Postgres only): defer FK enforcement so cross-table
+    // dependencies in the backup don't block ingest. Requires
+    // `pg_database_owner`-level rights; silently falls back to plain inserts
+    // (which still work because the manifest preserves topological order) if
+    // the role can't toggle it. D1 has no foreign-key enforcement here.
     let fkDeferred = false;
-    try {
-      await q.unsafe(`set session session_replication_role = replica`);
-      fkDeferred = true;
-    } catch {
-      fkDeferred = false;
+    if (!d1) {
+      try {
+        await q.unsafe(`set session session_replication_role = replica`);
+        fkDeferred = true;
+      } catch {
+        fkDeferred = false;
+      }
     }
 
     try {
@@ -107,7 +112,9 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const result = await restoreTable(q, meta, rows);
+        const result = d1
+          ? await restoreTableD1(q, meta, rows)
+          : await restoreTable(q, meta, rows);
         report.push({ table: tableName, ...result });
       }
     } finally {
@@ -119,9 +126,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Realign every serial / identity sequence so future inserts don't
-    // collide with the restored maximum IDs. Skipped silently for tables
-    // that have no sequence backing.
-    await realignSequences(q, manifest.tables.map((t) => t.name));
+    // collide with the restored maximum IDs (Postgres only — D1 derives the
+    // next rowid from the restored max automatically).
+    if (!d1) {
+      await realignSequences(q, manifest.tables.map((t) => t.name));
+    }
 
     const totals = report.reduce(
       (acc, r) => {
@@ -224,6 +233,59 @@ async function restoreTable(
   }
 
   return { inserted, updated, skipped };
+}
+
+/**
+ * D1/SQLite restore of one table: upsert every row by primary key via
+ * INSERT OR REPLACE. Values are bound as scalar params (objects/arrays → JSON
+ * text, booleans → 0/1) so quoting/casts are never an issue. Reports all rows
+ * as "inserted" — D1's INSERT OR REPLACE doesn't distinguish insert vs update
+ * without an extra probe per row.
+ */
+async function restoreTableD1(
+  q: SqlClient,
+  meta: {
+    name: string;
+    columns: Array<{ name: string; udt: string }>;
+    primaryKey: string[];
+  },
+  rows: Array<Record<string, unknown>>,
+): Promise<{ inserted: number; updated: number; skipped: number; error?: string }> {
+  if (meta.primaryKey.length === 0) {
+    // No PK — INSERT OR REPLACE can't dedupe; skip to avoid duplicating rows.
+    return { inserted: 0, updated: 0, skipped: rows.length };
+  }
+  const cols = meta.columns.map((c) => c.name);
+  const colList = cols.map(quoteIdent).join(", ");
+  const placeholders = cols.map(() => "?").join(", ");
+  const stmt = `INSERT OR REPLACE INTO ${quoteIdent(meta.name)} (${colList}) VALUES (${placeholders})`;
+
+  let inserted = 0;
+  for (const row of rows) {
+    const vals = cols.map((c) => toD1Value(row[c]));
+    try {
+      await q.unsafe(stmt, vals);
+      inserted++;
+    } catch (err) {
+      return {
+        inserted,
+        updated: 0,
+        skipped: 0,
+        error: `row failed: ${(err as Error).message}`,
+      };
+    }
+  }
+  return { inserted, updated: 0, skipped: 0 };
+}
+
+/** Coerce a backup JSON value to a D1-safe scalar bind param. */
+function toD1Value(v: unknown): string | number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "boolean") return v ? 1 : 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "bigint") return Number(v);
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
 }
 
 async function realignSequences(q: SqlClient, tables: string[]): Promise<void> {

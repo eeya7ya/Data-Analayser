@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 import { getSessionUser } from "@/lib/auth";
 import LoginForm from "@/components/LoginForm";
-import LoginBackgroundVideo from "@/components/LoginBackgroundVideo";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +10,11 @@ export default async function LoginPage() {
   if (user) redirect("/");
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0b0f1a] text-white">
-      <LoginBackgroundVideo src="/login-bg.mp4" />
+      {/* Simple static background — a dark brand gradient. Replaces the old
+          looping login video for a lighter, faster, distraction-free sign-in. */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_50%_0%,#141a2b_0%,#0b0f1a_55%,#070a12_100%)]" />
 
-      {/* Tint + soft radial vignette so type stays readable on any frame */}
+      {/* Tint + soft radial vignette so type stays readable */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0b0f1a]/65 via-[#0b0f1a]/40 to-[#0b0f1a]/85" />
       <div
         className="pointer-events-none absolute inset-0"

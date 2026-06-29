@@ -32,10 +32,18 @@ export async function ensureDefaultProject(args: {
   `) as Array<{ id: number }>;
   if (existing.length > 0) return existing[0].id;
 
+  // Name the auto-created project after the client folder it belongs to, so
+  // projects are meaningfully NAMED (e.g. "Acme Corp") instead of a generic
+  // "Default Project". The user can still rename or split it at any time.
+  const folderRows = (await q`
+    select name from client_folders where id = ${folderId} limit 1
+  `) as Array<{ name: string | null }>;
+  const projectName = (folderRows[0]?.name || "").trim() || "Project";
+
   const inserted = (await q`
     insert into projects (folder_id, owner_id, name, description, status)
     values (
-      ${folderId}, ${ownerId}, 'Default Project',
+      ${folderId}, ${ownerId}, ${projectName},
       'Auto-created so quotations filed under this client land somewhere by default. Rename or split into focused projects any time.',
       'open'
     )

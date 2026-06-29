@@ -7,6 +7,7 @@ import AdminSettings from "./AdminSettings";
 import BrandingAdmin from "./BrandingAdmin";
 import NewsAdminPanel from "./NewsAdminPanel";
 import EmailAdminPanel from "./EmailAdminPanel";
+import SyslogPanel from "./SyslogPanel";
 import type { AppSettings } from "@/lib/settings";
 
 type Tab =
@@ -15,7 +16,8 @@ type Tab =
   | "email"
   | "settings"
   | "branding"
-  | "backups";
+  | "backups"
+  | "syslog";
 
 const TABS: Tab[] = [
   "users",
@@ -24,6 +26,7 @@ const TABS: Tab[] = [
   "settings",
   "branding",
   "backups",
+  "syslog",
 ];
 
 export default function AdminTabs({
@@ -73,6 +76,9 @@ export default function AdminTabs({
         </TabButton>
         <TabButton active={tab === "backups"} onClick={() => setTab("backups")}>
           Backups
+        </TabButton>
+        <TabButton active={tab === "syslog"} onClick={() => setTab("syslog")}>
+          Syslog
         </TabButton>
       </div>
 
@@ -133,6 +139,15 @@ export default function AdminTabs({
           <FilesBackupPanel />
           <DatabaseBackupPanel />
           <D1ResetPanel readOnly={readOnly} />
+        </section>
+      )}
+
+      {tab === "syslog" && (
+        <section>
+          <h2 className="text-lg font-semibold text-magic-ink mb-3">
+            Syslog — click activity
+          </h2>
+          <SyslogPanel readOnly={readOnly} />
         </section>
       )}
     </div>

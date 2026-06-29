@@ -56,11 +56,23 @@ function getUrl(): string {
  *   const q = sql();
  *   const rows = await q`select * from users where id = ${id}`;
  */
+/**
+ * Whether the app talks to Cloudflare D1 (the default) rather than Postgres.
+ *
+ * D1 is now the app's primary database. Postgres/Neon has been retired, so the
+ * app runs with no Postgres connection string configured at all. Setting
+ * `USE_D1=0` opts back into the (dormant) Postgres path — kept only as an
+ * emergency fallback for anyone who still has a Postgres URL.
+ */
+export function usingD1(): boolean {
+  return process.env.USE_D1 !== "0";
+}
+
 export function sql(): Sql {
-  // D1 mode (flag-gated, OFF by default): route every query through the D1
-  // engine instead of Postgres. See src/lib/db-d1-sql.ts. Merging this changes
-  // nothing until USE_D1=1 is set, so it can be verified on a preview first.
-  if (process.env.USE_D1 === "1") {
+  // D1 is the default database: route every query through the D1 engine
+  // (src/lib/db-d1-sql.ts) instead of Postgres. Only `USE_D1=0` falls back to
+  // the legacy Postgres client (which then needs a connection string).
+  if (usingD1()) {
     return getD1Sql() as unknown as Sql;
   }
   if (!globalForDb.__mtSql) {
@@ -431,10 +443,10 @@ const SEQUENCE_REALIGN_FLAG = "sequence_realign_v1_2026_06";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
-  // In D1 mode the schema is managed separately by the d1-apply-schema route
-  // (the clean SQLite schema in d1/schema.sql), so the Postgres DDL bootstrap
-  // is skipped entirely.
-  if (process.env.USE_D1 === "1") return;
+  // In D1 mode (the default) the schema is managed separately by the
+  // d1-apply-schema route (the SQLite schema in d1/schema.sql), so the Postgres
+  // DDL bootstrap is skipped entirely.
+  if (usingD1()) return;
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
   // Ensure DDL first, then seed the release-notes changelog. The seed lives
   // outside _ensureSchemaOnce's "nothing to do" early return so it still runs
@@ -459,6 +471,12 @@ export async function ensureSchema(): Promise<void> {
  * natural next cold start.
  */
 export async function resetSchemaCache(): Promise<void> {
+  // No Postgres DDL to replay in D1 mode (the default); just drop the cached
+  // promise so a later USE_D1=0 boot re-runs the bootstrap.
+  if (usingD1()) {
+    globalForSchema.__mtSchemaPromise = undefined;
+    return;
+  }
   const q = sql();
   // Remove the two flags we control so _ensureSchemaOnce re-runs them.
   // The CRM backfill flag (client_folders_crm_v1) is intentionally left

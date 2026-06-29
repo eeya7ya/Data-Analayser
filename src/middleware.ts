@@ -32,6 +32,9 @@ const AUTH_PASS_THROUGH = new Set<string>([
 
 const POST_READS = new Set<string>([
   "/api/database/search",
+  // Click telemetry is conceptually read-only; let every role (incl. viewers)
+  // post their clicks so the Syslog feed is complete.
+  "/api/syslog",
 ]);
 
 function isMutation(method: string): boolean {

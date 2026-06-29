@@ -55,6 +55,15 @@ export async function GET(req: Request) {
     const put = await r2PutObject(dayKey, buffer, "application/zip");
     await r2PutObject(latestKey, buffer, "application/zip");
 
+    // Self-trim the Syslog click log to its 1-week retention as part of the
+    // daily run, so it stays bounded even if no admin ever opens it.
+    try {
+      const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString();
+      await sql()`delete from click_log where created_at < ${cutoff}`;
+    } catch {
+      // click_log may not exist yet — ignore.
+    }
+
     return NextResponse.json({
       ok: true,
       uploaded: { key: put.key, bucket: put.bucket, bytes: put.size },

@@ -4,6 +4,7 @@ import { getTenantUserIds } from "@/lib/scope";
 import { sql, ensureSchema } from "@/lib/db";
 import { hasModuleRole, getUserModuleRoles } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
+import RouteRefresher from "@/components/RouteRefresher";
 import DashboardClient, { type DashboardData } from "@/components/DashboardClient";
 import AdminDashboardClient, {
   type AdminDashboardData,
@@ -16,6 +17,60 @@ import StorageDashboardClient, {
 } from "@/components/StorageDashboardClient";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Bucket a list of timestamps into the last `periods` calendar periods of the
+ * given granularity, ending with the current period (oldest → newest). Used for
+ * the dashboard trend chart so it runs on D1/SQLite (no generate_series /
+ * date_trunc / to_char) as well as Postgres. Labels match the old SQL: bare
+ * month name for "month", "DD Mon" for week/day.
+ */
+function bucketTrend(
+  rows: Array<{ d: string | Date | null }>,
+  granularity: "month" | "week" | "day",
+  periods: number,
+): Array<{ label: string; count: number }> {
+  const startOf = (input: Date): Date => {
+    const d = new Date(input);
+    d.setHours(0, 0, 0, 0);
+    if (granularity === "day") return d;
+    if (granularity === "week") {
+      const dow = (d.getDay() + 6) % 7; // 0 = Monday
+      d.setDate(d.getDate() - dow);
+      return d;
+    }
+    d.setDate(1);
+    return d;
+  };
+  const stepBack = (input: Date, n: number): Date => {
+    const d = new Date(input);
+    if (granularity === "day") d.setDate(d.getDate() - n);
+    else if (granularity === "week") d.setDate(d.getDate() - n * 7);
+    else d.setMonth(d.getMonth() - n);
+    return d;
+  };
+  const label = (d: Date): string =>
+    granularity === "month"
+      ? d.toLocaleString("en-US", { month: "short" })
+      : `${String(d.getDate()).padStart(2, "0")} ${d.toLocaleString("en-US", {
+          month: "short",
+        })}`;
+
+  const base = startOf(new Date());
+  const buckets = Array.from({ length: periods }, (_, i) => {
+    const start = stepBack(base, periods - 1 - i);
+    return { key: start.getTime(), label: label(start), count: 0 };
+  });
+  const byKey = new Map(buckets.map((b) => [b.key, b]));
+  for (const r of rows) {
+    if (!r.d) continue;
+    const dt = new Date(r.d as string);
+    if (Number.isNaN(dt.getTime())) continue;
+    const b = byKey.get(startOf(dt).getTime());
+    if (b) b.count++;
+  }
+  return buckets.map((b) => ({ label: b.label, count: b.count }));
+}
 
 /**
  * V1.3a dashboard. Modules moved into the CRM hub + the LHS drawer, so
@@ -90,9 +145,8 @@ export default async function DashboardPage() {
       awaitingAssignment = Number(r[0].n);
     }
 
-    const projectRows = (await qx`
-      select distinct on (p.id)
-             p.id, p.name, p.status, pa.role, pa.notes,
+    const projectRowsRaw = (await qx`
+      select p.id, p.name, p.status, pa.role, pa.notes,
              cf.name as client_name, p.updated_at,
              case
                when exists (
@@ -124,13 +178,23 @@ export default async function DashboardPage() {
       join projects p on p.id = pa.project_id and p.deleted_at is null
       join client_folders cf on cf.id = p.folder_id
       where pa.user_id = ${me} and pa.deleted_at is null
-      order by p.id, p.updated_at desc
-      limit 50
+      order by p.updated_at desc
     `) as ExecutionProject[];
+    // De-dupe to one row per project (latest first) in JS — replaces Postgres'
+    // `distinct on (p.id)`, which SQLite/D1 doesn't support. Cap at 50.
+    const seenProjectIds = new Set<number>();
+    const projectRows = projectRowsRaw
+      .filter((p) => {
+        if (seenProjectIds.has(p.id)) return false;
+        seenProjectIds.add(p.id);
+        return true;
+      })
+      .slice(0, 50);
 
     return (
       <div className="min-h-screen bg-magic-soft/40">
         <TopBar user={user} />
+        <RouteRefresher />
         <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
           <ExecutionDashboardClient
             greetingName={user.display_name || user.username}
@@ -173,6 +237,7 @@ export default async function DashboardPage() {
     return (
       <div className="min-h-screen bg-magic-soft/40">
         <TopBar user={user} />
+        <RouteRefresher />
         <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
           <StorageDashboardClient
             greetingName={user.display_name || user.username}
@@ -236,6 +301,7 @@ export default async function DashboardPage() {
     return (
       <div className="min-h-screen bg-magic-soft/40">
         <TopBar user={user} />
+        <RouteRefresher />
         <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
           <AdminDashboardClient
             data={adminData}
@@ -279,90 +345,62 @@ export default async function DashboardPage() {
     pendingApprovals = Number(rows[0].n);
   }
 
-  // The trend either counts quotations CREATED (default — presales/mixed) or
-  // deals WON (sales lens). The date column and filter swap accordingly; the
-  // generate_series scaffolding is identical.
-  const trendDate = salesLens
-    ? q`coalesce(sales_outcome_at, updated_at)`
-    : q`created_at`;
-  const trendWhere = salesLens
-    ? q`sales_outcome_by = ${user.id} and (sales_outcome = 'accepted' or transferred_at is not null)`
-    : q`owner_id = any(${scope}::int[])`;
+  // ── Trend chart (monthly / weekly / daily) ───────────────────────────────
+  // Computed in JS so it works on D1/SQLite (which has no generate_series /
+  // date_trunc / to_char and can't compose tagged-template fragments) as well
+  // as Postgres. We pull the relevant dates once over the widest window (the
+  // last 6 months) and bucket them three ways for the client's toggle. The
+  // trend counts quotations CREATED (default — presales/mixed) or deals WON
+  // (sales lens); the date column + filter swap accordingly.
+  const trendStart = new Date();
+  trendStart.setMonth(trendStart.getMonth() - 6);
+  trendStart.setDate(1);
+  const trendCutoff = trendStart.toISOString().slice(0, 10); // YYYY-MM-DD
 
-  // Three granularities for the trend chart, all computed in one pass so
-  // the client can flip between them without a round-trip (V1.3D toggle).
-  const monthlyRows = (await q`
-    select to_char(m, 'Mon') as label, coalesce(c.n, 0)::int as count
-    from generate_series(
-      date_trunc('month', now()) - interval '5 months',
-      date_trunc('month', now()),
-      interval '1 month'
-    ) as m
-    left join (
-      select date_trunc('month', ${trendDate}) as mm, count(*)::int as n
-      from quotations
-      where deleted_at is null
-        and ${trendDate} > now() - interval '6 months'
-        and ${trendWhere}
-      group by mm
-    ) c on c.mm = m
-    order by m
-  `) as Array<{ label: string; count: number }>;
+  const trendDates = (
+    salesLens
+      ? await q`
+          select coalesce(sales_outcome_at, updated_at) as d
+          from quotations
+          where deleted_at is null
+            and sales_outcome_by = ${user.id}
+            and (sales_outcome = 'accepted' or transferred_at is not null)
+            and coalesce(sales_outcome_at, updated_at) >= ${trendCutoff}
+        `
+      : await q`
+          select created_at as d
+          from quotations
+          where deleted_at is null
+            and owner_id = any(${scope}::int[])
+            and created_at >= ${trendCutoff}
+        `
+  ) as Array<{ d: string | null }>;
 
-  const weeklyRows = (await q`
-    select to_char(m, 'DD Mon') as label, coalesce(c.n, 0)::int as count
-    from generate_series(
-      date_trunc('week', now()) - interval '11 weeks',
-      date_trunc('week', now()),
-      interval '1 week'
-    ) as m
-    left join (
-      select date_trunc('week', ${trendDate}) as ww, count(*)::int as n
-      from quotations
-      where deleted_at is null
-        and ${trendDate} > now() - interval '12 weeks'
-        and ${trendWhere}
-      group by ww
-    ) c on c.ww = m
-    order by m
-  `) as Array<{ label: string; count: number }>;
-
-  const dailyRows = (await q`
-    select to_char(m, 'DD Mon') as label, coalesce(c.n, 0)::int as count
-    from generate_series(
-      date_trunc('day', now()) - interval '29 days',
-      date_trunc('day', now()),
-      interval '1 day'
-    ) as m
-    left join (
-      select date_trunc('day', ${trendDate}) as dd, count(*)::int as n
-      from quotations
-      where deleted_at is null
-        and ${trendDate} > now() - interval '30 days'
-        and ${trendWhere}
-      group by dd
-    ) c on c.dd = m
-    order by m
-  `) as Array<{ label: string; count: number }>;
+  const monthly = bucketTrend(trendDates, "month", 6);
+  const weekly = bucketTrend(trendDates, "week", 12);
+  const daily = bucketTrend(trendDates, "day", 30);
 
   // Sales outcome breakdown — Won / Lost / Held for the outcome panel. In the
   // sales lens this counts the deals THIS user decided, not quotations they own.
-  const outcomeWhere = salesLens
-    ? q`sales_outcome_by = ${user.id}`
-    : q`owner_id = any(${scope}::int[])`;
-  const outcomeRows = (await q`
-    select
-      count(*) filter (
-        where sales_outcome = 'accepted' or transferred_at is not null
-      )::int as won,
-      count(*) filter (where sales_outcome = 'rejected')::int as lost,
-      count(*) filter (
-        where sales_outcome = 'held' and transferred_at is null
-      )::int as held
-    from quotations
-    where deleted_at is null
-      and ${outcomeWhere}
-  `) as Array<{ won: number; lost: number; held: number }>;
+  const outcomeRows = (
+    salesLens
+      ? await q`
+          select
+            count(*) filter (where sales_outcome = 'accepted' or transferred_at is not null) as won,
+            count(*) filter (where sales_outcome = 'rejected') as lost,
+            count(*) filter (where sales_outcome = 'held' and transferred_at is null) as held
+          from quotations
+          where deleted_at is null and sales_outcome_by = ${user.id}
+        `
+      : await q`
+          select
+            count(*) filter (where sales_outcome = 'accepted' or transferred_at is not null) as won,
+            count(*) filter (where sales_outcome = 'rejected') as lost,
+            count(*) filter (where sales_outcome = 'held' and transferred_at is null) as held
+          from quotations
+          where deleted_at is null and owner_id = any(${scope}::int[])
+        `
+  ) as Array<{ won: number; lost: number; held: number }>;
 
   const statusRows = (await q`
     select coalesce(nullif(status, ''), 'active') as name, count(*)::int as value
@@ -393,9 +431,9 @@ export default async function DashboardPage() {
       projects: kpi.projects,
       pendingApprovals,
     },
-    monthly: monthlyRows.map((r) => ({ label: r.label, count: Number(r.count) })),
-    weekly: weeklyRows.map((r) => ({ label: r.label, count: Number(r.count) })),
-    daily: dailyRows.map((r) => ({ label: r.label, count: Number(r.count) })),
+    monthly,
+    weekly,
+    daily,
     outcomes: {
       won: Number(outcomeRows[0].won),
       lost: Number(outcomeRows[0].lost),

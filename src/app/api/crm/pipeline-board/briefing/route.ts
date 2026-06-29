@@ -33,13 +33,36 @@ interface Row {
   sales_outcome: string | null;
   transferred_at: string | null;
   project_status: string | null;
-  total: string | null;
-  age_days: number | null;
-  cost_covered: string | null;
-  sale_covered: string | null;
+  totals_json: string | Record<string, unknown> | null;
+  age_anchor: string | null;
 }
 
 const OPEN_STAGES: Stage[] = ["quoting", "approved", "won", "held"];
+
+/** BoQ total out of a quotation's totals_json (TEXT on D1, object on PG). */
+function parseTotalJson(
+  totals: string | Record<string, unknown> | null,
+): number {
+  if (totals == null) return 0;
+  let obj: unknown = totals;
+  if (typeof totals === "string") {
+    try {
+      obj = JSON.parse(totals);
+    } catch {
+      return 0;
+    }
+  }
+  const t = Number((obj as { total?: unknown } | null)?.total);
+  return Number.isFinite(t) ? t : 0;
+}
+
+/** Whole days between an ISO/text timestamp and now (computed in JS for D1). */
+function ageDaysFrom(anchor: string | null): number {
+  if (!anchor) return 0;
+  const t = new Date(anchor).getTime();
+  if (Number.isNaN(t)) return 0;
+  return Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
+}
 
 export async function POST() {
   try {
@@ -76,39 +99,20 @@ export async function POST() {
         ).map((r) => r.id)
       : [user.id];
 
+    // D1-safe: select the raw BoQ totals + an age anchor and compute value/age
+    // in JS. (Per-line gross-margin used a Postgres lateral join over
+    // jsonb_array_elements with regex casts, which D1/SQLite can't run — margin
+    // is simply omitted from the AI snapshot, which the prompt already allows.)
     const rows = (await q`
       select q.id, q.ref, q.client_name,
              q.approved_at, q.rejected_at, q.sales_outcome, q.transferred_at,
              p.status as project_status,
-             jsonb_as_object(q.totals_json)->>'total' as total,
-             floor(extract(epoch from (now() - coalesce(
+             q.totals_json as totals_json,
+             coalesce(
                q.sales_outcome_at, q.approved_at, q.updated_at, q.created_at
-             ))) / 86400)::int as age_days,
-             coalesce(m.cost_covered, 0) as cost_covered,
-             coalesce(m.sale_covered, 0) as sale_covered
+             ) as age_anchor
       from quotations q
       left join projects p on p.id = q.project_id
-      left join lateral (
-        select
-          sum(case when li.has_cost then li.cost else 0 end) as cost_covered,
-          sum(case when li.has_cost then li.sale else 0 end) as sale_covered
-        from (
-          select
-            (it->>'unit_price')::numeric * li_qty.qty as sale,
-            case when (it->>'price_si') ~ '^-?[0-9]+([.][0-9]+)?$'
-                 then (it->>'price_si')::numeric * li_qty.qty
-                 else 0 end as cost,
-            ((it->>'price_si') ~ '^-?[0-9]+([.][0-9]+)?$') as has_cost
-          from jsonb_array_elements(jsonb_as_array(q.items_json)) as it
-          cross join lateral (
-            select case when (it->>'quantity') ~ '^-?[0-9]+([.][0-9]+)?$'
-                        then (it->>'quantity')::numeric else 0 end as qty
-          ) li_qty
-          where coalesce(it->>'kind', 'item') <> 'section'
-            and coalesce(it->>'optional', '') <> 'true'
-            and (it->>'unit_price') ~ '^-?[0-9]+([.][0-9]+)?$'
-        ) li
-      ) m on true
       where q.deleted_at is null
         and q.parent_ref is null
         and q.owner_id = any(${ownerIds}::int[])
@@ -121,21 +125,15 @@ export async function POST() {
     const deals = rows
       .map((r) => {
         const stage = deriveStage(r);
-        const ageDays = Math.max(0, r.age_days ?? 0);
-        const value = Number(r.total);
-        const saleCovered = Number(r.sale_covered ?? 0) || 0;
-        const costCovered = Number(r.cost_covered ?? 0) || 0;
-        const marginPct =
-          saleCovered > 0
-            ? Math.round(((saleCovered - costCovered) / saleCovered) * 100)
-            : null;
+        const ageDays = ageDaysFrom(r.age_anchor);
+        const value = parseTotalJson(r.totals_json);
         return {
           ref: r.ref,
           client: r.client_name,
           stage,
-          value: Number.isFinite(value) ? value : 0,
+          value,
           ageDays,
-          marginPct,
+          marginPct: null as number | null,
           ...insight(stage, ageDays),
         };
       })

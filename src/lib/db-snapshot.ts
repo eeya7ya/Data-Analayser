@@ -29,7 +29,7 @@
 
 import JSZip from "jszip";
 import { createHash } from "node:crypto";
-import { sql } from "./db";
+import { sql, usingD1 } from "./db";
 
 type SqlClient = ReturnType<typeof sql>;
 
@@ -77,48 +77,99 @@ export async function buildDbSnapshotZip(q: SqlClient): Promise<DbSnapshot> {
     is_nullable: "YES" | "NO";
     column_default: string | null;
   };
-  const columns = (await q`
-    select table_name, column_name, data_type, udt_name,
-           ordinal_position, is_nullable, column_default
-    from information_schema.columns
-    where table_schema = 'public'
-    order by table_name, ordinal_position
-  `) as ColumnRow[];
-
   type PkRow = { table_name: string; column_name: string };
-  const pks = (await q`
-    select kcu.table_name, kcu.column_name
-    from information_schema.table_constraints tc
-    join information_schema.key_column_usage kcu
-      on tc.constraint_name = kcu.constraint_name
-     and tc.table_schema  = kcu.table_schema
-    where tc.table_schema = 'public'
-      and tc.constraint_type = 'PRIMARY KEY'
-    order by kcu.table_name, kcu.ordinal_position
-  `) as PkRow[];
 
-  type TableRow = { table_name: string };
-  const tablesRaw = (await q`
-    select table_name from information_schema.tables
-    where table_schema = 'public' and table_type = 'BASE TABLE'
-    order by table_name
-  `) as TableRow[];
+  let ordered: string[];
+  const colsByTable = new Map<string, ColumnRow[]>();
+  const pksByTable = new Map<string, PkRow[]>();
 
-  type FkRow = { table_name: string; referenced_table: string };
-  const fks = (await q`
-    select tc.table_name, ccu.table_name as referenced_table
-    from information_schema.table_constraints tc
-    join information_schema.constraint_column_usage ccu
-      on tc.constraint_name = ccu.constraint_name
-     and tc.table_schema = ccu.table_schema
-    where tc.table_schema = 'public'
-      and tc.constraint_type = 'FOREIGN KEY'
-  `) as FkRow[];
-
-  const tableNames = tablesRaw.map((t) => t.table_name);
-  const ordered = topoSort(tableNames, fks);
-  const colsByTable = groupBy(columns, (c) => c.table_name);
-  const pksByTable = groupBy(pks, (p) => p.table_name);
+  if (usingD1()) {
+    // ── SQLite / Cloudflare D1 introspection ──────────────────────────────
+    // information_schema doesn't exist on SQLite; use sqlite_master + the
+    // table_info PRAGMA. D1 declares no foreign keys, so restore order is just
+    // alphabetical — the restore is additive (INSERT OR REPLACE) and FK-free.
+    const tableRows = (await q`
+      select name from sqlite_master
+      where type = 'table'
+        and name not like 'sqlite_%'
+        and name not like '_cf_%'
+        and name not like 'd1_%'
+      order by name
+    `) as Array<{ name: string }>;
+    ordered = tableRows.map((t) => t.name);
+    for (const table of ordered) {
+      const info = (await q.unsafe(
+        `PRAGMA table_info(${quoteIdent(table)})`,
+      )) as Array<{
+        cid: number;
+        name: string;
+        type: string;
+        notnull: number;
+        dflt_value: string | null;
+        pk: number;
+      }>;
+      colsByTable.set(
+        table,
+        info.map((c) => ({
+          table_name: table,
+          column_name: c.name,
+          data_type: (c.type || "TEXT").toLowerCase(),
+          udt_name: (c.type || "TEXT").toLowerCase(),
+          ordinal_position: c.cid,
+          is_nullable: c.notnull ? "NO" : "YES",
+          column_default: c.dflt_value,
+        })),
+      );
+      pksByTable.set(
+        table,
+        info
+          .filter((c) => c.pk > 0)
+          .sort((a, b) => a.pk - b.pk)
+          .map((c) => ({ table_name: table, column_name: c.name })),
+      );
+    }
+  } else {
+    // ── Postgres (information_schema) introspection ───────────────────────
+    const columns = (await q`
+      select table_name, column_name, data_type, udt_name,
+             ordinal_position, is_nullable, column_default
+      from information_schema.columns
+      where table_schema = 'public'
+      order by table_name, ordinal_position
+    `) as ColumnRow[];
+    const pks = (await q`
+      select kcu.table_name, kcu.column_name
+      from information_schema.table_constraints tc
+      join information_schema.key_column_usage kcu
+        on tc.constraint_name = kcu.constraint_name
+       and tc.table_schema  = kcu.table_schema
+      where tc.table_schema = 'public'
+        and tc.constraint_type = 'PRIMARY KEY'
+      order by kcu.table_name, kcu.ordinal_position
+    `) as PkRow[];
+    const tablesRaw = (await q`
+      select table_name from information_schema.tables
+      where table_schema = 'public' and table_type = 'BASE TABLE'
+      order by table_name
+    `) as Array<{ table_name: string }>;
+    const fks = (await q`
+      select tc.table_name, ccu.table_name as referenced_table
+      from information_schema.table_constraints tc
+      join information_schema.constraint_column_usage ccu
+        on tc.constraint_name = ccu.constraint_name
+       and tc.table_schema = ccu.table_schema
+      where tc.table_schema = 'public'
+        and tc.constraint_type = 'FOREIGN KEY'
+    `) as Array<{ table_name: string; referenced_table: string }>;
+    ordered = topoSort(
+      tablesRaw.map((t) => t.table_name),
+      fks,
+    );
+    for (const [k, v] of groupBy(columns, (c) => c.table_name))
+      colsByTable.set(k, v);
+    for (const [k, v] of groupBy(pks, (p) => p.table_name))
+      pksByTable.set(k, v);
+  }
 
   const manifest: SnapshotManifest = {
     generatedAt: new Date().toISOString(),
