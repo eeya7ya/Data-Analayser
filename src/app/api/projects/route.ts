@@ -4,6 +4,7 @@ import { canReadAll, requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy, requireCrmOrProjectsRead } from "@/lib/modules";
 import { assignedProjectIds } from "@/lib/projectAccess";
 import { ensureFolderProjectCoverage } from "@/lib/projects";
+import { detachLeadsFromProject } from "@/lib/cascade";
 
 export const runtime = "nodejs";
 
@@ -269,7 +270,10 @@ export async function PATCH(req: NextRequest) {
  * DELETE /api/projects?id=X — soft-delete. Cascades to project_files
  * (the bucket files are kept for now; a separate cleanup job can sweep
  * objects whose project row is gone). Quotations / POs are preserved
- * with their FK set to NULL via the `on delete set null` clause.
+ * with their FK set to NULL via the `on delete set null` clause. Any
+ * presales lead opened against this project is DETACHED (its project link
+ * cleared) but kept live in the presales queue — removing the sales-side
+ * project must never silently delete presales' work item.
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -295,6 +299,9 @@ export async function DELETE(req: NextRequest) {
       update projects set deleted_at = now(), updated_at = now()
       where id = ${id}
     `;
+    // Keep any presales lead opened against this project alive in the queue —
+    // sever its (now dead) project link instead of letting it silently vanish.
+    await detachLeadsFromProject(q, id);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(
