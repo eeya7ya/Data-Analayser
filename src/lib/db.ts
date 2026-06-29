@@ -1,5 +1,6 @@
 import postgres, { type Sql } from "postgres";
 import { RELEASE_NOTES } from "./releaseNotes";
+import { getD1Sql } from "./db-d1-sql";
 
 /**
  * Postgres client for Vercel serverless runtimes.
@@ -56,6 +57,12 @@ function getUrl(): string {
  *   const rows = await q`select * from users where id = ${id}`;
  */
 export function sql(): Sql {
+  // D1 mode (flag-gated, OFF by default): route every query through the D1
+  // engine instead of Postgres. See src/lib/db-d1-sql.ts. Merging this changes
+  // nothing until USE_D1=1 is set, so it can be verified on a preview first.
+  if (process.env.USE_D1 === "1") {
+    return getD1Sql() as unknown as Sql;
+  }
   if (!globalForDb.__mtSql) {
     globalForDb.__mtSql = postgres(getUrl(), {
       // The pooler requires TLS for every connection.
@@ -418,6 +425,10 @@ const DEPARTMENT_CODE_FLAG = "user_department_code_v1_2026_06";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
+  // In D1 mode the schema is managed separately by the d1-apply-schema route
+  // (the clean SQLite schema in d1/schema.sql), so the Postgres DDL bootstrap
+  // is skipped entirely.
+  if (process.env.USE_D1 === "1") return;
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
   // Ensure DDL first, then seed the release-notes changelog. The seed lives
   // outside _ensureSchemaOnce's "nothing to do" early return so it still runs
