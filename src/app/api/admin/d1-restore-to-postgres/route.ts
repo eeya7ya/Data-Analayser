@@ -43,7 +43,6 @@ export async function POST(req: Request) {
 }
 
 async function runRestore(req: Request) {
-  let cleanup: (() => Promise<void>) | null = null;
   try {
     await assertAuthorized(req);
 
@@ -103,34 +102,28 @@ async function runRestore(req: Request) {
     const results: TableResult[] = [];
     let overflowFetched = 0;
     let overflowErrors = 0;
+    const conn = q;
 
-    // One reserved connection for the whole load, with FK enforcement disabled
-    // on it, so circular references (folders <-> companies <-> projects <->
-    // quotations) load regardless of insertion order. Falls back to the pooled
-    // client if the role isn't allowed to set session_replication_role.
-    let conn = q;
-    let fkDisabled = false;
-    try {
-      const reserved = await q.reserve();
+    // Drop foreign-key constraints for the duration of the load so circular
+    // references (folders <-> companies <-> projects <-> quotations) load
+    // regardless of insertion order, then restore them in `finally` below. This
+    // needs only table-owner privilege — unlike session_replication_role, which
+    // Neon's role is not permitted to set.
+    const fkDefs = (await q`
+      select conname, conrelid::regclass::text as tbl, pg_get_constraintdef(oid) as def
+      from pg_constraint
+      where contype = 'f' and connamespace = 'public'::regnamespace
+    `) as Array<{ conname: string; tbl: string; def: string }>;
+    for (const fk of fkDefs) {
       try {
-        await reserved.unsafe("SET session_replication_role = replica");
-        conn = reserved as unknown as typeof q;
-        fkDisabled = true;
-        cleanup = async () => {
-          try {
-            await reserved.unsafe("SET session_replication_role = DEFAULT");
-          } catch {
-            /* ignore */
-          }
-          reserved.release();
-        };
+        await q.unsafe(`ALTER TABLE ${fk.tbl} DROP CONSTRAINT IF EXISTS "${fk.conname}"`);
       } catch {
-        reserved.release();
+        /* ignore */
       }
-    } catch {
-      /* reserve() unavailable — use the pooled client and rely on re-runs */
     }
+    const fkReAddErrors: string[] = [];
 
+    try {
     for (const table of ordered) {
       const pgCols = colsByTable.get(table) ?? [];
       const udtByCol = new Map(pgCols.map((c) => [c.name, c.udt]));
@@ -276,6 +269,18 @@ async function runRestore(req: Request) {
 
       results.push({ name: table, d1Rows, loaded, errors });
     }
+    } finally {
+      // Restore every foreign-key constraint (this re-validates the loaded data).
+      for (const fk of fkDefs) {
+        try {
+          await q.unsafe(`ALTER TABLE ${fk.tbl} ADD CONSTRAINT "${fk.conname}" ${fk.def}`);
+        } catch (e) {
+          fkReAddErrors.push(
+            `${fk.tbl}.${fk.conname}: ${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`,
+          );
+        }
+      }
+    }
 
     const totalLoaded = results.reduce((a, r) => a + r.loaded, 0);
     const totalErrors = results.reduce((a, r) => a + r.errors.length, 0);
@@ -287,7 +292,8 @@ async function runRestore(req: Request) {
       totalErrors,
       overflowFetched,
       overflowErrors,
-      fkDisabled,
+      fkConstraintsRestored: fkDefs.length - fkReAddErrors.length,
+      fkReAddErrors,
       tables: results,
     });
   } catch (err) {
@@ -295,8 +301,6 @@ async function runRestore(req: Request) {
     const status =
       msg === "UNAUTHENTICATED" ? 401 : msg === "FORBIDDEN" ? 403 : 500;
     return NextResponse.json({ error: msg }, { status });
-  } finally {
-    if (cleanup) await cleanup();
   }
 }
 
