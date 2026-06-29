@@ -118,11 +118,17 @@ export async function POST(req: Request) {
       `;
     }
 
-    await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
-      values (${admin.id}, 'user', ${userId}, 'assign_role',
-              ${JSON.stringify({ accessLevel, grants: grants.map((g) => `${g.module}.${g.role}`) })}::jsonb)
-    `;
+    // Audit log is best-effort: a failure here (e.g. a drifted identity
+    // sequence) must never roll back or 500 an already-applied role change.
+    try {
+      await q`
+        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        values (${admin.id}, 'user', ${userId}, 'assign_role',
+                ${JSON.stringify({ accessLevel, grants: grants.map((g) => `${g.module}.${g.role}`) })}::jsonb)
+      `;
+    } catch {
+      // ignore — never block a role assignment because audit logging failed
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -415,6 +415,12 @@ const MULTITENANCY_FLAG = "multitenancy_tenants_v1_2026_06";
 // Per-user department code (e.g. "ITD1") — the leading segment of every
 // auto-generated quotation reference (<DEPT>-FO<YY>-<HEX>).
 const DEPARTMENT_CODE_FLAG = "user_department_code_v1_2026_06";
+// One-time realignment of every bigserial/serial sequence to max(id). A prior
+// data restore loaded rows with explicit IDs without bumping the owning
+// sequence, so the next auto-id collided with an existing row — surfacing as
+// `duplicate key value violates unique constraint "<table>_pkey"` on the first
+// insert (e.g. assign-role's activity_log audit write). Self-heals once.
+const SEQUENCE_REALIGN_FLAG = "sequence_realign_v1_2026_06";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
@@ -510,6 +516,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let leadsSalesProjectApplied = false;
   let multitenancyApplied = false;
   let departmentCodeApplied = false;
+  let sequenceRealignApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -527,7 +534,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${V14A_FLAG}, ${LEAD_SHARED_QUEUE_FLAG}, ${PROJECT_TASKS_FLAG},
         ${PRODUCT_BARCODE_FLAG}, ${ORPHAN_FOLDER_CLEANUP_FLAG},
         ${INSTALLATION_RATES_FLAG}, ${LEADS_SALES_PROJECT_FLAG},
-        ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG}
+        ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG},
+        ${SEQUENCE_REALIGN_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -567,6 +575,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     leadsSalesProjectApplied = keys.has(LEADS_SALES_PROJECT_FLAG);
     multitenancyApplied = keys.has(MULTITENANCY_FLAG);
     departmentCodeApplied = keys.has(DEPARTMENT_CODE_FLAG);
+    sequenceRealignApplied = keys.has(SEQUENCE_REALIGN_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -608,7 +617,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     installationRatesApplied &&
     leadsSalesProjectApplied &&
     multitenancyApplied &&
-    departmentCodeApplied
+    departmentCodeApplied &&
+    sequenceRealignApplied
   )
     return;
 
@@ -2882,6 +2892,53 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`alter table users add column if not exists department_code text not null default ''`;
     await q`
       insert into migration_flags (key) values (${DEPARTMENT_CODE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!sequenceRealignApplied) {
+    // Self-heal drifted identity sequences. A prior data restore (D1→Postgres
+    // import / backup restore) inserted rows with explicit IDs but did not
+    // advance the owning sequence, so the next `nextval` returned an id that
+    // already existed. The first auto-id insert into such a table then failed
+    // with `duplicate key value violates unique constraint "<table>_pkey"` —
+    // which is exactly what blocked assign-role's activity_log audit write and
+    // made role assignment look broken in the admin panel.
+    //
+    // For every integer column backed by a sequence, bump the sequence to
+    // max(col)+1 so the next insert can't collide with a restored row. Mirrors
+    // the realignSequences helper used by the backup-restore path. Best-effort
+    // per column; a single failure must not abort the whole bootstrap.
+    const quoteIdent = (name: string) => `"${name.replace(/"/g, '""')}"`;
+    try {
+      const seqCols = (await q`
+        select c.table_name, c.column_name,
+               pg_get_serial_sequence(quote_ident(c.table_name), c.column_name) as seq
+        from information_schema.columns c
+        where c.table_schema = 'public'
+          and c.data_type in ('integer', 'bigint', 'smallint')
+      `) as Array<{ table_name: string; column_name: string; seq: string | null }>;
+      for (const sc of seqCols) {
+        if (!sc.seq) continue;
+        try {
+          await q.unsafe(
+            `select setval($1::regclass,
+               coalesce((select max(${quoteIdent(sc.column_name)})
+                         from ${quoteIdent(sc.table_name)}), 0) + 1, false)`,
+            [sc.seq],
+          );
+        } catch {
+          // Column may not actually own the sequence, or the table is
+          // unreadable — skip it; the others still get realigned.
+        }
+      }
+    } catch {
+      // Catalogue query failed — non-fatal; the audit-log inserts are also
+      // wrapped defensively so a still-drifted sequence can't block writes.
+    }
+
+    await q`
+      insert into migration_flags (key) values (${SEQUENCE_REALIGN_FLAG})
       on conflict (key) do nothing
     `;
   }
