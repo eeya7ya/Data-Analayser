@@ -29,7 +29,20 @@ export const maxDuration = 300; // 5 min — Vercel Pro
  * CLOUDFLARE_API_TOKEN. Optional (only if rows overflowed to R2):
  * CLOUDFLARE_R2_ACCESS_KEY_ID, CLOUDFLARE_R2_SECRET_ACCESS_KEY.
  */
+/**
+ * GET is supported for convenience so the restore can be triggered by simply
+ * pasting the URL (with ?secret=…) into a browser — no terminal needed. It
+ * runs the exact same one-shot restore as POST.
+ */
+export async function GET(req: Request) {
+  return runRestore(req);
+}
+
 export async function POST(req: Request) {
+  return runRestore(req);
+}
+
+async function runRestore(req: Request) {
   try {
     await assertAuthorized(req);
 

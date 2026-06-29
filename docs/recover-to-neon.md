@@ -54,11 +54,12 @@ computer with Node installed.
    (Add `CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY` too
    only if the run reports R2-overflow rows.)
 2. **Redeploy** so the new env vars take effect.
-3. Trigger the restore by POSTing to the endpoint once — from a terminal:
-   ```bash
-   curl -X POST "https://<your-domain>/api/admin/d1-restore-to-postgres?secret=<RESTORE_SECRET>"
+3. Trigger the restore — **easiest: paste this URL into your browser** (it
+   accepts GET for convenience):
    ```
-   (Or, if you're logged in as admin, any tool that can POST that URL works.)
+   https://<your-domain>/api/admin/d1-restore-to-postgres?secret=<RESTORE_SECRET>
+   ```
+   (Terminal equivalent: `curl -X POST "https://<your-domain>/api/admin/d1-restore-to-postgres?secret=<RESTORE_SECRET>"`.)
 4. It returns a JSON report: `{ totalLoaded, tables: [{ name, d1Rows, loaded }] }`.
    Refresh the app — your data is there.
 5. **Afterwards:** remove `RESTORE_SECRET` from Vercel (and delete the
