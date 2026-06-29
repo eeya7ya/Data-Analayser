@@ -577,10 +577,14 @@ function MovementModal({
   const [cameraSupported, setCameraSupported] = useState(false);
 
   useEffect(() => {
-    // The camera path needs the native BarcodeDetector (Chromium/Android).
-    // The USB-wedge / manual scan input works everywhere regardless.
+    // Show the camera button whenever the device exposes a camera API. We use
+    // the native BarcodeDetector when present (Chromium/Android) and fall back
+    // to a JS decoder (ZXing) elsewhere (iOS Safari, Firefox), so the camera
+    // works cross-platform. The USB-wedge / manual input works everywhere.
     setCameraSupported(
-      typeof window !== "undefined" && "BarcodeDetector" in window,
+      typeof navigator !== "undefined" &&
+        !!navigator.mediaDevices &&
+        typeof navigator.mediaDevices.getUserMedia === "function",
     );
   }, []);
   const [fromNode, setFromNode] = useState<number | "">("");
@@ -643,6 +647,46 @@ function MovementModal({
       setScanMsg((err as Error).message);
     }
   }
+
+  // Hardware barcode "terminal" (USB/Bluetooth wedge) types fast and ends with
+  // Enter. Capture it globally so a scan still registers when the text input
+  // isn't focused — ignored while the user is typing in a field, and only
+  // rapid bursts (scanner speed, not human typing) are treated as a scan.
+  const lookupRef = useRef(lookupCode);
+  lookupRef.current = lookupCode;
+  const pickedRef = useRef(picked);
+  pickedRef.current = picked;
+  useEffect(() => {
+    let buf = "";
+    let last = 0;
+    const onKey = (e: KeyboardEvent) => {
+      if (pickedRef.current) return; // an item is already picked
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        el?.isContentEditable
+      ) {
+        return; // the focused field handles its own input
+      }
+      const now = performance.now();
+      if (now - last > 100) buf = ""; // slow gap → human typing, restart buffer
+      last = now;
+      if (e.key === "Enter") {
+        if (buf.length >= 3) {
+          const code = buf;
+          buf = "";
+          void lookupRef.current(code);
+        }
+        return;
+      }
+      if (e.key.length === 1) buf += e.key;
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   /** Map the last unmatched code onto the currently picked product (manager). */
   async function linkBarcode() {
@@ -1064,32 +1108,48 @@ function CameraScanner({
     let timer: ReturnType<typeof setInterval> | null = null;
     let stopped = false;
     let detector: BarcodeDetectorLike | null = null;
+    let zxingControls: { stop: () => void } | null = null;
 
     async function start() {
+      const video = videoRef.current;
+      if (!video) return;
       try {
         const Ctor = (
           window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }
         ).BarcodeDetector;
-        if (!Ctor) throw new Error("Barcode scanning isn't supported here.");
-        detector = new Ctor();
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-        });
-        const video = videoRef.current;
-        if (!video) return;
-        video.srcObject = stream;
-        await video.play();
-        timer = setInterval(async () => {
-          if (stopped || !detector || !videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            if (codes.length > 0 && codes[0].rawValue) {
-              onDetectedRef.current(codes[0].rawValue);
+        if (Ctor) {
+          // Native fast path (Chromium / Android Chrome).
+          detector = new Ctor();
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" },
+          });
+          video.srcObject = stream;
+          await video.play();
+          timer = setInterval(async () => {
+            if (stopped || !detector || !videoRef.current) return;
+            try {
+              const codes = await detector.detect(videoRef.current);
+              if (codes.length > 0 && codes[0].rawValue) {
+                onDetectedRef.current(codes[0].rawValue);
+              }
+            } catch {
+              /* transient detect error — keep scanning */
             }
-          } catch {
-            /* transient detect error — keep scanning */
-          }
-        }, 300);
+          }, 300);
+        } else {
+          // Browsers without BarcodeDetector (iOS Safari, Firefox) use a JS
+          // decoder, loaded on demand so it stays out of the main bundle. It
+          // attaches the camera stream to the <video> and stops on cleanup.
+          const { BrowserMultiFormatReader } = await import("@zxing/browser");
+          const reader = new BrowserMultiFormatReader();
+          zxingControls = await reader.decodeFromConstraints(
+            { video: { facingMode: "environment" } },
+            video,
+            (result) => {
+              if (result && !stopped) onDetectedRef.current(result.getText());
+            },
+          );
+        }
       } catch (err) {
         onErrorRef.current(
           err instanceof Error ? err.message : "Could not start the camera.",
@@ -1102,6 +1162,7 @@ function CameraScanner({
       stopped = true;
       if (timer) clearInterval(timer);
       if (stream) stream.getTracks().forEach((t) => t.stop());
+      if (zxingControls) zxingControls.stop();
     };
   }, []);
 
