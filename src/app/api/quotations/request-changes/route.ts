@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       values (${id}, ${user.id}, ${target}, ${note.slice(0, 2000)})
     `;
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${user.id}, 'quotation', ${id}, 'change_requested',
               ${JSON.stringify({ note: note.slice(0, 500) })}::jsonb)
     `;

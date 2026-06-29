@@ -17,7 +17,7 @@
 PRAGMA foreign_keys = OFF;
 BEGIN TRANSACTION;
 
-CREATE TABLE IF NOT EXISTS "activity_log" (
+CREATE TABLE IF NOT EXISTS "syslog" (
   "id" INTEGER,
   "owner_id" INTEGER,
   "actor_id" INTEGER,

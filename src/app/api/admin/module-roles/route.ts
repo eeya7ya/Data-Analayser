@@ -149,7 +149,7 @@ export async function POST(req: Request) {
     `;
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${admin.id}, 'user_module_role', ${userId}, 'grant',
               ${JSON.stringify({ module: body.module, role })}::jsonb)
     `;
@@ -206,7 +206,7 @@ export async function PATCH(req: Request) {
     }
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${admin.id}, 'user_module_role', ${userId}, 'revoke',
               ${JSON.stringify({ module: body.module, role })}::jsonb)
     `;

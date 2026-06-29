@@ -415,6 +415,10 @@ const MULTITENANCY_FLAG = "multitenancy_tenants_v1_2026_06";
 // Per-user department code (e.g. "ITD1") — the leading segment of every
 // auto-generated quotation reference (<DEPT>-FO<YY>-<HEX>).
 const DEPARTMENT_CODE_FLAG = "user_department_code_v1_2026_06";
+// Admin "Syslog" — supersedes the old write-only `activity_log` audit table.
+// Renames it to `syslog` (preserving rows) so the admin console can surface a
+// single system-activity log that is auto-pruned to a rolling one-month window.
+const SYSLOG_FLAG = "syslog_v1_2026_06";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
@@ -510,6 +514,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let leadsSalesProjectApplied = false;
   let multitenancyApplied = false;
   let departmentCodeApplied = false;
+  let syslogApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -527,7 +532,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${V14A_FLAG}, ${LEAD_SHARED_QUEUE_FLAG}, ${PROJECT_TASKS_FLAG},
         ${PRODUCT_BARCODE_FLAG}, ${ORPHAN_FOLDER_CLEANUP_FLAG},
         ${INSTALLATION_RATES_FLAG}, ${LEADS_SALES_PROJECT_FLAG},
-        ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG}
+        ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG}, ${SYSLOG_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -567,6 +572,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     leadsSalesProjectApplied = keys.has(LEADS_SALES_PROJECT_FLAG);
     multitenancyApplied = keys.has(MULTITENANCY_FLAG);
     departmentCodeApplied = keys.has(DEPARTMENT_CODE_FLAG);
+    syslogApplied = keys.has(SYSLOG_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -608,7 +614,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     installationRatesApplied &&
     leadsSalesProjectApplied &&
     multitenancyApplied &&
-    departmentCodeApplied
+    departmentCodeApplied &&
+    syslogApplied
   )
     return;
 
@@ -980,8 +987,12 @@ async function _ensureSchemaOnce(): Promise<void> {
   // default to '{}'::jsonb and are NOT NULL so new inserts stay safe even
   // if the legacy code paths don't set them.
   if (!crmFoundationApplied) {
+    // `syslog` is the system-activity log (formerly `activity_log`): every
+    // write path records a row here so the admin console can surface one
+    // chronological feed of who did what. The SYSLOG migration below renames
+    // the legacy table on warm databases; fresh databases create it directly.
     await q`
-      create table if not exists activity_log (
+      create table if not exists syslog (
         id          bigserial primary key,
         owner_id    integer references users(id) on delete set null,
         actor_id    integer references users(id) on delete set null,
@@ -993,12 +1004,12 @@ async function _ensureSchemaOnce(): Promise<void> {
       )
     `;
     await q`
-      create index if not exists activity_log_owner_idx
-      on activity_log(owner_id, created_at desc)
+      create index if not exists syslog_owner_idx
+      on syslog(owner_id, created_at desc)
     `;
     await q`
-      create index if not exists activity_log_entity_idx
-      on activity_log(entity_type, entity_id, created_at desc)
+      create index if not exists syslog_entity_idx
+      on syslog(entity_type, entity_id, created_at desc)
     `;
     await q`
       alter table quotations add column if not exists custom_fields jsonb not null default '{}'::jsonb
@@ -1360,10 +1371,10 @@ async function _ensureSchemaOnce(): Promise<void> {
   // All use CREATE INDEX IF NOT EXISTS so re-runs are no-ops. The flag only
   // stops the migration_flags insert from happening more than once.
   if (!perfIndexesV2Applied) {
-    await q`create index if not exists activity_log_owner_created_idx
-            on activity_log(owner_id, created_at desc)`;
-    await q`create index if not exists activity_log_owner_verb_idx
-            on activity_log(owner_id, verb, created_at desc)`;
+    await q`create index if not exists syslog_owner_created_idx
+            on syslog(owner_id, created_at desc)`;
+    await q`create index if not exists syslog_owner_verb_idx
+            on syslog(owner_id, verb, created_at desc)`;
     await q`create index if not exists deals_owner_status_idx
             on deals(owner_id, status, deleted_at)`;
     await q`create index if not exists deals_pipeline_deleted_idx
@@ -2882,6 +2893,51 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`alter table users add column if not exists department_code text not null default ''`;
     await q`
       insert into migration_flags (key) values (${DEPARTMENT_CODE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // ── Syslog: rename activity_log → syslog, drop the legacy table ──────────
+  // The old `activity_log` was write-only (never surfaced). The admin console
+  // now reads `syslog`. On warm databases the table already exists as
+  // `activity_log`; copy its rows into `syslog` (new ids, so the bigserial
+  // sequence stays correct) and drop it. Fresh databases already created
+  // `syslog` directly in the CRM-foundation block above, so this is a no-op
+  // there beyond setting the flag.
+  if (!syslogApplied) {
+    await q`
+      create table if not exists syslog (
+        id          bigserial primary key,
+        owner_id    integer references users(id) on delete set null,
+        actor_id    integer references users(id) on delete set null,
+        entity_type text   not null,
+        entity_id   bigint not null,
+        verb        text   not null,
+        meta_json   jsonb  not null default '{}'::jsonb,
+        created_at  timestamptz not null default now()
+      )
+    `;
+    await q`create index if not exists syslog_owner_idx
+            on syslog(owner_id, created_at desc)`;
+    await q`create index if not exists syslog_entity_idx
+            on syslog(entity_type, entity_id, created_at desc)`;
+    await q`create index if not exists syslog_owner_created_idx
+            on syslog(owner_id, created_at desc)`;
+    await q`create index if not exists syslog_owner_verb_idx
+            on syslog(owner_id, verb, created_at desc)`;
+    try {
+      await q`
+        insert into syslog
+          (owner_id, actor_id, entity_type, entity_id, verb, meta_json, created_at)
+        select owner_id, actor_id, entity_type, entity_id, verb, meta_json, created_at
+        from activity_log
+      `;
+    } catch {
+      // No legacy activity_log table (fresh DB) — nothing to migrate.
+    }
+    await q`drop table if exists activity_log`;
+    await q`
+      insert into migration_flags (key) values (${SYSLOG_FLAG})
       on conflict (key) do nothing
     `;
   }

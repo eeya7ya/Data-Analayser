@@ -153,6 +153,7 @@ export async function POST(req: Request) {
       phone?: string | null;
       title?: string | null;
       notes?: string | null;
+      projectName?: string | null;
     };
 
     const firstName = body.first_name?.trim() || null;
@@ -220,6 +221,7 @@ export async function POST(req: Request) {
         baseName: contactDisplayName(row),
         email,
         phone,
+        projectName: body.projectName ?? null,
       });
       if (newFolderId !== null) {
         await q`update contacts set folder_id = ${newFolderId} where id = ${row.id}`;
@@ -228,7 +230,7 @@ export async function POST(req: Request) {
     }
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${user.id}, 'contact', ${row.id}, 'create',
               ${JSON.stringify({
                 company_id: companyId,
@@ -373,7 +375,7 @@ export async function PATCH(req: NextRequest) {
     await q`update contacts set updated_at = now() where id = ${id}`;
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${user.id}, 'contact', ${id}, 'update', ${JSON.stringify(body)}::jsonb)
     `;
 

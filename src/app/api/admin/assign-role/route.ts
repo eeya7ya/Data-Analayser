@@ -119,7 +119,7 @@ export async function POST(req: Request) {
     }
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${admin.id}, 'user', ${userId}, 'assign_role',
               ${JSON.stringify({ accessLevel, grants: grants.map((g) => `${g.module}.${g.role}`) })}::jsonb)
     `;

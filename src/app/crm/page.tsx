@@ -31,6 +31,10 @@ export default async function CrmLandingPage({
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  // Admins are walled off from the CRM entirely (separation of duties).
+  // Middleware already redirects here, but guarding the page too keeps the
+  // rule intact even if the matcher is ever misconfigured.
+  if (user.role === "admin") redirect("/admin");
 
   await ensureSchema();
 

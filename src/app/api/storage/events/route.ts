@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
       // Mirror a headline into the platform-wide activity feed (best-effort).
       try {
         await q`
-          insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+          insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
           values (${user.id}, 'stock', ${itemId}, ${type.toLowerCase()},
                   ${JSON.stringify({ qty, from_node_id: fromNode, to_node_id: toNode })}::jsonb)
         `;

@@ -278,12 +278,24 @@ function ContactModal({
   const [phone, setPhone] = useState(initial?.phone ?? "");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [projectName, setProjectName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Creating a contact at a company with no pre-existing folder spawns the
+  // contact's first project — name it explicitly instead of defaulting to
+  // "Default Project". (Editing, or adding to an existing folder, never
+  // creates a project, so the field is hidden then.)
+  const needsProjectName =
+    mode === "create" && companyId !== null && folderId === null;
 
   async function submit() {
     if (!firstName.trim() && !lastName.trim() && !email.trim() && !phone.trim()) {
       setError("Provide at least one of first name, last name, email, phone.");
+      return;
+    }
+    if (needsProjectName && !projectName.trim()) {
+      setError("Name the contact's first project.");
       return;
     }
     setBusy(true);
@@ -306,6 +318,7 @@ function ContactModal({
                 ...payload,
                 company_id: companyId,
                 folder_id: folderId,
+                projectName: needsProjectName ? projectName.trim() : null,
               }),
             })
           : await fetch(`/api/contacts?id=${initial!.id}`, {
@@ -398,6 +411,22 @@ function ContactModal({
           rows={3}
           className="w-full rounded border border-magic-border bg-white px-3 py-1.5 text-sm"
         />
+        {needsProjectName && (
+          <div className="space-y-1">
+            <input
+              type="text"
+              placeholder="First project name (required)"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              disabled={busy}
+              className="w-full rounded border border-magic-border bg-white px-3 py-1.5 text-sm"
+            />
+            <p className="text-[11px] text-magic-ink/50">
+              Name the first project for this client — quotations and files land
+              here. Rename it or add more projects any time.
+            </p>
+          </div>
+        )}
         {error && (
           <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
             {error}
@@ -413,7 +442,7 @@ function ContactModal({
           </button>
           <button
             onClick={() => void submit()}
-            disabled={busy}
+            disabled={busy || (needsProjectName && !projectName.trim())}
             className="rounded bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
           >
             {busy

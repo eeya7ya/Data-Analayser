@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     `;
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${user.id}, 'quotation', ${id}, 'reject',
               ${JSON.stringify({ reason })}::jsonb)
     `;

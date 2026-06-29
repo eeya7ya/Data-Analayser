@@ -31,8 +31,10 @@ export async function ensurePersonFolder(args: {
   baseName: string;
   email: string | null;
   phone: string | null;
+  /** Name for the contact's first project when a fresh folder is created. */
+  projectName?: string | null;
 }): Promise<number | null> {
-  const { ownerId, companyId, baseName, email, phone } = args;
+  const { ownerId, companyId, baseName, email, phone, projectName } = args;
   const q = sql();
 
   const sameCompany = (await q`
@@ -94,6 +96,7 @@ export async function ensurePersonFolder(args: {
       await ensureFolderProjectCoverage({
         folderId: inserted[0].id,
         ownerId,
+        name: projectName,
       });
       return inserted[0].id;
     }

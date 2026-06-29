@@ -294,6 +294,9 @@ function NewClientModal({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  // The first project is named explicitly at creation time instead of
+  // silently defaulting to "Default Project".
+  const [projectName, setProjectName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Only individual clients are subject to the cross-kind block; company
@@ -302,7 +305,7 @@ function NewClientModal({
   const conflicts = kind === "individual" ? rawConflicts : [];
 
   async function submit() {
-    if (!name.trim() || conflicts.length > 0) return;
+    if (!name.trim() || !projectName.trim() || conflicts.length > 0) return;
     setBusy(true);
     setError(null);
     try {
@@ -315,6 +318,7 @@ function NewClientModal({
           client_phone: phone.trim() || null,
           kind,
           company_id: kind === "company" ? companyId : null,
+          projectName: projectName.trim(),
         }),
       });
       const data = await res.json();
@@ -330,7 +334,7 @@ function NewClientModal({
         client_phone: data.folder.client_phone ?? null,
         client_company: data.folder.client_company ?? null,
         owner_username: null,
-        project_count: 0,
+        project_count: 1,
         quotation_count: 0,
         file_count: 0,
         created_at: data.folder.created_at ?? new Date().toISOString(),
@@ -394,6 +398,20 @@ function NewClientModal({
           disabled={busy}
           className="w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
         />
+        <div className="space-y-1">
+          <input
+            type="text"
+            placeholder="First project name (required)"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            disabled={busy}
+            className="w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
+          />
+          <p className="text-[11px] text-magic-ink/50">
+            Name the first project for this client — quotations and files land
+            here. You can rename it or add more projects later.
+          </p>
+        </div>
         {error && (
           <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
             {error}
@@ -409,7 +427,7 @@ function NewClientModal({
           </button>
           <button
             onClick={() => void submit()}
-            disabled={busy || !name.trim() || conflicts.length > 0}
+            disabled={busy || !name.trim() || !projectName.trim() || conflicts.length > 0}
             className="rounded bg-magic-red text-white px-3 py-1.5 text-xs font-semibold hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
           >
             {busy ? "Creating…" : "Create client"}

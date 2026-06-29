@@ -216,7 +216,7 @@ export async function POST(req: Request) {
     `) as CompanyRow[];
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${user.id}, 'company', ${inserted[0].id}, 'create',
               ${JSON.stringify({ name, website, industry })}::jsonb)
     `;
@@ -311,7 +311,7 @@ export async function PATCH(req: NextRequest) {
     await q`update companies set updated_at = now() where id = ${id}`;
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${user.id}, 'company', ${id}, 'update', ${JSON.stringify(body)}::jsonb)
     `;
 

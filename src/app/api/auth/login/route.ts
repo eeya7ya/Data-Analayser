@@ -5,6 +5,7 @@ import {
   ensureDefaultAdmin,
   verifyPassword,
 } from "@/lib/auth";
+import { recordSyslog } from "@/lib/syslog";
 
 export const runtime = "nodejs";
 
@@ -108,6 +109,13 @@ export async function POST(req: NextRequest) {
       role: row.role,
       display_name: row.display_name || "",
       phone: row.phone || "",
+    });
+    void recordSyslog({
+      actorId: row.id,
+      entityType: "auth",
+      entityId: row.id,
+      verb: "login",
+      meta: { username: row.username, role: row.role },
     });
     return NextResponse.json({
       ok: true,

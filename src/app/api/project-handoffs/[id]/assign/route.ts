@@ -155,7 +155,7 @@ export async function POST(
     `;
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${user.id}, 'project_handoff', ${handoffId}, 'assign',
               ${JSON.stringify({ assigned_user_id: assigneeId, role })}::jsonb)
     `;

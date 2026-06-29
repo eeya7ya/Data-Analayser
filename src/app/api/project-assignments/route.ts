@@ -286,7 +286,7 @@ export async function POST(req: NextRequest) {
     }
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${user.id}, 'project_assignment', ${assignmentId}, 'assign',
               ${JSON.stringify({
                 project_id: projectId,
@@ -399,7 +399,7 @@ export async function PATCH(req: NextRequest) {
       }
 
       await q`
-        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
         values (${user.id}, 'project_assignment', ${id}, 'reschedule',
                 ${JSON.stringify({
                   start_date: start,
@@ -418,7 +418,7 @@ export async function PATCH(req: NextRequest) {
     `;
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${user.id}, 'project_assignment', ${id}, 'unassign', '{}'::jsonb)
     `;
 

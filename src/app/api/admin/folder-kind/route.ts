@@ -169,7 +169,7 @@ export async function PATCH(req: Request) {
     `;
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${admin.id}, 'client_folder', ${folderId}, 'classify',
               ${JSON.stringify({
                 kind: newKind,

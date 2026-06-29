@@ -149,7 +149,7 @@ export async function POST(req: Request) {
     `) as Array<{ id: number }>;
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${admin.id}, 'news_post', ${inserted[0].id}, 'create',
               ${JSON.stringify({ title, pinned })}::jsonb)
     `;
@@ -233,7 +233,7 @@ export async function PATCH(req: Request) {
     }
 
     await q`
-      insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+      insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
       values (${admin.id}, 'news_post', ${id}, 'update', ${JSON.stringify(body)}::jsonb)
     `;
 

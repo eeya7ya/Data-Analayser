@@ -156,7 +156,7 @@ export async function requireModuleAllowLegacy(
     // shouldn't deny the actual request.
     try {
       await q`
-        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
         values (${user.id}, 'module_access', 0, 'legacy_bypass',
                 ${JSON.stringify({ module })}::jsonb)
       `;
@@ -194,7 +194,7 @@ export async function requireCrmOrProjectsRead(user: SessionUser): Promise<void>
   if (anyRoles.length === 0) {
     try {
       await q`
-        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
         values (${user.id}, 'module_access', 0, 'legacy_bypass',
                 ${JSON.stringify({ module: "crm_or_projects" })}::jsonb)
       `;

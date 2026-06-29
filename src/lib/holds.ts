@@ -88,7 +88,7 @@ export async function transferHeldQuotation(
     where id = ${quotation.id}
   `;
   await q`
-    insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+    insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
     values (${actor}, 'project_handoff', ${handoffId}, 'create',
             ${JSON.stringify({
               quotation_id: quotation.id,

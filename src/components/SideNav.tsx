@@ -69,6 +69,11 @@ export default function SideNav({
   }, [open, onClose]);
 
   const isAdmin = canReadAll(user);
+  // The full `admin` role is walled off from the CRM hub (separation of
+  // duties — admins manage the system, not client/sales data). The
+  // read-only `viewer` keeps the cross-module view, so it is NOT treated
+  // as CRM-blocked here.
+  const crmBlocked = user.role === "admin";
   const has = (m: string) =>
     isAdmin ||
     moduleRoles === null ||
@@ -82,12 +87,17 @@ export default function SideNav({
   // separate group) so they're one tap away.
   const primary: NavItem[] = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard, show: true },
-    { href: "/crm", label: "CRM", icon: Building2, show: has("crm") || has("projects") },
+    {
+      href: "/crm",
+      label: "CRM",
+      icon: Building2,
+      show: !crmBlocked && (has("crm") || has("projects")),
+    },
     {
       href: "/projects/schedule",
       label: "Day schedule",
       icon: CalendarClock,
-      show: has("projects"),
+      show: !crmBlocked && has("projects"),
     },
     {
       href: "/catalog",

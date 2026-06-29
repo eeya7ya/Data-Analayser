@@ -20,6 +20,12 @@ import { sql } from "@/lib/db";
 export async function ensureDefaultProject(args: {
   folderId: number;
   ownerId: number | null;
+  /**
+   * Name for the first project when one has to be created. Client creation
+   * now asks the user to name it explicitly; the heal paths (loose
+   * quotations / POs) omit it and fall back to "Default Project".
+   */
+  name?: string | null;
 }): Promise<number | null> {
   const { folderId, ownerId } = args;
   const q = sql();
@@ -32,13 +38,15 @@ export async function ensureDefaultProject(args: {
   `) as Array<{ id: number }>;
   if (existing.length > 0) return existing[0].id;
 
+  const trimmed = (args.name ?? "").trim();
+  const projectName = trimmed || "Default Project";
+  const description = trimmed
+    ? ""
+    : "Auto-created so quotations filed under this client land somewhere by default. Rename or split into focused projects any time.";
+
   const inserted = (await q`
     insert into projects (folder_id, owner_id, name, description, status)
-    values (
-      ${folderId}, ${ownerId}, 'Default Project',
-      'Auto-created so quotations filed under this client land somewhere by default. Rename or split into focused projects any time.',
-      'open'
-    )
+    values (${folderId}, ${ownerId}, ${projectName}, ${description}, 'open')
     returning id
   `) as Array<{ id: number }>;
   return inserted[0]?.id ?? null;
@@ -81,6 +89,8 @@ export async function attachLooseQuotationsToProject(args: {
 export async function ensureFolderProjectCoverage(args: {
   folderId: number;
   ownerId: number | null;
+  /** Name for the first project if one must be created (else "Default Project"). */
+  name?: string | null;
 }): Promise<number | null> {
   const projectId = await ensureDefaultProject(args);
   if (projectId === null) return null;

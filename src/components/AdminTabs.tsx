@@ -5,16 +5,18 @@ import JSZip from "jszip";
 import UsersAndRolesPanel from "./UsersAndRolesPanel";
 import AdminSettings from "./AdminSettings";
 import BrandingAdmin from "./BrandingAdmin";
-import FolderClassificationPanel from "./FolderClassificationPanel";
 import NewsAdminPanel from "./NewsAdminPanel";
 import EmailAdminPanel from "./EmailAdminPanel";
-import ClientOwnershipPanel from "./ClientOwnershipPanel";
+import SyslogPanel from "./SyslogPanel";
 import type { AppSettings } from "@/lib/settings";
 
+// The "Clients" and "Folders" tabs were removed: they listed CRM client /
+// folder data, and the admin role is now walled off from the CRM entirely
+// (separation of duties). Ownership / classification moves to the relevant
+// CRM manager roles.
 type Tab =
   | "users"
-  | "clients"
-  | "folders"
+  | "syslog"
   | "news"
   | "email"
   | "settings"
@@ -23,8 +25,7 @@ type Tab =
 
 const TABS: Tab[] = [
   "users",
-  "clients",
-  "folders",
+  "syslog",
   "news",
   "email",
   "settings",
@@ -59,11 +60,8 @@ export default function AdminTabs({
         <TabButton active={tab === "users"} onClick={() => setTab("users")}>
           Users &amp; Roles
         </TabButton>
-        <TabButton active={tab === "clients"} onClick={() => setTab("clients")}>
-          Clients
-        </TabButton>
-        <TabButton active={tab === "folders"} onClick={() => setTab("folders")}>
-          Folders
+        <TabButton active={tab === "syslog"} onClick={() => setTab("syslog")}>
+          Syslog
         </TabButton>
         <TabButton active={tab === "news"} onClick={() => setTab("news")}>
           News
@@ -97,21 +95,12 @@ export default function AdminTabs({
         </section>
       )}
 
-      {tab === "clients" && (
+      {tab === "syslog" && (
         <section>
           <h2 className="text-lg font-semibold text-magic-ink mb-3">
-            Client ownership
+            System log
           </h2>
-          <ClientOwnershipPanel readOnly={readOnly} />
-        </section>
-      )}
-
-      {tab === "folders" && (
-        <section>
-          <h2 className="text-lg font-semibold text-magic-ink mb-3">
-            Folder classification
-          </h2>
-          <FolderClassificationPanel />
+          <SyslogPanel readOnly={readOnly} />
         </section>
       )}
 

@@ -217,7 +217,7 @@ export async function PATCH(
         where id = ${id}
       `;
       await q`
-        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        insert into syslog (actor_id, entity_type, entity_id, verb, meta_json)
         values (${user.id}, 'project_file', ${id},
                 ${body.shared_to_projects ? "share_to_projects" : "unshare_from_projects"},
                 '{}'::jsonb)
