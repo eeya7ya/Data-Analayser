@@ -374,7 +374,7 @@ export default function CatalogBrowser({
               </span>
             </div>
             <div className="overflow-x-auto max-h-[65vh] overflow-y-auto">
-              <table className="w-full text-xs border-collapse table-fixed">
+              <table className="w-full min-w-[960px] text-xs border-collapse table-fixed">
                 <colgroup>
                   <col style={{ width: "32px" }} />
                   {DISPLAY_COLUMNS.map((col) => (

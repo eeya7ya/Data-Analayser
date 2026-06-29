@@ -574,7 +574,7 @@ export default function UsersAndRolesPanel({
         >
           <form
             onSubmit={saveEdit}
-            className="w-full max-w-md space-y-4 rounded-t-2xl bg-white p-5 md:rounded-2xl"
+            className="max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-t-2xl bg-white p-5 md:rounded-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div>
