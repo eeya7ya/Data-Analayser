@@ -1,26 +1,26 @@
 /**
  * D1 (SQLite) schema bootstrap helpers.
  *
- * The canonical schema lives in `d1/schema.sql` (also used by `wrangler` and the
- * Admin → Backups "Reset D1" button). These helpers read that file and apply it
- * idempotently so the app can self-heal a D1 database on first use — the D1
- * analogue of the Postgres DDL bootstrap in `src/lib/db.ts`. Every statement is
+ * The canonical schema lives in `d1/schema.sql` (used by `wrangler` and the
+ * Admin → Backups "Reset D1" button). At runtime it's read from the EMBEDDED
+ * copy in `d1Schema.generated.ts` rather than from disk, so the schema
+ * bootstrap never depends on fs.readFile / Next.js file-tracing bundling the
+ * .sql into every serverless function. These helpers apply it idempotently so
+ * the app can self-heal a D1 database on first use — the D1 analogue of the
+ * Postgres DDL bootstrap in `src/lib/db.ts`. Every statement is
  * `CREATE ... IF NOT EXISTS` or `ALTER TABLE ... ADD COLUMN`, so re-applying is
  * always safe and nothing is ever dropped.
  */
 
 import { d1Query } from "./db-d1";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { D1_SCHEMA_SQL } from "./d1Schema.generated";
 
 let cached: string[] | null = null;
 
-/** The CREATE TABLE / CREATE INDEX / ALTER TABLE statements from d1/schema.sql. */
-export async function loadD1SchemaStatements(): Promise<string[]> {
+/** The CREATE TABLE / CREATE INDEX / ALTER TABLE statements from the schema. */
+export function loadD1SchemaStatements(): string[] {
   if (cached) return cached;
-  const raw = await readFile(join(process.cwd(), "d1", "schema.sql"), "utf-8");
-  cached = raw
-    .split(";")
+  cached = D1_SCHEMA_SQL.split(";")
     .map((s) => s.trim())
     .filter((stmt) => {
       const upper = stmt.replace(/--[^\n]*/g, "").trim().toUpperCase();
@@ -44,7 +44,7 @@ export async function applyD1Schema(): Promise<{
   skipped: number;
   errors: string[];
 }> {
-  const statements = await loadD1SchemaStatements();
+  const statements = loadD1SchemaStatements();
   let applied = 0;
   let skipped = 0;
   const errors: string[] = [];

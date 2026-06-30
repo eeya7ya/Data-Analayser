@@ -13,12 +13,6 @@ const nextConfig = {
       { protocol: "https", hostname: "github.com" },
     ],
   },
-  // ensureSchema() applies d1/schema.sql on first D1 use from any route or
-  // page (self-healing schema), so bundle it into every serverless function —
-  // not just /api/admin/d1-apply-schema — so fs.readFile can find it at runtime.
-  outputFileTracingIncludes: {
-    "/**": ["./d1/schema.sql"],
-  },
 };
 
 export default nextConfig;
