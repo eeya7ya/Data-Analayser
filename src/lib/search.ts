@@ -5,7 +5,9 @@
  * to Postgres via the `sql()` helper.
  */
 
-import { sql, ensureSchema } from "./db";
+import { sql, ensureSchema, usingD1, rawBinder } from "./db";
+import { isFtsReady, matchAny, ftsPredicate } from "./fts";
+import { getOrSet, cacheDelete } from "./cache";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -136,70 +138,74 @@ export async function searchProducts(query: SearchQuery): Promise<ScoredProduct[
     }));
   }
 
-  // Text search — build ILIKE conditions for each expanded token
+  // Text search. Expand each token with stems + domain aliases, then match
+  // either via FTS5 (on D1, when the index is ready) or via an ILIKE scan
+  // (Postgres, or before the FTS index exists). The query is assembled as raw
+  // parameterised SQL — the previous tagged-template fragment composition
+  // (`patterns.map(...).reduce((a,b) => q`${a} or ${b}`)`) does not work through
+  // the D1 client, whose tagged template returns a Promise rather than a
+  // composable fragment, so the OR-chain bound a Promise as a parameter.
   const tokens = expandWithAliases(tokenize(query.text));
   if (tokens.length === 0) return [];
 
-  const patterns = tokens.map((t) => `%${t}%`);
-
-  // Build a single search across the haystack columns
   const searchPattern = `%${query.text.trim()}%`;
-  let rows;
+  const { P, params } = rawBinder();
 
-  if (query.vendor && query.system) {
-    rows = await q`
-      select *,
-        (case when model ilike ${searchPattern} then 8 else 0 end +
-         case when category ilike ${searchPattern} then 5 else 0 end +
-         case when sub_category ilike ${searchPattern} then 5 else 0 end +
-         case when description ilike ${searchPattern} then 2 else 0 end +
-         case when fast_view ilike ${searchPattern} then 3 else 0 end) as _score
-      from products
-      where vendor = ${query.vendor}
-        and system = ${query.system}
-        and (${patterns.map((p) => q`
-          model ilike ${p} or category ilike ${p} or sub_category ilike ${p}
-          or description ilike ${p} or vendor ilike ${p} or fast_view ilike ${p}
-        `).reduce((a, b) => q`${a} or ${b}`)})
-      order by _score desc, model
-      limit ${limit}
-    `;
-  } else if (query.vendor) {
-    rows = await q`
-      select *,
-        (case when model ilike ${searchPattern} then 8 else 0 end +
-         case when category ilike ${searchPattern} then 5 else 0 end +
-         case when sub_category ilike ${searchPattern} then 5 else 0 end +
-         case when description ilike ${searchPattern} then 2 else 0 end +
-         case when fast_view ilike ${searchPattern} then 3 else 0 end) as _score
-      from products
-      where vendor = ${query.vendor}
-        and (${patterns.map((p) => q`
-          model ilike ${p} or category ilike ${p} or sub_category ilike ${p}
-          or description ilike ${p} or vendor ilike ${p} or fast_view ilike ${p}
-        `).reduce((a, b) => q`${a} or ${b}`)})
-      order by _score desc, model
-      limit ${limit}
-    `;
-  } else {
-    // Global search
-    rows = await q`
-      select *,
-        (case when model ilike ${searchPattern} then 8 else 0 end +
-         case when category ilike ${searchPattern} then 5 else 0 end +
-         case when sub_category ilike ${searchPattern} then 5 else 0 end +
-         case when description ilike ${searchPattern} then 2 else 0 end +
-         case when vendor ilike ${searchPattern} then 4 else 0 end +
-         case when fast_view ilike ${searchPattern} then 3 else 0 end) as _score
-      from products
-      where (${patterns.map((p) => q`
-        model ilike ${p} or category ilike ${p} or sub_category ilike ${p}
-        or description ilike ${p} or vendor ilike ${p} or fast_view ilike ${p}
-      `).reduce((a, b) => q`${a} or ${b}`)})
-      order by _score desc, model
-      limit ${limit}
-    `;
+  // Relevance score: where the whole phrase appears. Unchanged ranking; only
+  // the global (no-vendor) variant scores the vendor column. Bound first so the
+  // placeholder order matches the SELECT-then-WHERE position of each `?`/`$n`.
+  const scoreTerms: Array<[string, number]> = query.vendor
+    ? [
+        ["model", 8],
+        ["category", 5],
+        ["sub_category", 5],
+        ["description", 2],
+        ["fast_view", 3],
+      ]
+    : [
+        ["model", 8],
+        ["category", 5],
+        ["sub_category", 5],
+        ["description", 2],
+        ["vendor", 4],
+        ["fast_view", 3],
+      ];
+  const fields = query.vendor
+    ? ["model", "category", "sub_category", "description", "fast_view"]
+    : ["model", "category", "sub_category", "description", "vendor", "fast_view"];
+
+  const scoreSql =
+    "(" +
+    scoreTerms
+      .map(([c, w]) => `case when ${c} ilike ${P(searchPattern)} then ${w} else 0 end`)
+      .join(" + ") +
+    ") as _score";
+
+  // Scope filters (system only narrows within a vendor, as before).
+  const scope: string[] = [];
+  if (query.vendor) {
+    scope.push(`vendor = ${P(query.vendor)}`);
+    if (query.system) scope.push(`system = ${P(query.system)}`);
   }
+
+  // Haystack: FTS5 MATCH on D1 (one inverted-index lookup), else an ILIKE
+  // OR-chain across the text columns (Postgres, or before the index is built).
+  const matchStr = usingD1() && isFtsReady() ? matchAny(tokens) : null;
+  let haystackSql: string;
+  if (matchStr) {
+    haystackSql = ftsPredicate("products", "id", P(matchStr));
+  } else {
+    const ors: string[] = [];
+    for (const t of tokens) {
+      const pattern = `%${t}%`;
+      for (const f of fields) ors.push(`${f} ilike ${P(pattern)}`);
+    }
+    haystackSql = "(" + ors.join(" or ") + ")";
+  }
+
+  const where = [...scope, haystackSql].join(" and ");
+  const text = `select *, ${scoreSql} from products where ${where} order by _score desc, model limit ${P(limit)}`;
+  const rows = await q.unsafe(text, params);
 
   return rows.map((r) => ({
     product: r as unknown as Product,
@@ -244,15 +250,36 @@ export async function findSystemEntry(
   return rows[0] as unknown as SystemEntry;
 }
 
-/** List all systems. */
+/**
+ * Cache key for the systems list. The list is identical for every user and
+ * only changes when the catalogue is edited, but it `GROUP BY`s the WHOLE
+ * products table — i.e. it reads every product row on each call. D1 bills on
+ * rows read, so caching it removes that scan from every catalogue page load.
+ */
+const SYSTEMS_CACHE_KEY = "catalogue:systems";
+const SYSTEMS_CACHE_TTL_MS = 60_000;
+
+/**
+ * Drop the cached systems list. Call after any write that can change the set
+ * of vendors/systems/currencies or the per-system count (catalogue upload,
+ * per-row edit, delete). The 60s TTL is a backstop, so a missed call only
+ * leaves the list stale for up to a minute.
+ */
+export function invalidateSystemsCache(): void {
+  cacheDelete(SYSTEMS_CACHE_KEY);
+}
+
+/** List all systems (cached; see SYSTEMS_CACHE_KEY). */
 export async function listSystems(): Promise<SystemEntry[]> {
   await ensureSchema();
-  const q = sql();
-  const rows = await q`
-    select vendor, system, currency, count(*)::int as product_count
-    from products
-    group by vendor, system, currency
-    order by vendor, system
-  `;
-  return rows as unknown as SystemEntry[];
+  return getOrSet(SYSTEMS_CACHE_KEY, SYSTEMS_CACHE_TTL_MS, async () => {
+    const q = sql();
+    const rows = await q`
+      select vendor, system, currency, count(*)::int as product_count
+      from products
+      group by vendor, system, currency
+      order by vendor, system
+    `;
+    return rows as unknown as SystemEntry[];
+  });
 }

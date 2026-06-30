@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { requireModule } from "@/lib/modules";
 import { sql, ensureSchema } from "@/lib/db";
+import { invalidateSystemsCache } from "@/lib/search";
 
 export const runtime = "nodejs";
 
@@ -129,6 +130,8 @@ export async function POST(req: NextRequest) {
       upserted += batch.length;
     }
 
+    // The catalogue changed → drop the cached vendor/system list.
+    invalidateSystemsCache();
     return NextResponse.json({ ok: true, upserted, duplicatesRemoved: dupes });
   } catch (err) {
     const msg = (err as Error).message;
