@@ -80,14 +80,24 @@ export default function SideNav({
   // Personal tools — available to every signed-in user, each with its own
   // private data. Kept alongside the primary surfaces (not behind a
   // separate group) so they're one tap away.
+  // "CRM" and "Day schedule" are working-module surfaces (sales / presales /
+  // projects). The admin console is for people/roles/settings, so these two
+  // are removed from the admin's navigation; staff who hold the relevant
+  // module roles still get them. (CRM also stays reachable from the dashboard
+  // and contextual links regardless.)
   const primary: NavItem[] = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard, show: true },
-    { href: "/crm", label: "CRM", icon: Building2, show: has("crm") || has("projects") },
+    {
+      href: "/crm",
+      label: "CRM",
+      icon: Building2,
+      show: !isAdmin && (has("crm") || has("projects")),
+    },
     {
       href: "/projects/schedule",
       label: "Day schedule",
       icon: CalendarClock,
-      show: has("projects"),
+      show: !isAdmin && has("projects"),
     },
     {
       href: "/catalog",

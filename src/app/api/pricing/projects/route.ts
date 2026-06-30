@@ -144,10 +144,15 @@ export async function POST(req: Request) {
     `;
 
     // Seed five empty product lines so the editor opens on a usable grid.
+    // Explicit VALUES (not generate_series, which D1/SQLite lacks).
     await q`
       insert into pricing_product_lines (project_id, position, item_model, price_usd, quantity)
-      select ${projectId}, gs, '', 0, 1
-      from generate_series(1, 5) as gs
+      values
+        (${projectId}, 1, '', 0, 1),
+        (${projectId}, 2, '', 0, 1),
+        (${projectId}, 3, '', 0, 1),
+        (${projectId}, 4, '', 0, 1),
+        (${projectId}, 5, '', 0, 1)
     `;
 
     return NextResponse.json(project, { status: 201 });

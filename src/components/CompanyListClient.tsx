@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { EditCompanyDialog } from "@/components/EditCompanyDialog";
-import MoveOwnerButton from "@/components/MoveOwnerButton";
 import { useNameConflicts } from "@/components/useNameConflicts";
 import { LIST_SORT_OPTIONS, sortList, type ListSortKey } from "@/lib/listSort";
 
@@ -207,12 +206,6 @@ export default function CompanyListClient({
                   >
                     Edit
                   </button>
-                  <MoveOwnerButton
-                    kind="company"
-                    id={c.id}
-                    name={c.name}
-                    onMoved={() => void refresh(query)}
-                  />
                   <button
                     onClick={() => void softDelete(c.id)}
                     disabled={busy}

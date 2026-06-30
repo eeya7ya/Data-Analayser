@@ -50,8 +50,33 @@ interface DealRow {
   sales_outcome: string | null;
   transferred_at: string | null;
   project_status: string | null;
-  total: string | null;
-  age_days: number | null;
+  totals_json: string | Record<string, unknown> | null;
+  age_anchor: string | null;
+}
+
+/** BoQ total out of a quotation's totals_json (TEXT on D1, object on PG). */
+function parseTotalJson(
+  totals: string | Record<string, unknown> | null,
+): number {
+  if (totals == null) return 0;
+  let obj: unknown = totals;
+  if (typeof totals === "string") {
+    try {
+      obj = JSON.parse(totals);
+    } catch {
+      return 0;
+    }
+  }
+  const t = Number((obj as { total?: unknown } | null)?.total);
+  return Number.isFinite(t) ? t : 0;
+}
+
+/** Whole days between an ISO/text timestamp and now (computed in JS for D1). */
+function ageDaysFrom(anchor: string | null): number {
+  if (!anchor) return 0;
+  const t = new Date(anchor).getTime();
+  if (Number.isNaN(t)) return 0;
+  return Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
 }
 
 interface DealCard {
@@ -127,10 +152,10 @@ export async function GET() {
              coalesce(nullif(u.display_name, ''), u.username) as owner_name,
              q.approved_at, q.rejected_at, q.sales_outcome, q.transferred_at,
              p.status as project_status,
-             jsonb_as_object(q.totals_json)->>'total' as total,
-             floor(extract(epoch from (now() - coalesce(
+             q.totals_json as totals_json,
+             coalesce(
                q.sales_outcome_at, q.approved_at, q.updated_at, q.created_at
-             ))) / 86400)::int as age_days
+             ) as age_anchor
       from quotations q
       left join projects p on p.id = q.project_id
       left join users u on u.id = q.owner_id
@@ -240,8 +265,8 @@ export async function GET() {
 
     for (const r of rows) {
       const stage = deriveStage(r);
-      const value = Number(r.total);
-      const ageDays = Math.max(0, r.age_days ?? 0);
+      const value = parseTotalJson(r.totals_json);
+      const ageDays = ageDaysFrom(r.age_anchor);
       const { action, attention } = insight(stage, ageDays);
 
       const mr = marginById.get(r.id);

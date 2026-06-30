@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { EditFolderDialog } from "@/components/EditFolderDialog";
-import MoveOwnerButton from "@/components/MoveOwnerButton";
 import { useNameConflicts } from "@/components/useNameConflicts";
 import { LIST_SORT_OPTIONS, sortList, type ListSortKey } from "@/lib/listSort";
 
@@ -230,14 +229,6 @@ export default function ClientListClient({
                   >
                     Edit
                   </button>
-                  {f.kind === "individual" && (
-                    <MoveOwnerButton
-                      kind="individual"
-                      id={f.id}
-                      name={f.name}
-                      onMoved={() => void refresh()}
-                    />
-                  )}
                   <button
                     onClick={() => void softDelete(f.id)}
                     disabled={busy}

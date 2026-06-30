@@ -43,11 +43,15 @@ export function translatePgToSqlite(text: string): string {
   s = s.replace(/::\s*"?[a-zA-Z_][a-zA-Z0-9_]*"?(\s*\[\s*\])?/g, "");
   // ILIKE → LIKE (SQLite LIKE is case-insensitive for ASCII)
   s = s.replace(/\bilike\b/gi, "LIKE");
-  // JSON builders / aggregates → SQLite equivalents (clean 1:1 maps).
+  // `is [not] distinct from` → SQLite's null-safe `IS` / `IS NOT`.
+  s = s.replace(/\bis\s+not\s+distinct\s+from\b/gi, "IS");
+  s = s.replace(/\bis\s+distinct\s+from\b/gi, "IS NOT");
+  // JSON builders / aggregates / helpers → SQLite equivalents (clean 1:1 maps).
   s = s.replace(/\bjsonb?_build_object\b/gi, "json_object");
   s = s.replace(/\bjsonb?_build_array\b/gi, "json_array");
   s = s.replace(/\bjsonb?_agg\b/gi, "json_group_array");
   s = s.replace(/\bjsonb?_object_agg\b/gi, "json_group_object");
+  s = s.replace(/\bjsonb?_array_length\b/gi, "json_array_length");
   s = s.replace(/\bstring_agg\b/gi, "group_concat");
   return s;
 }

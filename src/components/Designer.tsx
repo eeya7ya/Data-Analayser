@@ -1518,18 +1518,15 @@ export default function Designer({
   }
 
   function clearAll() {
-    if (!confirm("Clear the current quotation draft?")) return;
+    // "Clear" empties ONLY the line-item table. The header/client details
+    // (project, client, email, phone, site, terms, notes, …) are kept so a
+    // single mis-click doesn't wipe the info the user just typed in. The
+    // autosave effect persists the now-empty item list without touching the
+    // saved header, so we deliberately do NOT call clearDraft() here.
+    if (items.length === 0) return;
+    if (!confirm("Clear the line items? Your project and client details are kept."))
+      return;
     setItems([]);
-    setProjectName("");
-    setClientName("");
-    setClientEmail("");
-    setClientPhone("");
-    setSiteName("");
-    setShowPictures(false);
-    setTerms([...adminDefaultTerms]);
-    setNotes("");
-    setPricingCategoryState("si");
-    if (!editMode) clearDraft();
   }
 
   // Prints the current in-memory quotation preview straight from the
@@ -2186,7 +2183,7 @@ export default function Designer({
                 prepared_by: preparedBy,
                 design_engineer: designEng,
                 site_name: siteName,
-                ref: refCode || "PREVIEW",
+                ref: refCode || "(auto)",
                 tax_percent: taxPercent,
                 date: new Date().toLocaleDateString("en-GB"),
                 extra_columns: extraColumns,

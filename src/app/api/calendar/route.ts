@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
     const q = sql();
     const rows = (await q`
-      select to_char(mark_date, 'YYYY-MM-DD') as mark_date, note, color,
+      select substr(cast(mark_date as text), 1, 10) as mark_date, note, color,
              updated_at
       from calendar_marks
       where user_id = ${user.id}
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       values (${user.id}, ${date}, ${note}, ${color})
       on conflict (user_id, mark_date)
       do update set note = ${note}, color = ${color}, updated_at = now()
-      returning to_char(mark_date, 'YYYY-MM-DD') as mark_date, note, color,
+      returning substr(cast(mark_date as text), 1, 10) as mark_date, note, color,
                 updated_at
     `) as MarkRow[];
 
