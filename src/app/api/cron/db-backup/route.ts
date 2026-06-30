@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { buildDbSnapshotZip } from "@/lib/db-snapshot";
-import { r2PutObject, isR2Configured } from "@/lib/r2";
+import {
+  r2PutObject,
+  r2PutObjectOffsite,
+  isR2Configured,
+  isOffsiteConfigured,
+} from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +60,21 @@ export async function GET(req: Request) {
     const put = await r2PutObject(dayKey, buffer, "application/zip");
     await r2PutObject(latestKey, buffer, "application/zip");
 
+    // Mirror the same snapshot to the OFF-SITE destination when configured, so
+    // the daily copy isn't trapped in the same bucket as the live files.
+    // Best-effort: a misconfigured or unreachable off-site bucket must never
+    // fail the primary backup.
+    let offsite: { bucket: string; bytes: number } | null = null;
+    if (isOffsiteConfigured()) {
+      try {
+        const off = await r2PutObjectOffsite(latestKey, buffer, "application/zip");
+        await r2PutObjectOffsite(dayKey, buffer, "application/zip");
+        offsite = { bucket: off.bucket, bytes: off.size };
+      } catch {
+        offsite = null;
+      }
+    }
+
     // Self-trim the Syslog click log to its 1-week retention as part of the
     // daily run, so it stays bounded even if no admin ever opens it.
     try {
@@ -68,6 +88,7 @@ export async function GET(req: Request) {
       ok: true,
       uploaded: { key: put.key, bucket: put.bucket, bytes: put.size },
       latestKey,
+      offsite,
       tables: manifest.tableCount,
       rows: manifest.totalRows,
       generatedAt: manifest.generatedAt,

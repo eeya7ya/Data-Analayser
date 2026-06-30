@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 import { getSessionUser } from "@/lib/auth";
 import LoginForm from "@/components/LoginForm";
+import LoginBackground from "@/components/LoginBackground";
 
 export const dynamic = "force-dynamic";
 
@@ -10,31 +11,8 @@ export default async function LoginPage() {
   if (user) redirect("/");
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0b0f1a] text-white">
-      {/* Simple static background — a dark brand gradient. Replaces the old
-          looping login video for a lighter, faster, distraction-free sign-in. */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_50%_0%,#141a2b_0%,#0b0f1a_55%,#070a12_100%)]" />
-
-      {/* Tint + soft radial vignette so type stays readable */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0b0f1a]/65 via-[#0b0f1a]/40 to-[#0b0f1a]/85" />
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(60% 60% at 30% 50%, rgba(226,35,26,0.10), transparent 70%)",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.05]"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
-          backgroundSize: "44px 44px",
-          maskImage:
-            "radial-gradient(ellipse at center, black 35%, transparent 80%)",
-          WebkitMaskImage:
-            "radial-gradient(ellipse at center, black 35%, transparent 80%)",
-        }}
-      />
+      {/* Background is composed from modular layers — see LoginBackground. */}
+      <LoginBackground />
 
       {/* ── Split layout: brand LHS, sign-in RHS ── */}
       <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl items-center px-6 py-10 lg:px-10">

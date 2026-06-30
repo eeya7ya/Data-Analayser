@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
 import {
   Database,
   Cloud,
   Package,
   Download,
+  Upload,
+  Globe,
+  RefreshCw,
   Loader2,
   CheckCircle2,
   AlertTriangle,
@@ -139,36 +142,7 @@ export default function AdminTabs({
         </section>
       )}
 
-      {tab === "backups" && (
-        <section className="space-y-5">
-          <div>
-            <h2 className="text-lg font-semibold text-magic-ink">Backups</h2>
-            <p className="mt-1 text-sm text-magic-ink/60 max-w-3xl">
-              Three independent, one-click backups cover everything the app
-              holds — the <strong>D1 database</strong> (every row), the{" "}
-              <strong>R2 storage</strong> (every uploaded file), and a single{" "}
-              <strong>complete archive</strong> that bundles both plus your
-              designed quotations and pricing. Every backup is{" "}
-              <strong>read-only</strong> and safe to run anytime.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-800">
-            <ShieldCheck className="h-4 w-4 shrink-0" />
-            <span>
-              Nothing here ever modifies or deletes your data. Backups are
-              assembled in your browser straight from Cloudflare — keep this tab
-              open while a download runs.
-            </span>
-          </div>
-
-          <div className="grid gap-4">
-            <D1DatabaseBackupPanel />
-            <R2FilesBackupPanel />
-            <CompleteAppBackupPanel />
-          </div>
-        </section>
-      )}
+      {tab === "backups" && <BackupsSection />}
 
       {tab === "syslog" && (
         <section>
@@ -182,6 +156,99 @@ export default function AdminTabs({
   );
 }
 
+// ─── Backups section (Backup / Restore sub-tabs) ─────────────────────────────
+
+function BackupsSection() {
+  const [view, setView] = useState<"backup" | "restore">("backup");
+  return (
+    <section className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold text-magic-ink">Backups</h2>
+        <p className="mt-1 max-w-3xl text-sm text-magic-ink/60">
+          Everything the app holds, covered both ways. <strong>Back up</strong>{" "}
+          the D1 database, the R2 files, or one complete archive — then{" "}
+          <strong>restore</strong> any of them, so you can recover whether you
+          replace the database, lose your files, or lose the whole bucket.
+        </p>
+      </div>
+
+      <div className="inline-flex rounded-xl border border-magic-border bg-magic-soft p-1">
+        <SubTabButton
+          active={view === "backup"}
+          onClick={() => setView("backup")}
+        >
+          <Download className="h-4 w-4" />
+          Backup
+        </SubTabButton>
+        <SubTabButton
+          active={view === "restore"}
+          onClick={() => setView("restore")}
+        >
+          <Upload className="h-4 w-4" />
+          Restore
+        </SubTabButton>
+      </div>
+
+      {view === "backup" ? (
+        <>
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-800">
+            <ShieldCheck className="h-4 w-4 shrink-0" />
+            <span>
+              Read-only &amp; safe — nothing here modifies your data. Backups are
+              assembled in your browser straight from Cloudflare, so keep this
+              tab open while a download runs.
+            </span>
+          </div>
+          <div className="grid gap-4">
+            <D1DatabaseBackupPanel />
+            <R2FilesBackupPanel />
+            <CompleteAppBackupPanel />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>
+              Restoring <strong>writes data</strong>. Every restore is additive
+              (it upserts and never deletes), but take a fresh backup first if
+              you&apos;re unsure. Keep this tab open while a restore runs.
+            </span>
+          </div>
+          <div className="grid gap-4">
+            <RestoreDatabasePanel />
+            <RestoreFilesPanel />
+            <OffsiteBackupPanel />
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function SubTabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
+        active
+          ? "bg-white text-magic-ink shadow-sm"
+          : "text-magic-ink/55 hover:text-magic-ink"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 // ─── Shared types ────────────────────────────────────────────────────────────
 
 type BackupFile = {
@@ -190,7 +257,11 @@ type BackupFile = {
   project: string;
   kind: string;
   filename: string;
+  mime: string;
   zipPath: string;
+  /** R2 key suffix (project-files/<storagePath>) — lets a restore re-upload
+   *  each blob to its exact original key. */
+  storagePath: string;
   sizeBytes: number;
   url: string;
 };
@@ -684,6 +755,10 @@ async function addR2FilesToZip(
       project: f.project,
       fileKind: f.kind,
       filename: f.filename,
+      // storagePath + mime are what a files-restore needs to put each blob
+      // back at its exact R2 key with the right content type.
+      storagePath: f.storagePath,
+      mime: f.mime,
       zipPath: f.zipPath,
     };
     try {
@@ -722,6 +797,452 @@ function assertNotCorsBlocked(
         "See .env.example for the exact policy.",
     );
   }
+}
+
+// ─── Restore: database ───────────────────────────────────────────────────────
+
+type RestoreReport = {
+  ok: boolean;
+  error?: string;
+  backupTakenAt?: string;
+  totals?: { inserted?: number; updated?: number; skipped?: number };
+  tables?: Array<{ table?: string; error?: string }>;
+};
+
+/**
+ * Load a database backup ZIP back into the live database via
+ * POST /api/admin/backup/restore. Accepts either a D1 database backup or a
+ * Complete app archive (whose nested Database/d1-database-backup.zip is
+ * auto-extracted). Additive upsert — never deletes.
+ */
+function RestoreDatabasePanel() {
+  const [busy, setBusy] = useState(false);
+  const [report, setReport] = useState<RestoreReport | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function onFile(file: File) {
+    const confirmed = window.confirm(
+      `Restore the database from "${file.name}"?\n\n` +
+        "Every row in the backup is upserted by primary key:\n" +
+        "  • matching rows are OVERWRITTEN with backup values\n" +
+        "  • missing rows are INSERTED\n" +
+        "  • rows not in the backup are LEFT ALONE (nothing deleted)\n\n" +
+        "Continue?",
+    );
+    if (!confirmed) {
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+    setBusy(true);
+    setReport(null);
+    try {
+      const blob = await resolveDbZipBlob(file);
+      const form = new FormData();
+      form.append("file", blob, "database-backup.zip");
+      const res = await fetch("/api/admin/backup/restore", {
+        method: "POST",
+        body: form,
+      });
+      const data = (await res.json()) as RestoreReport;
+      setReport(data);
+    } catch (err) {
+      setReport({ ok: false, error: (err as Error).message });
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <BackupCard
+      icon={Database}
+      accent="indigo"
+      title="Restore database"
+      description="Load a D1 database backup back into the live database — upserts every row by primary key, never deletes."
+      included={[
+        "Takes a D1 database backup, or a Complete app archive (the database is auto-extracted)",
+        "Recreates the schema automatically on a fresh or empty D1",
+        "Additive & idempotent — safe to re-run; existing rows are overwritten, extras kept",
+      ]}
+    >
+      <UploadButton
+        accent="indigo"
+        busy={busy}
+        inputRef={inputRef}
+        onFile={onFile}
+        busyLabel="Restoring…"
+      >
+        Restore database (.zip)
+      </UploadButton>
+      <DbRestoreReport report={report} />
+    </BackupCard>
+  );
+}
+
+/**
+ * If the chosen ZIP is a Complete app archive, pull out the nested database
+ * backup; otherwise use the file as-is. Lets the DB restore accept either.
+ */
+async function resolveDbZipBlob(file: File): Promise<Blob> {
+  const buf = await file.arrayBuffer();
+  try {
+    const zip = await JSZip.loadAsync(buf);
+    const nested = zip.file("Database/d1-database-backup.zip");
+    if (nested) return await nested.async("blob");
+  } catch {
+    // Not a readable ZIP here — let the server surface the real error.
+  }
+  return new Blob([buf], { type: "application/zip" });
+}
+
+/** Render the table-by-table restore report. */
+function DbRestoreReport({ report }: { report: RestoreReport | null }) {
+  if (!report) return null;
+  const ok = report.ok;
+  return (
+    <div
+      className={`mt-2 rounded-lg border px-3 py-2 text-sm ${
+        ok
+          ? "border-green-200 bg-green-50 text-green-700"
+          : "border-red-200 bg-red-50 text-red-700"
+      }`}
+    >
+      {ok ? (
+        <>
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <div>
+                Restore complete
+                {report.backupTakenAt ? (
+                  <>
+                    {" "}
+                    from backup of{" "}
+                    <strong>
+                      {new Date(report.backupTakenAt).toLocaleString()}
+                    </strong>
+                  </>
+                ) : null}
+                .
+              </div>
+              <div className="mt-1">
+                Inserted {report.totals?.inserted ?? 0}, updated{" "}
+                {report.totals?.updated ?? 0}, skipped{" "}
+                {report.totals?.skipped ?? 0}.
+              </div>
+            </div>
+          </div>
+          {report.tables && report.tables.some((t) => t.error) && (
+            <ul className="mt-2 list-disc pl-5">
+              {report.tables
+                .filter((t) => t.error)
+                .map((t) => (
+                  <li key={t.table} className="text-red-700">
+                    {t.table}: {t.error}
+                  </li>
+                ))}
+            </ul>
+          )}
+        </>
+      ) : (
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>Error: {report.error}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Restore: files to R2 ────────────────────────────────────────────────────
+
+/**
+ * Re-upload every file from an R2 files backup (or a Complete archive) straight
+ * back into R2 at its original key. Reads the backup's _manifest.json, presigns
+ * a PUT per storage path, and uploads each blob browser→R2 directly.
+ */
+function RestoreFilesPanel() {
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [msg, setMsg] = useState<Msg | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function onFile(file: File) {
+    const confirmed = window.confirm(
+      `Restore files to R2 from "${file.name}"?\n\n` +
+        "Every file in the backup is re-uploaded to Cloudflare R2 at its " +
+        "original key, overwriting any object already there. Continue?",
+    );
+    if (!confirmed) {
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await restoreFilesFromZip(file, setProgress);
+      setMsg({
+        kind: r.failed > 0 ? "error" : "ok",
+        text:
+          `Restored ${r.restored} of ${r.total} file(s) to R2.` +
+          (r.failed ? ` ${r.failed} failed — see the browser console.` : ""),
+      });
+    } catch (err) {
+      setMsg({ kind: "error", text: (err as Error).message });
+    } finally {
+      setBusy(false);
+      setProgress(null);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <BackupCard
+      icon={Cloud}
+      accent="cyan"
+      title="Restore files to R2"
+      description="Re-upload every file from an R2 files backup (or Complete archive) straight back into R2 at its original key."
+      included={[
+        "Reads the backup's _manifest.json to map each file to its exact R2 key",
+        "Uploads bytes browser→R2 directly via presigned PUT — never through the server",
+        "Pair with a database restore to bring file storage fully back after an R2 loss",
+      ]}
+    >
+      <UploadButton
+        accent="cyan"
+        busy={busy}
+        inputRef={inputRef}
+        onFile={onFile}
+        busyLabel="Restoring…"
+      >
+        Restore files to R2 (.zip)
+      </UploadButton>
+      <ProgressMessage progress={progress} />
+      <ResultMessage msg={msg} />
+    </BackupCard>
+  );
+}
+
+type RestoreManifestEntry = {
+  kind?: string;
+  embedded?: boolean;
+  storagePath?: string;
+  mime?: string;
+  zipPath?: string;
+};
+
+/**
+ * Read a files/complete backup ZIP, presign a PUT per storage path, and upload
+ * every file's bytes back into R2. Returns counts. Throws on a fatal problem
+ * (not a backup, nothing restorable, presign failure).
+ */
+async function restoreFilesFromZip(
+  file: File,
+  onProgress: (text: string) => void,
+): Promise<{ restored: number; failed: number; total: number }> {
+  onProgress("Reading backup…");
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const manifestFile = zip.file("_manifest.json");
+  if (!manifestFile) {
+    throw new Error(
+      "This isn't an R2 files or Complete backup (no _manifest.json inside).",
+    );
+  }
+  const manifest = JSON.parse(
+    await manifestFile.async("string"),
+  ) as RestoreManifestEntry[];
+  const entries = manifest.filter(
+    (m) =>
+      m.kind === "uploaded-file" &&
+      m.embedded === true &&
+      typeof m.storagePath === "string" &&
+      m.storagePath &&
+      typeof m.zipPath === "string" &&
+      m.zipPath,
+  );
+  if (entries.length === 0) {
+    throw new Error(
+      "No restorable files found. Older backups aren't keyed for re-import — " +
+        "take a fresh R2 files backup first.",
+    );
+  }
+
+  // Presign a PUT URL for every storage path (chunked under the route's cap).
+  const storagePaths = Array.from(
+    new Set(entries.map((e) => e.storagePath as string)),
+  );
+  const urlMap: Record<string, string> = {};
+  const CHUNK = 1000;
+  for (let i = 0; i < storagePaths.length; i += CHUNK) {
+    const slice = storagePaths.slice(i, i + CHUNK);
+    onProgress(
+      `Preparing upload URLs… ${Math.min(i + CHUNK, storagePaths.length)} of ${storagePaths.length}`,
+    );
+    const res = await fetch("/api/admin/files-restore/sign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storagePaths: slice }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      urls?: Record<string, string>;
+    };
+    if (!res.ok || !data.ok || !data.urls) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+    Object.assign(urlMap, data.urls);
+  }
+
+  let restored = 0;
+  let failed = 0;
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    onProgress(`Uploading files to R2… ${i + 1} of ${entries.length}`);
+    const url = urlMap[e.storagePath as string];
+    const zentry = zip.file(e.zipPath as string);
+    if (!url || !zentry) {
+      failed++;
+      continue;
+    }
+    try {
+      const bytes = await zentry.async("arraybuffer");
+      const put = await fetch(url, {
+        method: "PUT",
+        headers: e.mime ? { "Content-Type": e.mime } : undefined,
+        body: bytes,
+      });
+      if (!put.ok) throw new Error(`R2 PUT ${put.status}`);
+      restored++;
+    } catch {
+      failed++;
+    }
+  }
+  return { restored, failed, total: entries.length };
+}
+
+// ─── Restore: off-site mirror ────────────────────────────────────────────────
+
+/**
+ * Mirror a fresh database snapshot to a second bucket (the off-site
+ * destination) so one bucket — or one account — going down can't take the live
+ * files and their backups together. Shows a configured / not-configured state
+ * from GET /api/admin/offsite-mirror and triggers it via POST.
+ */
+function OffsiteBackupPanel() {
+  const [status, setStatus] = useState<{
+    configured: boolean;
+    sameAccount: boolean;
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<Msg | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/offsite-mirror", { method: "GET" });
+        const data = await res.json().catch(() => ({}));
+        if (alive) {
+          setStatus(
+            res.ok && data.ok
+              ? {
+                  configured: !!data.configured,
+                  sameAccount: !!data.sameAccount,
+                }
+              : { configured: false, sameAccount: true },
+          );
+        }
+      } catch {
+        if (alive) setStatus({ configured: false, sameAccount: true });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function mirror() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/offsite-mirror", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const mb = data.bytes
+        ? (data.bytes / (1024 * 1024)).toFixed(2)
+        : "?";
+      setMsg({
+        kind: "ok",
+        text:
+          `Database mirrored off-site to "${data.bucket}" (${mb} MB, ${data.rows ?? "?"} rows).` +
+          (data.sameAccount
+            ? " Note: same account — set CLOUDFLARE_R2_OFFSITE_ACCOUNT_ID for a true off-site copy."
+            : ""),
+      });
+    } catch (err) {
+      setMsg({ kind: "error", text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const configured = status?.configured ?? false;
+  const badge = !status
+    ? undefined
+    : configured
+      ? status.sameAccount
+        ? "Same account"
+        : "Off-site ready"
+      : "Not configured";
+
+  return (
+    <BackupCard
+      icon={Globe}
+      accent="red"
+      title="Off-site backup"
+      description="Mirror a fresh database snapshot to a second bucket outside your live storage, so one bucket — or one account — going down can't take everything."
+      badge={badge}
+      included={[
+        "Builds a fresh snapshot and writes it to the off-site bucket (latest + dated copy)",
+        "Runs automatically every night once configured — not just on demand",
+        "Genuinely off-site when the off-site account differs from your primary account",
+      ]}
+    >
+      {configured ? (
+        <ActionButton
+          accent="red"
+          busy={busy}
+          onClick={mirror}
+          icon={RefreshCw}
+        >
+          {busy ? "Mirroring off-site…" : "Back up database off-site now"}
+        </ActionButton>
+      ) : (
+        <div className="rounded-lg border border-magic-border bg-magic-soft px-3 py-2.5 text-xs text-magic-ink/70">
+          <p className="font-semibold text-magic-ink/80">Not configured</p>
+          <p className="mt-1">
+            Set these environment variables to enable off-site mirroring (the
+            nightly backup will use them too):
+          </p>
+          <ul className="mt-1.5 grid gap-0.5 font-mono text-[11px] text-magic-ink/70">
+            <li>
+              CLOUDFLARE_R2_OFFSITE_BUCKET{" "}
+              <span className="font-sans text-magic-ink/45">(required)</span>
+            </li>
+            <li>CLOUDFLARE_R2_OFFSITE_ACCOUNT_ID</li>
+            <li>CLOUDFLARE_R2_OFFSITE_ACCESS_KEY_ID</li>
+            <li>CLOUDFLARE_R2_OFFSITE_SECRET_ACCESS_KEY</li>
+          </ul>
+          <p className="mt-1.5">
+            For a real off-site copy, point the account + keys at a{" "}
+            <strong>different Cloudflare account</strong>.
+          </p>
+        </div>
+      )}
+      <ResultMessage msg={msg} />
+    </BackupCard>
+  );
 }
 
 // ─── Presentational building blocks ──────────────────────────────────────────
@@ -817,16 +1338,18 @@ function BackupCard({
   );
 }
 
-/** The primary download button, accent-coloured, with a spinner while busy. */
+/** The primary action button, accent-coloured, with a spinner while busy. */
 function ActionButton({
   accent,
   busy,
   onClick,
+  icon: Icon = Download,
   children,
 }: {
   accent: Accent;
   busy: boolean;
   onClick: () => void;
+  icon?: LucideIcon;
   children: React.ReactNode;
 }) {
   return (
@@ -838,10 +1361,56 @@ function ActionButton({
       {busy ? (
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
-        <Download className="h-4 w-4" />
+        <Icon className="h-4 w-4" />
       )}
       {children}
     </button>
+  );
+}
+
+/**
+ * Upload counterpart of ActionButton — a styled label wrapping a hidden file
+ * input, so the restore cards match the backup cards visually. Calls `onFile`
+ * with the chosen file.
+ */
+function UploadButton({
+  accent,
+  busy,
+  inputRef,
+  onFile,
+  busyLabel,
+  children,
+}: {
+  accent: Accent;
+  busy: boolean;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onFile: (file: File) => void;
+  busyLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label
+      className={`inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors ${
+        ACCENTS[accent].button
+      } ${busy ? "pointer-events-none opacity-50" : ""}`}
+    >
+      {busy ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Upload className="h-4 w-4" />
+      )}
+      {busy ? busyLabel : children}
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".zip,application/zip"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFile(f);
+        }}
+      />
+    </label>
   );
 }
 

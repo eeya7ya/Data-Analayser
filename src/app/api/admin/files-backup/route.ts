@@ -66,7 +66,7 @@ export async function GET() {
     // define its place in the tree. folder_id is NOT NULL on projects, but we
     // coalesce defensively so a file is never dropped over a missing name.
     const files = (await q`
-      select pf.id, pf.kind, pf.filename, pf.size_bytes, pf.storage_path,
+      select pf.id, pf.kind, pf.filename, pf.mime, pf.size_bytes, pf.storage_path,
              coalesce(nullif(p.name, ''), 'Project ' || p.id::text)  as project_name,
              coalesce(nullif(cf.name, ''), 'Unfiled')                as folder_name
       from project_files pf
@@ -78,6 +78,7 @@ export async function GET() {
       id: number;
       kind: string;
       filename: string;
+      mime: string;
       size_bytes: number;
       storage_path: string;
       project_name: string;
@@ -97,7 +98,13 @@ export async function GET() {
         project: f.project_name,
         kind: f.kind,
         filename: f.filename,
+        mime: f.mime,
         zipPath,
+        // The real R2 key suffix (project-files/<storagePath>). Carried into the
+        // backup manifest so a files-restore can re-upload each blob to its
+        // exact original key — the layout above is for humans, this is for
+        // machine re-import.
+        storagePath: f.storage_path,
         sizeBytes: Number(f.size_bytes) || 0,
         // 2-hour window: plenty of time for the browser to pull every file
         // even on a large backup over a slow connection.
