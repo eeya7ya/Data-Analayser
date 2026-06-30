@@ -138,7 +138,9 @@ export default function AdminTabs({
           </p>
           <FilesBackupPanel />
           <DatabaseBackupPanel />
+          <R2BackupNowPanel />
           <D1ResetPanel readOnly={readOnly} />
+          <D1RebuildPanel readOnly={readOnly} />
         </section>
       )}
 
@@ -823,6 +825,145 @@ function D1ResetPanel({ readOnly = false }: { readOnly?: boolean }) {
           Requires the <code>CLOUDFLARE_*</code> env vars to be set. Runs{" "}
           <code>d1-apply-schema</code> then <code>d1-migrate-data</code>.
         </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * On-demand "snapshot D1 → R2" trigger. The same backup runs automatically
+ * every day via the cron; this button lets an admin verify it / take a fresh
+ * restore point now.
+ */
+function R2BackupNowPanel() {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(
+    null,
+  );
+
+  async function backupNow() {
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/cron/db-backup", { method: "GET" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setResult({
+        ok: true,
+        text: `Backed up ${data.rows ?? "?"} row(s) across ${
+          data.tables ?? "?"
+        } table(s) to R2 → backups/db/latest.zip.`,
+      });
+    } catch (err) {
+      setResult({ ok: false, text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border-2 border-magic-red/40 bg-white p-5">
+      <h3 className="font-semibold text-magic-ink mb-1">Back up D1 → R2 now</h3>
+      <p className="text-sm text-magic-ink/60 mb-4">
+        The database is automatically snapshotted to Cloudflare R2 every day at{" "}
+        <strong>02:00 UTC</strong> (<code>backups/db/&lt;date&gt;.zip</code> +{" "}
+        <code>latest.zip</code>) so any failure is recoverable. Run it on demand
+        here to verify it works or capture a fresh restore point. Restore a ZIP
+        via the <em>Database backup</em> panel above.
+      </p>
+      <div className="space-y-2 md:max-w-lg">
+        <button
+          onClick={backupNow}
+          disabled={busy}
+          className="w-full px-4 py-2 text-sm font-semibold rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+        >
+          {busy ? "Backing up to R2…" : "Back up to R2 now"}
+        </button>
+        {result && (
+          <p
+            className={`mt-2 text-sm rounded-lg px-3 py-2 ${
+              result.ok
+                ? "text-green-700 bg-green-50 border border-green-200"
+                : "text-red-700 bg-red-50 border border-red-200"
+            }`}
+          >
+            {result.text}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * DESTRUCTIVE "start fresh" control: wipes every row + table in D1 and rebuilds
+ * the perfect, current schema from scratch, then re-seeds the default admin.
+ * Guarded by a typed confirmation so it can't fire by accident.
+ */
+function D1RebuildPanel({ readOnly = false }: { readOnly?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(
+    null,
+  );
+
+  async function rebuild() {
+    const typed = window.prompt(
+      "⚠ This permanently DELETES ALL DATA in the D1 database and rebuilds an " +
+        "empty one from the current schema. Take a backup first if unsure.\n\n" +
+        'Type  DELETE EVERYTHING  to confirm:',
+    );
+    if (typed !== "DELETE EVERYTHING") return;
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/admin/d1-rebuild", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "DELETE EVERYTHING" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setResult({
+        ok: true,
+        text: `Done — dropped ${data.dropped} table(s), rebuilt ${data.tables} table(s). The default admin was re-seeded; sign in as admin / admin123 and change the password immediately.`,
+      });
+    } catch (err) {
+      setResult({ ok: false, text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border-2 border-red-400 bg-red-50/40 p-5">
+      <h3 className="font-semibold text-red-800 mb-1">
+        Start fresh — wipe &amp; rebuild D1
+      </h3>
+      <p className="text-sm text-red-900/70 mb-4">
+        <strong>Deletes every row and table</strong> in the D1 database, then
+        rebuilds the complete, current schema from scratch and re-seeds the
+        default admin. Use this to start completely clean. There is no undo —
+        take a backup (above) first.
+      </p>
+      <div className="space-y-2 md:max-w-lg">
+        <button
+          onClick={rebuild}
+          disabled={busy || readOnly}
+          className="w-full px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+        >
+          {busy ? "Rebuilding D1…" : "Wipe & rebuild D1 (delete all data)"}
+        </button>
+        {result && (
+          <p
+            className={`mt-2 text-sm rounded-lg px-3 py-2 ${
+              result.ok
+                ? "text-green-700 bg-green-50 border border-green-200"
+                : "text-red-700 bg-red-50 border border-red-200"
+            }`}
+          >
+            {result.text}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import postgres, { type Sql } from "postgres";
 import { RELEASE_NOTES } from "./releaseNotes";
 import { getD1Sql } from "./db-d1-sql";
 import { isD1Configured, d1Query } from "./db-d1";
-import { applyD1Schema } from "./d1-schema";
+import { applyD1Schema, d1SchemaVersion } from "./d1-schema";
 
 /**
  * Postgres client for Vercel serverless runtimes.
@@ -496,14 +496,15 @@ export async function ensureSchema(): Promise<void> {
  * the caller's real query (with a clear "D1 is not configured" message) rather
  * than here, and the flag isn't set so a later request retries.
  */
-const D1_SCHEMA_FLAG = "d1_schema_bootstrap_2026_06_29";
-
 async function ensureD1SchemaOnce(): Promise<void> {
+  // The flag is keyed off a hash of the schema text, so ANY change to the
+  // schema produces a new flag and the heal re-runs automatically.
+  const flag = `d1_schema_${d1SchemaVersion()}`;
   try {
     try {
       const r = await d1Query<{ one: number }>(
         `select 1 as one from migration_flags where key = ? limit 1`,
-        [D1_SCHEMA_FLAG],
+        [flag],
       );
       if (r.results.length > 0) return;
     } catch {
@@ -512,7 +513,7 @@ async function ensureD1SchemaOnce(): Promise<void> {
     const { errors } = await applyD1Schema();
     if (errors.length === 0) {
       await d1Query(`insert into migration_flags (key, ran_at) values (?, ?)`, [
-        D1_SCHEMA_FLAG,
+        flag,
         new Date().toISOString(),
       ]).catch(() => {});
     }
