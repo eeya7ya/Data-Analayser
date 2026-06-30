@@ -1,7 +1,19 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import JSZip from "jszip";
+import {
+  Database,
+  Cloud,
+  Package,
+  Download,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+  ShieldCheck,
+  Check,
+  type LucideIcon,
+} from "lucide-react";
 import UsersAndRolesPanel from "./UsersAndRolesPanel";
 import AdminSettings from "./AdminSettings";
 import BrandingAdmin from "./BrandingAdmin";
@@ -128,17 +140,33 @@ export default function AdminTabs({
       )}
 
       {tab === "backups" && (
-        <section className="space-y-6">
-          <h2 className="text-lg font-semibold text-magic-ink mb-1">Backups</h2>
-          <p className="text-sm text-magic-ink/60 -mt-1">
-            Two backups cover everything the app holds: the{" "}
-            <strong>files</strong> (PDFs, DWGs, …) and the{" "}
-            <strong>database</strong> (clients, projects, quotations, …). Both
-            are read-only and safe to run anytime.
-          </p>
-          <FilesBackupPanel />
-          <DatabaseBackupPanel />
-          <D1ResetPanel readOnly={readOnly} />
+        <section className="space-y-5">
+          <div>
+            <h2 className="text-lg font-semibold text-magic-ink">Backups</h2>
+            <p className="mt-1 text-sm text-magic-ink/60 max-w-3xl">
+              Three independent, one-click backups cover everything the app
+              holds — the <strong>D1 database</strong> (every row), the{" "}
+              <strong>R2 storage</strong> (every uploaded file), and a single{" "}
+              <strong>complete archive</strong> that bundles both plus your
+              designed quotations and pricing. Every backup is{" "}
+              <strong>read-only</strong> and safe to run anytime.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-800">
+            <ShieldCheck className="h-4 w-4 shrink-0" />
+            <span>
+              Nothing here ever modifies or deletes your data. Backups are
+              assembled in your browser straight from Cloudflare — keep this tab
+              open while a download runs.
+            </span>
+          </div>
+
+          <div className="grid gap-4">
+            <D1DatabaseBackupPanel />
+            <R2FilesBackupPanel />
+            <CompleteAppBackupPanel />
+          </div>
         </section>
       )}
 
@@ -153,6 +181,8 @@ export default function AdminTabs({
     </div>
   );
 }
+
+// ─── Shared types ────────────────────────────────────────────────────────────
 
 type BackupFile = {
   id: number;
@@ -218,88 +248,240 @@ type FilesManifest = {
   pricing: { manufacturers: PricingManufacturer[] };
 };
 
-/**
- * Download a complete backup of everything the app produces, laid out in the
- * same Client → Project structure as the app, assembled in the browser:
- *
- *   1. Uploaded files (PDFs, DWGs, …) pulled straight from Cloudflare R2 →
- *      <Client>/<Project>/<Kind>/<filename>, original bytes.
- *   2. Designed quotations rendered to PDF (hidden iframe → html2canvas →
- *      jsPDF) → <Client>/<Project>/Quotations/<Ref>.pdf.
- *   3. The pricing module written to one .xlsx per manufacturer → Pricing/.
- *
- * Everything is zipped client-side, so no file bytes ever transit our server
- * (which is what made the old all-in-one server ZIP fail with net::ERR_FAILED).
- */
-function FilesBackupPanel() {
-  const [exporting, setExporting] = useState(false);
-  const [progress, setProgress] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
-    null,
-  );
+type Msg = { kind: "ok" | "error"; text: string };
 
-  async function downloadFilesBackup() {
-    setExporting(true);
+// ─── Backup 1: entire D1 database ────────────────────────────────────────────
+
+/**
+ * Download the entire Cloudflare D1 database as one restore-ready ZIP. The
+ * server (`GET /api/admin/db-backup`) introspects every table, dumps each one
+ * to lossless JSON and packages it with a manifest + per-table content hashes.
+ * This is the DATA — clients, projects, quotations, leads, pricing, users and
+ * settings. Read-only; nothing in D1 is changed.
+ */
+function D1DatabaseBackupPanel() {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<Msg | null>(null);
+
+  async function download() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/db-backup", { method: "GET" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const filename =
+        filenameFromResponse(res) ||
+        `magictech-d1-database-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
+      triggerDownload(blob, filename);
+      const mb = (blob.size / (1024 * 1024)).toFixed(2);
+      setMsg({
+        kind: "ok",
+        text: `D1 database downloaded: ${filename} (${mb} MB). Keep at least one copy off this server.`,
+      });
+    } catch (err) {
+      setMsg({ kind: "error", text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <BackupCard
+      icon={Database}
+      accent="indigo"
+      title="D1 database"
+      description="A complete, restore-ready snapshot of every table in the Cloudflare D1 database."
+      included={[
+        "Every row of every table — clients, projects, quotations, leads, pricing, users, settings",
+        "Lossless JSON per table with a manifest and content hashes",
+        "Built on the server in one click — small and fast",
+      ]}
+    >
+      <ActionButton accent="indigo" busy={busy} onClick={download}>
+        {busy ? "Preparing database…" : "Download D1 database (.zip)"}
+      </ActionButton>
+      <ResultMessage msg={msg} />
+    </BackupCard>
+  );
+}
+
+// ─── Backup 2: R2 files ──────────────────────────────────────────────────────
+
+/**
+ * Download every uploaded file out of Cloudflare R2 as one ZIP, organised the
+ * same way as the app (`<Client>/<Project>/<Kind>/<file>`). The server returns
+ * only a manifest of presigned R2 URLs; the browser pulls each file's original
+ * bytes straight from R2 and zips them locally, so no file ever transits our
+ * server (which is what caps the all-in-one server ZIP).
+ */
+function R2FilesBackupPanel() {
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [msg, setMsg] = useState<Msg | null>(null);
+
+  async function download() {
+    setBusy(true);
+    setMsg(null);
+    setProgress("Listing every file in R2…");
+    try {
+      const data = await fetchFilesManifest();
+
+      const zip = new JSZip();
+      const manifest: Array<Record<string, unknown>> = [];
+      const { embedded, bytes, corsBlocked } = await addR2FilesToZip(
+        zip,
+        data.files,
+        manifest,
+        setProgress,
+      );
+      assertNotCorsBlocked(data.files.length, embedded, corsBlocked);
+
+      const failed = data.files.length - embedded;
+      zip.file("_manifest.json", JSON.stringify(manifest, null, 2));
+      zip.file(
+        "README.txt",
+        [
+          "MagicTech — R2 Files Backup",
+          "===========================",
+          `Generated: ${data.generatedAt}`,
+          "",
+          "Layout",
+          "------",
+          "  <Client>/<Project>/<Kind>/<file>   every uploaded file, original bytes",
+          "",
+          "These are the exact files stored in Cloudflare R2 (PDFs, DWGs, Excel,",
+          "photos). Kind folders (Quotations, Purchase Orders, BOQs, Other) mirror",
+          "the tabs in each project's Files panel.",
+          "",
+          "Contents",
+          "--------",
+          `  Files: ${embedded} (${(bytes / (1024 * 1024)).toFixed(2)} MB)` +
+            (failed ? `, ${failed} unreadable (see _manifest.json)` : ""),
+          "",
+          "_manifest.json lists every item with its source and any errors.",
+        ].join("\n"),
+      );
+
+      if (data.files.length === 0) {
+        setMsg({
+          kind: "ok",
+          text: "No uploaded files to back up yet — R2 is empty.",
+        });
+        return;
+      }
+
+      setProgress("Building ZIP…");
+      const blob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 },
+      });
+      const stamp = data.generatedAt.replace(/[:.]/g, "-");
+      const filename = `magictech-r2-files-${stamp}.zip`;
+      triggerDownload(blob, filename);
+
+      const mb = (blob.size / (1024 * 1024)).toFixed(2);
+      setMsg({
+        kind: "ok",
+        text:
+          `R2 files downloaded: ${filename} (${mb} MB). ${embedded} file(s).` +
+          (failed
+            ? ` ${failed} file(s) couldn't be read — see _manifest.json.`
+            : ""),
+      });
+    } catch (err) {
+      setMsg({ kind: "error", text: (err as Error).message });
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
+  }
+
+  return (
+    <BackupCard
+      icon={Cloud}
+      accent="cyan"
+      title="R2 storage"
+      description="Every uploaded file in Cloudflare R2, in its original format, bundled into one ZIP."
+      included={[
+        "Every uploaded file — PDFs, DWGs, Excel, photos — byte-for-byte",
+        "Organised as Client / Project / Kind / file, just like the app",
+        "Streamed straight from R2 in your browser, never through the server",
+      ]}
+    >
+      <ActionButton accent="cyan" busy={busy} onClick={download}>
+        {busy ? "Preparing files…" : "Download R2 files (.zip)"}
+      </ActionButton>
+      <ProgressMessage progress={progress} />
+      <ResultMessage msg={msg} />
+    </BackupCard>
+  );
+}
+
+// ─── Backup 3: complete app archive ──────────────────────────────────────────
+
+/**
+ * Download ONE archive that contains everything the app holds: the entire D1
+ * database (nested as a restore-ready ZIP), every uploaded file from R2, every
+ * designed quotation rendered to PDF, and the whole pricing module as one Excel
+ * workbook per manufacturer. Assembled in the browser from
+ * `/api/admin/files-backup` (files + quotations + pricing) and
+ * `/api/admin/db-backup` (the database snapshot).
+ */
+function CompleteAppBackupPanel() {
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [msg, setMsg] = useState<Msg | null>(null);
+
+  async function download() {
+    setBusy(true);
     setMsg(null);
     setProgress("Listing everything to back up…");
     let iframe: HTMLIFrameElement | null = null;
     try {
-      const res = await fetch("/api/admin/files-backup", { method: "GET" });
-      const data = (await res.json().catch(() => ({}))) as FilesManifest;
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
+      const data = await fetchFilesManifest();
 
       const zip = new JSZip();
       const manifest: Array<Record<string, unknown>> = [];
 
-      // ── 1. Uploaded files (original bytes from R2) ───────────────────────
-      let embedded = 0;
-      let bytes = 0;
-      let corsBlocked = 0;
-      for (let i = 0; i < data.files.length; i++) {
-        const f = data.files[i];
-        setProgress(
-          `Downloading files from Cloudflare R2… ${i + 1} of ${data.files.length}`,
-        );
-        const meta = {
-          kind: "uploaded-file",
-          id: f.id,
-          folder: f.folder,
-          project: f.project,
-          fileKind: f.kind,
-          filename: f.filename,
-          zipPath: f.zipPath,
-        };
-        try {
-          const r = await fetch(f.url);
-          if (!r.ok) throw new Error(`R2 responded ${r.status}`);
-          const buf = await r.arrayBuffer();
-          zip.file(f.zipPath, buf);
-          embedded++;
-          bytes += buf.byteLength;
-          manifest.push({ ...meta, embedded: true, bytes: buf.byteLength });
-        } catch (err) {
-          // A cross-origin block surfaces as a TypeError "Failed to fetch"
-          // with no status — almost always R2 CORS not allowing GET.
-          if (err instanceof TypeError) corsBlocked++;
-          manifest.push({
-            ...meta,
-            embedded: false,
-            error: (err as Error).message,
-          });
+      // 1. The entire D1 database, nested as its own restore-ready ZIP.
+      setProgress("Adding the D1 database snapshot…");
+      let dbIncluded = false;
+      let dbError: string | null = null;
+      try {
+        const dbRes = await fetch("/api/admin/db-backup", { method: "GET" });
+        if (!dbRes.ok) {
+          const body = await dbRes.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${dbRes.status}`);
         }
-      }
-      if (data.files.length > 0 && embedded === 0 && corsBlocked > 0) {
-        throw new Error(
-          "The browser was blocked from reading files out of Cloudflare R2 " +
-            "(CORS). Add your app's origin with the GET method to the R2 " +
-            "bucket's CORS policy (R2 → bucket → Settings → CORS Policy), then " +
-            "try again. See .env.example for the exact policy.",
-        );
+        const dbBuf = await dbRes.arrayBuffer();
+        zip.file("Database/d1-database-backup.zip", dbBuf);
+        dbIncluded = true;
+        manifest.push({
+          kind: "d1-database",
+          zipPath: "Database/d1-database-backup.zip",
+          embedded: true,
+          bytes: dbBuf.byteLength,
+        });
+      } catch (err) {
+        dbError = (err as Error).message;
+        manifest.push({ kind: "d1-database", embedded: false, error: dbError });
       }
 
-      // ── 2. Designed quotations → PDF ─────────────────────────────────────
+      // 2. Uploaded files (original bytes from R2).
+      const { embedded, bytes, corsBlocked } = await addR2FilesToZip(
+        zip,
+        data.files,
+        manifest,
+        setProgress,
+      );
+      assertNotCorsBlocked(data.files.length, embedded, corsBlocked);
+
+      // 3. Designed quotations → PDF.
       const quotations = data.quotations ?? [];
       let quotePdfs = 0;
       if (quotations.length > 0) {
@@ -351,12 +533,12 @@ function FilesBackupPanel() {
         iframe = null;
       }
 
-      // ── 3. Pricing module → one .xlsx per manufacturer ───────────────────
+      // 4. Pricing module → one .xlsx per manufacturer.
       const manufacturers = data.pricing?.manufacturers ?? [];
-      let pricingFiles = 0;
       const manufacturersWithData = manufacturers.filter(
         (m) => m.projects.length > 0,
       );
+      let pricingFiles = 0;
       if (manufacturersWithData.length > 0) {
         setProgress("Building pricing workbooks…");
         const XLSX = await import("xlsx");
@@ -378,32 +560,34 @@ function FilesBackupPanel() {
         }
       }
 
-      // ── Manifest + README ────────────────────────────────────────────────
+      // Manifest + README.
       const failedFiles = data.files.length - embedded;
       zip.file("_manifest.json", JSON.stringify(manifest, null, 2));
       zip.file(
         "README.txt",
         [
-          "MagicTech — Full Backup",
-          "=======================",
+          "MagicTech — Complete App Backup",
+          "===============================",
           `Generated: ${data.generatedAt}`,
+          "",
+          "This single archive contains EVERYTHING the app holds.",
           "",
           "Layout",
           "------",
-          "  <Client>/<Project>/<Kind>/<file>        uploaded files (original)",
-          "  <Client>/<Project>/Quotations/<Ref>.pdf designed quotations (PDF)",
-          "  Pricing/<Manufacturer>.xlsx             pricing module (Excel)",
-          "",
-          "Kind folders (Quotations, Purchase Orders, BOQs, Other) mirror the",
-          "tabs in each project's Files panel.",
+          "  Database/d1-database-backup.zip          the entire D1 database (restore-ready)",
+          "  <Client>/<Project>/<Kind>/<file>         uploaded files (original)",
+          "  <Client>/<Project>/Quotations/<Ref>.pdf  designed quotations (PDF)",
+          "  Pricing/<Manufacturer>.xlsx              pricing module (Excel)",
           "",
           "Contents",
           "--------",
-          `  Uploaded files:      ${embedded} (${(bytes / (1024 * 1024)).toFixed(2)} MB)` +
+          `  D1 database:        ${dbIncluded ? "included" : `NOT included — ${dbError}`}`,
+          `  Uploaded files:     ${embedded} (${(bytes / (1024 * 1024)).toFixed(2)} MB)` +
             (failedFiles ? `, ${failedFiles} unreadable (see _manifest.json)` : ""),
-          `  Quotation PDFs:      ${quotePdfs} of ${quotations.length}`,
-          `  Pricing workbooks:   ${pricingFiles}`,
+          `  Quotation PDFs:     ${quotePdfs} of ${quotations.length}`,
+          `  Pricing workbooks:  ${pricingFiles}`,
           "",
+          "Database/d1-database-backup.zip is itself a restore-ready snapshot.",
           "_manifest.json lists every item with its source and any errors.",
         ].join("\n"),
       );
@@ -415,418 +599,286 @@ function FilesBackupPanel() {
         compressionOptions: { level: 6 },
       });
       const stamp = data.generatedAt.replace(/[:.]/g, "-");
-      const filename = `magictech-full-backup-${stamp}.zip`;
+      const filename = `magictech-complete-backup-${stamp}.zip`;
       triggerDownload(blob, filename);
 
       const mb = (blob.size / (1024 * 1024)).toFixed(2);
       setMsg({
-        kind: "ok",
+        kind: dbIncluded ? "ok" : "error",
         text:
-          `Backup downloaded: ${filename} (${mb} MB). ` +
-          `${embedded} file(s), ${quotePdfs} quotation PDF(s), ${pricingFiles} pricing workbook(s).` +
+          `Complete backup downloaded: ${filename} (${mb} MB). ` +
+          `Database ${dbIncluded ? "included" : "MISSING"}, ${embedded} file(s), ` +
+          `${quotePdfs} quotation PDF(s), ${pricingFiles} pricing workbook(s).` +
           (failedFiles
             ? ` ${failedFiles} file(s) couldn't be read — see _manifest.json.`
-            : ""),
+            : "") +
+          (dbIncluded ? "" : ` Database error: ${dbError}`),
       });
     } catch (err) {
       setMsg({ kind: "error", text: (err as Error).message });
     } finally {
       if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
-      setExporting(false);
+      setBusy(false);
       setProgress(null);
     }
   }
 
   return (
-    <div className="rounded-xl border-2 border-magic-red/40 bg-white p-5">
-      <h3 className="font-semibold text-magic-ink mb-1">Files backup</h3>
-      <p className="text-sm text-magic-ink/60 mb-4">
-        Bundles <strong>everything the app produces</strong> into one ZIP,
-        organised exactly like the app (<code>Client / Project / …</code>):
-        every <strong>uploaded file</strong> (PDFs, DWGs, Excel, photos) in its
-        original format; every <strong>designed quotation</strong> rendered to{" "}
-        <strong>PDF</strong> under each project's <code>Quotations</code> folder;
-        and the whole <strong>pricing module</strong> as one{" "}
-        <strong>Excel workbook per manufacturer</strong> under{" "}
-        <code>Pricing/</code>. It's assembled in your browser, so keep this tab
-        in front while it runs.
-      </p>
-      <div className="space-y-2 md:max-w-lg">
-        <button
-          onClick={downloadFilesBackup}
-          disabled={exporting}
-          className="w-full px-4 py-2 text-sm font-semibold rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
-        >
-          {exporting ? "Preparing backup…" : "Download files backup (.zip)"}
-        </button>
-        {progress && (
-          <p className="text-sm text-magic-ink/70 bg-magic-soft border border-magic-border rounded-lg px-3 py-2">
-            {progress}
-          </p>
-        )}
-        <p className="text-xs text-magic-ink/50">
-          Layout: <code>&lt;Client&gt;/&lt;Project&gt;/&lt;Kind&gt;/&lt;file&gt;</code>,{" "}
-          <code>&lt;Client&gt;/&lt;Project&gt;/Quotations/&lt;Ref&gt;.pdf</code>,{" "}
-          <code>Pricing/&lt;Manufacturer&gt;.xlsx</code>, plus{" "}
-          <code>_manifest.json</code> and <code>README.txt</code>. Uploaded
-          files come straight from Cloudflare R2 — nothing is read from Supabase.
-        </p>
-        {msg && (
-          <p
-            className={`mt-2 text-sm rounded-lg px-3 py-2 ${
-              msg.kind === "ok"
-                ? "text-green-700 bg-green-50 border border-green-200"
-                : "text-red-700 bg-red-50 border border-red-200"
-            }`}
-          >
-            {msg.text}
-          </p>
-        )}
-      </div>
-    </div>
+    <BackupCard
+      icon={Package}
+      accent="red"
+      title="Complete app archive"
+      description="One ZIP with everything — the D1 database, all R2 files, your designed quotations and the pricing module."
+      badge="Everything"
+      included={[
+        "The entire D1 database, nested as a restore-ready snapshot",
+        "Every uploaded file from R2 in its original format",
+        "Every designed quotation rendered to PDF",
+        "The whole pricing module as one Excel workbook per manufacturer",
+      ]}
+    >
+      <ActionButton accent="red" busy={busy} onClick={download}>
+        {busy ? "Preparing complete backup…" : "Download complete backup (.zip)"}
+      </ActionButton>
+      <ProgressMessage progress={progress} />
+      <ResultMessage msg={msg} />
+    </BackupCard>
   );
 }
 
-type RestoreReport = {
-  ok: boolean;
-  error?: string;
-  backupTakenAt?: string;
-  totals?: { inserted?: number; updated?: number; skipped?: number };
-  tables?: Array<{
-    name?: string;
-    table?: string;
-    rowsBefore?: number;
-    rowsAfter?: number;
-    upserts?: number;
-    error?: string;
-  }>;
-};
+// ─── Shared backup logic ─────────────────────────────────────────────────────
+
+/** Fetch the files-backup manifest (files + quotations + pricing), or throw. */
+async function fetchFilesManifest(): Promise<FilesManifest> {
+  const res = await fetch("/api/admin/files-backup", { method: "GET" });
+  const data = (await res.json().catch(() => ({}))) as FilesManifest;
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || `HTTP ${res.status}`);
+  }
+  return data;
+}
 
 /**
- * Download a restore-ready snapshot of every database table, and restore one
- * back. Server routes: GET /api/admin/db-backup and
- * POST /api/admin/backup/restore. The restore is additive — it upserts every
- * row by primary key and never deletes.
+ * Download every uploaded file from R2 into `zip` at its computed path, pushing
+ * one manifest entry per file. Returns counts so the caller can build a README
+ * and detect a total CORS block.
  */
-function DatabaseBackupPanel() {
-  const [exporting, setExporting] = useState(false);
-  const [exportMsg, setExportMsg] = useState<
-    { kind: "ok" | "error"; text: string } | null
-  >(null);
-  const [restoring, setRestoring] = useState(false);
-  const [restoreReport, setRestoreReport] = useState<RestoreReport | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  async function downloadDbBackup() {
-    setExporting(true);
-    setExportMsg(null);
-    try {
-      const res = await fetch("/api/admin/db-backup", { method: "GET" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
-      const blob = await res.blob();
-      const filename =
-        filenameFromResponse(res) ||
-        `magictech-database-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
-      triggerDownload(blob, filename);
-      const mb = (blob.size / (1024 * 1024)).toFixed(2);
-      setExportMsg({
-        kind: "ok",
-        text: `Database backup downloaded: ${filename} (${mb} MB). Keep at least one copy off this server.`,
-      });
-    } catch (err) {
-      setExportMsg({ kind: "error", text: (err as Error).message });
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  async function uploadBackup(file: File) {
-    const confirmed = window.confirm(
-      `Restore from "${file.name}"?\n\n` +
-        "Every row in the backup will be upserted by primary key into the " +
-        "current database:\n" +
-        "  • matching rows are OVERWRITTEN with backup values\n" +
-        "  • missing rows are INSERTED\n" +
-        "  • extra rows already in this DB are LEFT ALONE (nothing deleted)\n\n" +
-        "Take a fresh database backup first if you're unsure. Continue?",
+async function addR2FilesToZip(
+  zip: JSZip,
+  files: BackupFile[],
+  manifest: Array<Record<string, unknown>>,
+  onProgress: (text: string) => void,
+): Promise<{ embedded: number; bytes: number; corsBlocked: number }> {
+  let embedded = 0;
+  let bytes = 0;
+  let corsBlocked = 0;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    onProgress(
+      `Downloading files from Cloudflare R2… ${i + 1} of ${files.length}`,
     );
-    if (!confirmed) return;
-    setRestoring(true);
-    setRestoreReport(null);
+    const meta = {
+      kind: "uploaded-file",
+      id: f.id,
+      folder: f.folder,
+      project: f.project,
+      fileKind: f.kind,
+      filename: f.filename,
+      zipPath: f.zipPath,
+    };
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/admin/backup/restore", {
-        method: "POST",
-        body: form,
-      });
-      const data = (await res.json()) as RestoreReport;
-      setRestoreReport(data);
+      const r = await fetch(f.url);
+      if (!r.ok) throw new Error(`R2 responded ${r.status}`);
+      const buf = await r.arrayBuffer();
+      zip.file(f.zipPath, buf);
+      embedded++;
+      bytes += buf.byteLength;
+      manifest.push({ ...meta, embedded: true, bytes: buf.byteLength });
     } catch (err) {
-      setRestoreReport({ ok: false, error: (err as Error).message });
-    } finally {
-      setRestoring(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      // A cross-origin block surfaces as a TypeError "Failed to fetch" with no
+      // status — almost always R2 CORS not allowing GET.
+      if (err instanceof TypeError) corsBlocked++;
+      manifest.push({ ...meta, embedded: false, error: (err as Error).message });
     }
   }
+  return { embedded, bytes, corsBlocked };
+}
 
+/**
+ * Throw a clear, actionable error when every R2 download failed with a CORS
+ * block, so the user knows to fix the bucket's CORS policy rather than chasing
+ * a vague "failed to fetch".
+ */
+function assertNotCorsBlocked(
+  total: number,
+  embedded: number,
+  corsBlocked: number,
+): void {
+  if (total > 0 && embedded === 0 && corsBlocked > 0) {
+    throw new Error(
+      "The browser was blocked from reading files out of Cloudflare R2 " +
+        "(CORS). Add your app's origin with the GET method to the R2 bucket's " +
+        "CORS policy (R2 → bucket → Settings → CORS Policy), then try again. " +
+        "See .env.example for the exact policy.",
+    );
+  }
+}
+
+// ─── Presentational building blocks ──────────────────────────────────────────
+
+type Accent = "indigo" | "cyan" | "red";
+
+const ACCENTS: Record<
+  Accent,
+  { bar: string; icon: string; check: string; badge: string; button: string }
+> = {
+  indigo: {
+    bar: "from-indigo-500 to-indigo-600",
+    icon: "bg-indigo-50 text-indigo-600 ring-indigo-100",
+    check: "text-indigo-500",
+    badge: "bg-indigo-100 text-indigo-700",
+    button: "bg-indigo-600 hover:bg-indigo-700",
+  },
+  cyan: {
+    bar: "from-cyan-500 to-sky-600",
+    icon: "bg-cyan-50 text-cyan-600 ring-cyan-100",
+    check: "text-cyan-500",
+    badge: "bg-cyan-100 text-cyan-700",
+    button: "bg-cyan-600 hover:bg-cyan-700",
+  },
+  red: {
+    bar: "from-magic-red to-rose-600",
+    icon: "bg-magic-red/10 text-magic-red ring-magic-red/15",
+    check: "text-magic-red",
+    badge: "bg-magic-red/10 text-magic-red",
+    button: "bg-magic-red hover:bg-magic-red/90",
+  },
+};
+
+/** A polished card shell shared by all three backups. */
+function BackupCard({
+  icon: Icon,
+  accent,
+  title,
+  description,
+  included,
+  badge,
+  children,
+}: {
+  icon: LucideIcon;
+  accent: Accent;
+  title: string;
+  description: React.ReactNode;
+  included: string[];
+  badge?: string;
+  children: React.ReactNode;
+}) {
+  const a = ACCENTS[accent];
   return (
-    <div className="rounded-xl border-2 border-magic-red/40 bg-white p-5">
-      <h3 className="font-semibold text-magic-ink mb-1">Database backup</h3>
-      <p className="text-sm text-magic-ink/60 mb-4">
-        Downloads a <strong>complete snapshot of every table</strong> —
-        clients, projects, quotations, leads, pricing sheets, users and
-        settings — as one restore-ready ZIP (lossless JSON per table, with a
-        manifest and content hashes). This is the <strong>data</strong>; the
-        uploaded file blobs live in the separate Files backup above. Use{" "}
-        <em>Restore</em> to load a snapshot back into any database — it upserts
-        every row by primary key and never deletes.
-      </p>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <button
-            onClick={downloadDbBackup}
-            disabled={exporting}
-            className="w-full px-4 py-2 text-sm font-semibold rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+    <div className="relative overflow-hidden rounded-2xl border border-magic-border bg-white shadow-mt-soft">
+      <div className={`h-1.5 w-full bg-gradient-to-r ${a.bar}`} />
+      <div className="p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ring-1 ${a.icon}`}
           >
-            {exporting
-              ? "Preparing database backup…"
-              : "Download database backup (.zip)"}
-          </button>
-          <p className="text-xs text-magic-ink/50">
-            Contains <code>manifest.json</code>,{" "}
-            <code>data/&lt;table&gt;.json</code> and a combined{" "}
-            <code>all.json</code>.
-          </p>
-          {exportMsg && (
-            <p
-              className={`mt-2 text-sm rounded-lg px-3 py-2 ${
-                exportMsg.kind === "ok"
-                  ? "text-green-700 bg-green-50 border border-green-200"
-                  : "text-red-700 bg-red-50 border border-red-200"
-              }`}
-            >
-              {exportMsg.text}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <label
-            className={`block w-full text-center px-4 py-2 text-sm font-medium rounded-lg border border-magic-red text-magic-red bg-white hover:bg-magic-red/5 cursor-pointer transition-colors ${
-              restoring ? "opacity-50 pointer-events-none" : ""
-            }`}
-          >
-            {restoring ? "Restoring…" : "Restore from backup (.zip)"}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".zip,application/zip"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void uploadBackup(f);
-              }}
-            />
-          </label>
-          <p className="text-xs text-magic-ink/50">
-            Upserts every row by primary key. Existing rows in the destination
-            that are <em>not</em> in the backup are kept untouched.
-          </p>
-          {restoreReport && (
-            <div
-              className={`mt-2 text-sm rounded-lg px-3 py-2 ${
-                restoreReport.ok
-                  ? "text-green-700 bg-green-50 border border-green-200"
-                  : "text-red-700 bg-red-50 border border-red-200"
-              }`}
-            >
-              {restoreReport.ok ? (
-                <>
-                  <div>
-                    Restore complete. From backup of{" "}
-                    <strong>
-                      {restoreReport.backupTakenAt &&
-                        new Date(restoreReport.backupTakenAt).toLocaleString()}
-                    </strong>
-                    .
-                  </div>
-                  <div className="mt-1">
-                    Inserted {restoreReport.totals?.inserted ?? 0}, updated{" "}
-                    {restoreReport.totals?.updated ?? 0}, skipped{" "}
-                    {restoreReport.totals?.skipped ?? 0}.
-                  </div>
-                  {restoreReport.tables &&
-                    restoreReport.tables.some((t) => t.error) && (
-                      <ul className="mt-2 list-disc pl-5">
-                        {restoreReport.tables
-                          .filter((t) => t.error)
-                          .map((t) => (
-                            <li key={t.table} className="text-red-700">
-                              {t.table}: {t.error}
-                            </li>
-                          ))}
-                      </ul>
-                    )}
-                </>
-              ) : (
-                <>Error: {restoreReport.error}</>
+            <Icon className="h-6 w-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-base font-semibold text-magic-ink">{title}</h3>
+              {badge && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${a.badge}`}
+                >
+                  {badge}
+                </span>
               )}
             </div>
-          )}
+            <p className="mt-1 text-sm text-magic-ink/60">{description}</p>
+
+            <ul className="mt-3 grid gap-1.5">
+              {included.map((line) => (
+                <li
+                  key={line}
+                  className="flex items-start gap-2 text-xs text-magic-ink/70"
+                >
+                  <Check className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${a.check}`} />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-4 md:max-w-lg">{children}</div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-type D1ResetResult = {
-  schema?: { applied: number; skipped: number; errors: string[] };
-  data?: {
-    totalMigrated: number;
-    totalErrors: number;
-    tables: Array<{ name: string; pgRows: number; migrated: number; errors: string[] }>;
-  };
-  error?: string;
-};
-
-/**
- * Rebuild the Cloudflare D1 mirror from the live Supabase/Postgres data in one
- * click. Runs two admin endpoints back to back:
- *
- *   1. POST /api/admin/d1-apply-schema  — (re)creates every D1 table
- *      (idempotent: CREATE TABLE IF NOT EXISTS).
- *   2. POST /api/admin/d1-migrate-data  — copies every row from every Postgres
- *      table into D1 with INSERT OR REPLACE, so existing D1 rows are
- *      overwritten with the current values.
- *
- * The result is a D1 database whose contents match the current Supabase data.
- * Safe to re-run anytime; it never touches Supabase.
- */
-function D1ResetPanel({ readOnly = false }: { readOnly?: boolean }) {
-  const [busy, setBusy] = useState(false);
-  const [phase, setPhase] = useState<string | null>(null);
-  const [result, setResult] = useState<D1ResetResult | null>(null);
-
-  async function resetD1() {
-    const confirmed = window.confirm(
-      "Reset Cloudflare D1 from the current data?\n\n" +
-        "This recreates the D1 schema and copies every row from the live " +
-        "Supabase database into D1, overwriting matching D1 rows by primary " +
-        "key. Supabase itself is never modified.\n\n" +
-        "Continue?",
-    );
-    if (!confirmed) return;
-    setBusy(true);
-    setResult(null);
-    try {
-      setPhase("Applying D1 schema…");
-      const schemaRes = await fetch("/api/admin/d1-apply-schema", {
-        method: "POST",
-      });
-      const schema = await schemaRes.json().catch(() => ({}));
-      if (!schemaRes.ok) {
-        setResult({ error: schema.error || `Schema step: HTTP ${schemaRes.status}` });
-        return;
-      }
-
-      setPhase("Copying current data into D1…");
-      const dataRes = await fetch("/api/admin/d1-migrate-data", {
-        method: "POST",
-      });
-      const data = await dataRes.json().catch(() => ({}));
-      if (!dataRes.ok) {
-        setResult({ schema, error: data.error || `Data step: HTTP ${dataRes.status}` });
-        return;
-      }
-
-      setResult({ schema, data });
-    } catch (err) {
-      setResult({ error: (err as Error).message });
-    } finally {
-      setBusy(false);
-      setPhase(null);
-    }
-  }
-
-  const tablesWithErrors =
-    result?.data?.tables.filter((t) => t.errors.length > 0) ?? [];
-
+/** The primary download button, accent-coloured, with a spinner while busy. */
+function ActionButton({
+  accent,
+  busy,
+  onClick,
+  children,
+}: {
+  accent: Accent;
+  busy: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-xl border-2 border-magic-red/40 bg-white p-5">
-      <h3 className="font-semibold text-magic-ink mb-1">
-        Reset D1 from current data
-      </h3>
-      <p className="text-sm text-magic-ink/60 mb-4">
-        Rebuilds the <strong>Cloudflare D1</strong> mirror from the live
-        Supabase database in one click: it (re)creates the D1 schema, then
-        copies <strong>every row of every table</strong> into D1, overwriting
-        matching rows by primary key. Use this when D1 has drifted from
-        Supabase and you want it to match the current data again. Supabase is
-        read-only here — nothing in it is changed.
-      </p>
-      <div className="space-y-2 md:max-w-lg">
-        <button
-          onClick={resetD1}
-          disabled={busy || readOnly}
-          className="w-full px-4 py-2 text-sm font-semibold rounded-lg bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
-        >
-          {busy ? "Resetting D1…" : "Reset D1 from current data"}
-        </button>
-        {phase && (
-          <p className="text-sm text-magic-ink/70 bg-magic-soft border border-magic-border rounded-lg px-3 py-2">
-            {phase}
-          </p>
-        )}
-        {result && (
-          <div
-            className={`mt-2 text-sm rounded-lg px-3 py-2 ${
-              result.error
-                ? "text-red-700 bg-red-50 border border-red-200"
-                : "text-green-700 bg-green-50 border border-green-200"
-            }`}
-          >
-            {result.error ? (
-              <>Error: {result.error}</>
-            ) : (
-              <>
-                <div>
-                  D1 reset complete. Schema: {result.schema?.applied ?? 0}{" "}
-                  statement(s) applied, {result.schema?.skipped ?? 0} skipped.
-                </div>
-                <div className="mt-1">
-                  Data: {result.data?.totalMigrated ?? 0} row(s) copied across{" "}
-                  {result.data?.tables.length ?? 0} table(s),{" "}
-                  {result.data?.totalErrors ?? 0} error(s).
-                </div>
-                {tablesWithErrors.length > 0 && (
-                  <ul className="mt-2 list-disc pl-5">
-                    {tablesWithErrors.map((t) => (
-                      <li key={t.name} className="text-red-700">
-                        {t.name}: {t.errors[0]}
-                        {t.errors.length > 1
-                          ? ` (+${t.errors.length - 1} more)`
-                          : ""}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
-          </div>
-        )}
-        <p className="text-xs text-magic-ink/50">
-          Requires the <code>CLOUDFLARE_*</code> env vars to be set. Runs{" "}
-          <code>d1-apply-schema</code> then <code>d1-migrate-data</code>.
-        </p>
-      </div>
+    <button
+      onClick={onClick}
+      disabled={busy}
+      className={`inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors disabled:opacity-50 ${ACCENTS[accent].button}`}
+    >
+      {busy ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Download className="h-4 w-4" />
+      )}
+      {children}
+    </button>
+  );
+}
+
+/** Live progress line shown while a browser-assembled backup is running. */
+function ProgressMessage({ progress }: { progress: string | null }) {
+  if (!progress) return null;
+  return (
+    <div className="mt-2 flex items-center gap-2 rounded-lg border border-magic-border bg-magic-soft px-3 py-2 text-sm text-magic-ink/70">
+      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+      <span>{progress}</span>
     </div>
   );
 }
+
+/** Final success / error banner for a backup. */
+function ResultMessage({ msg }: { msg: Msg | null }) {
+  if (!msg) return null;
+  const ok = msg.kind === "ok";
+  return (
+    <div
+      className={`mt-2 flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${
+        ok
+          ? "border-green-200 bg-green-50 text-green-700"
+          : "border-red-200 bg-red-50 text-red-700"
+      }`}
+    >
+      {ok ? (
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+      ) : (
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+      )}
+      <span>{msg.text}</span>
+    </div>
+  );
+}
+
+// ─── Generic helpers ─────────────────────────────────────────────────────────
 
 /** Pull the server-suggested filename out of a Content-Disposition header. */
 function filenameFromResponse(res: Response): string | null {
