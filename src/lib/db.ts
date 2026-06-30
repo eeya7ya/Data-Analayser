@@ -35,6 +35,16 @@ const globalForDb = globalThis as unknown as {
   __mtSql?: Sql;
 };
 
+/** True when any Postgres connection string is configured. */
+function hasPostgresUrl(): boolean {
+  return Boolean(
+    process.env.DATABASE_URL ||
+      process.env.POSTGRES_URL ||
+      process.env.POSTGRES_PRISMA_URL ||
+      process.env.POSTGRES_URL_NON_POOLING,
+  );
+}
+
 function getUrl(): string {
   const url =
     process.env.DATABASE_URL ||
@@ -70,10 +80,13 @@ export function usingD1(): boolean {
   // Explicit override wins either way.
   if (process.env.USE_D1 === "0") return false;
   if (process.env.USE_D1 === "1") return true;
-  // Unset (the normal case): use D1 when it's configured, otherwise fall back
-  // to Postgres so an environment that hasn't set the CLOUDFLARE_* D1 vars yet
-  // keeps working instead of throwing "D1 is not configured" on every query.
-  return isD1Configured();
+  // Unset (the normal case): use D1 when it's configured.
+  if (isD1Configured()) return true;
+  // D1 not configured: only fall back to Postgres if a Postgres URL actually
+  // exists (a not-yet-migrated environment). With Postgres removed too, stay on
+  // D1 so the error points at the D1 setup — the intended database — instead of
+  // a misleading "no Postgres connection string".
+  return !hasPostgresUrl();
 }
 
 export function sql(): Sql {
