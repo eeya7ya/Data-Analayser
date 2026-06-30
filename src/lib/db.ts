@@ -3,6 +3,7 @@ import { RELEASE_NOTES } from "./releaseNotes";
 import { getD1Sql } from "./db-d1-sql";
 import { isD1Configured, d1Query } from "./db-d1";
 import { applyD1Schema } from "./d1-schema";
+import { ensureD1Fts } from "./fts";
 
 /**
  * Postgres client for Vercel serverless runtimes.
@@ -120,6 +121,36 @@ export function sql(): Sql {
     });
   }
   return globalForDb.__mtSql;
+}
+
+/**
+ * Backend-aware positional-parameter binder for raw `q.unsafe(text, params)`
+ * queries. SQLite/D1 uses `?` placeholders; Postgres uses `$1, $2, …`. Call
+ * `P(value)` once per bound value, in the order the placeholders appear in the
+ * SQL — it records the value and returns the correct placeholder token for the
+ * active backend:
+ *
+ *   const { P, params } = rawBinder();
+ *   const rows = await q.unsafe(
+ *     `select * from t where owner_id = ${P(ownerId)} and name ilike ${P(like)}`,
+ *     params,
+ *   );
+ *
+ * This lets the search builders assemble raw SQL (needed because the D1 client's
+ * tagged template returns a Promise, not a composable fragment) while still
+ * running on either backend.
+ */
+export function rawBinder(): {
+  P: (value: string | number) => string;
+  params: Array<string | number>;
+} {
+  const d1 = usingD1();
+  const params: Array<string | number> = [];
+  const P = (value: string | number): string => {
+    params.push(value);
+    return d1 ? "?" : `$${params.length}`;
+  };
+  return { P, params };
 }
 
 // ── Schema initialisation guard ────────────────────────────────────────────
@@ -496,26 +527,39 @@ export async function ensureSchema(): Promise<void> {
  * the caller's real query (with a clear "D1 is not configured" message) rather
  * than here, and the flag isn't set so a later request retries.
  */
-const D1_SCHEMA_FLAG = "d1_schema_bootstrap_2026_06_29";
+// Bumped 2026-06-30: the schema now ships the full index set ported from the
+// Postgres bootstrap (see d1/schema.sql "Indexes" block). Bumping the flag makes
+// existing D1 databases re-run applyD1Schema once so the new CREATE INDEX IF NOT
+// EXISTS statements take effect — every statement is idempotent, so nothing is
+// dropped or rewritten.
+const D1_SCHEMA_FLAG = "d1_schema_bootstrap_2026_06_30_indexes";
 
 async function ensureD1SchemaOnce(): Promise<void> {
   try {
+    let baseApplied = false;
     try {
       const r = await d1Query<{ one: number }>(
         `select 1 as one from migration_flags where key = ? limit 1`,
         [D1_SCHEMA_FLAG],
       );
-      if (r.results.length > 0) return;
+      baseApplied = r.results.length > 0;
     } catch {
       // migration_flags may not exist yet — fall through and apply the schema.
     }
-    const { errors } = await applyD1Schema();
-    if (errors.length === 0) {
-      await d1Query(`insert into migration_flags (key, ran_at) values (?, ?)`, [
-        D1_SCHEMA_FLAG,
-        new Date().toISOString(),
-      ]).catch(() => {});
+    if (!baseApplied) {
+      const { errors } = await applyD1Schema();
+      if (errors.length === 0) {
+        await d1Query(
+          `insert into migration_flags (key, ran_at) values (?, ?)`,
+          [D1_SCHEMA_FLAG, new Date().toISOString()],
+        ).catch(() => {});
+      }
     }
+    // Full-text search lives outside the schema-split loader (it can't create
+    // virtual tables/triggers), so apply it here. Has its own flag + in-memory
+    // ready guard, so this is cheap on warm processes and never blocks the base
+    // schema. Best-effort: a failure just leaves search on the ILIKE fallback.
+    await ensureD1Fts();
   } catch {
     // Allow a retry on the next call instead of caching a rejected promise.
     globalForSchema.__mtSchemaPromise = undefined;

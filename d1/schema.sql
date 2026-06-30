@@ -834,5 +834,184 @@ ALTER TABLE "users" ADD COLUMN "department_code" TEXT NOT NULL DEFAULT '';
 ALTER TABLE "leads" ADD COLUMN "sales_project_id" INTEGER;
 ALTER TABLE "products" ADD COLUMN "barcode" TEXT;
 
+-- ── Indexes ─────────────────────────────────────────────────────────────────
+-- Ported 1:1 from the Postgres bootstrap in src/lib/db.ts so every WHERE /
+-- JOIN / ORDER BY column the app actually filters on is backed by an index on
+-- D1 too. Without these, D1 does a full table scan per query and bills every
+-- scanned row (D1 prices on rows READ), which is the main cost risk as
+-- catalogue_items/products grow. All are CREATE INDEX IF NOT EXISTS so the
+-- apply-schema route is idempotent and never drops anything.
+--
+-- The four Postgres GIN tsvector search indexes (contacts/companies/deals/
+-- quotations _search_idx) are deliberately NOT ported — free-text search on D1
+-- uses FTS5 virtual tables instead (see src/lib/fts.ts), which the schema-split
+-- loader in src/lib/d1-schema.ts cannot create. FTS5 is wired up separately at
+-- bootstrap time.
+
+-- activity_log: timeline by owner (newest first) and per-entity history.
+CREATE INDEX IF NOT EXISTS "activity_log_owner_created_idx" ON "activity_log" ("owner_id", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "activity_log_owner_verb_idx"    ON "activity_log" ("owner_id", "verb", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "activity_log_entity_idx"        ON "activity_log" ("entity_type", "entity_id", "created_at" DESC);
+
+-- calendar_marks: the calendar reads a user's marks by date.
+CREATE INDEX IF NOT EXISTS "calendar_marks_user_date_idx" ON "calendar_marks" ("user_id", "mark_date");
+
+-- client_folders: list/scope by owner + soft-delete; lookups by kind.
+CREATE INDEX IF NOT EXISTS "client_folders_owner_deleted_idx" ON "client_folders" ("owner_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "client_folders_deleted_idx"       ON "client_folders" ("deleted_at");
+CREATE INDEX IF NOT EXISTS "client_folders_kind_idx"          ON "client_folders" ("kind", "deleted_at");
+
+-- companies: owner-scoped list + folder join.
+CREATE INDEX IF NOT EXISTS "companies_owner_idx"  ON "companies" ("owner_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "companies_folder_idx" ON "companies" ("folder_id");
+
+-- contacts: owner-scoped list, folder/company joins, case-insensitive email lookup.
+CREATE INDEX IF NOT EXISTS "contacts_owner_idx"           ON "contacts" ("owner_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "contacts_folder_deleted_idx"  ON "contacts" ("folder_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "contacts_company_deleted_idx" ON "contacts" ("company_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "contacts_email_idx"           ON "contacts" (lower("email"));
+
+-- deals: pipeline board reads by owner/status/stage/pipeline.
+CREATE INDEX IF NOT EXISTS "deals_owner_status_idx"     ON "deals" ("owner_id", "status", "deleted_at");
+CREATE INDEX IF NOT EXISTS "deals_stage_idx"            ON "deals" ("stage_id");
+CREATE INDEX IF NOT EXISTS "deals_pipeline_deleted_idx" ON "deals" ("pipeline_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "deals_quotation_idx"        ON "deals" ("quotation_id");
+
+-- entity_acls: permission lookups by entity and by principal.
+CREATE UNIQUE INDEX IF NOT EXISTS "entity_acls_unique_idx" ON "entity_acls" ("entity_type", "entity_id", "principal_kind", "principal_id", "perm");
+CREATE INDEX IF NOT EXISTS "entity_acls_principal_idx"     ON "entity_acls" ("principal_kind", "principal_id");
+
+-- execution_reports: per-project feed, newest first.
+CREATE INDEX IF NOT EXISTS "execution_reports_project_idx" ON "execution_reports" ("project_id", "created_at" DESC);
+
+-- installation_rates: admin rate book, active rows by category order.
+CREATE INDEX IF NOT EXISTS "installation_rates_cat_idx" ON "installation_rates" ("category", "sort") WHERE "active" = 1;
+
+-- lead_events / lead_messages: per-lead timeline + recipient inbox.
+CREATE INDEX IF NOT EXISTS "lead_events_lead_idx"        ON "lead_events" ("lead_id", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "lead_messages_recipient_idx" ON "lead_messages" ("recipient_id", "read_at", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "lead_messages_lead_idx"      ON "lead_messages" ("lead_id", "created_at" DESC);
+
+-- leads: the leads list filters by status / creator / assignee / outcome /
+-- execution owner, and joins by company / folder / quotation / sales project.
+CREATE INDEX IF NOT EXISTS "leads_status_idx"        ON "leads" ("status", "deleted_at");
+CREATE INDEX IF NOT EXISTS "leads_created_by_idx"    ON "leads" ("created_by", "deleted_at");
+CREATE INDEX IF NOT EXISTS "leads_assigned_to_idx"   ON "leads" ("assigned_to_id", "status", "deleted_at");
+CREATE INDEX IF NOT EXISTS "leads_outcome_idx"       ON "leads" ("outcome", "outcome_at");
+CREATE INDEX IF NOT EXISTS "leads_execution_idx"     ON "leads" ("execution_assignee_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "leads_company_idx"       ON "leads" ("company_id");
+CREATE INDEX IF NOT EXISTS "leads_folder_idx"        ON "leads" ("folder_id");
+CREATE INDEX IF NOT EXISTS "leads_quotation_idx"     ON "leads" ("quotation_id");
+CREATE INDEX IF NOT EXISTS "leads_sales_project_idx" ON "leads" ("sales_project_id");
+
+-- news_posts: active feed, pinned first then newest.
+CREATE INDEX IF NOT EXISTS "news_posts_active_idx" ON "news_posts" ("pinned" DESC, "created_at" DESC) WHERE "deleted_at" IS NULL;
+
+-- notes: per-entity thread (newest first) + owner scope.
+CREATE INDEX IF NOT EXISTS "notes_entity_idx" ON "notes" ("entity_type", "entity_id", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "notes_owner_idx"  ON "notes" ("owner_id", "deleted_at");
+
+-- notifications / notification_state: per-user bell, unread + recency.
+CREATE INDEX IF NOT EXISTS "notifications_user_idx"         ON "notifications" ("user_id", "read_at", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "notifications_user_created_idx" ON "notifications" ("user_id", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "notification_state_user_idx"    ON "notification_state" ("user_id");
+
+-- pipelines / pipeline_stages: board scaffolding.
+CREATE INDEX IF NOT EXISTS "pipelines_owner_idx"          ON "pipelines" ("owner_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "pipeline_stages_pipeline_idx" ON "pipeline_stages" ("pipeline_id", "position");
+
+-- pricing tool: manufacturers + projects + product lines.
+CREATE INDEX IF NOT EXISTS "pricing_manufacturers_active_idx"    ON "pricing_manufacturers" ("deleted_at") WHERE "deleted_at" IS NULL;
+CREATE INDEX IF NOT EXISTS "pricing_user_manufacturers_user_idx" ON "pricing_user_manufacturers" ("user_id") WHERE "deleted_at" IS NULL;
+CREATE INDEX IF NOT EXISTS "pricing_projects_user_idx"           ON "pricing_projects" ("user_id") WHERE "deleted_at" IS NULL;
+CREATE INDEX IF NOT EXISTS "pricing_projects_manufacturer_idx"   ON "pricing_projects" ("manufacturer_id") WHERE "deleted_at" IS NULL;
+CREATE INDEX IF NOT EXISTS "pricing_product_lines_project_idx"   ON "pricing_product_lines" ("project_id");
+
+-- products: catalogue browse by vendor/system, model lookups, barcode scans.
+CREATE INDEX IF NOT EXISTS "products_vendor_system_idx" ON "products" ("vendor", "system");
+CREATE INDEX IF NOT EXISTS "products_model_idx"         ON "products" ("model");
+CREATE INDEX IF NOT EXISTS "products_barcode_idx"       ON "products" ("barcode") WHERE "barcode" IS NOT NULL;
+
+-- project_assignments: by user and by project.
+CREATE INDEX IF NOT EXISTS "project_assignments_user_idx"    ON "project_assignments" ("user_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "project_assignments_project_idx" ON "project_assignments" ("project_id", "deleted_at");
+
+-- project_files: per-project listing, by kind, and cross-project shares.
+CREATE INDEX IF NOT EXISTS "project_files_project_idx" ON "project_files" ("project_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "project_files_kind_idx"    ON "project_files" ("project_id", "kind", "deleted_at");
+CREATE INDEX IF NOT EXISTS "project_files_shared_idx"  ON "project_files" ("project_id", "shared_to_projects", "deleted_at");
+
+-- project_handoffs: execution queue by status / assignee / creator.
+CREATE INDEX IF NOT EXISTS "project_handoffs_status_idx"   ON "project_handoffs" ("status") WHERE "status" = 'pending_assignment';
+CREATE INDEX IF NOT EXISTS "project_handoffs_assignee_idx" ON "project_handoffs" ("assigned_user_id");
+CREATE INDEX IF NOT EXISTS "project_handoffs_creator_idx"  ON "project_handoffs" ("created_by");
+
+-- project_tasks: open checklist per project.
+CREATE INDEX IF NOT EXISTS "project_tasks_project_idx" ON "project_tasks" ("project_id") WHERE "deleted_at" IS NULL;
+
+-- projects: folder/owner scoped lists.
+CREATE INDEX IF NOT EXISTS "projects_folder_idx" ON "projects" ("folder_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "projects_owner_idx"  ON "projects" ("owner_id", "deleted_at");
+
+-- purchase_orders: owner list, quotation/folder/project joins, unique PO number.
+CREATE INDEX IF NOT EXISTS "purchase_orders_owner_idx"            ON "purchase_orders" ("owner_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "purchase_orders_quotation_idx"        ON "purchase_orders" ("quotation_id");
+CREATE INDEX IF NOT EXISTS "purchase_orders_folder_idx"           ON "purchase_orders" ("folder_id");
+CREATE INDEX IF NOT EXISTS "purchase_orders_project_idx"          ON "purchase_orders" ("project_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "purchase_orders_owner_number_idx" ON "purchase_orders" ("owner_id", "po_number") WHERE "deleted_at" IS NULL;
+
+-- push_subscriptions: per-user device list.
+CREATE INDEX IF NOT EXISTS "push_subscriptions_user_idx" ON "push_subscriptions" ("user_id");
+
+-- quotation_change_requests: open requests by quotation and by target user.
+CREATE INDEX IF NOT EXISTS "quotation_change_requests_q_idx"      ON "quotation_change_requests" ("quotation_id", "status");
+CREATE INDEX IF NOT EXISTS "quotation_change_requests_target_idx" ON "quotation_change_requests" ("target_user_id", "status");
+
+-- quotation_stock_checks: per-quotation history, status queue, one open per quote.
+CREATE INDEX IF NOT EXISTS "quotation_stock_checks_q_idx"      ON "quotation_stock_checks" ("quotation_id", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "quotation_stock_checks_status_idx" ON "quotation_stock_checks" ("status", "created_at" DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS "quotation_stock_checks_one_pending_idx" ON "quotation_stock_checks" ("quotation_id") WHERE "status" = 'pending';
+
+-- quotations: the heaviest list table — owner/folder/project/contact scopes,
+-- status + approval filters, parent-ref chains, and the hold sweep.
+CREATE INDEX IF NOT EXISTS "quotations_owner_deleted_idx" ON "quotations" ("owner_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "quotations_owner_status_idx"  ON "quotations" ("owner_id", "status");
+CREATE INDEX IF NOT EXISTS "quotations_folder_idx"        ON "quotations" ("folder_id");
+CREATE INDEX IF NOT EXISTS "quotations_project_idx"       ON "quotations" ("project_id");
+CREATE INDEX IF NOT EXISTS "quotations_contact_idx"       ON "quotations" ("contact_id");
+CREATE INDEX IF NOT EXISTS "quotations_deleted_idx"       ON "quotations" ("deleted_at");
+CREATE INDEX IF NOT EXISTS "quotations_parent_ref_idx"    ON "quotations" ("parent_ref");
+CREATE INDEX IF NOT EXISTS "quotations_approval_idx"      ON "quotations" ("approved_at", "accepted_at", "deleted_at");
+CREATE INDEX IF NOT EXISTS "quotations_hold_due_idx"      ON "quotations" ("hold_transfer_at") WHERE "sales_outcome" = 'held' AND "transferred_at" IS NULL;
+
+-- stock_*: location tree, per-item movement ledger, per-node placements.
+CREATE INDEX IF NOT EXISTS "stock_location_nodes_parent_idx" ON "stock_location_nodes" ("parent_id");
+CREATE INDEX IF NOT EXISTS "stock_events_item_idx"           ON "stock_events" ("item_id", "recorded_at" DESC);
+CREATE INDEX IF NOT EXISTS "stock_placements_node_idx"       ON "stock_placements" ("node_id");
+
+-- tasks: owner/assignee work lists, entity links, due-soon open tasks.
+CREATE INDEX IF NOT EXISTS "tasks_owner_idx"        ON "tasks" ("owner_id", "status", "deleted_at");
+CREATE INDEX IF NOT EXISTS "tasks_assignee_idx"     ON "tasks" ("assignee_id", "status", "deleted_at");
+CREATE INDEX IF NOT EXISTS "tasks_entity_status_idx" ON "tasks" ("entity_type", "entity_id", "status");
+CREATE INDEX IF NOT EXISTS "tasks_due_idx"          ON "tasks" ("due_at") WHERE "deleted_at" IS NULL AND "status" = 'open';
+
+-- teams / team_members / roles.
+CREATE INDEX IF NOT EXISTS "team_members_user_idx"        ON "team_members" ("user_id");
+CREATE INDEX IF NOT EXISTS "team_members_team_idx"        ON "team_members" ("team_id");
+CREATE INDEX IF NOT EXISTS "teams_module_idx"             ON "teams" ("module", "deleted_at");
+CREATE INDEX IF NOT EXISTS "user_module_roles_module_idx" ON "user_module_roles" ("module", "role");
+CREATE INDEX IF NOT EXISTS "user_module_roles_active_idx" ON "user_module_roles" ("user_id", "module") WHERE "revoked_at" IS NULL;
+
+-- users: tenant scoping.
+CREATE INDEX IF NOT EXISTS "users_tenant_idx" ON "users" ("tenant_id");
+
+-- user_notes: per-user notepad, newest first.
+CREATE INDEX IF NOT EXISTS "user_notes_user_idx" ON "user_notes" ("user_id", "deleted_at", "updated_at" DESC);
+
+-- workflows: owner list + enabled scheduler scan + run history.
+CREATE INDEX IF NOT EXISTS "workflows_owner_idx"        ON "workflows" ("owner_id", "deleted_at");
+CREATE INDEX IF NOT EXISTS "workflows_enabled_idx"      ON "workflows" ("enabled") WHERE "deleted_at" IS NULL;
+CREATE INDEX IF NOT EXISTS "workflow_runs_workflow_idx" ON "workflow_runs" ("workflow_id", "ran_at" DESC);
+
 COMMIT;
 PRAGMA foreign_keys = ON;

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql, ensureSchema } from "@/lib/db";
+import { sql, ensureSchema, usingD1, rawBinder } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
 import { requireModuleAllowLegacy, requireCrmOrProjectsRead } from "@/lib/modules";
 import { assignedCompanyIds } from "@/lib/projectAccess";
 import { findCrossKindConflicts } from "@/lib/crmNames";
+import { tokenize } from "@/lib/search";
+import { isFtsReady, matchAll, ftsPredicate } from "@/lib/fts";
 import {
   cascadeSoftDeleteCompany,
   cascadeRestoreCompany,
@@ -106,35 +108,66 @@ export async function GET(req: NextRequest) {
     // was inverted so the default request only returned archived rows,
     // which wiped the SSR-rendered list on client re-fetch.
     const activeOnly = includeArchived ? null : true;
-    const rows = (await q`
-      select c.id, c.name, c.website, c.industry, c.size_bucket, c.notes,
-             c.owner_id, u.username as owner_username,
-             c.created_at, c.updated_at,
-             (select count(*) from client_folders cf
-                where cf.company_id = c.id and cf.deleted_at is null) as client_count,
-             (select count(*) from quotations qq
-                join client_folders cf on cf.id = qq.folder_id
-                where cf.company_id = c.id
-                  and qq.deleted_at is null and cf.deleted_at is null) as quotation_count,
-             (select count(*) from project_files pf
-                join projects p on p.id = pf.project_id and p.deleted_at is null
-                join client_folders cf on cf.id = p.folder_id and cf.deleted_at is null
-                where cf.company_id = c.id and pf.deleted_at is null) as file_count,
-             c.deleted_at
-      from companies c
-      left join users u on u.id = c.owner_id
-      where (${activeOnly}::boolean is null or (c.deleted_at is null) = ${activeOnly})
-        and (${isAdmin}::boolean or c.owner_id = ${user.id} or c.id = any(${assignedCo}::int[]))
-        and (
-          ${search} = ''
-          or c.name ilike ${"%" + search + "%"}
-          or coalesce(c.website, '') ilike ${"%" + search + "%"}
-          or coalesce(c.industry, '') ilike ${"%" + search + "%"}
-          or coalesce(c.notes, '') ilike ${"%" + search + "%"}
-        )
-      order by (c.deleted_at is not null), c.name
-      limit 500
-    `) as CompanyRow[];
+
+    // Build the filter in JS: scope equality (no `is null` casts), ownership /
+    // assigned-company visibility, and FTS5 search on D1 (was a 4-column ILIKE
+    // scan). Admins skip the ownership clause entirely.
+    const { P, params } = rawBinder();
+    const wc: string[] = [];
+    if (activeOnly === true) wc.push("c.deleted_at is null");
+    if (!isAdmin) {
+      const own = [`c.owner_id = ${P(user.id)}`];
+      if (assignedCo.length) {
+        own.push(`c.id in (${assignedCo.map((cid) => P(cid)).join(", ")})`);
+      }
+      wc.push("(" + own.join(" or ") + ")");
+    }
+    if (search !== "") {
+      let hay: string | undefined;
+      if (usingD1() && isFtsReady()) {
+        const match = matchAll(tokenize(search));
+        if (match) hay = ftsPredicate("companies", "c.id", P(match));
+      }
+      if (!hay) {
+        const like = `%${search}%`;
+        hay =
+          "(" +
+          [
+            "c.name",
+            "coalesce(c.website, '')",
+            "coalesce(c.industry, '')",
+            "coalesce(c.notes, '')",
+          ]
+            .map((c) => `${c} ilike ${P(like)}`)
+            .join(" or ") +
+          ")";
+      }
+      wc.push(hay);
+    }
+    const whereSql = wc.length ? "where " + wc.join(" and ") : "";
+
+    const rows = (await q.unsafe(
+      `select c.id, c.name, c.website, c.industry, c.size_bucket, c.notes,
+              c.owner_id, u.username as owner_username,
+              c.created_at, c.updated_at,
+              (select count(*) from client_folders cf
+                 where cf.company_id = c.id and cf.deleted_at is null) as client_count,
+              (select count(*) from quotations qq
+                 join client_folders cf on cf.id = qq.folder_id
+                 where cf.company_id = c.id
+                   and qq.deleted_at is null and cf.deleted_at is null) as quotation_count,
+              (select count(*) from project_files pf
+                 join projects p on p.id = pf.project_id and p.deleted_at is null
+                 join client_folders cf on cf.id = p.folder_id and cf.deleted_at is null
+                 where cf.company_id = c.id and pf.deleted_at is null) as file_count,
+              c.deleted_at
+       from companies c
+       left join users u on u.id = c.owner_id
+       ${whereSql}
+       order by (c.deleted_at is not null), c.name
+       limit 500`,
+      params,
+    )) as CompanyRow[];
 
     return NextResponse.json({ companies: rows });
   } catch (err) {

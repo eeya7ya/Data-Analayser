@@ -1,68 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { sql, ensureSchema } from "@/lib/db";
+import { sql, ensureSchema, usingD1, rawBinder } from "@/lib/db";
 import { tokenize, expandWithAliases } from "@/lib/search";
+import { isFtsReady, buildMatch, ftsPredicate } from "@/lib/fts";
 
 export const runtime = "nodejs";
 
 /**
  * GET /api/catalogue/products?vendor=X&system=Y&q=search&limit=N&offset=M
  *
- * Query products from Supabase with optional filters and deep search.
+ * Query products with optional vendor/system filters and deep text search.
  *
  * Deep search semantics
  * ─────────────────────
- * The `q` param is tokenised and each token is expanded via the shared
- * `expandWithAliases` helper in `@/lib/search` (stems + domain aliases like
- * camera↔cctv↔ipc↔bullet). Every token's variant set is OR'd across all
- * searchable text fields, and token groups are AND'd together — so typing
- * "4mp bullet" requires BOTH words (or their aliases) to appear somewhere
- * in the row, while typing "camera" surfaces rows that only mention "IPC"
- * or "Dome". The `specifications` column is included in the haystack so
- * values written only in specs (e.g. "Zigbee 3.0", "8MP 4K") also match.
+ * `q` is tokenised and each token is expanded via `expandWithAliases` (stems +
+ * domain aliases like camera↔cctv↔ipc↔bullet). A row must match EVERY user
+ * token (AND), where a token matches if ANY of its variants appears in ANY
+ * searchable field (OR) — so "4mp bullet" requires both words (or aliases)
+ * somewhere in the row, while "camera" also surfaces rows that only mention
+ * "IPC" or "Dome".
+ *
+ * On D1 this runs through the FTS5 index (one inverted-index lookup) when it's
+ * ready; otherwise (Postgres, or before the index is built) it falls back to an
+ * ILIKE scan with identical semantics. The SQL is assembled as raw
+ * parameterised text because the D1 client's tagged template returns a Promise,
+ * not a composable fragment, so the old `.reduce((a,b) => db`${a} or ${b}`)`
+ * fragment composition bound Promises as parameters instead of building SQL.
  */
 
-type DbClient = ReturnType<typeof sql>;
+const DEEP_FIELDS = [
+  "model",
+  "category",
+  "sub_category",
+  "description",
+  "fast_view",
+  "specifications",
+] as const;
 
 /**
- * Build an ILIKE predicate of the form
- *   (variants-of-token-1) AND (variants-of-token-2) AND …
- * where each token's variant group is a flat OR across all searchable fields.
- * Returns `null` when the query contains no usable tokens (pure punctuation,
- * empty string, …) so the caller can fall through to a non-`q` branch.
- *
- * Fragment composition follows the same pattern already used in
- * `src/lib/search.ts` (interpolating tagged-template fragments into another
- * tagged-template literal). We let TypeScript infer the fragment types from
- * the `postgres` library rather than naming them explicitly.
+ * Build the deep-search WHERE predicate (a SQL string), binding its values via
+ * the shared `P`. Returns null when the query has no usable tokens (pure
+ * punctuation / empty) so the caller skips it.
  */
-function buildDeepSearchPredicate(
-  db: DbClient,
+function buildDeepSearch(
   q: string,
   includeVendor: boolean,
-) {
+  ftsOn: boolean,
+  P: (value: string | number) => string,
+): string | null {
   const tokens = tokenize(q);
   if (tokens.length === 0) return null;
 
-  const groups = tokens.map((t) => {
-    // Expand per-token so each user word keeps its own alias group.
-    const variants = expandWithAliases([t]).map((v) => `%${v}%`);
-    const clauses = variants.flatMap((p) => {
-      const perField = [
-        db`model ilike ${p}`,
-        db`category ilike ${p}`,
-        db`sub_category ilike ${p}`,
-        db`description ilike ${p}`,
-        db`fast_view ilike ${p}`,
-        db`specifications ilike ${p}`,
-      ];
-      if (includeVendor) perField.push(db`vendor ilike ${p}`);
-      return perField;
-    });
-    return clauses.reduce((a, b) => db`${a} or ${b}`);
-  });
+  if (ftsOn) {
+    // One AND-of-OR group per user token, OR-ing that token's alias variants.
+    const groups = tokens.map((t) => expandWithAliases([t]));
+    const match = buildMatch(groups);
+    if (match) return ftsPredicate("products", "id", P(match));
+    // No usable FTS token — fall through to ILIKE.
+  }
 
-  return groups.map((g) => db`(${g})`).reduce((a, b) => db`${a} and ${b}`);
+  const fields = includeVendor ? [...DEEP_FIELDS, "vendor"] : [...DEEP_FIELDS];
+  const groupSqls: string[] = [];
+  for (const t of tokens) {
+    const variants = expandWithAliases([t]).map((v) => `%${v}%`);
+    const ors: string[] = [];
+    for (const p of variants) {
+      for (const f of fields) ors.push(`${f} ilike ${P(p)}`);
+    }
+    groupSqls.push("(" + ors.join(" or ") + ")");
+  }
+  return groupSqls.join(" and ");
 }
 
 export async function GET(req: NextRequest) {
@@ -78,82 +85,29 @@ export async function GET(req: NextRequest) {
     const offset = Number(sp.get("offset")) || 0;
 
     const db = sql();
+    const ftsOn = usingD1() && isFtsReady();
+    const { P, params } = rawBinder();
 
+    const where: string[] = [];
+    if (vendor) where.push(`vendor = ${P(vendor)}`);
+    if (system) where.push(`system = ${P(system)}`);
     // When there's no vendor filter, include the `vendor` column in the
     // haystack so global search can find rows by vendor name.
-    const deepPred = q
-      ? buildDeepSearchPredicate(db, q, /* includeVendor */ !vendor)
-      : null;
-    const hasDeepQuery = deepPred !== null;
+    const deepSql = q ? buildDeepSearch(q, /* includeVendor */ !vendor, ftsOn, P) : null;
+    if (deepSql) where.push("(" + deepSql + ")");
+    const whereSql = where.length ? "where " + where.join(" and ") : "";
 
-    let products;
-    let countResult;
-
-    if (vendor && system && hasDeepQuery) {
-      products = await db`
-        select * from products
-        where vendor = ${vendor} and system = ${system} and (${deepPred})
-        order by vendor, system, category, model
-        limit ${limit} offset ${offset}
-      `;
-      countResult = await db`
-        select count(*)::int as total from products
-        where vendor = ${vendor} and system = ${system} and (${deepPred})
-      `;
-    } else if (vendor && system) {
-      products = await db`
-        select * from products
-        where vendor = ${vendor} and system = ${system}
-        order by vendor, system, category, model
-        limit ${limit} offset ${offset}
-      `;
-      countResult = await db`
-        select count(*)::int as total from products
-        where vendor = ${vendor} and system = ${system}
-      `;
-    } else if (vendor && hasDeepQuery) {
-      products = await db`
-        select * from products
-        where vendor = ${vendor} and (${deepPred})
-        order by vendor, system, category, model
-        limit ${limit} offset ${offset}
-      `;
-      countResult = await db`
-        select count(*)::int as total from products
-        where vendor = ${vendor} and (${deepPred})
-      `;
-    } else if (vendor) {
-      products = await db`
-        select * from products
-        where vendor = ${vendor}
-        order by vendor, system, category, model
-        limit ${limit} offset ${offset}
-      `;
-      countResult = await db`
-        select count(*)::int as total from products
-        where vendor = ${vendor}
-      `;
-    } else if (hasDeepQuery) {
-      products = await db`
-        select * from products
-        where ${deepPred}
-        order by vendor, system, category, model
-        limit ${limit} offset ${offset}
-      `;
-      countResult = await db`
-        select count(*)::int as total from products
-        where ${deepPred}
-      `;
-    } else {
-      products = await db`
-        select * from products
-        order by vendor, system, category, model
-        limit ${limit} offset ${offset}
-      `;
-      countResult = await db`
-        select count(*)::int as total from products
-      `;
-    }
+    // Snapshot the WHERE params before adding limit/offset, so the COUNT query
+    // (same WHERE, no limit/offset) binds exactly the placeholders it contains.
+    const whereParams = [...params];
+    const products = await db.unsafe(
+      `select * from products ${whereSql} order by vendor, system, category, model limit ${P(limit)} offset ${P(offset)}`,
+      params,
+    );
+    const countResult = await db.unsafe(
+      `select count(*)::int as total from products ${whereSql}`,
+      whereParams,
+    );
 
     return NextResponse.json({
       products,

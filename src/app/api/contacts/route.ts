@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql, ensureSchema } from "@/lib/db";
+import { sql, ensureSchema, usingD1, rawBinder } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 import { ensurePersonFolder } from "@/lib/crmPeople";
+import { tokenize } from "@/lib/search";
+import { isFtsReady, matchAll, ftsPredicate } from "@/lib/fts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -103,32 +105,48 @@ export async function GET(req: NextRequest) {
     // true → only deleted_at IS NULL rows; null → no archived filter.
     const activeOnly = includeArchived ? null : true;
 
-    const rows = (await q`
-      select c.id, c.owner_id, c.folder_id, c.company_id,
-             c.first_name, c.last_name, c.email, c.phone, c.title, c.notes,
-             c.created_at, c.updated_at, c.deleted_at,
-             coalesce((select count(*) from projects p
-                where p.folder_id = c.folder_id and p.deleted_at is null), 0)::int as project_count,
-             coalesce((select count(*) from quotations qq
-                where qq.folder_id = c.folder_id and qq.deleted_at is null), 0)::int as quotation_count
-      from contacts c
-      where (${activeOnly}::boolean is null or (c.deleted_at is null) = ${activeOnly})
-        and (${ownerFilter}::int is null or c.owner_id = ${ownerFilter})
-        and (${companyId}::int is null or c.company_id = ${companyId})
-        and (${folderId}::int is null or c.folder_id = ${folderId})
-        and (
-          ${search} = ''
-          or coalesce(c.first_name, '') ilike ${"%" + search + "%"}
-          or coalesce(c.last_name, '')  ilike ${"%" + search + "%"}
-          or coalesce(c.email, '')      ilike ${"%" + search + "%"}
-          or coalesce(c.phone, '')      ilike ${"%" + search + "%"}
-          or coalesce(c.title, '')      ilike ${"%" + search + "%"}
-          or coalesce(c.notes, '')      ilike ${"%" + search + "%"}
-        )
-      order by (c.deleted_at is not null),
-               coalesce(c.last_name, ''), coalesce(c.first_name, '')
-      limit 500
-    `) as ContactRowWithCounts[];
+    // Build the filter in JS so each scope is a plain equality (no `is null`
+    // casts) and the search uses FTS5 on D1 (was a 6-column ILIKE scan).
+    const { P, params } = rawBinder();
+    const wc: string[] = [];
+    if (activeOnly === true) wc.push("c.deleted_at is null");
+    if (ownerFilter !== null) wc.push(`c.owner_id = ${P(ownerFilter)}`);
+    if (companyId !== null) wc.push(`c.company_id = ${P(companyId)}`);
+    if (folderId !== null) wc.push(`c.folder_id = ${P(folderId)}`);
+    if (search !== "") {
+      let hay: string | undefined;
+      if (usingD1() && isFtsReady()) {
+        const match = matchAll(tokenize(search));
+        if (match) hay = ftsPredicate("contacts", "c.id", P(match));
+      }
+      if (!hay) {
+        const like = `%${search}%`;
+        hay =
+          "(" +
+          ["c.first_name", "c.last_name", "c.email", "c.phone", "c.title", "c.notes"]
+            .map((c) => `coalesce(${c}, '') ilike ${P(like)}`)
+            .join(" or ") +
+          ")";
+      }
+      wc.push(hay);
+    }
+    const whereSql = wc.length ? "where " + wc.join(" and ") : "";
+
+    const rows = (await q.unsafe(
+      `select c.id, c.owner_id, c.folder_id, c.company_id,
+              c.first_name, c.last_name, c.email, c.phone, c.title, c.notes,
+              c.created_at, c.updated_at, c.deleted_at,
+              coalesce((select count(*) from projects p
+                 where p.folder_id = c.folder_id and p.deleted_at is null), 0)::int as project_count,
+              coalesce((select count(*) from quotations qq
+                 where qq.folder_id = c.folder_id and qq.deleted_at is null), 0)::int as quotation_count
+       from contacts c
+       ${whereSql}
+       order by (c.deleted_at is not null),
+                coalesce(c.last_name, ''), coalesce(c.first_name, '')
+       limit 500`,
+      params,
+    )) as ContactRowWithCounts[];
 
     return NextResponse.json({ contacts: rows });
   } catch (err) {

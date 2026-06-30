@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { requireModule } from "@/lib/modules";
 import { sql, ensureSchema } from "@/lib/db";
 import { offloadImages } from "@/lib/imageOffload";
+import { invalidateSystemsCache } from "@/lib/search";
 
 export const runtime = "nodejs";
 
@@ -157,6 +158,8 @@ export async function PATCH(
       where id = ${id}
       returning *
     `) as Array<Record<string, unknown>>;
+    // vendor/system/currency may have changed → drop the cached systems list.
+    invalidateSystemsCache();
     return NextResponse.json({ product: updated[0] });
   } catch (err) {
     const msg = (err as Error).message;
@@ -189,6 +192,8 @@ export async function DELETE(
     if (deleted.length === 0) {
       return NextResponse.json({ error: "product not found" }, { status: 404 });
     }
+    // Deleting a row may remove the last product of a system → refresh cache.
+    invalidateSystemsCache();
     return NextResponse.json({ ok: true, id: deleted[0].id });
   } catch (err) {
     const msg = (err as Error).message;

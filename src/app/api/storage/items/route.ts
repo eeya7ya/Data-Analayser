@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql, ensureSchema } from "@/lib/db";
+import { sql, ensureSchema, usingD1, rawBinder } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
 import { hasModule, hasModuleRole } from "@/lib/modules";
+import { tokenize } from "@/lib/search";
+import { isFtsReady, matchAll, ftsPredicate } from "@/lib/fts";
 
 export const runtime = "nodejs";
 
@@ -42,18 +44,29 @@ export async function GET(req: NextRequest) {
     }
 
     const term = (params.get("q") || "").trim();
-    const like = `%${term}%`;
-    const rows = (await q`
-      select id, vendor, model, category, barcode,
-             coalesce(nullif(trim(vendor || ' ' || model), ''), model) as label
-      from products
-      where ${term === ""}::boolean
-         or vendor ilike ${like}
-         or model ilike ${like}
-         or category ilike ${like}
-      order by vendor, model
-      limit 30
-    `) as Array<Record<string, unknown>>;
+    const { P, params: bind } = rawBinder();
+    let whereSql = "";
+    if (term !== "") {
+      let hay: string | undefined;
+      if (usingD1() && isFtsReady()) {
+        const match = matchAll(tokenize(term));
+        if (match) hay = ftsPredicate("products", "id", P(match));
+      }
+      if (!hay) {
+        const like = `%${term}%`;
+        hay = `(vendor ilike ${P(like)} or model ilike ${P(like)} or category ilike ${P(like)})`;
+      }
+      whereSql = `where ${hay}`;
+    }
+    const rows = (await q.unsafe(
+      `select id, vendor, model, category, barcode,
+              coalesce(nullif(trim(vendor || ' ' || model), ''), model) as label
+       from products
+       ${whereSql}
+       order by vendor, model
+       limit 30`,
+      bind,
+    )) as Array<Record<string, unknown>>;
     return NextResponse.json({ items: rows });
   } catch (err) {
     const msg = (err as Error).message;
