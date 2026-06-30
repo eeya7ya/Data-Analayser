@@ -13,10 +13,11 @@ const nextConfig = {
       { protocol: "https", hostname: "github.com" },
     ],
   },
-  // Bundle d1/schema.sql into the Vercel serverless function so
-  // /api/admin/d1-apply-schema can read it with fs.readFile at runtime.
+  // ensureSchema() applies d1/schema.sql on first D1 use from any route or
+  // page (self-healing schema), so bundle it into every serverless function —
+  // not just /api/admin/d1-apply-schema — so fs.readFile can find it at runtime.
   outputFileTracingIncludes: {
-    "/api/admin/d1-apply-schema": ["./d1/schema.sql"],
+    "/**": ["./d1/schema.sql"],
   },
 };
 

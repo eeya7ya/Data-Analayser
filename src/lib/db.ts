@@ -1,6 +1,8 @@
 import postgres, { type Sql } from "postgres";
 import { RELEASE_NOTES } from "./releaseNotes";
 import { getD1Sql } from "./db-d1-sql";
+import { isD1Configured, d1Query } from "./db-d1";
+import { applyD1Schema } from "./d1-schema";
 
 /**
  * Postgres client for Vercel serverless runtimes.
@@ -32,6 +34,16 @@ import { getD1Sql } from "./db-d1-sql";
 const globalForDb = globalThis as unknown as {
   __mtSql?: Sql;
 };
+
+/** True when any Postgres connection string is configured. */
+function hasPostgresUrl(): boolean {
+  return Boolean(
+    process.env.DATABASE_URL ||
+      process.env.POSTGRES_URL ||
+      process.env.POSTGRES_PRISMA_URL ||
+      process.env.POSTGRES_URL_NON_POOLING,
+  );
+}
 
 function getUrl(): string {
   const url =
@@ -65,7 +77,16 @@ function getUrl(): string {
  * emergency fallback for anyone who still has a Postgres URL.
  */
 export function usingD1(): boolean {
-  return process.env.USE_D1 !== "0";
+  // Explicit override wins either way.
+  if (process.env.USE_D1 === "0") return false;
+  if (process.env.USE_D1 === "1") return true;
+  // Unset (the normal case): use D1 when it's configured.
+  if (isD1Configured()) return true;
+  // D1 not configured: only fall back to Postgres if a Postgres URL actually
+  // exists (a not-yet-migrated environment). With Postgres removed too, stay on
+  // D1 so the error points at the D1 setup — the intended database — instead of
+  // a misleading "no Postgres connection string".
+  return !hasPostgresUrl();
 }
 
 export function sql(): Sql {
@@ -443,10 +464,15 @@ const SEQUENCE_REALIGN_FLAG = "sequence_realign_v1_2026_06";
 
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
-  // In D1 mode (the default) the schema is managed separately by the
-  // d1-apply-schema route (the SQLite schema in d1/schema.sql), so the Postgres
-  // DDL bootstrap is skipped entirely.
-  if (usingD1()) return;
+  // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
+  // idempotently on first use, so a fresh or stale D1 self-heals — the D1
+  // analogue of the Postgres DDL bootstrap below. Guarded by a flag row so warm
+  // processes pay just one SELECT; cached per process via __mtSchemaPromise.
+  if (usingD1()) {
+    if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
+    globalForSchema.__mtSchemaPromise = ensureD1SchemaOnce();
+    return globalForSchema.__mtSchemaPromise;
+  }
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
   // Ensure DDL first, then seed the release-notes changelog. The seed lives
   // outside _ensureSchemaOnce's "nothing to do" early return so it still runs
@@ -456,6 +482,44 @@ export async function ensureSchema(): Promise<void> {
     await _seedReleaseNotes();
   })();
   return globalForSchema.__mtSchemaPromise;
+}
+
+/**
+ * Apply the D1 schema once per process. Fast path: a flag row in
+ * `migration_flags` means it's already applied, so this is a single SELECT on
+ * warm processes. On first run (or when the flag is missing) it applies every
+ * idempotent CREATE/ALTER from d1/schema.sql, then records the flag. Bump the
+ * FLAG string whenever d1/schema.sql gains new tables/columns so existing
+ * databases pick them up.
+ *
+ * Best-effort: it never throws. If D1 is unreachable the failure surfaces on
+ * the caller's real query (with a clear "D1 is not configured" message) rather
+ * than here, and the flag isn't set so a later request retries.
+ */
+const D1_SCHEMA_FLAG = "d1_schema_bootstrap_2026_06_29";
+
+async function ensureD1SchemaOnce(): Promise<void> {
+  try {
+    try {
+      const r = await d1Query<{ one: number }>(
+        `select 1 as one from migration_flags where key = ? limit 1`,
+        [D1_SCHEMA_FLAG],
+      );
+      if (r.results.length > 0) return;
+    } catch {
+      // migration_flags may not exist yet — fall through and apply the schema.
+    }
+    const { errors } = await applyD1Schema();
+    if (errors.length === 0) {
+      await d1Query(`insert into migration_flags (key, ran_at) values (?, ?)`, [
+        D1_SCHEMA_FLAG,
+        new Date().toISOString(),
+      ]).catch(() => {});
+    }
+  } catch {
+    // Allow a retry on the next call instead of caching a rejected promise.
+    globalForSchema.__mtSchemaPromise = undefined;
+  }
 }
 
 /**
