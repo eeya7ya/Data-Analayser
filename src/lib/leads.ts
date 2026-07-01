@@ -326,13 +326,13 @@ export async function getActiveRfqForProject(
            ql.id as quote_id, ql.ref as quote_ref
     from leads l
     left join users au on au.id = l.assigned_to_id
-    left join lateral (
-      select qq.id, qq.ref
+    left join quotations ql on ql.id = (
+      select qq.id
       from quotations qq
       where qq.project_id = l.project_id and qq.deleted_at is null
       order by qq.created_at desc
       limit 1
-    ) ql on true
+    )
     where l.deleted_at is null
       and (l.project_id = ${projectId} or l.sales_project_id = ${projectId})
       and l.completed_at is null
