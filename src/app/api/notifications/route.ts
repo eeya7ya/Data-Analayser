@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sql, ensureSchema } from "@/lib/db";
+import { sql, ensureSchema, usingD1 } from "@/lib/db";
 import { getSessionUser, canReadAll } from "@/lib/auth";
 import { hasModule, hasModuleRole } from "@/lib/modules";
 import { toAudienceArray, audienceOverlaps } from "@/lib/news-audience";
@@ -163,14 +163,29 @@ export async function GET() {
     }
   }
 
-  const recentAnswered = (await q`
-    select count(*)::int as n from quotation_stock_checks c
-    join quotations qq on qq.id = c.quotation_id
-    where c.status = 'answered'
-      and qq.deleted_at is null
-      and c.requested_by = ${user.id}
-      and c.answered_at > now() - interval '72 hours'
-  `) as Array<{ n: number }>;
+  // 72-hour window. Postgres uses `interval` arithmetic; D1/SQLite has none,
+  // and answered_at is written via now() (space-format), so normalise both
+  // sides with datetime() before comparing to a JS-computed cutoff.
+  const cutoff72 = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
+  const recentAnswered = (
+    usingD1()
+      ? await q`
+          select count(*) as n from quotation_stock_checks c
+          join quotations qq on qq.id = c.quotation_id
+          where c.status = 'answered'
+            and qq.deleted_at is null
+            and c.requested_by = ${user.id}
+            and datetime(c.answered_at) > datetime(${cutoff72})
+        `
+      : await q`
+          select count(*)::int as n from quotation_stock_checks c
+          join quotations qq on qq.id = c.quotation_id
+          where c.status = 'answered'
+            and qq.deleted_at is null
+            and c.requested_by = ${user.id}
+            and c.answered_at > now() - interval '72 hours'
+        `
+  ) as Array<{ n: number }>;
   const recent = recentAnswered[0]?.n ?? 0;
   if (recent > 0) {
     raw.push({
