@@ -106,8 +106,8 @@ export async function POST(req: NextRequest) {
       if (isAdmin) {
         // The admin sees every manufacturer — grant the member all of them.
         n += (await tx`
-          insert into pricing_user_manufacturers (user_id, manufacturer_id, color, tag)
-          select ${to}, m.id, 'cyan', ''
+          insert into pricing_user_manufacturers (user_id, manufacturer_id, color, tag, created_at)
+          select ${to}, m.id, 'cyan', '', now()
           from pricing_manufacturers m
           where m.deleted_at is null
           on conflict (user_id, manufacturer_id) do update set deleted_at = null
@@ -115,8 +115,8 @@ export async function POST(req: NextRequest) {
       } else {
         // Move the source's manufacturer grants to the member.
         n += (await tx`
-          insert into pricing_user_manufacturers (user_id, manufacturer_id, color, tag)
-          select ${to}, pum.manufacturer_id, pum.color, pum.tag
+          insert into pricing_user_manufacturers (user_id, manufacturer_id, color, tag, created_at)
+          select ${to}, pum.manufacturer_id, pum.color, pum.tag, now()
           from pricing_user_manufacturers pum
           where pum.user_id = ${from} and pum.deleted_at is null
           on conflict (user_id, manufacturer_id) do update set deleted_at = null
