@@ -103,13 +103,13 @@ export async function GET(req: NextRequest) {
       from leads l
       left join users cu on cu.id = l.created_by
       left join users au on au.id = l.assigned_to_id
-      left join lateral (
-        select qq.id, qq.ref, qq.sent_to_sales_at
+      left join quotations ql on ql.id = (
+        select qq.id
         from quotations qq
         where qq.project_id = l.project_id and qq.deleted_at is null
         order by qq.created_at desc
         limit 1
-      ) ql on true
+      )
       where (
           (${junkView}::boolean = true and l.deleted_at is not null)
           or (${junkView}::boolean = false and l.deleted_at is null)
