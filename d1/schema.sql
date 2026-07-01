@@ -1013,5 +1013,19 @@ CREATE INDEX IF NOT EXISTS "workflows_owner_idx"        ON "workflows" ("owner_i
 CREATE INDEX IF NOT EXISTS "workflows_enabled_idx"      ON "workflows" ("enabled") WHERE "deleted_at" IS NULL;
 CREATE INDEX IF NOT EXISTS "workflow_runs_workflow_idx" ON "workflow_runs" ("workflow_id", "ran_at" DESC);
 
+-- ── UNIQUE constraints the app's `INSERT ... ON CONFLICT (cols)` upserts rely
+-- on. Postgres declares these as UNIQUE constraints; the SQLite port dropped
+-- them, so on D1 those upserts failed with "ON CONFLICT clause does not match
+-- any PRIMARY KEY or UNIQUE constraint" (e.g. Create user). SQLite honours a
+-- UNIQUE INDEX as an ON CONFLICT target, so recreate each one here. (Tables
+-- whose ON CONFLICT column-set already equals the PRIMARY KEY need nothing.)
+CREATE UNIQUE INDEX IF NOT EXISTS "users_username_key"              ON "users" ("username");
+CREATE UNIQUE INDEX IF NOT EXISTS "client_folders_owner_name_key"   ON "client_folders" ("owner_id", "name");
+CREATE UNIQUE INDEX IF NOT EXISTS "notification_state_user_key_idx" ON "notification_state" ("user_id", "notif_key");
+CREATE UNIQUE INDEX IF NOT EXISTS "pricing_user_manufacturers_uq"   ON "pricing_user_manufacturers" ("user_id", "manufacturer_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "products_model_key"              ON "products" ("model");
+CREATE UNIQUE INDEX IF NOT EXISTS "calendar_marks_user_date_idx"    ON "calendar_marks" ("user_id", "mark_date");
+CREATE UNIQUE INDEX IF NOT EXISTS "push_subscriptions_endpoint_key" ON "push_subscriptions" ("endpoint");
+
 COMMIT;
 PRAGMA foreign_keys = ON;
