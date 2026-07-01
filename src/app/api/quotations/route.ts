@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
+import { quotationRefPrefix } from "@/lib/quotationRef";
 import {
   requireModuleAllowLegacy,
   isSalesEditLocked,
@@ -52,14 +53,13 @@ async function genActiveRef(
   useD1: boolean,
   q: Sql | null,
   departmentCode: string,
+  username: string,
 ): Promise<string> {
-  // <DEPT>-FO<YY>-<HEX4>, e.g. ITD1-FO26-0001. The HEX counter is scoped per
-  // department code AND per calendar year (the year sits in the prefix), so it
-  // restarts at 0001 each year for each department. Soft-deleted rows free
-  // their counter, so deleted numbers are reused (gaps are filled).
-  const dept = (departmentCode || "GEN").trim().toUpperCase() || "GEN";
-  const yy = String(new Date().getFullYear()).slice(-2);
-  const prefix = `${dept}-FO${yy}-`;
+  // <DEPT+initials>-FO<YY>-<HEX4>, e.g. ITYA-FO26-0001 (department "ITD1",
+  // author "Yahya" → "ITYA"). The HEX counter is scoped per prefix (department +
+  // author) AND per calendar year, so it restarts at 0001 each year per author.
+  // Soft-deleted rows free their counter, so deleted numbers are reused.
+  const prefix = quotationRefPrefix(departmentCode, username);
 
   // Every live (non-deleted) ref. Soft-deleted rows are excluded so their
   // counters become reusable.
@@ -953,7 +953,7 @@ export async function POST(req: NextRequest) {
         `) as Array<{ department_code: string }>;
         dept = r[0]?.department_code || "";
       }
-      ref = await genActiveRef(useD1, q, dept);
+      ref = await genActiveRef(useD1, q, dept, user.username);
     } else {
       ref = await genSuffixedRef(
         useD1,

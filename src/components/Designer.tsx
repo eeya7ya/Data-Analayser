@@ -190,6 +190,11 @@ export default function Designer({
   const [salesPhone, setSalesPhone] = useState("");
   const [preparedBy, setPreparedBy] = useState(user.username);
   const [refCode, setRefCode] = useState("");
+  // Preview of the auto-generated reference format (<DEPT>-FO<YY>-####) shown
+  // for a brand-new quotation, so the Ref field reflects the auto-referencing
+  // scheme instead of a bare "(auto)". Display-only — the real 4-hex counter is
+  // assigned by the server on save.
+  const [refPreview, setRefPreview] = useState("");
   const [siteName, setSiteName] = useState("");
   const [taxPercent, setTaxPercent] = useState(16);
   const [items, setItems] = useState<QuotationItem[]>([]);
@@ -541,6 +546,25 @@ export default function Designer({
   }
 
   // ── Hydrate state on mount ────────────────────────────────────────────────
+  // For a NEW quotation, preview the auto-reference format (<DEPT>-FO<YY>-####)
+  // so the Ref field reflects the auto-referencing scheme instead of "(auto)".
+  useEffect(() => {
+    if (existing) return;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/quotations/next-ref");
+        const data = (await res.json().catch(() => ({}))) as { prefix?: string };
+        if (alive && res.ok && data.prefix) setRefPreview(`${data.prefix}####`);
+      } catch {
+        /* keep the plain "(auto)" fallback */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [existing]);
+
   useEffect(() => {
     if (existing) {
       saveEditingContext({
@@ -2183,7 +2207,7 @@ export default function Designer({
                 prepared_by: preparedBy,
                 design_engineer: designEng,
                 site_name: siteName,
-                ref: refCode || "(auto)",
+                ref: refCode || refPreview || "(auto)",
                 tax_percent: taxPercent,
                 date: new Date().toLocaleDateString("en-GB"),
                 extra_columns: extraColumns,
