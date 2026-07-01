@@ -119,7 +119,7 @@ export async function syncCompanyPeopleAndFolders(args: {
   // soft-delete the now-empty duplicate. Merging is unconditional —
   // the "(N)" suffix pattern is only ever produced by the system, so
   // there's nothing on the duplicate the user authored from scratch.
-  const duplicateContacts = (await q`
+  const candidateContacts = (await q`
     select c.id as contact_id, c.owner_id, c.folder_id,
            cf.name as folder_name
     from contacts c
@@ -127,7 +127,6 @@ export async function syncCompanyPeopleAndFolders(args: {
     where c.company_id = ${companyId}
       and c.deleted_at is null
       and cf.deleted_at is null
-      and cf.name ~ ' \\(\\d+\\)$'
       and (${ownerFilter}::int is null or c.owner_id = ${ownerFilter})
   `) as Array<{
     contact_id: number;
@@ -135,6 +134,12 @@ export async function syncCompanyPeopleAndFolders(args: {
     folder_id: number;
     folder_name: string;
   }>;
+  // Keep only the system-generated "X (N)" duplicate folder names. Matched in
+  // JS because D1/SQLite has no `~` regex operator (this is the same suffix the
+  // baseName replace below strips).
+  const duplicateContacts = candidateContacts.filter((c) =>
+    / \(\d+\)$/.test(c.folder_name),
+  );
   for (const dup of duplicateContacts) {
     const baseName = dup.folder_name.replace(/\s*\(\d+\)$/, "");
     if (!baseName) continue;
@@ -240,7 +245,7 @@ export async function syncCompanyPeopleAndFolders(args: {
   // surfacing under the company page (the cross-contamination the user
   // was seeing).
   await q`
-    update client_folders cf
+    update client_folders as cf
     set kind       = 'company',
         company_id = ${companyId},
         updated_at = now()
