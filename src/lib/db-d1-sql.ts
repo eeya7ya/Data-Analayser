@@ -57,33 +57,55 @@ export function translatePgToSqlite(text: string): string {
   return s;
 }
 
-// ── Auto-fill created_at / updated_at on INSERT ──────────────────────────────
-// The Postgres schema defaults created_at/updated_at to now(); the D1 schema
-// port dropped every column DEFAULT, so an INSERT that omits them — most of the
-// app's inserts, written against the Postgres defaults — fails on D1 with
-// "NOT NULL constraint failed: <table>.created_at". Rather than edit dozens of
-// call-sites, inject the missing column(s) + CURRENT_TIMESTAMP here for any
-// single-row `insert into T (cols) values (...)` whose table has the column but
-// whose column list omits it. The value is a literal, so the bound-param count
-// is unchanged and placeholders still line up. INSERT..SELECT and multi-row
-// VALUES are left untouched (handled at their call-sites).
+// ── Auto-fill NOT NULL columns with defaults on INSERT ───────────────────────
+// The Postgres schema gives columns like created_at/updated_at, custom_fields,
+// items_json, status, tax_percent, … a DEFAULT (now(), '{}', '[]', 'active', …).
+// The D1 schema port dropped those column DEFAULTs, so any INSERT that omits
+// such a column — most of the app's inserts were written against the Postgres
+// defaults — fails on D1 with "NOT NULL constraint failed: <table>.<col>"
+// (created_at, then custom_fields, …). Rather than edit dozens of call-sites,
+// inject the omitted NOT NULL columns + their schema default value here, for any
+// single-row `insert into T (cols) values (...)`. The value is a literal, so the
+// bound-param count is unchanged and placeholders still line up. Only NOT NULL
+// columns that CAN be defaulted are filled: created_at/updated_at get
+// CURRENT_TIMESTAMP; others use the schema DEFAULT. NOT NULL columns without a
+// default (genuine required business fields) are left for the caller to supply,
+// so a real omission still surfaces instead of being masked. Nullable columns,
+// INSERT..SELECT and multi-row VALUES are untouched.
 
-let tsTablesCache: { created: Set<string>; updated: Set<string> } | null = null;
-function timestampTables(): { created: Set<string>; updated: Set<string> } {
-  if (tsTablesCache) return tsTablesCache;
-  const created = new Set<string>();
-  const updated = new Set<string>();
+type InjectCol = { name: string; value: string };
+let injectColsCache: Map<string, InjectCol[]> | null = null;
+function injectableColumns(): Map<string, InjectCol[]> {
+  if (injectColsCache) return injectColsCache;
+  const out = new Map<string, InjectCol[]>();
   const tableRe =
     /create\s+table\s+(?:if\s+not\s+exists\s+)?"?(\w+)"?\s*\(([\s\S]*?)\)\s*;/gi;
   let m: RegExpExecArray | null;
   while ((m = tableRe.exec(D1_SCHEMA_SQL))) {
     const table = m[1].toLowerCase();
-    const body = m[2];
-    if (/\bcreated_at\b/i.test(body)) created.add(table);
-    if (/\bupdated_at\b/i.test(body)) updated.add(table);
+    const cols: InjectCol[] = [];
+    for (const rawLine of m[2].split("\n")) {
+      const line = rawLine.trim().replace(/,\s*$/, "");
+      const cm = /^"(\w+)"\s+(.+)$/.exec(line); // column lines start with "name"
+      if (!cm) continue; // PRIMARY KEY / FOREIGN KEY / … constraint line
+      const name = cm[1];
+      const rest = cm[2];
+      if (!/\bnot\s+null\b/i.test(rest)) continue; // nullable → omitting is fine
+      const lname = name.toLowerCase();
+      if (lname === "created_at" || lname === "updated_at") {
+        cols.push({ name, value: "CURRENT_TIMESTAMP" });
+        continue;
+      }
+      // `DEFAULT '…'` (string, '' escapes handled) or `DEFAULT <token>` (number
+      // / keyword). Skip complex parenthesised defaults — none exist today.
+      const dm = /\bdefault\s+('(?:[^']|'')*'|[^\s,)]+)/i.exec(rest);
+      if (dm && !dm[1].startsWith("(")) cols.push({ name, value: dm[1] });
+      // NOT NULL without a usable default → the caller must supply it.
+    }
+    if (cols.length) out.set(table, cols);
   }
-  tsTablesCache = { created, updated };
-  return tsTablesCache;
+  injectColsCache = out;
+  return out;
 }
 
 /** Index of the ')' matching the '(' at openIdx, skipping single-quoted text. */
@@ -112,17 +134,18 @@ function matchingParen(s: string, openIdx: number): number {
   return -1;
 }
 
-function fillInsertTimestamps(text: string): string {
+function fillInsertDefaults(text: string): string {
   const head = /^\s*insert\s+into\s+"?(\w+)"?\s*\(([^)]*)\)\s*values\s*\(/i.exec(
     text,
   );
   if (!head) return text; // INSERT..SELECT / INSERT OR REPLACE / not an insert
   const table = head[1].toLowerCase();
   const cols = head[2];
-  const { created, updated } = timestampTables();
-  const need: string[] = [];
-  if (created.has(table) && !/\bcreated_at\b/i.test(cols)) need.push("created_at");
-  if (updated.has(table) && !/\bupdated_at\b/i.test(cols)) need.push("updated_at");
+  const injectable = injectableColumns().get(table);
+  if (!injectable || injectable.length === 0) return text;
+  const need = injectable.filter(
+    (c) => !new RegExp(`\\b${c.name}\\b`, "i").test(cols),
+  );
   if (need.length === 0) return text;
 
   const openIdx = head.index + head[0].length - 1; // the '(' after VALUES
@@ -132,8 +155,8 @@ function fillInsertTimestamps(text: string): string {
   // safely reach, so leave the statement untouched.
   if (/^\s*,/.test(text.slice(closeIdx + 1))) return text;
 
-  const colInject = need.map((c) => `, "${c}"`).join("");
-  const valInject = need.map(() => ", CURRENT_TIMESTAMP").join("");
+  const colInject = need.map((c) => `, "${c.name}"`).join("");
+  const valInject = need.map((c) => `, ${c.value}`).join("");
   const newHead = head[0].replace(
     /\)\s*values\s*\(\s*$/i,
     `${colInject}) values (`,
@@ -162,7 +185,7 @@ function normParam(v: unknown): string | number | null {
 }
 
 async function exec(text: string, params: unknown[]): Promise<Record<string, unknown>[]> {
-  const sqlite = translatePgToSqlite(fillInsertTimestamps(text));
+  const sqlite = translatePgToSqlite(fillInsertDefaults(text));
   const bound = params.map(normParam);
   const res = await d1Query(sqlite, bound);
   return res.results as Record<string, unknown>[];
