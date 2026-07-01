@@ -190,10 +190,10 @@ export default function Designer({
   const [salesPhone, setSalesPhone] = useState("");
   const [preparedBy, setPreparedBy] = useState(user.username);
   const [refCode, setRefCode] = useState("");
-  // Preview of the auto-generated reference format (<DEPT>-FO<YY>-####) shown
-  // for a brand-new quotation, so the Ref field reflects the auto-referencing
-  // scheme instead of a bare "(auto)". Display-only — the real 4-hex counter is
-  // assigned by the server on save.
+  // The actual next auto-reference (e.g. "ITYA-FO26-0001") shown for a brand-new
+  // quotation so the Ref field reads a real number, not "(auto)". Display-only:
+  // the counter isn't consumed until save, and the server re-mints the real ref
+  // then (so it stays correct even if someone else saves first).
   const [refPreview, setRefPreview] = useState("");
   const [siteName, setSiteName] = useState("");
   const [taxPercent, setTaxPercent] = useState(16);
@@ -554,8 +554,8 @@ export default function Designer({
     (async () => {
       try {
         const res = await fetch("/api/quotations/next-ref");
-        const data = (await res.json().catch(() => ({}))) as { prefix?: string };
-        if (alive && res.ok && data.prefix) setRefPreview(`${data.prefix}####`);
+        const data = (await res.json().catch(() => ({}))) as { ref?: string };
+        if (alive && res.ok && data.ref) setRefPreview(data.ref);
       } catch {
         /* keep the plain "(auto)" fallback */
       }

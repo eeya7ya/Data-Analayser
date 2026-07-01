@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
-import { quotationRefPrefix } from "@/lib/quotationRef";
+import { genActiveRef } from "@/lib/quotationRef";
 import {
   requireModuleAllowLegacy,
   isSalesEditLocked,
@@ -44,75 +44,8 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** 4-digit (min) uppercase hex, e.g. 1 → "0001", 4096 → "1000". */
-function hex4(n: number): string {
-  return n.toString(16).toUpperCase().padStart(4, "0");
-}
-
-async function genActiveRef(
-  useD1: boolean,
-  q: Sql | null,
-  departmentCode: string,
-  username: string,
-): Promise<string> {
-  // <DEPT+initials>-FO<YY>-<HEX4>, e.g. ITYA-FO26-0001 (department "ITD1",
-  // author "Yahya" → "ITYA"). The HEX counter is scoped per prefix (department +
-  // author) AND per calendar year, so it restarts at 0001 each year per author.
-  // Soft-deleted rows free their counter, so deleted numbers are reused.
-  const prefix = quotationRefPrefix(departmentCode, username);
-
-  // Every live (non-deleted) ref. Soft-deleted rows are excluded so their
-  // counters become reusable.
-  let rows: Array<{ ref: string }>;
-  if (useD1) {
-    const result = await d1Query<{ ref: string }>(
-      `select ref from quotations where deleted_at is null`,
-    );
-    rows = result.results;
-  } else {
-    rows = (await q!`
-      select ref from quotations
-      where deleted_at is null
-    `) as Array<{ ref: string }>;
-  }
-
-  // Collect used counters for THIS department + year. The counter is exactly
-  // the 4 hex chars right after the prefix; draft/review refs append a
-  // `.D<m>` / `.R<m>` suffix (the dot keeps them out of the hex run), and they
-  // share their root's counter, so reading the leading 4 hex chars is correct.
-  const used = new Set<number>();
-  for (const { ref } of rows) {
-    if (!ref || !ref.startsWith(prefix)) continue;
-    const tail = ref.slice(prefix.length, prefix.length + 4);
-    if (/^[0-9A-Fa-f]{4}$/.test(tail)) used.add(parseInt(tail, 16));
-  }
-
-  // Lowest unused positive integer.
-  let n = 1;
-  while (used.has(n)) n++;
-
-  // Collision probe. The unique index on `ref` is authoritative; this
-  // pre-check just avoids a failed INSERT round-trip if two requests race on
-  // the same counter, and skips counters held by a soft-deleted row.
-  for (let attempts = 0; attempts < 200; attempts++) {
-    const candidate = `${prefix}${hex4(n)}`;
-    let existing: Array<Record<string, unknown>>;
-    if (useD1) {
-      const result = await d1Query<Record<string, unknown>>(
-        `select 1 from quotations where ref = ? limit 1`,
-        [candidate],
-      );
-      existing = result.results;
-    } else {
-      existing = (await q!`
-        select 1 from quotations where ref = ${candidate} limit 1
-      `) as unknown as Array<Record<string, unknown>>;
-    }
-    if (existing.length === 0) return candidate;
-    n++;
-  }
-  return `${prefix}${hex4(n)}`;
-}
+// genActiveRef (the <DEPT+initials>-FO<YY>-<HEX4> generator) lives in
+// src/lib/quotationRef.ts so the Designer's live preview endpoint can reuse it.
 
 /**
  * Strip a trailing `.R<digits>` / `.D<digits>` so every draft/review anchors
