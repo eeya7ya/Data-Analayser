@@ -86,32 +86,49 @@ export async function GET(req: NextRequest) {
 
     const db = sql();
     const ftsOn = usingD1() && isFtsReady();
-    const { P, params } = rawBinder();
 
-    const where: string[] = [];
-    if (vendor) where.push(`vendor = ${P(vendor)}`);
-    if (system) where.push(`system = ${P(system)}`);
-    // When there's no vendor filter, include the `vendor` column in the
-    // haystack so global search can find rows by vendor name.
-    const deepSql = q ? buildDeepSearch(q, /* includeVendor */ !vendor, ftsOn, P) : null;
-    if (deepSql) where.push("(" + deepSql + ")");
-    const whereSql = where.length ? "where " + where.join(" and ") : "";
+    // Run the query with FTS or the ILIKE fallback. Extracted so we can retry
+    // with ILIKE when an FTS text search finds nothing (see below).
+    async function run(useFts: boolean) {
+      const { P, params } = rawBinder();
+      const where: string[] = [];
+      if (vendor) where.push(`vendor = ${P(vendor)}`);
+      if (system) where.push(`system = ${P(system)}`);
+      // When there's no vendor filter, include the `vendor` column in the
+      // haystack so global search can find rows by vendor name.
+      const deepSql = q
+        ? buildDeepSearch(q, /* includeVendor */ !vendor, useFts, P)
+        : null;
+      if (deepSql) where.push("(" + deepSql + ")");
+      const whereSql = where.length ? "where " + where.join(" and ") : "";
 
-    // Snapshot the WHERE params before adding limit/offset, so the COUNT query
-    // (same WHERE, no limit/offset) binds exactly the placeholders it contains.
-    const whereParams = [...params];
-    const products = await db.unsafe(
-      `select * from products ${whereSql} order by vendor, system, category, model limit ${P(limit)} offset ${P(offset)}`,
-      params,
-    );
-    const countResult = await db.unsafe(
-      `select count(*)::int as total from products ${whereSql}`,
-      whereParams,
-    );
+      // Snapshot the WHERE params before adding limit/offset, so the COUNT
+      // query (same WHERE, no limit/offset) binds exactly its placeholders.
+      const whereParams = [...params];
+      const products = await db.unsafe(
+        `select * from products ${whereSql} order by vendor, system, category, model limit ${P(limit)} offset ${P(offset)}`,
+        params,
+      );
+      const countResult = await db.unsafe(
+        `select count(*)::int as total from products ${whereSql}`,
+        whereParams,
+      );
+      return { products, total: countResult[0]?.total || 0 };
+    }
+
+    let result = await run(ftsOn);
+    // FTS5 matches whole tokens / prefixes, not infixes — e.g. "1043" never
+    // hits the token "2CD1043G2" in "DS-2CD1043G2-LI". A model-number fragment
+    // is exactly how people search a catalogue, so when an FTS text search
+    // comes back empty, retry with the ILIKE substring scan (which does match
+    // infixes) before reporting "no products found".
+    if (q && ftsOn && result.products.length === 0) {
+      result = await run(false);
+    }
 
     return NextResponse.json({
-      products,
-      total: countResult[0]?.total || 0,
+      products: result.products,
+      total: result.total,
       limit,
       offset,
     });
