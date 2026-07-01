@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql, ensureSchema } from "@/lib/db";
+import { sql, ensureSchema, usingD1 } from "@/lib/db";
 import { requireUser, requireAdmin, canReadAll } from "@/lib/auth";
+import { toAudienceArray, audienceOverlaps } from "@/lib/news-audience";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +35,13 @@ interface NewsRow {
   deleted_at: string | null;
 }
 
+/** Same shape as NewsRow but with the audience columns still in their raw DB
+ *  form (array on Postgres, JSON text on D1) before normalisation. */
+type RawNewsRow = Omit<NewsRow, "audience_modules" | "audience_roles"> & {
+  audience_modules: unknown;
+  audience_roles: unknown;
+};
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
@@ -57,46 +65,51 @@ export async function GET(req: NextRequest) {
     // audience — that's the admin-as-curator experience. Everyone else
     // gets audience-filtered + expiry-filtered.
     const isAdmin = canReadAll(user);
-    let rows: NewsRow[];
-    if (isAdmin && includeArchived) {
-      rows = (await q`
-        select n.id, n.title, n.body, n.audience_modules, n.audience_roles,
-               n.pinned, n.created_by, u.username as created_by_username,
-               n.created_at, n.expires_at, n.deleted_at
-        from news_posts n
-        left join users u on u.id = n.created_by
-        order by n.pinned desc, n.created_at desc
-        limit 200
-      `) as NewsRow[];
-    } else if (isAdmin) {
-      rows = (await q`
-        select n.id, n.title, n.body, n.audience_modules, n.audience_roles,
-               n.pinned, n.created_by, u.username as created_by_username,
-               n.created_at, n.expires_at, n.deleted_at
-        from news_posts n
-        left join users u on u.id = n.created_by
-        where n.deleted_at is null
-          and (n.expires_at is null or n.expires_at > now())
-        order by n.pinned desc, n.created_at desc
-        limit 50
-      `) as NewsRow[];
-    } else {
-      rows = (await q`
-        select n.id, n.title, n.body, n.audience_modules, n.audience_roles,
-               n.pinned, n.created_by, u.username as created_by_username,
-               n.created_at, n.expires_at, n.deleted_at
-        from news_posts n
-        left join users u on u.id = n.created_by
-        where n.deleted_at is null
-          and (n.expires_at is null or n.expires_at > now())
-          and n.audience_modules && ${modulesTags}::text[]
-          and n.audience_roles && ${roleTags}::text[]
-        order by n.pinned desc, n.created_at desc
-        limit 50
-      `) as NewsRow[];
-    }
 
-    return NextResponse.json({ posts: rows });
+    // audience_modules / audience_roles are Postgres text[] but Cloudflare D1
+    // stores them as JSON text, and D1 has no `&&` array-overlap operator (it
+    // 500'd there). So we fetch the candidate rows WITHOUT an audience SQL
+    // filter, normalise the audience columns to arrays, and do the overlap in
+    // JS — identical behaviour on both backends.
+    const raw = (
+      isAdmin && includeArchived
+        ? await q`
+            select n.id, n.title, n.body, n.audience_modules, n.audience_roles,
+                   n.pinned, n.created_by, u.username as created_by_username,
+                   n.created_at, n.expires_at, n.deleted_at
+            from news_posts n
+            left join users u on u.id = n.created_by
+            order by n.pinned desc, n.created_at desc
+            limit 200
+          `
+        : await q`
+            select n.id, n.title, n.body, n.audience_modules, n.audience_roles,
+                   n.pinned, n.created_by, u.username as created_by_username,
+                   n.created_at, n.expires_at, n.deleted_at
+            from news_posts n
+            left join users u on u.id = n.created_by
+            where n.deleted_at is null
+              and (n.expires_at is null or n.expires_at > now())
+            order by n.pinned desc, n.created_at desc
+            limit 200
+          `
+    ) as RawNewsRow[];
+
+    let posts: NewsRow[] = raw.map((r) => ({
+      ...r,
+      audience_modules: toAudienceArray(r.audience_modules),
+      audience_roles: toAudienceArray(r.audience_roles),
+    }));
+    if (!isAdmin) {
+      posts = posts.filter(
+        (p) =>
+          audienceOverlaps(p.audience_modules, modulesTags) &&
+          audienceOverlaps(p.audience_roles, roleTags),
+      );
+    }
+    posts = posts.slice(0, isAdmin && includeArchived ? 200 : 50);
+
+    return NextResponse.json({ posts });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "UNKNOWN";
     const status = msg === "UNAUTHENTICATED" ? 401 : 500;
@@ -138,12 +151,19 @@ export async function POST(req: Request) {
         ? body.expires_at
         : null;
 
+    // D1 stores the audience columns as JSON text; Postgres as text[]. Bind the
+    // shape each backend expects (the `::text[]` cast is a no-op on D1, which
+    // the translator strips).
+    const d1 = usingD1();
+    const modParam = d1 ? JSON.stringify(audienceModules) : audienceModules;
+    const roleParam = d1 ? JSON.stringify(audienceRoles) : audienceRoles;
+
     const q = sql();
     const inserted = (await q`
       insert into news_posts
         (title, body, audience_modules, audience_roles, pinned, created_by, expires_at)
       values
-        (${title}, ${text}, ${audienceModules}::text[], ${audienceRoles}::text[],
+        (${title}, ${text}, ${modParam}::text[], ${roleParam}::text[],
          ${pinned}, ${admin.id}, ${expiresAt})
       returning id
     `) as Array<{ id: number }>;
@@ -206,13 +226,15 @@ export async function PATCH(req: Request) {
       const arr = Array.isArray(body.audience_modules)
         ? body.audience_modules.map(String)
         : ["all"];
-      await q`update news_posts set audience_modules = ${arr}::text[] where id = ${id}`;
+      const param = usingD1() ? JSON.stringify(arr) : arr;
+      await q`update news_posts set audience_modules = ${param}::text[] where id = ${id}`;
     }
     if (body.audience_roles !== undefined) {
       const arr = Array.isArray(body.audience_roles)
         ? body.audience_roles.map(String)
         : ["all"];
-      await q`update news_posts set audience_roles = ${arr}::text[] where id = ${id}`;
+      const param = usingD1() ? JSON.stringify(arr) : arr;
+      await q`update news_posts set audience_roles = ${param}::text[] where id = ${id}`;
     }
     if (body.pinned !== undefined) {
       await q`update news_posts set pinned = ${Boolean(body.pinned)} where id = ${id}`;

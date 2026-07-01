@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toAudienceArray } from "@/lib/news-audience";
 
 /**
  * Admin → News tab. Lists every post (active + archived) and lets the
@@ -175,8 +176,8 @@ export default function NewsAdminPanel() {
                     {p.body}
                   </p>
                   <div className="text-xs text-magic-ink/50 mt-1">
-                    modules: {p.audience_modules.join(", ")} · roles:{" "}
-                    {p.audience_roles.join(", ")}
+                    modules: {toAudienceArray(p.audience_modules).join(", ")} ·
+                    roles: {toAudienceArray(p.audience_roles).join(", ")}
                     {p.expires_at && (
                       <>
                         {" · expires "}
@@ -231,8 +232,12 @@ function NewsForm({
 }) {
   const [title, setTitle] = useState(post.title);
   const [body, setBody] = useState(post.body);
-  const [modulesSel, setModulesSel] = useState<string[]>(post.audience_modules);
-  const [rolesSel, setRolesSel] = useState<string[]>(post.audience_roles);
+  const [modulesSel, setModulesSel] = useState<string[]>(
+    toAudienceArray(post.audience_modules),
+  );
+  const [rolesSel, setRolesSel] = useState<string[]>(
+    toAudienceArray(post.audience_roles),
+  );
   const [pinned, setPinned] = useState(post.pinned);
   const [expiresAt, setExpiresAt] = useState(
     post.expires_at ? post.expires_at.slice(0, 10) : "",

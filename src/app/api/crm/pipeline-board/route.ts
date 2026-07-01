@@ -71,6 +71,71 @@ function parseTotalJson(
   return Number.isFinite(t) ? t : 0;
 }
 
+/**
+ * BoQ margin for one quotation, computed from its items_json. Mirrors the old
+ * SQL exactly: over non-section, non-optional lines with a numeric unit_price,
+ *   sale     = unit_price * quantity        (quantity 0 when non-numeric)
+ *   has_cost = price_si is numeric
+ *   cost     = has_cost ? price_si * quantity : 0
+ * returning Σsale as the base, plus Σcost / Σsale over only the cost-covered
+ * lines. Backend-agnostic: items_json is a JSON array on Postgres and JSON text
+ * on D1. Done in JS because the old lateral SQL used `jsonb_array_elements` and
+ * the `~` regex operator — neither exists on D1, so the board silently lost all
+ * margin there.
+ */
+function computeMargin(itemsJson: string | unknown[] | null): MarginRow {
+  let saleBase = 0;
+  let costCovered = 0;
+  let saleCovered = 0;
+  for (const raw of parseItemsArray(itemsJson)) {
+    if (!raw || typeof raw !== "object") continue;
+    const it = raw as Record<string, unknown>;
+    if (String(it.kind ?? "item") === "section") continue;
+    if (String(it.optional ?? "") === "true") continue;
+    const unit = numericLike(it.unit_price);
+    if (unit === null) continue; // matches the SQL's unit_price numeric guard
+    const qty = numericLike(it.quantity) ?? 0;
+    const sale = unit * qty;
+    const cost = numericLike(it.price_si);
+    saleBase += sale;
+    if (cost !== null) {
+      costCovered += cost * qty;
+      saleCovered += sale;
+    }
+  }
+  return {
+    sale_base: saleBase,
+    cost_covered: costCovered,
+    sale_covered: saleCovered,
+  };
+}
+
+/** Coerce a quotation's items_json (array on PG, JSON text on D1) to an array. */
+function parseItemsArray(itemsJson: string | unknown[] | null): unknown[] {
+  let val: unknown = itemsJson;
+  if (typeof val === "string") {
+    try {
+      val = JSON.parse(val);
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(val) ? val : [];
+}
+
+/**
+ * Parse a value that looks exactly like `-?[0-9]+([.][0-9]+)?` — the same guard
+ * the SQL applied via the `~` regex before ::numeric — else null, so a
+ * malformed cell contributes nothing instead of erroring.
+ */
+function numericLike(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const s = typeof v === "string" ? v.trim() : String(v);
+  if (!/^-?[0-9]+([.][0-9]+)?$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Whole days between an ISO/text timestamp and now (computed in JS for D1). */
 function ageDaysFrom(anchor: string | null): number {
   if (!anchor) return 0;
@@ -103,10 +168,9 @@ interface DealCard {
 }
 
 interface MarginRow {
-  id: number;
-  sale_base: string | null;
-  cost_covered: string | null;
-  sale_covered: string | null;
+  sale_base: number;
+  cost_covered: number;
+  sale_covered: number;
 }
 
 export async function GET() {
@@ -166,48 +230,24 @@ export async function GET() {
       limit 1000
     `) as DealRow[];
 
-    // Margin is computed in a SEPARATE, fault-isolated query so the heavier
-    // per-line jsonb math can never break the core board. Each BoQ line stores
-    // `price_si` (the System-Installer / dealer cost), so gross profit is
-    // Σ(unit_price − price_si)·qty over priced, non-optional, non-section lines.
-    // Lines without a numeric price_si are excluded and tracked as a coverage
-    // gap rather than silently assumed zero-cost. All casts are regex-guarded
-    // so malformed cells contribute nothing instead of erroring.
+    // Margin is fault-isolated so the heavier per-line BoQ math can never break
+    // the core board. Each line stores `price_si` (the System-Installer / dealer
+    // cost), so gross profit is Σ(unit_price − price_si)·qty over priced,
+    // non-optional, non-section lines. Lines without a numeric price_si are
+    // excluded and tracked as a coverage gap rather than silently assumed
+    // zero-cost. Computed in JS (see computeMargin) so it works identically on
+    // D1 and Postgres; malformed cells contribute nothing instead of erroring.
     const ids = rows.map((r) => r.id);
     const marginById = new Map<number, MarginRow>();
     if (ids.length > 0) {
       try {
-        const marginRows = (await q`
-          select q.id,
-                 coalesce(m.sale_base, 0)    as sale_base,
-                 coalesce(m.cost_covered, 0) as cost_covered,
-                 coalesce(m.sale_covered, 0) as sale_covered
-          from quotations q
-          left join lateral (
-            select
-              sum(li.sale)                                       as sale_base,
-              sum(case when li.has_cost then li.cost else 0 end) as cost_covered,
-              sum(case when li.has_cost then li.sale else 0 end) as sale_covered
-            from (
-              select
-                (it->>'unit_price')::numeric * li_qty.qty as sale,
-                case when (it->>'price_si') ~ '^-?[0-9]+([.][0-9]+)?$'
-                     then (it->>'price_si')::numeric * li_qty.qty
-                     else 0 end as cost,
-                ((it->>'price_si') ~ '^-?[0-9]+([.][0-9]+)?$') as has_cost
-              from jsonb_array_elements(jsonb_as_array(q.items_json)) as it
-              cross join lateral (
-                select case when (it->>'quantity') ~ '^-?[0-9]+([.][0-9]+)?$'
-                            then (it->>'quantity')::numeric else 0 end as qty
-              ) li_qty
-              where coalesce(it->>'kind', 'item') <> 'section'
-                and coalesce(it->>'optional', '') <> 'true'
-                and (it->>'unit_price') ~ '^-?[0-9]+([.][0-9]+)?$'
-            ) li
-          ) m on true
-          where q.id = any(${ids}::int[])
-        `) as MarginRow[];
-        for (const mr of marginRows) marginById.set(mr.id, mr);
+        const itemRows = (await q`
+          select id, items_json from quotations
+          where id = any(${ids}::int[])
+        `) as Array<{ id: number; items_json: string | unknown[] | null }>;
+        for (const ir of itemRows) {
+          marginById.set(ir.id, computeMargin(ir.items_json));
+        }
       } catch {
         // Margin stays unavailable; the board still renders revenue-only.
       }

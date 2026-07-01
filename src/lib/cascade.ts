@@ -29,6 +29,22 @@ import { sql } from "./db";
 
 type Q = ReturnType<typeof sql>;
 
+/**
+ * Inclusive ±`ms` ISO bounds around a timestamp, for the restore window.
+ * Backend-agnostic: Postgres `interval` arithmetic doesn't exist on D1/SQLite,
+ * and `deleted_at` is always written as an ISO string (new Date().toISOString()),
+ * so comparing against ISO bounds is correct on both backends. Falls back to an
+ * exact match if the timestamp can't be parsed.
+ */
+function isoWindow(at: string, ms: number): { lo: string; hi: string } {
+  const t = new Date(at).getTime();
+  if (Number.isNaN(t)) return { lo: at, hi: at };
+  return {
+    lo: new Date(t - ms).toISOString(),
+    hi: new Date(t + ms).toISOString(),
+  };
+}
+
 /** Soft-delete everything filed under a single client folder. */
 export async function cascadeSoftDeleteFolder(
   q: Q,
@@ -81,12 +97,12 @@ export async function cascadeRestoreFolder(
   folderId: number,
   folderDeletedAt: string,
 ): Promise<void> {
-  const lo = `${folderDeletedAt}`;
+  const win = isoWindow(`${folderDeletedAt}`, 2000);
   await q`
     update projects set deleted_at = null, updated_at = now()
     where folder_id = ${folderId} and deleted_at is not null
-      and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
-      and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
+      and deleted_at >= ${win.lo}
+      and deleted_at <= ${win.hi}
   `;
   // Leads are intentionally NOT restored here: they were never trashed with
   // the folder (they were detached and kept live), so there is nothing to
@@ -95,23 +111,23 @@ export async function cascadeRestoreFolder(
   await q`
     update quotations set deleted_at = null, updated_at = now()
     where folder_id = ${folderId} and deleted_at is not null
-      and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
-      and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
+      and deleted_at >= ${win.lo}
+      and deleted_at <= ${win.hi}
   `;
   await q`
     update purchase_orders set deleted_at = null, updated_at = now()
     where deleted_at is not null
       and (folder_id = ${folderId}
            or project_id in (select id from projects where folder_id = ${folderId}))
-      and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
-      and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
+      and deleted_at >= ${win.lo}
+      and deleted_at <= ${win.hi}
   `;
   await q`
     update project_files set deleted_at = null
     where deleted_at is not null
       and project_id in (select id from projects where folder_id = ${folderId})
-      and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
-      and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
+      and deleted_at >= ${win.lo}
+      and deleted_at <= ${win.hi}
   `;
 }
 
@@ -197,19 +213,19 @@ export async function cascadeRestoreCompany(
   companyId: number,
   companyDeletedAt: string,
 ): Promise<void> {
-  const lo = `${companyDeletedAt}`;
+  const win = isoWindow(`${companyDeletedAt}`, 2000);
   await q`
     update client_folders set deleted_at = null, updated_at = now()
     where company_id = ${companyId} and deleted_at is not null
-      and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
-      and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
+      and deleted_at >= ${win.lo}
+      and deleted_at <= ${win.hi}
   `;
   await q`
     update projects set deleted_at = null, updated_at = now()
     where folder_id in (select id from client_folders where company_id = ${companyId})
       and deleted_at is not null
-      and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
-      and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
+      and deleted_at >= ${win.lo}
+      and deleted_at <= ${win.hi}
   `;
   // Leads were detached, not trashed, when the company went down (see
   // cascadeSoftDeleteCompany) — there is nothing to restore here.
@@ -217,8 +233,8 @@ export async function cascadeRestoreCompany(
     update quotations set deleted_at = null, updated_at = now()
     where folder_id in (select id from client_folders where company_id = ${companyId})
       and deleted_at is not null
-      and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
-      and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
+      and deleted_at >= ${win.lo}
+      and deleted_at <= ${win.hi}
   `;
   await q`
     update purchase_orders set deleted_at = null
@@ -229,8 +245,8 @@ export async function cascadeRestoreCompany(
              join client_folders cf on cf.id = p.folder_id
              where cf.company_id = ${companyId}
            ))
-      and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
-      and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
+      and deleted_at >= ${win.lo}
+      and deleted_at <= ${win.hi}
   `;
   await q`
     update project_files set deleted_at = null
@@ -240,8 +256,8 @@ export async function cascadeRestoreCompany(
         join client_folders cf on cf.id = p.folder_id
         where cf.company_id = ${companyId}
       )
-      and deleted_at >= ${lo}::timestamptz - interval '2 seconds'
-      and deleted_at <= ${lo}::timestamptz + interval '2 seconds'
+      and deleted_at >= ${win.lo}
+      and deleted_at <= ${win.hi}
   `;
 }
 

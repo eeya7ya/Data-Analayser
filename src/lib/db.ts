@@ -534,6 +534,66 @@ export async function ensureSchema(): Promise<void> {
 // dropped or rewritten.
 const D1_SCHEMA_FLAG = "d1_schema_bootstrap_2026_06_30_indexes";
 
+/**
+ * UNIQUE constraints the app's `INSERT ... ON CONFLICT (cols)` upserts depend
+ * on. Postgres declares these as UNIQUE; the SQLite schema port dropped them, so
+ * on D1 those upserts failed with "ON CONFLICT clause does not match any PRIMARY
+ * KEY or UNIQUE constraint" — breaking Create user, folder create, role grant,
+ * calendar marks, push subscribe, catalogue upload, notification state and the
+ * manufacturer handover. SQLite honours a UNIQUE INDEX as an ON CONFLICT target.
+ * d1/schema.sql now ships these for fresh databases; this self-heal adds them to
+ * EXISTING ones, whose base-schema flag is already set (so applyD1Schema is
+ * skipped on boot). Only tables whose ON CONFLICT column-set differs from the
+ * PRIMARY KEY are listed — the rest already have a matching PK.
+ */
+const D1_UNIQUE_INDEXES_FLAG = "d1_unique_indexes_v1_2026_07";
+const D1_UNIQUE_INDEXES: ReadonlyArray<{ name: string; sql: string }> = [
+  { name: "users_username_key", sql: `CREATE UNIQUE INDEX IF NOT EXISTS "users_username_key" ON "users" ("username")` },
+  { name: "client_folders_owner_name_key", sql: `CREATE UNIQUE INDEX IF NOT EXISTS "client_folders_owner_name_key" ON "client_folders" ("owner_id", "name")` },
+  { name: "notification_state_user_key_idx", sql: `CREATE UNIQUE INDEX IF NOT EXISTS "notification_state_user_key_idx" ON "notification_state" ("user_id", "notif_key")` },
+  { name: "pricing_user_manufacturers_uq", sql: `CREATE UNIQUE INDEX IF NOT EXISTS "pricing_user_manufacturers_uq" ON "pricing_user_manufacturers" ("user_id", "manufacturer_id")` },
+  { name: "products_model_key", sql: `CREATE UNIQUE INDEX IF NOT EXISTS "products_model_key" ON "products" ("model")` },
+  { name: "calendar_marks_user_date_idx", sql: `CREATE UNIQUE INDEX IF NOT EXISTS "calendar_marks_user_date_idx" ON "calendar_marks" ("user_id", "mark_date")` },
+  { name: "push_subscriptions_endpoint_key", sql: `CREATE UNIQUE INDEX IF NOT EXISTS "push_subscriptions_endpoint_key" ON "push_subscriptions" ("endpoint")` },
+];
+
+/**
+ * Best-effort creation of the ON CONFLICT unique indexes on an existing D1
+ * database. Each index is created independently so one table's pre-existing
+ * duplicate can't block the others; the flag is recorded only once every index
+ * is in place, so a dup-blocked table simply retries next boot (7 cheap
+ * `IF NOT EXISTS` statements) instead of wedging the schema bootstrap.
+ */
+async function ensureD1UniqueIndexes(): Promise<void> {
+  try {
+    const r = await d1Query<{ one: number }>(
+      `select 1 as one from migration_flags where key = ? limit 1`,
+      [D1_UNIQUE_INDEXES_FLAG],
+    );
+    if (r.results.length > 0) return;
+  } catch {
+    // migration_flags may not exist yet — the base schema apply creates it.
+  }
+  let allOk = true;
+  for (const idx of D1_UNIQUE_INDEXES) {
+    try {
+      await d1Query(idx.sql);
+    } catch (err) {
+      allOk = false;
+      console.warn(
+        `[d1] unique index ${idx.name} not created (likely pre-existing duplicate rows): ` +
+          (err instanceof Error ? err.message : String(err)),
+      );
+    }
+  }
+  if (allOk) {
+    await d1Query(`insert into migration_flags (key, ran_at) values (?, ?)`, [
+      D1_UNIQUE_INDEXES_FLAG,
+      new Date().toISOString(),
+    ]).catch(() => {});
+  }
+}
+
 async function ensureD1SchemaOnce(): Promise<void> {
   try {
     let baseApplied = false;
@@ -555,6 +615,9 @@ async function ensureD1SchemaOnce(): Promise<void> {
         ).catch(() => {});
       }
     }
+    // Add the ON CONFLICT unique indexes to existing databases (fresh ones get
+    // them from the base schema above). Own flag; best-effort per index.
+    await ensureD1UniqueIndexes();
     // Full-text search lives outside the schema-split loader (it can't create
     // virtual tables/triggers), so apply it here. Has its own flag + in-memory
     // ready guard, so this is cheap on warm processes and never blocks the base
