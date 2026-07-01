@@ -3,6 +3,7 @@ import { RELEASE_NOTES } from "./releaseNotes";
 import { getD1Sql } from "./db-d1-sql";
 import { isD1Configured, d1Query } from "./db-d1";
 import { applyD1Schema } from "./d1-schema";
+import { D1_SCHEMA_SQL } from "./d1Schema.generated";
 import { ensureD1Fts } from "./fts";
 
 /**
@@ -594,6 +595,93 @@ async function ensureD1UniqueIndexes(): Promise<void> {
   }
 }
 
+/**
+ * Column drift self-heal. The D1 schema (d1/schema.sql) grew columns over time
+ * inside its CREATE TABLE definitions, but existing databases only get
+ * `CREATE TABLE IF NOT EXISTS` (a no-op) on re-apply and there are ALTER
+ * statements for just a handful of tables — so a database created before a
+ * column existed is missing it, and any query that reads it throws
+ * "no such column" (e.g. the dashboard reading quotations.sales_outcome /
+ * transferred_at crashed for presales/sales users). This diffs every table's
+ * schema columns against the live table (PRAGMA table_info) and ADDs the
+ * missing ones. NOT NULL-without-default columns are skipped (SQLite can't ADD
+ * those to a non-empty table — and they're structural, so they already exist).
+ */
+const D1_COLUMN_SYNC_FLAG = "d1_column_sync_v1_2026_07";
+
+type D1ColDef = { name: string; ddl: string };
+let d1SchemaColsCache: Map<string, D1ColDef[]> | null = null;
+function parseD1SchemaColumns(): Map<string, D1ColDef[]> {
+  if (d1SchemaColsCache) return d1SchemaColsCache;
+  const out = new Map<string, D1ColDef[]>();
+  const tableRe =
+    /create\s+table\s+(?:if\s+not\s+exists\s+)?"?(\w+)"?\s*\(([\s\S]*?)\)\s*;/gi;
+  let m: RegExpExecArray | null;
+  while ((m = tableRe.exec(D1_SCHEMA_SQL))) {
+    const table = m[1];
+    const cols: D1ColDef[] = [];
+    for (const rawLine of m[2].split("\n")) {
+      const line = rawLine.trim().replace(/,\s*$/, "");
+      if (!line) continue;
+      // A column line starts with a quoted identifier; constraint lines
+      // (PRIMARY KEY / FOREIGN KEY / UNIQUE / CHECK) do not.
+      const cm = /^"(\w+)"\s+(.+)$/.exec(line);
+      if (!cm) continue;
+      const rest = cm[2];
+      // SQLite can't ADD a NOT NULL column without a DEFAULT to a non-empty
+      // table; those are structural columns present since creation anyway.
+      if (/\bnot\s+null\b/i.test(rest) && !/\bdefault\b/i.test(rest)) continue;
+      cols.push({ name: cm[1], ddl: `"${cm[1]}" ${rest}` });
+    }
+    out.set(table, cols);
+  }
+  d1SchemaColsCache = out;
+  return out;
+}
+
+async function ensureD1Columns(): Promise<void> {
+  try {
+    const r = await d1Query<{ one: number }>(
+      `select 1 as one from migration_flags where key = ? limit 1`,
+      [D1_COLUMN_SYNC_FLAG],
+    );
+    if (r.results.length > 0) return;
+  } catch {
+    // migration_flags may not exist yet — the base schema apply creates it.
+  }
+  let allOk = true;
+  for (const [table, cols] of parseD1SchemaColumns()) {
+    if (cols.length === 0) continue;
+    let existing: Set<string>;
+    try {
+      const info = await d1Query<{ name: string }>(
+        `PRAGMA table_info("${table}")`,
+      );
+      existing = new Set(info.results.map((row) => String(row.name)));
+    } catch {
+      continue; // table unreadable — skip
+    }
+    if (existing.size === 0) continue; // table absent; the base schema creates it
+    for (const col of cols) {
+      if (existing.has(col.name)) continue;
+      try {
+        await d1Query(`ALTER TABLE "${table}" ADD COLUMN ${col.ddl}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/duplicate column/i.test(msg)) continue;
+        allOk = false;
+        console.warn(`[d1] add column ${table}.${col.name} failed: ${msg}`);
+      }
+    }
+  }
+  if (allOk) {
+    await d1Query(`insert into migration_flags (key, ran_at) values (?, ?)`, [
+      D1_COLUMN_SYNC_FLAG,
+      new Date().toISOString(),
+    ]).catch(() => {});
+  }
+}
+
 async function ensureD1SchemaOnce(): Promise<void> {
   try {
     let baseApplied = false;
@@ -618,6 +706,9 @@ async function ensureD1SchemaOnce(): Promise<void> {
     // Add the ON CONFLICT unique indexes to existing databases (fresh ones get
     // them from the base schema above). Own flag; best-effort per index.
     await ensureD1UniqueIndexes();
+    // Backfill any columns an older database is missing (schema grew its
+    // CREATE TABLE defs but existing DBs don't get them). Own flag.
+    await ensureD1Columns();
     // Full-text search lives outside the schema-split loader (it can't create
     // virtual tables/triggers), so apply it here. Has its own flag + in-memory
     // ready guard, so this is cheap on warm processes and never blocks the base
