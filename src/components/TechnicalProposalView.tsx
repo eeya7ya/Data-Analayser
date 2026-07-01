@@ -634,7 +634,7 @@ export default function TechnicalProposalView({
 
   return (
     <div>
-      <div className="no-print mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="no-print sticky top-14 z-30 mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-magic-border bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
         <div className="text-xs text-magic-ink/60">
           {enriching
             ? "Loading catalogue details for each model…"
