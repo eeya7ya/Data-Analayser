@@ -17,12 +17,14 @@ import { createHash, createHmac } from "node:crypto";
 const SERVICE = "s3";
 const REGION = "auto";
 
-function readR2Config(): {
+type R2Config = {
   accountId: string;
   accessKeyId: string;
   secretAccessKey: string;
   bucket: string;
-} {
+};
+
+function readR2Config(): R2Config {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
   const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
@@ -43,6 +45,63 @@ export function isR2Configured(): boolean {
       process.env.CLOUDFLARE_R2_ACCESS_KEY_ID &&
       process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
   );
+}
+
+/**
+ * Read the OFF-SITE R2 destination — a second bucket (ideally in a different
+ * Cloudflare account) that backups are mirrored to so one bucket/account loss
+ * can't take the live files and their backups together.
+ *
+ *   CLOUDFLARE_R2_OFFSITE_BUCKET             — required to enable off-site
+ *   CLOUDFLARE_R2_OFFSITE_ACCOUNT_ID         — defaults to the primary account
+ *   CLOUDFLARE_R2_OFFSITE_ACCESS_KEY_ID      — defaults to the primary key
+ *   CLOUDFLARE_R2_OFFSITE_SECRET_ACCESS_KEY  — defaults to the primary secret
+ *
+ * For genuine off-site safety set the *_ACCOUNT_ID + key/secret to a separate
+ * Cloudflare account; leaving them unset still mirrors into a different bucket
+ * on the same account, which protects against an accidental bucket wipe but
+ * not a full account loss.
+ */
+function readOffsiteR2Config(): R2Config {
+  const accountId =
+    process.env.CLOUDFLARE_R2_OFFSITE_ACCOUNT_ID ||
+    process.env.CLOUDFLARE_ACCOUNT_ID;
+  const accessKeyId =
+    process.env.CLOUDFLARE_R2_OFFSITE_ACCESS_KEY_ID ||
+    process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+  const secretAccessKey =
+    process.env.CLOUDFLARE_R2_OFFSITE_SECRET_ACCESS_KEY ||
+    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+  const bucket = process.env.CLOUDFLARE_R2_OFFSITE_BUCKET;
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket) {
+    throw new Error(
+      "Off-site R2 is not configured. Set CLOUDFLARE_R2_OFFSITE_BUCKET (and, " +
+        "for a real off-site copy, CLOUDFLARE_R2_OFFSITE_ACCOUNT_ID / " +
+        "_ACCESS_KEY_ID / _SECRET_ACCESS_KEY pointing at a different account).",
+    );
+  }
+  return { accountId, accessKeyId, secretAccessKey, bucket };
+}
+
+/** True when an off-site mirror destination is configured. */
+export function isOffsiteConfigured(): boolean {
+  return Boolean(
+    process.env.CLOUDFLARE_R2_OFFSITE_BUCKET &&
+      (process.env.CLOUDFLARE_R2_OFFSITE_ACCESS_KEY_ID ||
+        process.env.CLOUDFLARE_R2_ACCESS_KEY_ID) &&
+      (process.env.CLOUDFLARE_R2_OFFSITE_ACCOUNT_ID ||
+        process.env.CLOUDFLARE_ACCOUNT_ID),
+  );
+}
+
+/**
+ * True when the off-site destination shares the primary Cloudflare account
+ * (a different bucket, but not a different account). The UI uses this to warn
+ * that same-account mirroring is weaker than a true off-site copy.
+ */
+export function offsiteIsSameAccount(): boolean {
+  const off = process.env.CLOUDFLARE_R2_OFFSITE_ACCOUNT_ID;
+  return !off || off === process.env.CLOUDFLARE_ACCOUNT_ID;
 }
 
 function sha256Hex(data: string | Buffer): string {
@@ -107,7 +166,29 @@ export async function r2PutObject(
   body: Buffer | string,
   contentType = "application/octet-stream",
 ): Promise<{ bucket: string; key: string; size: number }> {
-  const { accountId, accessKeyId, secretAccessKey, bucket } = readR2Config();
+  return putObjectWithConfig(readR2Config(), key, body, contentType);
+}
+
+/**
+ * Same as r2PutObject but writes to the OFF-SITE R2 destination
+ * (CLOUDFLARE_R2_OFFSITE_*). Used to mirror backups outside the primary bucket.
+ */
+export async function r2PutObjectOffsite(
+  key: string,
+  body: Buffer | string,
+  contentType = "application/octet-stream",
+): Promise<{ bucket: string; key: string; size: number }> {
+  return putObjectWithConfig(readOffsiteR2Config(), key, body, contentType);
+}
+
+/** Core SigV4 PUT against an explicit R2 config (primary or off-site). */
+async function putObjectWithConfig(
+  cfg: R2Config,
+  key: string,
+  body: Buffer | string,
+  contentType = "application/octet-stream",
+): Promise<{ bucket: string; key: string; size: number }> {
+  const { accountId, accessKeyId, secretAccessKey, bucket } = cfg;
   const bodyBuf = typeof body === "string" ? Buffer.from(body, "utf-8") : body;
   // Copy into a freshly-allocated Uint8Array so the underlying buffer is a
   // strict ArrayBuffer (not the ArrayBufferLike union). Strict TS lib types
