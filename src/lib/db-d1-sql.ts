@@ -26,6 +26,7 @@
  *   - Interactive transactions (`q.begin`, 4 sites): D1 REST runs inline.
  */
 import { d1Query } from "./db-d1";
+import { D1_SCHEMA_SQL } from "./d1Schema.generated";
 
 const JSON_WRAP = Symbol("d1json");
 type JsonWrap = { [JSON_WRAP]: true; value: unknown };
@@ -56,6 +57,96 @@ export function translatePgToSqlite(text: string): string {
   return s;
 }
 
+// ── Auto-fill created_at / updated_at on INSERT ──────────────────────────────
+// The Postgres schema defaults created_at/updated_at to now(); the D1 schema
+// port dropped every column DEFAULT, so an INSERT that omits them — most of the
+// app's inserts, written against the Postgres defaults — fails on D1 with
+// "NOT NULL constraint failed: <table>.created_at". Rather than edit dozens of
+// call-sites, inject the missing column(s) + CURRENT_TIMESTAMP here for any
+// single-row `insert into T (cols) values (...)` whose table has the column but
+// whose column list omits it. The value is a literal, so the bound-param count
+// is unchanged and placeholders still line up. INSERT..SELECT and multi-row
+// VALUES are left untouched (handled at their call-sites).
+
+let tsTablesCache: { created: Set<string>; updated: Set<string> } | null = null;
+function timestampTables(): { created: Set<string>; updated: Set<string> } {
+  if (tsTablesCache) return tsTablesCache;
+  const created = new Set<string>();
+  const updated = new Set<string>();
+  const tableRe =
+    /create\s+table\s+(?:if\s+not\s+exists\s+)?"?(\w+)"?\s*\(([\s\S]*?)\)\s*;/gi;
+  let m: RegExpExecArray | null;
+  while ((m = tableRe.exec(D1_SCHEMA_SQL))) {
+    const table = m[1].toLowerCase();
+    const body = m[2];
+    if (/\bcreated_at\b/i.test(body)) created.add(table);
+    if (/\bupdated_at\b/i.test(body)) updated.add(table);
+  }
+  tsTablesCache = { created, updated };
+  return tsTablesCache;
+}
+
+/** Index of the ')' matching the '(' at openIdx, skipping single-quoted text. */
+function matchingParen(s: string, openIdx: number): number {
+  let depth = 0;
+  let inStr = false;
+  for (let i = openIdx; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (ch === "'") {
+        if (s[i + 1] === "'") {
+          i++;
+          continue;
+        }
+        inStr = false;
+      }
+      continue;
+    }
+    if (ch === "'") inStr = true;
+    else if (ch === "(") depth++;
+    else if (ch === ")") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function fillInsertTimestamps(text: string): string {
+  const head = /^\s*insert\s+into\s+"?(\w+)"?\s*\(([^)]*)\)\s*values\s*\(/i.exec(
+    text,
+  );
+  if (!head) return text; // INSERT..SELECT / INSERT OR REPLACE / not an insert
+  const table = head[1].toLowerCase();
+  const cols = head[2];
+  const { created, updated } = timestampTables();
+  const need: string[] = [];
+  if (created.has(table) && !/\bcreated_at\b/i.test(cols)) need.push("created_at");
+  if (updated.has(table) && !/\bupdated_at\b/i.test(cols)) need.push("updated_at");
+  if (need.length === 0) return text;
+
+  const openIdx = head.index + head[0].length - 1; // the '(' after VALUES
+  const closeIdx = matchingParen(text, openIdx);
+  if (closeIdx < 0) return text;
+  // Multi-row VALUES (...),(...): a trailing comma means more tuples we can't
+  // safely reach, so leave the statement untouched.
+  if (/^\s*,/.test(text.slice(closeIdx + 1))) return text;
+
+  const colInject = need.map((c) => `, "${c}"`).join("");
+  const valInject = need.map(() => ", CURRENT_TIMESTAMP").join("");
+  const newHead = head[0].replace(
+    /\)\s*values\s*\(\s*$/i,
+    `${colInject}) values (`,
+  );
+  return (
+    text.slice(0, head.index) +
+    newHead +
+    text.slice(head.index + head[0].length, closeIdx) +
+    valInject +
+    text.slice(closeIdx)
+  );
+}
+
 function normParam(v: unknown): string | number | null {
   if (v === null || v === undefined) return null;
   if (typeof v === "boolean") return v ? 1 : 0;
@@ -71,7 +162,7 @@ function normParam(v: unknown): string | number | null {
 }
 
 async function exec(text: string, params: unknown[]): Promise<Record<string, unknown>[]> {
-  const sqlite = translatePgToSqlite(text);
+  const sqlite = translatePgToSqlite(fillInsertTimestamps(text));
   const bound = params.map(normParam);
   const res = await d1Query(sqlite, bound);
   return res.results as Record<string, unknown>[];
