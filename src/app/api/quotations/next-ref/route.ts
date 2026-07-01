@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { sql, ensureSchema, usingD1 } from "@/lib/db";
 import { d1Query } from "@/lib/db-d1";
+import { quotationRefPrefix } from "@/lib/quotationRef";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,10 +36,10 @@ export async function GET() {
       deptCode = r[0]?.department_code || "";
     }
 
-    // Same normalisation as genActiveRef: blank department falls back to GEN.
-    const dept = (deptCode || "GEN").trim().toUpperCase() || "GEN";
-    const yy = String(new Date().getFullYear()).slice(-2);
-    return NextResponse.json({ prefix: `${dept}-FO${yy}-` });
+    // Mirrors genActiveRef: <DEPT+initials>-FO<YY>-, e.g. "ITYA-FO26-".
+    return NextResponse.json({
+      prefix: quotationRefPrefix(deptCode, user.username),
+    });
   } catch (err) {
     const msg = (err as Error).message;
     const status = msg === "UNAUTHENTICATED" ? 401 : 500;
