@@ -216,7 +216,28 @@ export default function CrmModuleHub({
         title: "Lead queue",
         desc: "Claim a lead and turn it into a company, client, project and quotation.",
       },
-      { href: "/pricing", title: "Pricing sheets", desc: "Prepare manufacturer pricing, then convert to a quotation." },
+      // Pricing sheets show only when the member actually has pricing access —
+      // presales managers now grant it per person, so a member without it
+      // shouldn't see a card that would 403.
+      ...(flags.pricing
+        ? [
+            {
+              href: "/pricing",
+              title: "Pricing sheets",
+              desc: "Prepare manufacturer pricing, then convert to a quotation.",
+            },
+          ]
+        : []),
+      // Managers get the delegation panel to hand pricing access to members.
+      ...(flags.presalesManager
+        ? [
+            {
+              href: "/crm/presales/pricing-access",
+              title: "Pricing access",
+              desc: "Choose which presales members can open the Pricing module.",
+            },
+          ]
+        : []),
     ],
     storage: [
       { href: "/crm/storage", title: "Storage workspace", desc: "Browse the product catalogue and manage stock." },

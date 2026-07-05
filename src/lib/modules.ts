@@ -130,13 +130,14 @@ export async function requireModuleAllowLegacy(
   if (canReadAll(user)) return;
   if (await hasModule(user.id, module)) return;
 
-  // Presales prepare manufacturer pricing as part of their lifecycle
-  // (pricing sheet → quotation), so a crm presales / presales_manager
-  // role grants access to the pricing module too.
+  // The presales MANAGER leads the pricing lifecycle (pricing sheet →
+  // quotation), so a presales_manager always has pricing access. Individual
+  // presales members no longer get pricing automatically — their manager
+  // grants it per person via /api/presales/pricing-access, which writes an
+  // explicit `pricing` grant already honoured by the hasModule check above.
   if (
     module === "pricing" &&
-    ((await hasModuleRole(user.id, "crm", "presales")) ||
-      (await hasModuleRole(user.id, "crm", "presales_manager")))
+    (await hasModuleRole(user.id, "crm", "presales_manager"))
   ) {
     return;
   }
@@ -307,6 +308,31 @@ export async function canAuthorQuotation(user: SessionUser): Promise<boolean> {
       g.module === "crm" &&
       (g.role === "presales" || g.role === "presales_manager"),
   );
+}
+
+/**
+ * True when the user is a presales manager — leads the presales team and so
+ * delegates pricing-module access to individual presales members. Admins
+ * pass too (full override).
+ */
+export async function isPresalesManager(user: SessionUser): Promise<boolean> {
+  if (user.role === "admin") return true;
+  return hasModuleRole(user.id, "crm", "presales_manager");
+}
+
+/**
+ * Authoritative "may open the pricing module" gate, mirrored by the pricing
+ * endpoints (the `requireModuleAllowLegacy` pricing special-case). Access is:
+ *   - admins / viewers (canReadAll),
+ *   - anyone holding an explicit `pricing` grant (what a presales manager
+ *     hands to a presales member), or
+ *   - a crm presales_manager (auto — they run the pricing lifecycle).
+ */
+export async function canAccessPricing(user: SessionUser): Promise<boolean> {
+  if (canReadAll(user)) return true;
+  if (await hasModule(user.id, "pricing")) return true;
+  if (await hasModuleRole(user.id, "crm", "presales_manager")) return true;
+  return false;
 }
 
 /**
