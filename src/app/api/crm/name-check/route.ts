@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
-import { requireModuleAllowLegacy } from "@/lib/modules";
+import { requireCrmClientWrite } from "@/lib/modules";
 import { findCrossKindConflicts, type CrmEntityKind } from "@/lib/crmNames";
 
 export const runtime = "nodejs";
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmClientWrite(user);
 
     const { searchParams } = new URL(req.url);
     const name = (searchParams.get("name") ?? "").trim();

@@ -345,6 +345,7 @@ export default function CrmModuleHub({
               tone="indigo"
               clientLabel={`${counts.companies} ${counts.companies === 1 ? "company" : "companies"} · ${counts.companyClients} client folder${counts.companyClients === 1 ? "" : "s"}`}
               quotations={counts.companyQuotations}
+              showQuotations={tab !== "projects"}
               description="Business clients. Each company holds one or more contacts, each with projects + quotations."
             />
             <KindCard
@@ -356,6 +357,7 @@ export default function CrmModuleHub({
               tone="cyan"
               clientLabel={`${counts.individuals} ${counts.individuals === 1 ? "client" : "clients"}`}
               quotations={counts.individualQuotations}
+              showQuotations={tab !== "projects"}
               description="Personal / residential clients. Each row IS the client — no company layer."
             />
           </div>
@@ -403,6 +405,7 @@ function KindCard({
   tone,
   clientLabel,
   quotations,
+  showQuotations = true,
   description,
 }: {
   href: string;
@@ -411,6 +414,12 @@ function KindCard({
   tone: keyof typeof KIND_TONE;
   clientLabel: string;
   quotations: number;
+  /**
+   * Whether to surface the quotation-count chip. Hidden on the Projects
+   * tool — project managers plan execution work, so a quotations tally is
+   * noise on their client cards.
+   */
+  showQuotations?: boolean;
   description: string;
 }) {
   const t = KIND_TONE[tone];
@@ -430,9 +439,11 @@ function KindCard({
         <span className="inline-flex items-center rounded-full bg-magic-soft px-2 py-0.5 font-semibold">
           {clientLabel}
         </span>
-        <span className="inline-flex items-center rounded-full bg-magic-soft px-2 py-0.5 font-semibold">
-          {quotations} quotation{quotations === 1 ? "" : "s"}
-        </span>
+        {showQuotations && (
+          <span className="inline-flex items-center rounded-full bg-magic-soft px-2 py-0.5 font-semibold">
+            {quotations} quotation{quotations === 1 ? "" : "s"}
+          </span>
+        )}
       </div>
       <p className={`mt-3 text-xs font-semibold ${t.text}`}>Drill in →</p>
     </Link>

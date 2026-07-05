@@ -207,6 +207,50 @@ export async function requireCrmOrProjectsRead(user: SessionUser): Promise<void>
   throw new Error("FORBIDDEN");
 }
 
+/**
+ * Write gate for CRM client records (companies + individual folders).
+ *
+ * Sales & presales reach it through the `crm` module. Project managers also
+ * need to stand up their own companies / clients to plan execution work —
+ * they own the project tree, so it's the manager (not a quotation designer)
+ * who seeds the company → client → project structure. A projects `manager`
+ * role therefore passes too. The V2-transition legacy bypass (a user with NO
+ * module grants at all) is preserved and audited, exactly like
+ * `requireModuleAllowLegacy`.
+ *
+ * This governs only whether the endpoint can be hit — every created row is
+ * still stamped with `owner_id = user.id`, and each mutation handler re-checks
+ * ownership, so a manager can only touch the rows they own and never sees or
+ * edits another user's clients.
+ */
+export async function requireCrmClientWrite(user: SessionUser): Promise<void> {
+  if (canReadAll(user)) return;
+  if (await hasModule(user.id, "crm")) return;
+  if (await hasModuleRole(user.id, "projects", "manager")) return;
+
+  const q = sql();
+  const anyRoles = (await q`
+    select 1 as ok from user_module_roles
+    where user_id = ${user.id} and revoked_at is null
+    limit 1
+  `) as Array<{ ok: number }>;
+  if (anyRoles.length === 0) {
+    // Legacy bypass — mirror requireModuleAllowLegacy. Fire-and-forget audit.
+    try {
+      await q`
+        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        values (${user.id}, 'module_access', 0, 'legacy_bypass',
+                ${JSON.stringify({ module: "crm_client_write" })}::jsonb)
+      `;
+    } catch {
+      // never block a request because audit logging failed
+    }
+    return;
+  }
+
+  throw new Error("FORBIDDEN");
+}
+
 /** Throw FORBIDDEN unless the user holds (module, role). Admin override applies. */
 export async function requireModuleRole(
   user: SessionUser,
