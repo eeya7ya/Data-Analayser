@@ -166,7 +166,7 @@ function BackupsSection() {
         <h2 className="text-lg font-semibold text-magic-ink">Backups</h2>
         <p className="mt-1 max-w-3xl text-sm text-magic-ink/60">
           Everything the app holds, covered both ways. <strong>Back up</strong>{" "}
-          the D1 database, the R2 files, or one complete archive — then{" "}
+          the database, the R2 files, or one complete archive — then{" "}
           <strong>restore</strong> any of them, so you can recover whether you
           replace the database, lose your files, or lose the whole bucket.
         </p>
@@ -200,7 +200,7 @@ function BackupsSection() {
             </span>
           </div>
           <div className="grid gap-4">
-            <D1DatabaseBackupPanel />
+            <DatabaseBackupPanel />
             <R2FilesBackupPanel />
             <CompleteAppBackupPanel />
           </div>
@@ -321,16 +321,21 @@ type FilesManifest = {
 
 type Msg = { kind: "ok" | "error"; text: string };
 
-// ─── Backup 1: entire D1 database ────────────────────────────────────────────
+// ─── Backup 1: entire database ───────────────────────────────────────────────
 
 /**
- * Download the entire Cloudflare D1 database as one restore-ready ZIP. The
- * server (`GET /api/admin/db-backup`) introspects every table, dumps each one
- * to lossless JSON and packages it with a manifest + per-table content hashes.
+ * Download the entire database as one restore-ready ZIP. The server
+ * (`GET /api/admin/db-backup`) introspects every table, dumps each one to
+ * lossless JSON and packages it with a manifest + per-table content hashes.
  * This is the DATA — clients, projects, quotations, leads, pricing, users and
- * settings. Read-only; nothing in D1 is changed.
+ * settings. Read-only; nothing in the database is changed.
+ *
+ * DB-agnostic: the snapshot + restore work the same whether the store is
+ * Postgres (Supabase) or Cloudflare D1/SQLite — the introspection branches on
+ * the active engine, so the download and its restore never depend on which
+ * database type is live.
  */
-function D1DatabaseBackupPanel() {
+function DatabaseBackupPanel() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Msg | null>(null);
 
@@ -346,12 +351,12 @@ function D1DatabaseBackupPanel() {
       const blob = await res.blob();
       const filename =
         filenameFromResponse(res) ||
-        `magictech-d1-database-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
+        `magictech-database-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
       triggerDownload(blob, filename);
       const mb = (blob.size / (1024 * 1024)).toFixed(2);
       setMsg({
         kind: "ok",
-        text: `D1 database downloaded: ${filename} (${mb} MB). Keep at least one copy off this server.`,
+        text: `Database downloaded: ${filename} (${mb} MB). Keep at least one copy off this server.`,
       });
     } catch (err) {
       setMsg({ kind: "error", text: (err as Error).message });
@@ -364,16 +369,16 @@ function D1DatabaseBackupPanel() {
     <BackupCard
       icon={Database}
       accent="indigo"
-      title="D1 database"
-      description="A complete, restore-ready snapshot of every table in the Cloudflare D1 database."
+      title="Database"
+      description="A complete, restore-ready snapshot of every table in the database (Postgres or D1)."
       included={[
         "Every row of every table — clients, projects, quotations, leads, pricing, users, settings",
         "Lossless JSON per table with a manifest and content hashes",
-        "Built on the server in one click — small and fast",
+        "Restorable into any database type — Postgres or D1/SQLite",
       ]}
     >
       <ActionButton accent="indigo" busy={busy} onClick={download}>
-        {busy ? "Preparing database…" : "Download D1 database (.zip)"}
+        {busy ? "Preparing database…" : "Download database (.zip)"}
       </ActionButton>
       <ResultMessage msg={msg} />
     </BackupCard>
@@ -699,10 +704,10 @@ function CompleteAppBackupPanel() {
       icon={Package}
       accent="red"
       title="Complete app archive"
-      description="One ZIP with everything — the D1 database, all R2 files, your designed quotations and the pricing module."
+      description="One ZIP with everything — the database, all R2 files, your designed quotations and the pricing module."
       badge="Everything"
       included={[
-        "The entire D1 database, nested as a restore-ready snapshot",
+        "The entire database, nested as a restore-ready snapshot",
         "Every uploaded file from R2 in its original format",
         "Every designed quotation rendered to PDF",
         "The whole pricing module as one Excel workbook per manufacturer",
@@ -858,10 +863,10 @@ function RestoreDatabasePanel() {
       icon={Database}
       accent="indigo"
       title="Restore database"
-      description="Load a D1 database backup back into the live database — upserts every row by primary key, never deletes."
+      description="Load a database backup back into the live database — upserts every row by primary key, never deletes."
       included={[
-        "Takes a D1 database backup, or a Complete app archive (the database is auto-extracted)",
-        "Recreates the schema automatically on a fresh or empty D1",
+        "Takes a database backup, or a Complete app archive (the database is auto-extracted)",
+        "Recreates the schema automatically on a fresh or empty database (Postgres or D1)",
         "Additive & idempotent — safe to re-run; existing rows are overwritten, extras kept",
       ]}
     >
