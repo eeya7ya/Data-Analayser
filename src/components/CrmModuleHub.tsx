@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   Building2,
   User,
+  BadgeCheck,
   type LucideIcon,
 } from "lucide-react";
 import CrmSearch from "@/components/CrmSearch";
@@ -38,6 +39,8 @@ export interface CrmHubFlags {
   /** crm.presales_manager — kept for role display; no longer distributes. */
   presalesManager: boolean;
   pricing: boolean;
+  /** crm.executive_manager — sees the confirmations sign-off queue. */
+  executive: boolean;
 }
 
 export interface CrmHubCounts {
@@ -54,7 +57,13 @@ interface EntryCard {
   desc: string;
 }
 
-type TabId = "sales" | "presales" | "storage" | "projects" | "pricing";
+type TabId =
+  | "sales"
+  | "presales"
+  | "storage"
+  | "projects"
+  | "pricing"
+  | "executive";
 
 interface Tone {
   chip: string;
@@ -100,6 +109,13 @@ const TONES: Record<TabId, Tone> = {
     text: "text-emerald-600",
     solid: "bg-emerald-600",
   },
+  executive: {
+    chip: "bg-rose-100 text-rose-600",
+    grad: "from-rose-50",
+    border: "hover:border-rose-400",
+    text: "text-rose-600",
+    solid: "bg-rose-600",
+  },
 };
 
 const TAB_META: Record<TabId, { label: string; icon: LucideIcon; blurb: string }> = {
@@ -127,6 +143,11 @@ const TAB_META: Record<TabId, { label: string; icon: LucideIcon; blurb: string }
     label: "Pricing",
     icon: Tags,
     blurb: "Per-manufacturer pricing workspaces and comparisons.",
+  },
+  executive: {
+    label: "Executive",
+    icon: BadgeCheck,
+    blurb: "Confirm quotations and pricing sheets submitted by presales.",
   },
 };
 
@@ -160,6 +181,7 @@ export default function CrmModuleHub({
   if (flags.storage) tools.push("storage");
   if (flags.projects) tools.push("projects");
   if (flags.pricing) tools.push("pricing");
+  if (flags.executive) tools.push("executive");
 
   const multiTool = tools.length > 1;
   // Single-role users land straight on their one tool; everyone else
@@ -261,6 +283,13 @@ export default function CrmModuleHub({
     pricing: [
       { href: "/pricing", title: "Pricing workspaces", desc: "Per-manufacturer pricing projects and constants." },
       { href: "/pricing/compare", title: "Compare", desc: "Compare pricing across manufacturers for a project." },
+    ],
+    executive: [
+      {
+        href: "/crm/executive/confirmations",
+        title: "Confirmations",
+        desc: "Confirm or reject quotations and pricing sheets submitted by presales.",
+      },
     ],
   };
 

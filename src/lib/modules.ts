@@ -26,7 +26,16 @@ export type Module = (typeof MODULES)[number];
  * existing data is unaffected because the column is plain text.
  */
 export const ROLES_PER_MODULE = {
-  crm: ["sales", "sales_manager", "presales", "presales_manager"],
+  crm: [
+    "sales",
+    "sales_manager",
+    "presales",
+    "presales_manager",
+    // Executive sign-off authority: presales / presales managers submit
+    // finished quotations (with pricing) and pricing sheets to the executive
+    // manager, who confirms or rejects them from the confirmations queue.
+    "executive_manager",
+  ],
   projects: ["technical", "engineer", "manager"],
   storage: ["worker", "manager"],
   admin: ["admin"],
@@ -318,6 +327,29 @@ export async function canAuthorQuotation(user: SessionUser): Promise<boolean> {
 export async function isPresalesManager(user: SessionUser): Promise<boolean> {
   if (user.role === "admin") return true;
   return hasModuleRole(user.id, "crm", "presales_manager");
+}
+
+/**
+ * True when the user is an executive manager — the sign-off authority who
+ * receives quotations (with pricing) and pricing sheets submitted by presales
+ * / presales managers and confirms or rejects them. Admins pass too.
+ */
+export async function isExecutiveManager(user: SessionUser): Promise<boolean> {
+  if (user.role === "admin") return true;
+  return hasModuleRole(user.id, "crm", "executive_manager");
+}
+
+/**
+ * True when the user may SUBMIT an item for executive confirmation —
+ * presales, presales managers, and admins (the people who prepare the
+ * quotation / pricing sheet the executive signs off on).
+ */
+export async function canSubmitForExecutive(user: SessionUser): Promise<boolean> {
+  if (user.role === "admin") return true;
+  return (
+    (await hasModuleRole(user.id, "crm", "presales")) ||
+    (await hasModuleRole(user.id, "crm", "presales_manager"))
+  );
 }
 
 /**

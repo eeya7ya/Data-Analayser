@@ -39,6 +39,9 @@ interface ApprovalState {
   sales_accepted_at: string | null;
   sales_accepted_by: number | null;
   owner_id: number | null;
+  // Executive-manager sign-off.
+  exec_status?: "none" | "pending" | "confirmed" | "rejected" | null;
+  exec_reject_reason?: string | null;
 }
 
 interface MeResponse {
@@ -97,6 +100,12 @@ export default function QuotationApprovalBar({
     }
   }, [quotationId]);
 
+  // Refresh the full state once on mount so the bar reflects decisions made
+  // elsewhere since the page loaded — e.g. an executive confirmation/rejection.
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
   const isAdmin = me?.user?.role === "admin";
   const hasRole = (module: string, role: string) =>
     isAdmin ||
@@ -122,6 +131,37 @@ export default function QuotationApprovalBar({
   const canSendToSales = isPresalesAuthor;
   const sentToSales = !!state.sent_to_sales_at;
   const salesAccepted = !!state.sales_accepted_at;
+
+  // Executive-manager confirmation: presales / presales managers submit the
+  // finished quotation for the executive to sign off.
+  const canSubmitExec =
+    isAdmin || hasRole("crm", "presales") || hasRole("crm", "presales_manager");
+  const execStatus = state.exec_status ?? "none";
+
+  async function submitExec() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/executive/confirmations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: "quotation",
+          id: quotationId,
+          action: "submit",
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      await refetch();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function sendToSales() {
     if (
@@ -301,6 +341,44 @@ export default function QuotationApprovalBar({
           )}
         </div>
       </div>
+
+      {/* Executive confirmation — presales submits the finished quotation for
+          the executive manager to confirm. */}
+      {(canSubmitExec || execStatus !== "none") && (
+        <div className="mt-3 border-t border-magic-border/60 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-semibold text-magic-ink/70">Executive:</span>
+              {execStatus === "pending" && (
+                <Pill tone="muted">Awaiting confirmation</Pill>
+              )}
+              {execStatus === "confirmed" && <Pill tone="ok">Confirmed ✓</Pill>}
+              {execStatus === "rejected" && (
+                <Pill tone="warn">
+                  Rejected
+                  {state.exec_reject_reason &&
+                    `: ${state.exec_reject_reason.slice(0, 60)}`}
+                </Pill>
+              )}
+              {execStatus === "none" && (
+                <span className="text-magic-ink/45">Not submitted</span>
+              )}
+            </div>
+            {canSubmitExec && execStatus !== "pending" && (
+              <button
+                onClick={() => void submitExec()}
+                disabled={busy}
+                title="Send this quotation to the executive manager for confirmation"
+                className="px-3 py-1 text-xs font-semibold rounded bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 transition-colors"
+              >
+                {execStatus === "none"
+                  ? "Submit for executive confirmation"
+                  : "Re-submit for confirmation"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* V1.3D — sales records the client outcome. Accept / Reject can be
           marked any time; Hold for Execution stages the deal and (with a
