@@ -516,6 +516,13 @@ const PROJECT_DISTRIBUTION_FLAG = "project_distribution_v1_2026_07";
  */
 const PRICING_MFG_DEFAULTS_FLAG = "pricing_mfg_defaults_v1_2026_07";
 
+/**
+ * Incremental migration: a distribution snapshots the client's phone alongside
+ * the company / client / contact / email it already carried, so a project
+ * manager hands the technician the full client context.
+ */
+const PROJECT_DISTRIBUTION_PHONE_FLAG = "project_distribution_phone_v1_2026_07";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -636,7 +643,7 @@ async function ensureD1UniqueIndexes(): Promise<void> {
 // early-returned and never added them, and every pricing read/save that touched
 // pricing_projects threw "no such column". Bumping the flag forces existing D1
 // databases to re-diff and ADD the missing columns exactly once.
-const D1_COLUMN_SYNC_FLAG = "d1_column_sync_v2_2026_07";
+const D1_COLUMN_SYNC_FLAG = "d1_column_sync_v3_2026_07";
 
 type D1ColDef = { name: string; ddl: string };
 let d1SchemaColsCache: Map<string, D1ColDef[]> | null = null;
@@ -839,6 +846,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let sequenceRealignApplied = false;
   let execConfirmationApplied = false;
   let projectDistributionApplied = false;
+  let projectDistributionPhoneApplied = false;
   let pricingMfgDefaultsApplied = false;
   try {
     const rows = (await q`
@@ -859,7 +867,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${INSTALLATION_RATES_FLAG}, ${LEADS_SALES_PROJECT_FLAG},
         ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG},
         ${SEQUENCE_REALIGN_FLAG}, ${EXEC_CONFIRMATION_FLAG},
-        ${PROJECT_DISTRIBUTION_FLAG}, ${PRICING_MFG_DEFAULTS_FLAG}
+        ${PROJECT_DISTRIBUTION_FLAG}, ${PRICING_MFG_DEFAULTS_FLAG},
+        ${PROJECT_DISTRIBUTION_PHONE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -902,6 +911,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     sequenceRealignApplied = keys.has(SEQUENCE_REALIGN_FLAG);
     execConfirmationApplied = keys.has(EXEC_CONFIRMATION_FLAG);
     projectDistributionApplied = keys.has(PROJECT_DISTRIBUTION_FLAG);
+    projectDistributionPhoneApplied = keys.has(PROJECT_DISTRIBUTION_PHONE_FLAG);
     pricingMfgDefaultsApplied = keys.has(PRICING_MFG_DEFAULTS_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
@@ -948,6 +958,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     sequenceRealignApplied &&
     execConfirmationApplied &&
     projectDistributionApplied &&
+    projectDistributionPhoneApplied &&
     pricingMfgDefaultsApplied
   )
     return;
@@ -3346,6 +3357,18 @@ async function _ensureSchemaOnce(): Promise<void> {
     );
     await q`
       insert into migration_flags (key) values (${PROJECT_DISTRIBUTION_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // Distribution also snapshots the client phone (added after the initial
+  // distribution columns shipped, so it needs its own top-level gate).
+  if (!projectDistributionPhoneApplied) {
+    await q.unsafe(
+      `alter table project_assignments add column if not exists contact_phone text`,
+    );
+    await q`
+      insert into migration_flags (key) values (${PROJECT_DISTRIBUTION_PHONE_FLAG})
       on conflict (key) do nothing
     `;
   }

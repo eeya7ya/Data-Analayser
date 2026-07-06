@@ -51,6 +51,7 @@ interface AssignmentRow {
   client_name: string | null;
   contact_name: string | null;
   contact_email: string | null;
+  contact_phone: string | null;
   created_at: string;
 }
 
@@ -140,7 +141,7 @@ export async function GET(req: NextRequest) {
                pa.role, pa.assigned_by, au.username as assigned_by_username,
                pa.location, pa.start_date, pa.end_date, pa.notes,
                pa.scope_of_work, pa.status, pa.company_name, pa.client_name,
-               pa.contact_name, pa.contact_email, pa.created_at
+               pa.contact_name, pa.contact_email, pa.contact_phone, pa.created_at
         from project_assignments pa
         join users u on u.id = pa.user_id
         left join users au on au.id = pa.assigned_by
@@ -207,6 +208,7 @@ export async function POST(req: NextRequest) {
       client_name?: string | null;
       contact_name?: string | null;
       contact_email?: string | null;
+      contact_phone?: string | null;
     };
 
     const projectId = Number(body.project_id);
@@ -291,21 +293,24 @@ export async function POST(req: NextRequest) {
             company_name = ${body.company_name ?? null},
             client_name = ${body.client_name ?? null},
             contact_name = ${body.contact_name ?? null},
-            contact_email = ${body.contact_email ?? null}
+            contact_email = ${body.contact_email ?? null},
+            contact_phone = ${body.contact_phone ?? null}
         where id = ${assignmentId}
       `;
     } else {
       const inserted = (await q`
         insert into project_assignments
           (project_id, user_id, role, assigned_by, location, start_date, end_date, notes,
-           scope_of_work, status, company_name, client_name, contact_name, contact_email)
+           scope_of_work, status, company_name, client_name, contact_name, contact_email,
+           contact_phone)
         values
           (${projectId}, ${userId}, ${role}, ${user.id},
            ${body.location ?? null}, ${body.start_date ?? null},
            ${body.end_date ?? null}, ${body.notes ?? null},
            ${body.scope_of_work ?? null}, ${body.status ?? "assigned"},
            ${body.company_name ?? null}, ${body.client_name ?? null},
-           ${body.contact_name ?? null}, ${body.contact_email ?? null})
+           ${body.contact_name ?? null}, ${body.contact_email ?? null},
+           ${body.contact_phone ?? null})
         returning id
       `) as Array<{ id: number }>;
       assignmentId = inserted[0].id;
@@ -362,6 +367,7 @@ export async function PATCH(req: NextRequest) {
       client_name?: string | null;
       contact_name?: string | null;
       contact_email?: string | null;
+      contact_phone?: string | null;
     };
     const id = Number(body.id);
     if (!Number.isInteger(id) || id <= 0) {
@@ -399,7 +405,8 @@ export async function PATCH(req: NextRequest) {
       body.company_name !== undefined ||
       body.client_name !== undefined ||
       body.contact_name !== undefined ||
-      body.contact_email !== undefined;
+      body.contact_email !== undefined ||
+      body.contact_phone !== undefined;
     if (isDistributionUpdate) {
       await q`
         update project_assignments
@@ -410,7 +417,8 @@ export async function PATCH(req: NextRequest) {
             company_name = ${body.company_name ?? null},
             client_name = ${body.client_name ?? null},
             contact_name = ${body.contact_name ?? null},
-            contact_email = ${body.contact_email ?? null}
+            contact_email = ${body.contact_email ?? null},
+            contact_phone = ${body.contact_phone ?? null}
         where id = ${id}
       `;
     }

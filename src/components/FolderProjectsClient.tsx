@@ -122,6 +122,8 @@ interface CrmCaps {
   canDistribute: boolean;
   /** Pure projects users: hide the Quotations tab (they distribute, not quote). */
   hideQuotations: boolean;
+  /** Technicians / engineers / project managers never see Purchase Orders. */
+  hidePurchaseOrders: boolean;
 }
 
 /** The server-resolved caps the page seeds the provider with. No `loaded`
@@ -136,6 +138,7 @@ const EMPTY_CAPS: CrmCaps = {
   canSeeTechnicalProposal: false,
   canDistribute: false,
   hideQuotations: false,
+  hidePurchaseOrders: false,
 };
 
 const CrmCapsContext = createContext<CrmCaps>(EMPTY_CAPS);
@@ -192,6 +195,7 @@ function CrmCapsProvider({
           canSeeTechnicalProposal: isAdmin || hasPresales,
           canDistribute: isAdmin || isProjectsManager,
           hideQuotations: !isAdmin && projects.length > 0 && crm.length === 0,
+          hidePurchaseOrders: !isAdmin && projects.length > 0 && crm.length === 0,
         });
       } catch {
         if (!cancelled) setCaps((prev) => ({ ...prev, loaded: true }));
@@ -721,13 +725,15 @@ function ProjectPanel({
     // Project managers distribute the project instead of quoting it.
     if (caps.canDistribute) base.push(["distribution", "Distribution"]);
     if (!caps.hideQuotations) base.push(["quotations", "Quotations"]);
-    base.push(["pos", "Purchase Orders"], ["boq", "BOQ"], ["files", "Files"]);
+    if (!caps.hidePurchaseOrders) base.push(["pos", "Purchase Orders"]);
+    base.push(["boq", "BOQ"], ["files", "Files"]);
     if (caps.canSeeFinancialOffer) base.push(["financial", "Financial Offer"]);
     if (caps.canSeeTechnicalProposal) base.push(["technical", "Technical Proposal"]);
     return base;
   }, [
     caps.canDistribute,
     caps.hideQuotations,
+    caps.hidePurchaseOrders,
     caps.canSeeFinancialOffer,
     caps.canSeeTechnicalProposal,
   ]);

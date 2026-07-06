@@ -393,6 +393,9 @@ export interface CrmCaps {
   /** Pure projects users (projects module, no crm): hide the Quotations tab —
    * they distribute execution work, they don't quote. */
   hideQuotations: boolean;
+  /** Technicians / engineers / project managers never see Purchase Orders —
+   * procurement is a sales-side artifact, not part of execution. */
+  hidePurchaseOrders: boolean;
 }
 
 export async function getCrmCaps(user: SessionUser): Promise<CrmCaps> {
@@ -416,6 +419,7 @@ export async function getCrmCaps(user: SessionUser): Promise<CrmCaps> {
     canSeeTechnicalProposal: isAdmin || hasPresales,
     canDistribute: isAdmin || isProjectsManager,
     hideQuotations: !isAdmin && hasProjects && !hasCrm,
+    hidePurchaseOrders: !isAdmin && hasProjects && !hasCrm,
   };
 }
 
