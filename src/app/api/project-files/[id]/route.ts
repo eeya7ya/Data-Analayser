@@ -281,18 +281,12 @@ export async function DELETE(
     if (!file || !(await canManageFile(q, file, user))) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
-    // Soft-delete the row first so the UI can stop showing it
-    // immediately, then best-effort delete the underlying object.
-    // Tolerating storage-side failures here means a temporarily
-    // unreachable bucket doesn't block the user from cleaning up.
-    await q`
-      update project_files
-      set deleted_at = now()
-      where id = ${id}
-    `;
+    // Permanently remove the row (no Trash), then best-effort delete the
+    // underlying object. Tolerating storage-side failures here means a
+    // temporarily unreachable bucket doesn't block the user from cleaning up.
+    await q`delete from project_files where id = ${id}`;
     // Best-effort blob cleanup from R2. A failure is tolerated — the row is
-    // already soft-deleted, and a future sweep can reconcile orphan blobs vs
-    // rows.
+    // already gone, and a future sweep can reconcile orphan blobs.
     if (isR2Configured()) {
       try {
         await deleteR2ObjectForPath(file.storage_path);

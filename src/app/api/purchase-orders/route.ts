@@ -440,14 +440,8 @@ export async function DELETE(req: NextRequest) {
     if (user.role !== "admin" && owned[0].owner_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    // Soft-delete: PO entries follow the same "nothing is ever hard-
-    // deleted" invariant as quotations / folders. A future /trash
-    // surface can restore them if needed.
-    await q`
-      update purchase_orders
-      set deleted_at = now(), updated_at = now()
-      where id = ${id}
-    `;
+    // Permanent delete (no Trash). Not recoverable.
+    await q`delete from purchase_orders where id = ${id}`;
     return NextResponse.json({ ok: true });
   } catch (err) {
     const msg = (err as Error).message;

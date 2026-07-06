@@ -299,11 +299,12 @@ export async function DELETE(_req: Request, { params }: Ctx) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
     const q = sql();
-    await q`
-      update pricing_projects
-      set deleted_at = now()
-      where id = ${projectId}
-    `;
+    // Permanent delete. Postgres cascades children via ON DELETE CASCADE, but
+    // D1 has no FK enforcement, so remove the child rows explicitly first to
+    // avoid orphans, then the sheet itself. Nothing is recoverable afterwards.
+    await q`delete from pricing_product_lines where project_id = ${projectId}`;
+    await q`delete from pricing_project_constants where project_id = ${projectId}`;
+    await q`delete from pricing_projects where id = ${projectId}`;
     return NextResponse.json({ success: true });
   } catch (err) {
     const msg = (err as Error).message;

@@ -75,9 +75,10 @@ export async function DELETE(
       return NextResponse.json({ error: "invalid id" }, { status: 400 });
     }
     const q = sql();
+    // Permanent delete (no Trash). Not recoverable.
     const rows = (await q`
-      update user_notes set deleted_at = now()
-      where id = ${noteId} and user_id = ${user.id} and deleted_at is null
+      delete from user_notes
+      where id = ${noteId} and user_id = ${user.id}
       returning id
     `) as Array<{ id: number }>;
     if (rows.length === 0) {

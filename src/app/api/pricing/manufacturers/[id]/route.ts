@@ -210,21 +210,28 @@ export async function PUT(req: Request, { params }: Ctx) {
 }
 
 /**
- * Delete a manufacturer AND its pricing sheets.
+ * Permanently delete a manufacturer AND its pricing sheets. Nothing is
+ * recoverable afterwards (no Trash).
  *
- *   • Admin — soft-delete the GLOBAL `pricing_manufacturers` row (removes the
- *     brand for everyone) and every sheet under it.
- *   • Regular user — unpin only THEIR OWN pin (the global row is shared, so we
- *     never touch it or other users' pins) and soft-delete THEIR OWN sheets
- *     under it.
+ *   • Admin — hard-delete the GLOBAL `pricing_manufacturers` row (removes the
+ *     brand for everyone), every pin, and every sheet under it.
+ *   • Regular user — hard-delete only THEIR OWN pin (the global row is shared,
+ *     so we never touch it or other users' pins) and THEIR OWN sheets under it.
  *
- * The sheets are cascaded on purpose: previously delete only removed the pin,
- * so re-adding the manufacturer restored the pin and every old sheet came back
- * ("I delete it and create it again and it renders the old data"). Cascading
- * the sheets makes a re-add a genuine clean slate. Soft-delete, not a hard
- * wipe, so the sheets land in Trash (/pricing/trash) and can be restored or
- * purged there.
+ * Child rows (product lines, constants) are removed explicitly: Postgres would
+ * cascade them via ON DELETE CASCADE, but D1 has no FK enforcement, so we must
+ * clean them up ourselves to avoid orphans.
  */
+async function hardDeleteProjects(
+  q: ReturnType<typeof sql>,
+  projectIds: number[],
+): Promise<void> {
+  if (projectIds.length === 0) return;
+  await q`delete from pricing_product_lines where project_id = any(${projectIds}::int[])`;
+  await q`delete from pricing_project_constants where project_id = any(${projectIds}::int[])`;
+  await q`delete from pricing_projects where id = any(${projectIds}::int[])`;
+}
+
 export async function DELETE(_req: Request, { params }: Ctx) {
   try {
     const user = await requireWriter();
@@ -245,35 +252,22 @@ export async function DELETE(_req: Request, { params }: Ctx) {
       if (pinRows.length === 0) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
-      // Cascade to this user's sheets under the manufacturer so re-adding
-      // starts clean.
-      await q`
-        update pricing_projects
-        set deleted_at = now()
-        where manufacturer_id = ${mfgId}
-          and user_id = ${user.id}
-          and deleted_at is null
-      `;
-      await q`
-        update pricing_user_manufacturers
-        set deleted_at = now()
-        where id = ${pinRows[0].id}
-      `;
+      const projRows = (await q`
+        select id from pricing_projects
+        where manufacturer_id = ${mfgId} and user_id = ${user.id}
+      `) as Array<{ id: number }>;
+      await hardDeleteProjects(q, projRows.map((r) => Number(r.id)));
+      await q`delete from pricing_user_manufacturers where id = ${pinRows[0].id}`;
       return NextResponse.json({ success: true });
     }
 
-    // Admin: remove the shared brand and every sheet under it.
-    await q`
-      update pricing_projects
-      set deleted_at = now()
-      where manufacturer_id = ${mfgId}
-        and deleted_at is null
-    `;
-    await q`
-      update pricing_manufacturers
-      set deleted_at = now()
-      where id = ${mfgId} and deleted_at is null
-    `;
+    // Admin: remove the shared brand, every pin, and every sheet under it.
+    const projRows = (await q`
+      select id from pricing_projects where manufacturer_id = ${mfgId}
+    `) as Array<{ id: number }>;
+    await hardDeleteProjects(q, projRows.map((r) => Number(r.id)));
+    await q`delete from pricing_user_manufacturers where manufacturer_id = ${mfgId}`;
+    await q`delete from pricing_manufacturers where id = ${mfgId}`;
     return NextResponse.json({ success: true });
   } catch (err) {
     const msg = (err as Error).message;
