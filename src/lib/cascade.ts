@@ -118,6 +118,24 @@ export async function cascadeHardDeleteFolder(
        or project_id in (select id from projects where folder_id = ${folderId})
        or sales_project_id in (select id from projects where folder_id = ${folderId})
   `;
+  // Project child rows (D1 has no FK cascade, so remove them explicitly —
+  // otherwise orphaned assignments keep counting toward a member's KPIs).
+  await q`
+    delete from project_tasks
+    where project_id in (select id from projects where folder_id = ${folderId})
+  `;
+  await q`
+    delete from project_assignments
+    where project_id in (select id from projects where folder_id = ${folderId})
+  `;
+  await q`
+    delete from execution_reports
+    where project_id in (select id from projects where folder_id = ${folderId})
+  `;
+  await q`
+    delete from project_handoffs
+    where project_id in (select id from projects where folder_id = ${folderId})
+  `;
   await q`
     delete from project_files
     where project_id in (select id from projects where folder_id = ${folderId})

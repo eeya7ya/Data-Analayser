@@ -209,6 +209,8 @@ export async function POST(req: NextRequest) {
       contact_name?: string | null;
       contact_email?: string | null;
       contact_phone?: string | null;
+      /** Master-job checklist template to seed the project's checklist with. */
+      template_id?: number | null;
     };
 
     const projectId = Number(body.project_id);
@@ -314,6 +316,48 @@ export async function POST(req: NextRequest) {
         returning id
       `) as Array<{ id: number }>;
       assignmentId = inserted[0].id;
+    }
+
+    // Seed the project's checklist from the selected master job (template). Only
+    // steps not already present are added, so re-distributing the same project
+    // never duplicates the checklist. The PM can edit it per project afterwards.
+    if (body.template_id != null && Number.isInteger(Number(body.template_id))) {
+      const tplRows = (await q`
+        select items from checklist_templates
+        where id = ${Number(body.template_id)} and deleted_at is null
+        limit 1
+      `) as Array<{ items: unknown }>;
+      if (tplRows.length > 0) {
+        let items: string[] = [];
+        try {
+          const raw = tplRows[0].items;
+          const parsed = typeof raw === "string" ? JSON.parse(raw || "[]") : raw;
+          if (Array.isArray(parsed)) {
+            items = parsed.map((x) => String(x ?? "").trim()).filter(Boolean);
+          }
+        } catch {
+          items = [];
+        }
+        if (items.length > 0) {
+          const existing = (await q`
+            select title, position from project_tasks
+            where project_id = ${projectId} and deleted_at is null
+          `) as Array<{ title: string; position: number }>;
+          const have = new Set(
+            existing.map((r) => String(r.title).trim().toLowerCase()),
+          );
+          let pos = existing.reduce((m, r) => Math.max(m, Number(r.position)), 0);
+          for (const title of items) {
+            if (have.has(title.toLowerCase())) continue;
+            pos += 1;
+            await q`
+              insert into project_tasks (project_id, title, created_by, position)
+              values (${projectId}, ${title.slice(0, 500)}, ${user.id}, ${pos})
+            `;
+            have.add(title.toLowerCase());
+          }
+        }
+      }
     }
 
     await q`

@@ -506,6 +506,16 @@ CREATE TABLE IF NOT EXISTS "project_assignments" (
   PRIMARY KEY ("id")
 );
 
+CREATE TABLE IF NOT EXISTS "checklist_templates" (
+  "id" INTEGER,
+  "name" TEXT NOT NULL,
+  "items" TEXT NOT NULL DEFAULT '[]',
+  "created_by" INTEGER,
+  "created_at" TEXT NOT NULL,
+  "deleted_at" TEXT,
+  PRIMARY KEY ("id")
+);
+
 CREATE TABLE IF NOT EXISTS "project_files" (
   "id" INTEGER,
   "project_id" INTEGER NOT NULL,
