@@ -19,6 +19,15 @@ interface ReportRow {
   author_name: string | null;
 }
 
+interface ChecklistItem {
+  id: number;
+  title: string;
+  done: boolean;
+  done_at: string | null;
+  done_by_name?: string | null;
+  done_by_username?: string | null;
+}
+
 const KIND_STYLE: Record<string, string> = {
   update: "border-indigo-300 bg-indigo-50 text-indigo-700",
   blocker: "border-amber-300 bg-amber-50 text-amber-800",
@@ -36,6 +45,7 @@ export default function ExecutionReportsPanel({
   projectId: number;
 }) {
   const [reports, setReports] = useState<ReportRow[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [canPost, setCanPost] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,16 +58,27 @@ export default function ExecutionReportsPanel({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/execution-reports?project_id=${projectId}`,
-        { cache: "no-store" },
-      );
-      const data = (await res.json()) as {
+      // The execution report is a detailed record: the progress feed AND the
+      // checklist the project manager assigned, so completion is shown against
+      // the actual steps to execute.
+      const [repRes, chkRes] = await Promise.all([
+        fetch(`/api/execution-reports?project_id=${projectId}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/project-tasks?project_id=${projectId}`, {
+          cache: "no-store",
+        }),
+      ]);
+      const data = (await repRes.json()) as {
         reports?: ReportRow[];
         can_post?: boolean;
       };
+      const chk = (await chkRes.json().catch(() => ({}))) as {
+        tasks?: ChecklistItem[];
+      };
       setReports(data.reports ?? []);
       setCanPost(!!data.can_post);
+      setChecklist(chk.tasks ?? []);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -100,12 +121,71 @@ export default function ExecutionReportsPanel({
   return (
     <section className="rounded-2xl border border-magic-border bg-white p-5">
       <h2 className="text-lg font-semibold text-magic-ink mb-1">
-        Execution reports
+        Execution report
       </h2>
       <p className="text-xs text-magic-ink/60 mb-3">
-        Progress updates and feedback from the assigned technicians /
-        engineers.
+        The assigned member's checklist progress and the running feed of
+        updates, blockers and completion notes.
       </p>
+
+      {/* Checklist roll-up — the report is detailed against the steps the
+          project manager assigned. */}
+      {checklist.length > 0 &&
+        (() => {
+          const total = checklist.length;
+          const done = checklist.filter((t) => t.done).length;
+          const pct = Math.round((done / total) * 100);
+          return (
+            <div className="mb-4 rounded-lg border border-magic-border bg-magic-soft/20 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wide text-magic-ink/60">
+                  Checklist
+                </span>
+                <span className="text-xs font-semibold tabular-nums text-magic-ink/70">
+                  {done}/{total} · {pct}%
+                </span>
+              </div>
+              <div className="mb-2.5 h-2 overflow-hidden rounded-full bg-magic-soft">
+                <div
+                  className={`h-full rounded-full ${pct >= 100 ? "bg-emerald-500" : "bg-violet-500"}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <ul className="space-y-1">
+                {checklist.map((t) => (
+                  <li key={t.id} className="flex items-center gap-2 text-xs">
+                    <span
+                      className={`inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
+                        t.done
+                          ? "bg-emerald-500 text-white"
+                          : "border border-magic-border text-transparent"
+                      }`}
+                    >
+                      ✓
+                    </span>
+                    <span
+                      className={
+                        t.done
+                          ? "text-magic-ink/45 line-through"
+                          : "text-magic-ink/80"
+                      }
+                    >
+                      {t.title}
+                    </span>
+                    {t.done && (t.done_by_name || t.done_by_username) && (
+                      <span className="ml-auto text-[10px] text-magic-ink/35">
+                        {t.done_by_name || t.done_by_username}
+                        {t.done_at
+                          ? ` · ${new Date(t.done_at).toLocaleDateString()}`
+                          : ""}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
 
       {canPost && (
         <div className="mb-4 rounded-lg border border-dashed border-magic-border bg-magic-soft/30 p-3 space-y-2">

@@ -23,7 +23,10 @@ interface Task {
 
 export default function ProjectTasksPanel({ projectId }: { projectId: number }) {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [canEdit, setCanEdit] = useState(false);
+  // `canCheck` — tick items done (assigned technician / engineer).
+  // `canAuthor` — add / delete steps (project manager / owner / admin only).
+  const [canCheck, setCanCheck] = useState(false);
+  const [canAuthor, setCanAuthor] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -37,12 +40,14 @@ export default function ProjectTasksPanel({ projectId }: { projectId: number }) 
       });
       const body = (await res.json()) as {
         tasks?: Task[];
-        can_edit?: boolean;
+        can_check?: boolean;
+        can_author?: boolean;
         error?: string;
       };
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
       setTasks(body.tasks ?? []);
-      setCanEdit(Boolean(body.can_edit));
+      setCanCheck(Boolean(body.can_check));
+      setCanAuthor(Boolean(body.can_author));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -55,7 +60,7 @@ export default function ProjectTasksPanel({ projectId }: { projectId: number }) 
   }, [load]);
 
   async function toggle(task: Task) {
-    if (!canEdit) return;
+    if (!canCheck) return;
     const next = !task.done;
     setTasks((prev) =>
       prev.map((t) => (t.id === task.id ? { ...t, done: next } : t)),
@@ -150,7 +155,9 @@ export default function ProjectTasksPanel({ projectId }: { projectId: number }) 
       ) : tasks.length === 0 ? (
         <p className="py-2 text-sm italic text-magic-ink/50">
           No checklist items yet.
-          {canEdit ? " Add the steps to execute below." : ""}
+          {canAuthor
+            ? " Add the steps below — they'll reach the assigned member."
+            : " Your project manager will assign the steps to execute."}
         </p>
       ) : (
         <ul className="space-y-1.5">
@@ -162,7 +169,7 @@ export default function ProjectTasksPanel({ projectId }: { projectId: number }) 
               <input
                 type="checkbox"
                 checked={t.done}
-                disabled={!canEdit}
+                disabled={!canCheck}
                 onChange={() => toggle(t)}
                 className="h-4 w-4 shrink-0 rounded border-magic-border text-magic-red focus:ring-magic-red disabled:opacity-50"
               />
@@ -180,7 +187,7 @@ export default function ProjectTasksPanel({ projectId }: { projectId: number }) 
                   {t.done_by_name || t.done_by_username}
                 </span>
               )}
-              {canEdit && (
+              {canAuthor && (
                 <button
                   type="button"
                   onClick={() => remove(t.id)}
@@ -195,7 +202,7 @@ export default function ProjectTasksPanel({ projectId }: { projectId: number }) 
         </ul>
       )}
 
-      {canEdit && (
+      {canAuthor && (
         <form onSubmit={addTask} className="mt-3 flex items-center gap-2">
           <input
             value={newTitle}

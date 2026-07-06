@@ -51,6 +51,18 @@ const ROLES: Array<[string, string]> = [
   ["engineer", "Engineer"],
   ["manager", "Manager"],
 ];
+
+/** The role follows the assignee — derived from their project grants, so the
+ *  PM never re-selects it. Prefers technician, then engineer, then manager. */
+function roleForAssignee(a?: { project_roles: string | null }): string {
+  const roles = (a?.project_roles || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase());
+  if (roles.includes("technical")) return "technical";
+  if (roles.includes("engineer")) return "engineer";
+  if (roles.includes("manager")) return "manager";
+  return "technical";
+}
 const STATUSES: Array<[string, string]> = [
   ["assigned", "Assigned"],
   ["in_progress", "In progress"],
@@ -350,30 +362,31 @@ export default function ProjectDistribution({
             <select
               className={inputCls}
               value={form.user_id}
-              onChange={(e) => set("user_id", e.target.value)}
+              onChange={(e) => {
+                // The role follows the person — a technician is assigned as a
+                // technician, an engineer as an engineer — so there is nothing
+                // to re-select.
+                const uid = e.target.value;
+                const a = assignees.find((x) => String(x.id) === uid);
+                setForm((f) => ({ ...f, user_id: uid, role: roleForAssignee(a) }));
+              }}
               required
             >
               <option value="">Select a technician / engineer…</option>
               {assignees.map((a) => (
                 <option key={a.id} value={a.id}>
                   {(a.display_name?.trim() || a.username) +
-                    (a.project_roles ? ` (${a.project_roles})` : "")}
+                    ` — ${ROLES.find(([v]) => v === roleForAssignee(a))?.[1] ?? "Technician"}`}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="Role">
-            <select
-              className={inputCls}
-              value={form.role}
-              onChange={(e) => set("role", e.target.value)}
-            >
-              {ROLES.map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
+          <Field label="Assigned as">
+            <div className={`${inputCls} bg-magic-soft/40 text-magic-ink/70`}>
+              {form.user_id
+                ? ROLES.find(([v]) => v === form.role)?.[1] ?? "Technician"
+                : "—"}
+            </div>
           </Field>
           <Field label="Start date">
             <input

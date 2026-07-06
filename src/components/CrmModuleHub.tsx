@@ -338,6 +338,15 @@ export default function CrmModuleHub({
 
   const tone = TONES[tab];
 
+  // Client cards (Company / Individual) are for people who OWN client work —
+  // sales, presales, and project managers who distribute. A pure technician /
+  // engineer never creates a company or client: the client context is
+  // auto-created upstream and arrives with their execution request, so on the
+  // Projects tool they see only "My projects".
+  const showClients =
+    TOOLS_WITH_CLIENTS.has(tab) &&
+    (tab !== "projects" || flags.projectsManager);
+
   return (
     <div className="space-y-5">
       {/* Tab strip — only meaningful when the user has more than one tool. */}
@@ -376,7 +385,7 @@ export default function CrmModuleHub({
           sales / presales / projects work. The workflow tool cards below
           (New leads, Pricing sheets, …) are additional tools layered on
           top, so they render after the clients. */}
-      {TOOLS_WITH_CLIENTS.has(tab) && (
+      {showClients && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-bold uppercase tracking-wide text-magic-ink/55">
@@ -416,7 +425,7 @@ export default function CrmModuleHub({
 
       {/* Workflow tool cards — additional tools for the role. */}
       <div className="space-y-3">
-        {TOOLS_WITH_CLIENTS.has(tab) && (
+        {showClients && (
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-bold uppercase tracking-wide text-magic-ink/55">
               Tools
