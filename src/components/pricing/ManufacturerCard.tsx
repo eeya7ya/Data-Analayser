@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Factory, FolderOpen, ArrowRight, Trash2, Tag } from "lucide-react";
+import { useState } from "react";
+import {
+  Factory,
+  FolderOpen,
+  ArrowRight,
+  Trash2,
+  Tag,
+  AlertTriangle,
+} from "lucide-react";
 import { cn } from "@/lib/pricing/utils";
 import { getManufacturerColor } from "@/lib/pricing/manufacturerColors";
 
@@ -25,6 +33,12 @@ export function ManufacturerCard({ id, name, color, tag, projectCount, ownerUser
       ? `/pricing/manufacturer/${id}?owner=${ownerUserId}`
       : `/pricing/manufacturer/${id}`;
 
+  // Two-stage delete confirmation (0 = idle, 1 = confirm, 2 = final confirm).
+  const [stage, setStage] = useState<0 | 1 | 2>(0);
+  const [busy, setBusy] = useState(false);
+
+  const projLabel = `${projectCount} ${projectCount === 1 ? "sheet" : "sheets"}`;
+
   return (
     <div
       className={cn(
@@ -35,20 +49,83 @@ export function ManufacturerCard({ id, name, color, tag, projectCount, ownerUser
         "hover:border-cyan-200 hover:shadow-lg hover:shadow-gray-200"
       )}
     >
-      {/* Delete button (admin only) */}
-      {onDelete && (
+      {/* Delete button — always visible, muted until hover. */}
+      {onDelete && stage === 0 && (
         <button
           type="button"
+          aria-label={`Delete ${name}`}
           onClick={(e) => {
             e.preventDefault();
-            if (confirm(`Delete "${name}" and all its data?`)) {
-              onDelete(id);
-            }
+            setStage(1);
           }}
-          className="absolute right-3 top-3 rounded-lg p-1.5 text-gray-300 opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500"
+          className="absolute right-3 top-3 z-10 rounded-lg p-1.5 text-gray-300 transition-all hover:bg-rose-50 hover:text-rose-500"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="h-4 w-4" />
         </button>
+      )}
+
+      {/* Two-stage delete confirmation overlay */}
+      {onDelete && stage > 0 && (
+        <div className="absolute inset-0 z-20 flex flex-col justify-center rounded-2xl border border-rose-200 bg-white/97 p-5 backdrop-blur-sm">
+          <div className="mb-2 flex items-center gap-2 text-rose-600">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+            <span className="text-sm font-semibold">
+              {stage === 1 ? "Delete this manufacturer?" : "Are you sure?"}
+            </span>
+          </div>
+          <p className="mb-4 text-xs leading-relaxed text-gray-600">
+            {stage === 1 ? (
+              <>
+                <span className="font-semibold text-gray-800">{name}</span> and
+                its {projLabel} will be removed from your dashboard.
+              </>
+            ) : (
+              <>
+                This removes{" "}
+                <span className="font-semibold text-gray-800">{name}</span>{" "}
+                and its {projLabel}. Click confirm to proceed.
+              </>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault();
+                setStage(0);
+              }}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            {stage === 1 ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setStage(2);
+                }}
+                className="rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-rose-600"
+              >
+                Delete
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setBusy(true);
+                  onDelete(id);
+                }}
+                className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-rose-700 disabled:opacity-60"
+              >
+                {busy ? "Deleting…" : "Yes, delete"}
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Icon */}

@@ -350,7 +350,7 @@ export default function DashboardPage() {
                 tag={m.tag}
                 projectCount={m.projectCount}
                 ownerUserId={m.ownerUserId}
-                onDelete={isAdmin ? handleDelete : undefined}
+                onDelete={handleDelete}
               />
             </div>
           ))}

@@ -442,8 +442,15 @@ export function PricingSheet({
     });
     if (res.ok) {
       const project = await res.json();
-      await loadProjects();
+      // Render the new project immediately — insert it into the list and
+      // select it now, then reconcile ordering/fields from the server in the
+      // background. Previously we awaited a full refetch before anything
+      // showed, so a new project appeared to "not render immediately".
+      setProjects((prev) =>
+        prev.some((p) => p.id === project.id) ? prev : [...prev, project],
+      );
       setSelectedProjectId(project.id);
+      loadProjects();
     }
   }, [manufacturerId, ownerUserId, loadProjects]);
 
