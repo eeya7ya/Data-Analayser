@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
     const q = sql();
     const rows = (await q`
       select p.owner_id, p.name as project_name,
-             cf.name as folder_name, cf.client_email, cf.client_company,
-             co.name as company_name
+             cf.name as folder_name, cf.client_email, cf.client_phone,
+             cf.client_company, co.name as company_name
       from projects p
       join client_folders cf on cf.id = p.folder_id
       left join companies co on co.id = cf.company_id
@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
       project_name: string;
       folder_name: string;
       client_email: string | null;
+      client_phone: string | null;
       client_company: string | null;
       company_name: string | null;
     }>;
@@ -62,10 +63,12 @@ export async function GET(req: NextRequest) {
 
     const assignees = (await q`
       select u.id, u.username, u.display_name,
-        (select string_agg(distinct r.role, ',')
-           from user_module_roles r
-           where r.user_id = u.id and r.module = 'projects'
-             and r.revoked_at is null) as project_roles
+        (select string_agg(role, ',') from (
+           select distinct r.role
+             from user_module_roles r
+            where r.user_id = u.id and r.module = 'projects'
+              and r.revoked_at is null
+         ) roles_sub) as project_roles
       from users u
       where exists (
         select 1 from user_module_roles r2
@@ -81,6 +84,7 @@ export async function GET(req: NextRequest) {
         client_name: r.folder_name || "",
         contact_name: r.folder_name || "",
         contact_email: r.client_email || "",
+        contact_phone: r.client_phone || "",
         location: "",
       },
       assignees,

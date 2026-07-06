@@ -502,6 +502,7 @@ CREATE TABLE IF NOT EXISTS "project_assignments" (
   "client_name" TEXT,
   "contact_name" TEXT,
   "contact_email" TEXT,
+  "contact_phone" TEXT,
   PRIMARY KEY ("id")
 );
 
@@ -874,6 +875,7 @@ ALTER TABLE "project_assignments" ADD COLUMN "company_name" TEXT;
 ALTER TABLE "project_assignments" ADD COLUMN "client_name" TEXT;
 ALTER TABLE "project_assignments" ADD COLUMN "contact_name" TEXT;
 ALTER TABLE "project_assignments" ADD COLUMN "contact_email" TEXT;
+ALTER TABLE "project_assignments" ADD COLUMN "contact_phone" TEXT;
 -- Per-manufacturer pricing defaults (decimals; NULL = fall back to globals).
 ALTER TABLE "pricing_manufacturers" ADD COLUMN "default_shipping_rate" REAL;
 ALTER TABLE "pricing_manufacturers" ADD COLUMN "default_customs_rate" REAL;

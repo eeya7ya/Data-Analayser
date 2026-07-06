@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { UserPlus, ClipboardList, Trash2, Send } from "lucide-react";
+import {
+  UserPlus,
+  ClipboardList,
+  Trash2,
+  Send,
+  MapPin,
+  CalendarDays,
+  Flag,
+} from "lucide-react";
 import { confirmDelete } from "@/lib/confirmDelete";
 import Spinner from "@/components/Spinner";
 
@@ -35,6 +43,7 @@ interface Distribution {
   client_name: string | null;
   contact_name: string | null;
   contact_email: string | null;
+  contact_phone: string | null;
 }
 
 const ROLES: Array<[string, string]> = [
@@ -54,6 +63,7 @@ interface FormState {
   client_name: string;
   contact_name: string;
   contact_email: string;
+  contact_phone: string;
   location: string;
   user_id: string;
   role: string;
@@ -69,6 +79,7 @@ const BLANK: FormState = {
   client_name: "",
   contact_name: "",
   contact_email: "",
+  contact_phone: "",
   location: "",
   user_id: "",
   role: "technical",
@@ -118,6 +129,7 @@ export default function ProjectDistribution({
         client_name: f.client_name || ctx.prefill?.client_name || "",
         contact_name: f.contact_name || ctx.prefill?.contact_name || "",
         contact_email: f.contact_email || ctx.prefill?.contact_email || "",
+        contact_phone: f.contact_phone || ctx.prefill?.contact_phone || "",
         location: f.location || ctx.prefill?.location || "",
       }));
     } catch (err) {
@@ -153,6 +165,7 @@ export default function ProjectDistribution({
           client_name: form.client_name || null,
           contact_name: form.contact_name || null,
           contact_email: form.contact_email || null,
+          contact_phone: form.contact_phone || null,
           location: form.location || null,
           start_date: form.start_date || null,
           end_date: form.end_date || null,
@@ -168,6 +181,7 @@ export default function ProjectDistribution({
         client_name: f.client_name,
         contact_name: f.contact_name,
         contact_email: f.contact_email,
+        contact_phone: f.contact_phone,
         location: f.location,
       }));
       await load();
@@ -197,6 +211,7 @@ export default function ProjectDistribution({
           client_name: d.client_name,
           contact_name: d.contact_name,
           contact_email: d.contact_email,
+          contact_phone: d.contact_phone,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
@@ -282,15 +297,50 @@ export default function ProjectDistribution({
               onChange={(e) => set("contact_email", e.target.value)}
             />
           </Field>
-          <Field label="Location / site">
+          <Field label="Phone">
             <input
               className={inputCls}
-              value={form.location}
-              onChange={(e) => set("location", e.target.value)}
-              placeholder="Site address / area"
+              value={form.contact_phone}
+              onChange={(e) => set("contact_phone", e.target.value)}
             />
           </Field>
+          <Field label="Location / site">
+            <div className="flex gap-1.5">
+              <input
+                className={inputCls}
+                value={form.location}
+                onChange={(e) => set("location", e.target.value)}
+                placeholder="Site address / area"
+              />
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  form.location || form.company_name || "",
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Pick / view on Google Maps"
+                className="inline-flex flex-shrink-0 items-center justify-center rounded-lg border border-magic-border bg-white px-2.5 text-magic-ink/60 transition-colors hover:border-magic-red/50 hover:text-magic-red"
+              >
+                <MapPin className="h-4 w-4" />
+              </a>
+            </div>
+          </Field>
         </div>
+
+        {/* Free, keyless Google Maps preview of the typed location. */}
+        {form.location.trim() && (
+          <div className="mt-3 overflow-hidden rounded-xl border border-magic-border">
+            <iframe
+              title="Site location"
+              className="h-48 w-full"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                form.location,
+              )}&z=14&output=embed`}
+            />
+          </div>
+        )}
 
         <div className="my-4 h-px bg-magic-border" />
 
@@ -426,10 +476,29 @@ export default function ProjectDistribution({
                         {d.scope_of_work}
                       </p>
                     )}
-                    <p className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-magic-ink/45">
-                      {d.location && <span>📍 {d.location}</span>}
-                      {d.start_date && <span>▶ {d.start_date}</span>}
-                      {d.end_date && <span>🎯 {d.end_date}</span>}
+                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-magic-ink/45">
+                      {d.location && (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                            d.location,
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 hover:text-magic-red"
+                        >
+                          <MapPin className="h-3 w-3" /> {d.location}
+                        </a>
+                      )}
+                      {d.start_date && (
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays className="h-3 w-3" /> {d.start_date}
+                        </span>
+                      )}
+                      {d.end_date && (
+                        <span className="inline-flex items-center gap-1">
+                          <Flag className="h-3 w-3" /> {d.end_date}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
