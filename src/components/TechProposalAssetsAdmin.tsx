@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { AppSettings } from "@/lib/settings";
-import { DEFAULT_TECH_PROPOSAL_ASSETS } from "@/lib/settings";
+import { DEFAULT_TECH_PROPOSAL_ASSETS } from "@/lib/techProposalAssets";
 import EditableImage from "./EditableImage";
 
 /**

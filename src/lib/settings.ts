@@ -5,6 +5,18 @@ import {
   sanitizeBrandVariants,
   type BrandVariant,
 } from "./brandVariants";
+import {
+  DEFAULT_TECH_PROPOSAL_ASSETS,
+  type TechProposalAssets,
+} from "./techProposalAssets";
+
+// Re-export so existing server-side importers of `@/lib/settings` keep working.
+// Client components must import these from `@/lib/techProposalAssets` directly
+// (importing them from here would bundle the server-only DB layer).
+export {
+  DEFAULT_TECH_PROPOSAL_ASSETS,
+  type TechProposalAssets,
+} from "./techProposalAssets";
 
 /**
  * Global, admin-editable presets for every printable quotation.
@@ -13,27 +25,6 @@ import {
  *   quotation is created or a saved quotation has no stored terms.
  * - `footerText` is rendered at the bottom of every printable sheet.
  */
-/**
- * Company-level images reused on every Technical Proposal. Admin uploads them
- * once here (compressed data URLs, like the brand artwork); each proposal falls
- * back to the central image when its own per-proposal override is empty.
- * Project-specific images (network/CCTV diagram, storage screenshot, note)
- * stay per-proposal and are NOT here.
- */
-export interface TechProposalAssets {
-  authorizedCert: string;
-  teamCerts: string;
-  pmCert: string;
-  references: string;
-}
-
-export const DEFAULT_TECH_PROPOSAL_ASSETS: TechProposalAssets = {
-  authorizedCert: "",
-  teamCerts: "",
-  pmCert: "",
-  references: "",
-};
-
 export interface AppSettings {
   defaultTerms: string[];
   footerText: string;
@@ -43,7 +34,7 @@ export interface AppSettings {
    * so picking a logo in the Designer prints its matching company profile.
    */
   brandVariants: BrandVariant[];
-  /** Central company images for the Technical Proposal (see the type above). */
+  /** Central company images for the Technical Proposal (see techProposalAssets.ts). */
   techProposalAssets: TechProposalAssets;
 }
 
