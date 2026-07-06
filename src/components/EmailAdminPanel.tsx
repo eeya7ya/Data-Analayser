@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { confirmDelete } from "@/lib/confirmDelete";
 
 type Encryption = "ssl_tls" | "starttls";
 
@@ -168,7 +169,7 @@ export default function EmailAdminPanel() {
   }
 
   async function removeAccount(userId: number) {
-    if (!window.confirm("Remove this user's mailbox assignment?")) return;
+    if (!confirmDelete("Remove this user's mailbox assignment?")) return;
     await fetch(`/api/admin/email/accounts?user_id=${userId}`, {
       method: "DELETE",
     });

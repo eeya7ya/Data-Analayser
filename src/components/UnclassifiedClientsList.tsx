@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { confirmDelete } from "@/lib/confirmDelete";
 
 export interface UnclassifiedFolderRow {
   id: number;
@@ -32,8 +33,8 @@ export default function UnclassifiedClientsList({
 
   async function softDelete(id: number) {
     if (
-      !window.confirm(
-        "Delete this folder? It moves to Trash and can be restored from there.",
+      !confirmDelete(
+        "Permanently delete this folder and everything filed under it?",
       )
     )
       return;

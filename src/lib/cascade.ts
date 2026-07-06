@@ -91,6 +91,46 @@ export async function cascadeSoftDeleteFolder(
   `;
 }
 
+/**
+ * Permanently delete everything filed under a single client folder — the hard
+ * counterpart of cascadeSoftDeleteFolder. Leads are DETACHED (kept live in the
+ * presales queue), never deleted, exactly as in the soft cascade. Everything
+ * else under the folder is removed regardless of prior trash state, so nothing
+ * is recoverable afterwards.
+ */
+export async function cascadeHardDeleteFolder(
+  q: Q,
+  folderId: number,
+): Promise<void> {
+  // Detach — never delete — any lead filed under (or opened against) this
+  // folder. The lead survives in the presales queue; only the dead links go.
+  await q`
+    update leads set
+      folder_id = case when folder_id = ${folderId} then null else folder_id end,
+      project_id = case
+        when project_id in (select id from projects where folder_id = ${folderId})
+        then null else project_id end,
+      sales_project_id = case
+        when sales_project_id in (select id from projects where folder_id = ${folderId})
+        then null else sales_project_id end,
+      updated_at = now()
+    where folder_id = ${folderId}
+       or project_id in (select id from projects where folder_id = ${folderId})
+       or sales_project_id in (select id from projects where folder_id = ${folderId})
+  `;
+  await q`
+    delete from project_files
+    where project_id in (select id from projects where folder_id = ${folderId})
+  `;
+  await q`
+    delete from purchase_orders
+    where folder_id = ${folderId}
+       or project_id in (select id from projects where folder_id = ${folderId})
+  `;
+  await q`delete from quotations where folder_id = ${folderId}`;
+  await q`delete from projects where folder_id = ${folderId}`;
+}
+
 /** Restore everything trashed alongside a folder (±2s of its timestamp). */
 export async function cascadeRestoreFolder(
   q: Q,

@@ -10,6 +10,7 @@ import {
 } from "react";
 import Link from "next/link";
 import Spinner from "@/components/Spinner";
+import { confirmDelete } from "@/lib/confirmDelete";
 import QuotationRowActions from "@/components/QuotationRowActions";
 import RequestQuotationButton from "@/components/RequestQuotationButton";
 import ProjectDistribution from "@/components/ProjectDistribution";
@@ -865,8 +866,8 @@ function ProjectHeader({
 
   const remove = useCallback(async () => {
     if (
-      !confirm(
-        `Delete project "${project.name}"? Quotations and POs filed under it will become unfiled.`,
+      !confirmDelete(
+        `Permanently delete project "${project.name}"? Quotations and POs filed under it will become unfiled.`,
       )
     ) {
       return;
@@ -1679,7 +1680,7 @@ function FileRowItem({
   );
 
   const remove = useCallback(async () => {
-    if (!confirm(`Delete "${file.filename}"? This cannot be undone.`)) return;
+    if (!confirmDelete(`Permanently delete "${file.filename}"?`)) return;
     setBusy("delete");
     try {
       const res = await fetch(`/api/project-files/${file.id}`, {

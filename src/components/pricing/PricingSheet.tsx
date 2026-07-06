@@ -9,6 +9,7 @@ import { ProductTable } from "./ProductTable";
 import { PricingCharts } from "./PricingCharts";
 import { ConvertToQuotationDialog } from "./ConvertToQuotationDialog";
 import { type Constants, DEFAULT_CONSTANTS } from "@/lib/pricing/calculations";
+import { confirmDelete } from "@/lib/confirmDelete";
 import { exportToCsv, exportToPrint } from "@/lib/pricing/export";
 
 interface Project {
@@ -531,7 +532,7 @@ export function PricingSheet({
   const handleDeleteProject = useCallback(async () => {
     if (!selectedProjectId) return;
     const project = projects.find((p) => p.id === selectedProjectId);
-    if (!confirm(`Move "${project?.name ?? "this project"}" to trash?`)) return;
+    if (!confirmDelete(`Permanently delete "${project?.name ?? "this project"}" and all its lines?`)) return;
     const res = await fetch(`/api/pricing/projects/${selectedProjectId}`, { method: "DELETE" });
     if (res.ok) {
       setSelectedProjectId(null);

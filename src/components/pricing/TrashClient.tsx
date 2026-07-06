@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { confirmDelete } from "@/lib/confirmDelete";
 import {
   Trash2,
   RotateCcw,
@@ -64,7 +65,7 @@ export default function TrashPage() {
   };
 
   const deleteManufacturerForever = async (id: number) => {
-    if (!confirm("Permanently delete this manufacturer and ALL its projects? This cannot be undone.")) return;
+    if (!confirmDelete("Permanently delete this manufacturer and ALL its projects?")) return;
     setBusy(`mfg-${id}`);
     try {
       await fetch(`/api/pricing/trash/manufacturers/${id}`, { method: "DELETE" });
@@ -85,7 +86,7 @@ export default function TrashPage() {
   };
 
   const deleteProjectForever = async (id: number) => {
-    if (!confirm("Permanently delete this project? This cannot be undone.")) return;
+    if (!confirmDelete("Permanently delete this project?")) return;
     setBusy(`proj-${id}`);
     try {
       await fetch(`/api/pricing/trash/projects/${id}`, { method: "DELETE" });

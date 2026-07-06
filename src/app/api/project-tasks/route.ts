@@ -226,7 +226,8 @@ export async function DELETE(req: NextRequest) {
     if (!(await canEdit(q, project, user))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
-    await q`update project_tasks set deleted_at = now() where id = ${id}`;
+    // Permanent delete (no Trash). Not recoverable.
+    await q`delete from project_tasks where id = ${id}`;
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });

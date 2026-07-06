@@ -1226,17 +1226,13 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
+    // Permanent delete (no Trash). Postgres cascades child rows via ON DELETE
+    // CASCADE; D1 has no FK enforcement so those children simply orphan
+    // harmlessly (they are only ever read through the quotation).
     if (useD1) {
-      const nowIso = new Date().toISOString();
-      await d1Query(
-        `update quotations set deleted_at = ?, updated_at = ? where id = ?`,
-        [nowIso, nowIso, id],
-      );
+      await d1Query(`delete from quotations where id = ?`, [id]);
     } else {
-      await q!`
-        update quotations set deleted_at = now(), updated_at = now()
-        where id = ${id}
-      `;
+      await q!`delete from quotations where id = ${id}`;
     }
 
     return NextResponse.json({ ok: true });

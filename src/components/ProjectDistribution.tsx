@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { UserPlus, ClipboardList, Trash2, Send } from "lucide-react";
+import { confirmDelete } from "@/lib/confirmDelete";
 import Spinner from "@/components/Spinner";
 
 /**
@@ -206,7 +207,7 @@ export default function ProjectDistribution({
   }
 
   async function remove(d: Distribution) {
-    if (!window.confirm(`Remove ${d.username} from this project?`)) return;
+    if (!confirmDelete(`Remove ${d.username} from this project?`)) return;
     try {
       const res = await fetch("/api/project-assignments", {
         method: "PATCH",

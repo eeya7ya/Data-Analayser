@@ -6,7 +6,7 @@ import { requireCrmClientWrite, requireCrmOrProjectsRead } from "@/lib/modules";
 import { assignedFolderIds } from "@/lib/projectAccess";
 import { ensureDefaultProject } from "@/lib/projects";
 import { findCrossKindConflicts } from "@/lib/crmNames";
-import { cascadeSoftDeleteFolder } from "@/lib/cascade";
+import { cascadeHardDeleteFolder } from "@/lib/cascade";
 
 export const runtime = "nodejs";
 
@@ -463,19 +463,12 @@ export async function DELETE(req: NextRequest) {
     if (user.role !== "admin" && owned[0].owner_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    // Soft delete: stamp the folder AND its entire subtree (projects,
-    // quotations, leads, purchase orders, project files) with the SAME
-    // deleted_at so nothing is left orphaned in a list — a deleted client's
-    // lead used to linger in the lead queue because only its quotations
-    // cascaded. The shared timestamp lets the trash UI group + restore them
-    // together.
-    const ts = new Date().toISOString();
-    await cascadeSoftDeleteFolder(q, id, ts);
-    await q`
-      update client_folders
-      set deleted_at = ${ts}, updated_at = now()
-      where id = ${id}
-    `;
+    // Permanent delete (no Trash). Remove the folder AND its entire subtree
+    // (projects, quotations, purchase orders, project files) for good. Leads
+    // are DETACHED, never deleted — a presales lead lives in the shared queue
+    // on its own lifecycle and must survive a client being removed.
+    await cascadeHardDeleteFolder(q, id);
+    await q`delete from client_folders where id = ${id}`;
     revalidatePath("/quotation");
     revalidatePath("/designer");
     return NextResponse.json({ ok: true });

@@ -295,13 +295,12 @@ export async function DELETE(req: NextRequest) {
     if (user.role !== "admin" && owned[0].owner_id !== user.id) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
-    await q`
-      update projects set deleted_at = now(), updated_at = now()
-      where id = ${id}
-    `;
     // Keep any presales lead opened against this project alive in the queue —
-    // sever its (now dead) project link instead of letting it silently vanish.
+    // sever its project link first (on D1 there is no FK to null it out on
+    // delete), then permanently remove the project. Postgres cascades the
+    // remaining children via ON DELETE CASCADE / SET NULL; D1 orphans harmlessly.
     await detachLeadsFromProject(q, id);
+    await q`delete from projects where id = ${id}`;
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(

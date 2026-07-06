@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { SessionUser } from "@/lib/auth";
+import { confirmDelete } from "@/lib/confirmDelete";
 import { compressDataUrl } from "@/components/QuotationPreview";
 
 // Belt-and-braces upload cap. The compressDataUrl pass usually lands well
@@ -772,9 +773,7 @@ function EditProductModal({
   const remove = useCallback(async () => {
     if (deleting) return;
     if (
-      !confirm(
-        `Delete "${product.model}" from the catalogue? This cannot be undone.`,
-      )
+      !confirmDelete(`Permanently delete "${product.model}" from the catalogue?`)
     ) {
       return;
     }
