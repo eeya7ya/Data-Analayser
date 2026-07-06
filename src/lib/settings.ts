@@ -13,6 +13,27 @@ import {
  *   quotation is created or a saved quotation has no stored terms.
  * - `footerText` is rendered at the bottom of every printable sheet.
  */
+/**
+ * Company-level images reused on every Technical Proposal. Admin uploads them
+ * once here (compressed data URLs, like the brand artwork); each proposal falls
+ * back to the central image when its own per-proposal override is empty.
+ * Project-specific images (network/CCTV diagram, storage screenshot, note)
+ * stay per-proposal and are NOT here.
+ */
+export interface TechProposalAssets {
+  authorizedCert: string;
+  teamCerts: string;
+  pmCert: string;
+  references: string;
+}
+
+export const DEFAULT_TECH_PROPOSAL_ASSETS: TechProposalAssets = {
+  authorizedCert: "",
+  teamCerts: "",
+  pmCert: "",
+  references: "",
+};
+
 export interface AppSettings {
   defaultTerms: string[];
   footerText: string;
@@ -22,6 +43,8 @@ export interface AppSettings {
    * so picking a logo in the Designer prints its matching company profile.
    */
   brandVariants: BrandVariant[];
+  /** Central company images for the Technical Proposal (see the type above). */
+  techProposalAssets: TechProposalAssets;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -29,6 +52,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   footerText:
     "Address: Amman- Gardens street- Khawaja Complex No.65- Tel: +962 65560272 Fax: +962 65560275",
   brandVariants: [...BRAND_VARIANTS],
+  techProposalAssets: { ...DEFAULT_TECH_PROPOSAL_ASSETS },
 };
 
 const KEY = "global";
@@ -70,6 +94,19 @@ function normalize(value: unknown): AppSettings {
     // field is missing (legacy rows) or empty, so printing always has at
     // least one brand bundle to resolve against.
     brandVariants: sanitizeBrandVariants(v.brandVariants),
+    techProposalAssets: normalizeTechProposalAssets(v.techProposalAssets),
+  };
+}
+
+/** Coerce each central Technical-Proposal image to a string, defaulting to "". */
+function normalizeTechProposalAssets(value: unknown): TechProposalAssets {
+  const v = (value ?? {}) as Partial<TechProposalAssets>;
+  const s = (x: unknown) => (typeof x === "string" ? x : "");
+  return {
+    authorizedCert: s(v.authorizedCert),
+    teamCerts: s(v.teamCerts),
+    pmCert: s(v.pmCert),
+    references: s(v.references),
   };
 }
 

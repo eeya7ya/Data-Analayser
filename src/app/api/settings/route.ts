@@ -51,6 +51,16 @@ export async function PATCH(req: NextRequest) {
       // be used at print time.
       patch.brandVariants = sanitizeBrandVariants(body.brandVariants);
     }
+    if (body.techProposalAssets && typeof body.techProposalAssets === "object") {
+      const a = body.techProposalAssets as unknown as Record<string, unknown>;
+      const s = (x: unknown) => (typeof x === "string" ? x : "");
+      patch.techProposalAssets = {
+        authorizedCert: s(a.authorizedCert),
+        teamCerts: s(a.teamCerts),
+        pmCert: s(a.pmCert),
+        references: s(a.references),
+      };
+    }
     const settings = await saveAppSettings(patch);
     return NextResponse.json({ settings });
   } catch (err) {

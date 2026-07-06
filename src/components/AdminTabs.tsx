@@ -20,6 +20,7 @@ import {
 import UsersAndRolesPanel from "./UsersAndRolesPanel";
 import AdminSettings from "./AdminSettings";
 import BrandingAdmin from "./BrandingAdmin";
+import TechProposalAssetsAdmin from "./TechProposalAssetsAdmin";
 import NewsAdminPanel from "./NewsAdminPanel";
 import EmailAdminPanel from "./EmailAdminPanel";
 import SyslogPanel from "./SyslogPanel";
@@ -31,6 +32,7 @@ type Tab =
   | "email"
   | "settings"
   | "branding"
+  | "proposal"
   | "backups"
   | "syslog";
 
@@ -89,6 +91,12 @@ export default function AdminTabs({
         >
           Branding
         </TabButton>
+        <TabButton
+          active={tab === "proposal"}
+          onClick={() => setTab("proposal")}
+        >
+          Technical Proposal
+        </TabButton>
         <TabButton active={tab === "backups"} onClick={() => setTab("backups")}>
           Backups
         </TabButton>
@@ -140,6 +148,13 @@ export default function AdminTabs({
           </h2>
           <BrandingAdmin initialSettings={initialSettings} readOnly={readOnly} />
         </section>
+      )}
+
+      {tab === "proposal" && (
+        <TechProposalAssetsAdmin
+          initialSettings={initialSettings}
+          readOnly={readOnly}
+        />
       )}
 
       {tab === "backups" && <BackupsSection />}

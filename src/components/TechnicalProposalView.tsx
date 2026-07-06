@@ -104,6 +104,7 @@ interface TpOverrides {
   productOverviewExtras?: string[];
   teamCertImage?: string;
   projectManagerImage?: string;
+  referencesImage?: string;
   // references
   references?: ReferenceRow[];
   // T&C
@@ -300,6 +301,29 @@ export default function TechnicalProposalView({
   const storageKey = `mt:tp:overrides:${quotationId}`;
   const [overrides, setOverridesRaw] = useState<TpOverrides>({});
   const hydratedRef = useRef(false);
+
+  // Central, admin-managed company images (Admin → Technical Proposal). Each
+  // image below falls back to the central one when this proposal has no
+  // per-proposal override.
+  const [central, setCentral] = useState<{
+    authorizedCert: string;
+    teamCerts: string;
+    pmCert: string;
+    references: string;
+  }>({ authorizedCert: "", teamCerts: "", pmCert: "", references: "" });
+  useEffect(() => {
+    let alive = true;
+    void fetch("/api/settings", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { settings?: { techProposalAssets?: typeof central } }) => {
+        if (alive && d.settings?.techProposalAssets)
+          setCentral((c) => ({ ...c, ...d.settings!.techProposalAssets }));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Hydrate persisted overrides on mount.
   useEffect(() => {
@@ -794,7 +818,7 @@ export default function TechnicalProposalView({
               * Please note this must be requested per project.
             </p>
             <EditableImage
-              value={overrides.authorizedCertImage || ""}
+              value={overrides.authorizedCertImage || central.authorizedCert || ""}
               onChange={(v) => setOverrides({ authorizedCertImage: v })}
               placeholder="Click to upload the authorized certificate image"
               height="22rem"
@@ -1016,14 +1040,14 @@ export default function TechnicalProposalView({
             />
             <h2 className="tp-h2">Magictech Low Current Team Major Certificates</h2>
             <EditableImage
-              value={overrides.teamCertImage || ""}
+              value={overrides.teamCertImage || central.teamCerts || ""}
               onChange={(v) => setOverrides({ teamCertImage: v })}
               placeholder="Click to upload the team certificates collage"
               height="14rem"
             />
             <h2 className="tp-h2">Project Manager Certificate</h2>
             <EditableImage
-              value={overrides.projectManagerImage || ""}
+              value={overrides.projectManagerImage || central.pmCert || ""}
               onChange={(v) => setOverrides({ projectManagerImage: v })}
               placeholder="Click to upload the Project Manager's certificate"
               height="14rem"
@@ -1114,6 +1138,16 @@ export default function TechnicalProposalView({
             >
               + Add reference
             </button>
+            {(overrides.referencesImage || central.references) && (
+              <div className="mt-4">
+                <EditableImage
+                  value={overrides.referencesImage || central.references || ""}
+                  onChange={(v) => setOverrides({ referencesImage: v })}
+                  placeholder="References image"
+                  height="16rem"
+                />
+              </div>
+            )}
           </TpSheet>
 
           {/* ───── 13. General Terms and Conditions ─────────────────── */}
