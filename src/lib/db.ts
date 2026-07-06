@@ -509,6 +509,13 @@ const EXEC_CONFIRMATION_FLAG = "exec_confirmation_v1_2026_07";
  */
 const PROJECT_DISTRIBUTION_FLAG = "project_distribution_v1_2026_07";
 
+/**
+ * Incremental migration: per-manufacturer pricing defaults. Each pricing
+ * manufacturer can carry default shipping / customs / profit rates that seed
+ * the constants of every new pricing sheet created under it.
+ */
+const PRICING_MFG_DEFAULTS_FLAG = "pricing_mfg_defaults_v1_2026_07";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -622,7 +629,14 @@ async function ensureD1UniqueIndexes(): Promise<void> {
  * missing ones. NOT NULL-without-default columns are skipped (SQLite can't ADD
  * those to a non-empty table — and they're structural, so they already exist).
  */
-const D1_COLUMN_SYNC_FLAG = "d1_column_sync_v1_2026_07";
+// Bumped 2026-07-06: the exec-confirmation, project-distribution and
+// per-manufacturer pricing-default columns were added to the Postgres path only
+// (via _ensureSchemaOnce migrations) and to the D1 CREATE TABLE defs, but an
+// existing D1 database already had the v1 sync flag set — so ensureD1Columns
+// early-returned and never added them, and every pricing read/save that touched
+// pricing_projects threw "no such column". Bumping the flag forces existing D1
+// databases to re-diff and ADD the missing columns exactly once.
+const D1_COLUMN_SYNC_FLAG = "d1_column_sync_v2_2026_07";
 
 type D1ColDef = { name: string; ddl: string };
 let d1SchemaColsCache: Map<string, D1ColDef[]> | null = null;
@@ -825,6 +839,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let sequenceRealignApplied = false;
   let execConfirmationApplied = false;
   let projectDistributionApplied = false;
+  let pricingMfgDefaultsApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -844,7 +859,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${INSTALLATION_RATES_FLAG}, ${LEADS_SALES_PROJECT_FLAG},
         ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG},
         ${SEQUENCE_REALIGN_FLAG}, ${EXEC_CONFIRMATION_FLAG},
-        ${PROJECT_DISTRIBUTION_FLAG}
+        ${PROJECT_DISTRIBUTION_FLAG}, ${PRICING_MFG_DEFAULTS_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -887,6 +902,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     sequenceRealignApplied = keys.has(SEQUENCE_REALIGN_FLAG);
     execConfirmationApplied = keys.has(EXEC_CONFIRMATION_FLAG);
     projectDistributionApplied = keys.has(PROJECT_DISTRIBUTION_FLAG);
+    pricingMfgDefaultsApplied = keys.has(PRICING_MFG_DEFAULTS_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -931,7 +947,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     departmentCodeApplied &&
     sequenceRealignApplied &&
     execConfirmationApplied &&
-    projectDistributionApplied
+    projectDistributionApplied &&
+    pricingMfgDefaultsApplied
   )
     return;
 
@@ -3329,6 +3346,26 @@ async function _ensureSchemaOnce(): Promise<void> {
     );
     await q`
       insert into migration_flags (key) values (${PROJECT_DISTRIBUTION_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // Per-manufacturer pricing defaults. A pricing manufacturer can carry default
+  // shipping / customs / profit rates (stored as decimals, e.g. 0.35 = 35%)
+  // that seed the constants of every new pricing sheet under it. NULL means
+  // "fall back to the global default constants".
+  if (!pricingMfgDefaultsApplied) {
+    await q.unsafe(
+      `alter table pricing_manufacturers add column if not exists default_shipping_rate numeric`,
+    );
+    await q.unsafe(
+      `alter table pricing_manufacturers add column if not exists default_customs_rate numeric`,
+    );
+    await q.unsafe(
+      `alter table pricing_manufacturers add column if not exists default_profit_margin numeric`,
+    );
+    await q`
+      insert into migration_flags (key) values (${PRICING_MFG_DEFAULTS_FLAG})
       on conflict (key) do nothing
     `;
   }

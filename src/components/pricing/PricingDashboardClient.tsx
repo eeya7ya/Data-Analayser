@@ -30,6 +30,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  // Per-manufacturer defaults, entered as percentages (e.g. 35 = 35%).
+  const [newShipping, setNewShipping] = useState("");
+  const [newCustoms, setNewCustoms] = useState("");
+  const [newProfit, setNewProfit] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -64,6 +68,17 @@ export default function DashboardPage() {
 
   const resetForm = () => {
     setNewName("");
+    setNewShipping("");
+    setNewCustoms("");
+    setNewProfit("");
+  };
+
+  // "35" (percent) → 0.35 (decimal), blank → null (fall back to global default).
+  const pctToRate = (s: string): number | null => {
+    const t = s.trim();
+    if (!t) return null;
+    const n = parseFloat(t);
+    return Number.isFinite(n) ? n / 100 : null;
   };
 
   const handleCreate = async () => {
@@ -74,7 +89,12 @@ export default function DashboardPage() {
       const res = await fetch("/api/pricing/manufacturers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName.trim() }),
+        body: JSON.stringify({
+          name: newName.trim(),
+          defaultShippingRate: pctToRate(newShipping),
+          defaultCustomsRate: pctToRate(newCustoms),
+          defaultProfitMargin: pctToRate(newProfit),
+        }),
       });
       if (res.ok) {
         resetForm();
@@ -180,6 +200,39 @@ export default function DashboardPage() {
                   className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/20 min-w-[200px]"
                 />
               </div>
+
+              {/* Per-manufacturer default rates (percent). Left blank → the
+                  new sheet falls back to the global defaults. e.g. DSPPA
+                  Profit 35, HIKVISION Profit 20 + Shipping 10. */}
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {(
+                  [
+                    ["Profit %", newProfit, setNewProfit],
+                    ["Customs %", newCustoms, setNewCustoms],
+                    ["Shipping %", newShipping, setNewShipping],
+                  ] as const
+                ).map(([label, value, setter]) => (
+                  <div key={label} className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder={label}
+                      value={value}
+                      onChange={(e) => setter(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCreate();
+                        if (e.key === "Escape") handleCancel();
+                      }}
+                      className="w-28 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/20"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-400 text-right max-w-[320px]">
+                Optional defaults applied to every new sheet under this
+                manufacturer. Leave blank to use the global defaults.
+              </p>
 
               <div className="flex items-center gap-2">
                 <button

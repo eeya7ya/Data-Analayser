@@ -139,9 +139,39 @@ export async function POST(req: Request) {
     const project = projectRows[0];
     const projectId = project.id as number;
 
+    // Seed the constants row with the column (global) defaults, then override
+    // shipping / customs / profit with this manufacturer's per-vendor defaults
+    // where the admin set them (NULL leaves the global default in place).
     await q`
       insert into pricing_project_constants (project_id) values (${projectId})
     `;
+    const mfgDefaults = (await q`
+      select default_shipping_rate as ship, default_customs_rate as cust,
+             default_profit_margin as profit
+      from pricing_manufacturers where id = ${mfgId} limit 1
+    `) as Array<{
+      ship: number | string | null;
+      cust: number | string | null;
+      profit: number | string | null;
+    }>;
+    const md = mfgDefaults[0];
+    if (md) {
+      // Build the SET clause from only the defaults the manufacturer actually
+      // carries — no cast / coalesce, so it runs identically on Postgres and
+      // D1/SQLite (NULL leaves the seeded global default in place).
+      const constPatch: Record<string, unknown> = {};
+      if (md.ship !== null) constPatch.shipping_rate = md.ship;
+      if (md.cust !== null) constPatch.customs_rate = md.cust;
+      if (md.profit !== null) constPatch.profit_margin = md.profit;
+      const keys = Object.keys(constPatch) as Array<keyof typeof constPatch>;
+      if (keys.length > 0) {
+        await q`
+          update pricing_project_constants
+          set ${q(constPatch, ...keys)}
+          where project_id = ${projectId}
+        `;
+      }
+    }
 
     // Seed five empty product lines so the editor opens on a usable grid.
     // Explicit VALUES (not generate_series, which D1/SQLite lacks).

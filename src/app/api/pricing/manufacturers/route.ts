@@ -168,11 +168,29 @@ export async function POST(req: Request) {
     await requireModuleAllowLegacy(user, "pricing");
     await ensureSchema();
 
-    const body = (await req.json().catch(() => ({}))) as { name?: string };
+    const body = (await req.json().catch(() => ({}))) as {
+      name?: string;
+      defaultShippingRate?: number | string | null;
+      defaultCustomsRate?: number | string | null;
+      defaultProfitMargin?: number | string | null;
+    };
     const name = (body.name ?? "").trim();
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
+
+    // Per-manufacturer pricing defaults (decimals, e.g. 0.35 = 35%). A missing
+    // / blank value stays NULL — new sheets then fall back to the global
+    // default constants for that field.
+    const rate = (v: unknown): number | null => {
+      if (v === null || v === undefined || v === "") return null;
+      const n = typeof v === "number" ? v : parseFloat(String(v));
+      return Number.isFinite(n) ? n : null;
+    };
+    const dShip = rate(body.defaultShippingRate);
+    const dCust = rate(body.defaultCustomsRate);
+    const dProfit = rate(body.defaultProfitMargin);
+    const hasDefaults = dShip !== null || dCust !== null || dProfit !== null;
 
     const q = sql();
     const color = DEFAULT_USER_COLOR;
@@ -194,11 +212,22 @@ export async function POST(req: Request) {
     let manufacturer = found[0];
     if (!manufacturer) {
       const ins = (await q`
-        insert into pricing_manufacturers (name, created_by_user_id)
-        values (${name}, ${user.id})
+        insert into pricing_manufacturers
+          (name, created_by_user_id, default_shipping_rate,
+           default_customs_rate, default_profit_margin)
+        values (${name}, ${user.id}, ${dShip}, ${dCust}, ${dProfit})
         returning id, name, color, tag, created_by_user_id
       `) as Array<typeof manufacturer>;
       manufacturer = ins[0];
+    } else if (hasDefaults) {
+      // Existing manufacturer — refresh its defaults from this request.
+      await q`
+        update pricing_manufacturers
+        set default_shipping_rate = ${dShip},
+            default_customs_rate = ${dCust},
+            default_profit_margin = ${dProfit}
+        where id = ${manufacturer.id}
+      `;
     }
 
     // Existing pin (even if soft-deleted) ↔ user.

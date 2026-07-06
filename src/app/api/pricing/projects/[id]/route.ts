@@ -30,7 +30,7 @@ async function loadProjectIfAllowed(
   const rows = (await q`
     select id, name, date, responsible_person, manufacturer_id,
            user_id, parent_project_id, revision_number,
-           created_at, deleted_at, exec_status, exec_reject_reason
+           created_at, deleted_at
     from pricing_projects
     where id = ${projectId} and deleted_at is null
     limit 1
