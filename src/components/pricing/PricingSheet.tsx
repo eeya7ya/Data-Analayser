@@ -170,7 +170,19 @@ export function PricingSheet({
       setLoading(true);
       try {
         const res = await fetch(`/api/pricing/projects/${selectedProjectId}`);
-        if (!res.ok || cancelled) return;
+        if (cancelled) return;
+        if (!res.ok) {
+          // Never leave the *previous* project's rows/constants on screen when
+          // a switch fails — that's what made a failed load look like "the same
+          // selected items" under a different project. Clear to a blank sheet.
+          setRows([]);
+          setConstants(DEFAULT_CONSTANTS);
+          setProjectName("");
+          setProjectDate("");
+          setResponsiblePerson("");
+          setExecStatus("none");
+          return;
+        }
         const data = await res.json();
 
         if (cancelled) return;

@@ -19,6 +19,7 @@ interface ProjectRow {
   revision_number: number;
   created_at: string;
   deleted_at: string | null;
+  exec_status: string | null;
 }
 
 async function loadProjectIfAllowed(
@@ -30,7 +31,7 @@ async function loadProjectIfAllowed(
   const rows = (await q`
     select id, name, date, responsible_person, manufacturer_id,
            user_id, parent_project_id, revision_number,
-           created_at, deleted_at
+           created_at, deleted_at, exec_status
     from pricing_projects
     where id = ${projectId} and deleted_at is null
     limit 1
