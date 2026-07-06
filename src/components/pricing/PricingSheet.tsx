@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Save, Plus, Trash2, Download, FileSpreadsheet, Printer, FolderMinus, GitBranch, FileSignature, ClipboardPaste } from "lucide-react";
+import { Save, Plus, Trash2, Download, FileSpreadsheet, Printer, FolderMinus, GitBranch, FileSignature, ClipboardPaste, BadgeCheck } from "lucide-react";
 import PageLoader from "@/components/PageLoader";
 import { ProjectSelector } from "./ProjectSelector";
 import { ConstantsPanel } from "./ConstantsPanel";
@@ -80,6 +80,9 @@ export function PricingSheet({
   const [projectName, setProjectName] = useState("");
   const [projectDate, setProjectDate] = useState("");
   const [responsiblePerson, setResponsiblePerson] = useState("");
+  // Executive-manager confirmation state for the selected sheet.
+  const [execStatus, setExecStatus] = useState<string>("none");
+  const [submittingExec, setSubmittingExec] = useState(false);
 
   // Track whether we've done the initial project auto-select
   const initialSelectDone = useRef(false);
@@ -156,6 +159,7 @@ export function PricingSheet({
           setProjectName(data.project.name ?? "");
           setProjectDate(data.project.date ?? "");
           setResponsiblePerson(data.project.responsiblePerson ?? "");
+          setExecStatus((data.project.exec_status as string) ?? "none");
         }
 
         if (data.constants) {
@@ -291,6 +295,30 @@ export function PricingSheet({
     rows,
     loadProjects,
   ]);
+
+  // Submit this pricing sheet to the executive manager for confirmation.
+  const handleSubmitExec = useCallback(async () => {
+    if (!selectedProjectId) return;
+    setSubmittingExec(true);
+    try {
+      const res = await fetch("/api/executive/confirmations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "pricing",
+          id: selectedProjectId,
+          action: "submit",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to submit");
+      setExecStatus("pending");
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setSubmittingExec(false);
+    }
+  }, [selectedProjectId]);
 
   // Convert this pricing project into a fresh active quotation in the
   // host's quotation system, then hand the user off to the Designer.
@@ -570,6 +598,23 @@ export function PricingSheet({
               >
                 <Save className="h-3.5 w-3.5" />
                 {saving ? "Saving…" : "Save"}
+              </button>
+              <button
+                onClick={handleSubmitExec}
+                disabled={submittingExec || execStatus === "pending"}
+                title="Submit this pricing sheet to the executive manager for confirmation"
+                className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition-colors hover:border-rose-300 hover:bg-rose-50 disabled:opacity-60"
+              >
+                <BadgeCheck className="h-3.5 w-3.5" />
+                {submittingExec
+                  ? "Submitting…"
+                  : execStatus === "pending"
+                    ? "Awaiting confirmation"
+                    : execStatus === "confirmed"
+                      ? "Confirmed ✓"
+                      : execStatus === "rejected"
+                        ? "Rejected — re-submit"
+                        : "Submit for confirmation"}
               </button>
               <button
                 onClick={() => setShowConvertDialog(true)}

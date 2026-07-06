@@ -212,7 +212,9 @@ export async function GET(req: NextRequest) {
                   client_phone, sales_engineer, prepared_by, tax_percent,
                   site_name, items_json, config_json, folder_id, contact_id,
                   project_id,
-                  status, parent_ref, created_at, updated_at, deleted_at
+                  status, parent_ref, created_at, updated_at, deleted_at,
+                  exec_status, exec_submitted_at, exec_submitted_by,
+                  exec_decided_at, exec_decided_by, exec_reject_reason
            from quotations
            where id = ?
            limit 1`,

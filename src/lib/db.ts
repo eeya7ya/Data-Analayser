@@ -494,6 +494,13 @@ const DEPARTMENT_CODE_FLAG = "user_department_code_v1_2026_06";
 // insert (e.g. assign-role's activity_log audit write). Self-heals once.
 const SEQUENCE_REALIGN_FLAG = "sequence_realign_v1_2026_06";
 
+/**
+ * Incremental migration: executive-manager confirmation. Adds the exec_*
+ * sign-off columns to `quotations` and `pricing_projects` so presales can
+ * submit an item and the executive manager can confirm / reject it.
+ */
+const EXEC_CONFIRMATION_FLAG = "exec_confirmation_v1_2026_07";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -808,6 +815,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let multitenancyApplied = false;
   let departmentCodeApplied = false;
   let sequenceRealignApplied = false;
+  let execConfirmationApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -826,7 +834,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${PRODUCT_BARCODE_FLAG}, ${ORPHAN_FOLDER_CLEANUP_FLAG},
         ${INSTALLATION_RATES_FLAG}, ${LEADS_SALES_PROJECT_FLAG},
         ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG},
-        ${SEQUENCE_REALIGN_FLAG}
+        ${SEQUENCE_REALIGN_FLAG}, ${EXEC_CONFIRMATION_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -867,6 +875,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     multitenancyApplied = keys.has(MULTITENANCY_FLAG);
     departmentCodeApplied = keys.has(DEPARTMENT_CODE_FLAG);
     sequenceRealignApplied = keys.has(SEQUENCE_REALIGN_FLAG);
+    execConfirmationApplied = keys.has(EXEC_CONFIRMATION_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -909,7 +918,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     leadsSalesProjectApplied &&
     multitenancyApplied &&
     departmentCodeApplied &&
-    sequenceRealignApplied
+    sequenceRealignApplied &&
+    execConfirmationApplied
   )
     return;
 
@@ -2818,6 +2828,7 @@ async function _ensureSchemaOnce(): Promise<void> {
       alter table quotations
         add column if not exists sales_accepted_by integer references users(id) on delete set null
     `;
+
     // Partial index for the hold sweep: it only ever scans held, not-yet
     // transferred rows that carry a schedule, so this stays tiny.
     await q`
@@ -3230,6 +3241,50 @@ async function _ensureSchemaOnce(): Promise<void> {
 
     await q`
       insert into migration_flags (key) values (${SEQUENCE_REALIGN_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // Executive-manager confirmation. Presales / presales managers submit a
+  // finished quotation (with pricing) or a pricing sheet to the executive
+  // manager, who confirms or rejects it. `exec_status` walks
+  // 'none' → 'pending' → 'confirmed' | 'rejected'; the submit stamps
+  // exec_submitted_*, the decision stamps exec_decided_* (+ a reason on
+  // reject). The same six columns live on both `quotations` and
+  // `pricing_projects` so one workflow drives both artifact types. Top-level
+  // (not nested in another flag gate) so an existing database picks the
+  // columns up exactly once.
+  if (!execConfirmationApplied) {
+    for (const t of ["quotations", "pricing_projects"] as const) {
+      await q.unsafe(
+        `alter table ${t} add column if not exists exec_status text not null default 'none'`,
+      );
+      await q.unsafe(
+        `alter table ${t} add column if not exists exec_submitted_at timestamptz`,
+      );
+      await q.unsafe(
+        `alter table ${t} add column if not exists exec_submitted_by integer references users(id) on delete set null`,
+      );
+      await q.unsafe(
+        `alter table ${t} add column if not exists exec_decided_at timestamptz`,
+      );
+      await q.unsafe(
+        `alter table ${t} add column if not exists exec_decided_by integer references users(id) on delete set null`,
+      );
+      await q.unsafe(
+        `alter table ${t} add column if not exists exec_reject_reason text`,
+      );
+    }
+    await q`
+      create index if not exists quotations_exec_status_idx
+        on quotations(exec_status) where exec_status <> 'none'
+    `;
+    await q`
+      create index if not exists pricing_projects_exec_status_idx
+        on pricing_projects(exec_status) where exec_status <> 'none'
+    `;
+    await q`
+      insert into migration_flags (key) values (${EXEC_CONFIRMATION_FLAG})
       on conflict (key) do nothing
     `;
   }

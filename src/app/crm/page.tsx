@@ -58,7 +58,12 @@ export default async function CrmLandingPage({
     projectsManager: isAdmin || hasRole("projects", "manager"),
     salesManager: isAdmin || hasRole("crm", "sales_manager"),
     presalesManager: isAdmin || hasRole("crm", "presales_manager"),
-    pricing: isAdmin || hasRole("pricing"),
+    // Pricing tab: admins/viewers, anyone with an explicit pricing grant
+    // (delegated by a presales manager), or a presales manager (auto).
+    pricing:
+      isAdmin || hasRole("pricing") || hasRole("crm", "presales_manager"),
+    // Executive tab: the sign-off queue for confirming quotations + pricing.
+    executive: isAdmin || hasRole("crm", "executive_manager"),
   };
 
   type CountRow = {

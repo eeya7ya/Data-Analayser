@@ -26,7 +26,16 @@ export type Module = (typeof MODULES)[number];
  * existing data is unaffected because the column is plain text.
  */
 export const ROLES_PER_MODULE = {
-  crm: ["sales", "sales_manager", "presales", "presales_manager"],
+  crm: [
+    "sales",
+    "sales_manager",
+    "presales",
+    "presales_manager",
+    // Executive sign-off authority: presales / presales managers submit
+    // finished quotations (with pricing) and pricing sheets to the executive
+    // manager, who confirms or rejects them from the confirmations queue.
+    "executive_manager",
+  ],
   projects: ["technical", "engineer", "manager"],
   storage: ["worker", "manager"],
   admin: ["admin"],
@@ -130,13 +139,14 @@ export async function requireModuleAllowLegacy(
   if (canReadAll(user)) return;
   if (await hasModule(user.id, module)) return;
 
-  // Presales prepare manufacturer pricing as part of their lifecycle
-  // (pricing sheet → quotation), so a crm presales / presales_manager
-  // role grants access to the pricing module too.
+  // The presales MANAGER leads the pricing lifecycle (pricing sheet →
+  // quotation), so a presales_manager always has pricing access. Individual
+  // presales members no longer get pricing automatically — their manager
+  // grants it per person via /api/presales/pricing-access, which writes an
+  // explicit `pricing` grant already honoured by the hasModule check above.
   if (
     module === "pricing" &&
-    ((await hasModuleRole(user.id, "crm", "presales")) ||
-      (await hasModuleRole(user.id, "crm", "presales_manager")))
+    (await hasModuleRole(user.id, "crm", "presales_manager"))
   ) {
     return;
   }
@@ -207,6 +217,50 @@ export async function requireCrmOrProjectsRead(user: SessionUser): Promise<void>
   throw new Error("FORBIDDEN");
 }
 
+/**
+ * Write gate for CRM client records (companies + individual folders).
+ *
+ * Sales & presales reach it through the `crm` module. Project managers also
+ * need to stand up their own companies / clients to plan execution work —
+ * they own the project tree, so it's the manager (not a quotation designer)
+ * who seeds the company → client → project structure. A projects `manager`
+ * role therefore passes too. The V2-transition legacy bypass (a user with NO
+ * module grants at all) is preserved and audited, exactly like
+ * `requireModuleAllowLegacy`.
+ *
+ * This governs only whether the endpoint can be hit — every created row is
+ * still stamped with `owner_id = user.id`, and each mutation handler re-checks
+ * ownership, so a manager can only touch the rows they own and never sees or
+ * edits another user's clients.
+ */
+export async function requireCrmClientWrite(user: SessionUser): Promise<void> {
+  if (canReadAll(user)) return;
+  if (await hasModule(user.id, "crm")) return;
+  if (await hasModuleRole(user.id, "projects", "manager")) return;
+
+  const q = sql();
+  const anyRoles = (await q`
+    select 1 as ok from user_module_roles
+    where user_id = ${user.id} and revoked_at is null
+    limit 1
+  `) as Array<{ ok: number }>;
+  if (anyRoles.length === 0) {
+    // Legacy bypass — mirror requireModuleAllowLegacy. Fire-and-forget audit.
+    try {
+      await q`
+        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        values (${user.id}, 'module_access', 0, 'legacy_bypass',
+                ${JSON.stringify({ module: "crm_client_write" })}::jsonb)
+      `;
+    } catch {
+      // never block a request because audit logging failed
+    }
+    return;
+  }
+
+  throw new Error("FORBIDDEN");
+}
+
 /** Throw FORBIDDEN unless the user holds (module, role). Admin override applies. */
 export async function requireModuleRole(
   user: SessionUser,
@@ -263,6 +317,54 @@ export async function canAuthorQuotation(user: SessionUser): Promise<boolean> {
       g.module === "crm" &&
       (g.role === "presales" || g.role === "presales_manager"),
   );
+}
+
+/**
+ * True when the user is a presales manager — leads the presales team and so
+ * delegates pricing-module access to individual presales members. Admins
+ * pass too (full override).
+ */
+export async function isPresalesManager(user: SessionUser): Promise<boolean> {
+  if (user.role === "admin") return true;
+  return hasModuleRole(user.id, "crm", "presales_manager");
+}
+
+/**
+ * True when the user is an executive manager — the sign-off authority who
+ * receives quotations (with pricing) and pricing sheets submitted by presales
+ * / presales managers and confirms or rejects them. Admins pass too.
+ */
+export async function isExecutiveManager(user: SessionUser): Promise<boolean> {
+  if (user.role === "admin") return true;
+  return hasModuleRole(user.id, "crm", "executive_manager");
+}
+
+/**
+ * True when the user may SUBMIT an item for executive confirmation —
+ * presales, presales managers, and admins (the people who prepare the
+ * quotation / pricing sheet the executive signs off on).
+ */
+export async function canSubmitForExecutive(user: SessionUser): Promise<boolean> {
+  if (user.role === "admin") return true;
+  return (
+    (await hasModuleRole(user.id, "crm", "presales")) ||
+    (await hasModuleRole(user.id, "crm", "presales_manager"))
+  );
+}
+
+/**
+ * Authoritative "may open the pricing module" gate, mirrored by the pricing
+ * endpoints (the `requireModuleAllowLegacy` pricing special-case). Access is:
+ *   - admins / viewers (canReadAll),
+ *   - anyone holding an explicit `pricing` grant (what a presales manager
+ *     hands to a presales member), or
+ *   - a crm presales_manager (auto — they run the pricing lifecycle).
+ */
+export async function canAccessPricing(user: SessionUser): Promise<boolean> {
+  if (canReadAll(user)) return true;
+  if (await hasModule(user.id, "pricing")) return true;
+  if (await hasModuleRole(user.id, "crm", "presales_manager")) return true;
+  return false;
 }
 
 /**

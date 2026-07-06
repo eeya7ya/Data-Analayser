@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema, usingD1, rawBinder } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
-import { requireModuleAllowLegacy, requireCrmOrProjectsRead } from "@/lib/modules";
+import { requireCrmClientWrite, requireCrmOrProjectsRead } from "@/lib/modules";
 import { assignedCompanyIds } from "@/lib/projectAccess";
 import { findCrossKindConflicts } from "@/lib/crmNames";
 import { tokenize } from "@/lib/search";
@@ -181,7 +181,7 @@ export async function POST(req: Request) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmClientWrite(user);
     const isAdmin = canReadAll(user);
 
     const body = (await req.json()) as {
@@ -266,7 +266,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmClientWrite(user);
 
     const { searchParams } = new URL(req.url);
     const id = Number(searchParams.get("id"));
