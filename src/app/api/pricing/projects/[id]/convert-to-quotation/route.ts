@@ -196,20 +196,18 @@ export async function POST(
     // logic runs through one canonical path.
     const origin = new URL(req.url).origin;
     const cookieHeader = req.headers.get("cookie") ?? "";
-    const intro = body.includeOptionalIntro
-      ? `Quotation generated from pricing sheet "${project.name}" for ${project.manufacturer_name}.`
-      : undefined;
-    // Seed a clean, professional Project Scope Summary. A converted pricing
-    // sheet drops every line into one synthetic "Equipment" system, so if we
-    // left the scope blank the quotation preview would auto-generate
-    // "...covering Equipment..." — which reads wrong on the printed offer.
-    // Providing real copy here keeps that auto-fill from firing; the user can
-    // still edit it freely in the Designer afterwards.
+    // Always seed a clean, professional Project Scope Summary for a quotation
+    // converted from a pricing sheet. A converted sheet drops every line into
+    // one synthetic "Equipment" system, so a blank scope would auto-generate
+    // "...covering Equipment..." on the printed offer. This default copy always
+    // fires (the old "Quotation generated from pricing sheet …" placeholder is
+    // gone); the user can still edit it freely in the Designer afterwards.
     const scopeSummary =
       `We sincerely appreciate the opportunity to collaborate with you on ` +
       `${project.name} and thank you for your continued trust in Magic ` +
-      `Technology. The following investment reflects the fully engineered ` +
-      `scope of works outlined in this proposal.`;
+      `Technology. The following proposal reflects the fully engineered scope ` +
+      `of works and the associated investment, prepared to meet your ` +
+      `requirements with the highest standards of quality and reliability.`;
 
     const upstream = await fetch(`${origin}/api/quotations`, {
       method: "POST",
@@ -241,7 +239,7 @@ export async function POST(
           // Prices are already tax-exclusive; block the Designer's one-time
           // legacy divide-by-(1+rate) migration for taxInclusive configs.
           taxPricesNormalized: true,
-          scopeIntro: intro ?? scopeSummary,
+          scopeIntro: scopeSummary,
           origin: { pricingProjectId: projectId },
         },
         folder_id: body.folderId ?? null,

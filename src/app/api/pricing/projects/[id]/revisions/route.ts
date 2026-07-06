@@ -94,13 +94,16 @@ export async function POST(req: Request, { params }: Ctx) {
         0,
       ) + 1;
 
-    const customName = body.name?.trim();
-    const baseName = customName ?? source.name;
-    const newName = customName
-      ? baseName
-      : /\bv\d+$/.test(baseName.trim())
-        ? baseName
-        : `${baseName} — v${nextRevision}`;
+    // A revision is always named "<base> R<n>" where n is the review number
+    // (first review = R1). The client sends the current header name, so strip
+    // any existing revision marker ("R2", "— v3", " v3") off the end before
+    // appending — otherwise suffixes would stack ("Test R1 R2"). The root
+    // project is revision 1, so the review count is nextRevision - 1.
+    const reviewNumber = Math.max(1, nextRevision - 1);
+    const rawBase = (body.name?.trim() || source.name).trim();
+    const cleanBase =
+      rawBase.replace(/\s*(?:—\s*)?[vr]\s*\d+\s*$/i, "").trim() || rawBase;
+    const newName = `${cleanBase} R${reviewNumber}`;
 
     const createdRows = (await q`
       insert into pricing_projects (
