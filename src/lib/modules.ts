@@ -388,6 +388,11 @@ export interface CrmCaps {
   canSeeFinancialOffer: boolean;
   /** Presales / admin only: the engineering deliverable view. */
   canSeeTechnicalProposal: boolean;
+  /** Projects manager / admin: the project-distribution tool. */
+  canDistribute: boolean;
+  /** Pure projects users (projects module, no crm): hide the Quotations tab —
+   * they distribute execution work, they don't quote. */
+  hideQuotations: boolean;
 }
 
 export async function getCrmCaps(user: SessionUser): Promise<CrmCaps> {
@@ -399,11 +404,18 @@ export async function getCrmCaps(user: SessionUser): Promise<CrmCaps> {
   const hasPresales =
     crm.includes("presales") || crm.includes("presales_manager");
   const hasSales = crm.includes("sales") || crm.includes("sales_manager");
+  const hasCrm = crm.length > 0;
+  const hasProjects = grants.some((g) => g.module === "projects");
+  const isProjectsManager = grants.some(
+    (g) => g.module === "projects" && g.role === "manager",
+  );
   return {
     canAuthorQuotation: isAdmin || hasPresales,
     canRequestQuotation: hasSales,
     canSeeFinancialOffer: isAdmin || hasPresales || hasSales,
     canSeeTechnicalProposal: isAdmin || hasPresales,
+    canDistribute: isAdmin || isProjectsManager,
+    hideQuotations: !isAdmin && hasProjects && !hasCrm,
   };
 }
 

@@ -501,6 +501,14 @@ const SEQUENCE_REALIGN_FLAG = "sequence_realign_v1_2026_06";
  */
 const EXEC_CONFIRMATION_FLAG = "exec_confirmation_v1_2026_07";
 
+/**
+ * Incremental migration: project distribution. A project manager distributes
+ * a project to a technician / engineer with a scope of work, dates, status and
+ * execution notes — plus client context (company / client / contact / email /
+ * location) snapshotted from the folder but freely editable.
+ */
+const PROJECT_DISTRIBUTION_FLAG = "project_distribution_v1_2026_07";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -816,6 +824,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let departmentCodeApplied = false;
   let sequenceRealignApplied = false;
   let execConfirmationApplied = false;
+  let projectDistributionApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -834,7 +843,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${PRODUCT_BARCODE_FLAG}, ${ORPHAN_FOLDER_CLEANUP_FLAG},
         ${INSTALLATION_RATES_FLAG}, ${LEADS_SALES_PROJECT_FLAG},
         ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG},
-        ${SEQUENCE_REALIGN_FLAG}, ${EXEC_CONFIRMATION_FLAG}
+        ${SEQUENCE_REALIGN_FLAG}, ${EXEC_CONFIRMATION_FLAG},
+        ${PROJECT_DISTRIBUTION_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -876,6 +886,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     departmentCodeApplied = keys.has(DEPARTMENT_CODE_FLAG);
     sequenceRealignApplied = keys.has(SEQUENCE_REALIGN_FLAG);
     execConfirmationApplied = keys.has(EXEC_CONFIRMATION_FLAG);
+    projectDistributionApplied = keys.has(PROJECT_DISTRIBUTION_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -919,7 +930,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     multitenancyApplied &&
     departmentCodeApplied &&
     sequenceRealignApplied &&
-    execConfirmationApplied
+    execConfirmationApplied &&
+    projectDistributionApplied
   )
     return;
 
@@ -3285,6 +3297,38 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${EXEC_CONFIRMATION_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // Project distribution — a project manager's "work order" that hands a
+  // project to a technician / engineer. A distribution IS an enriched
+  // project_assignment (so creating one also grants the assignee access):
+  // location, start_date, end_date and notes already exist, so this only adds
+  // the scope of work, an execution status, and client context
+  // (company / client / contact / email) snapshotted from the folder but kept
+  // freely editable.
+  if (!projectDistributionApplied) {
+    await q.unsafe(
+      `alter table project_assignments add column if not exists scope_of_work text`,
+    );
+    await q.unsafe(
+      `alter table project_assignments add column if not exists status text not null default 'assigned'`,
+    );
+    await q.unsafe(
+      `alter table project_assignments add column if not exists company_name text`,
+    );
+    await q.unsafe(
+      `alter table project_assignments add column if not exists client_name text`,
+    );
+    await q.unsafe(
+      `alter table project_assignments add column if not exists contact_name text`,
+    );
+    await q.unsafe(
+      `alter table project_assignments add column if not exists contact_email text`,
+    );
+    await q`
+      insert into migration_flags (key) values (${PROJECT_DISTRIBUTION_FLAG})
       on conflict (key) do nothing
     `;
   }
