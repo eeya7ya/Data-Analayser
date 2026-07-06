@@ -5,6 +5,18 @@ import {
   sanitizeBrandVariants,
   type BrandVariant,
 } from "./brandVariants";
+import {
+  DEFAULT_TECH_PROPOSAL_ASSETS,
+  type TechProposalAssets,
+} from "./techProposalAssets";
+
+// Re-export so existing server-side importers of `@/lib/settings` keep working.
+// Client components must import these from `@/lib/techProposalAssets` directly
+// (importing them from here would bundle the server-only DB layer).
+export {
+  DEFAULT_TECH_PROPOSAL_ASSETS,
+  type TechProposalAssets,
+} from "./techProposalAssets";
 
 /**
  * Global, admin-editable presets for every printable quotation.
@@ -22,6 +34,8 @@ export interface AppSettings {
    * so picking a logo in the Designer prints its matching company profile.
    */
   brandVariants: BrandVariant[];
+  /** Central company images for the Technical Proposal (see techProposalAssets.ts). */
+  techProposalAssets: TechProposalAssets;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -29,6 +43,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   footerText:
     "Address: Amman- Gardens street- Khawaja Complex No.65- Tel: +962 65560272 Fax: +962 65560275",
   brandVariants: [...BRAND_VARIANTS],
+  techProposalAssets: { ...DEFAULT_TECH_PROPOSAL_ASSETS },
 };
 
 const KEY = "global";
@@ -70,6 +85,19 @@ function normalize(value: unknown): AppSettings {
     // field is missing (legacy rows) or empty, so printing always has at
     // least one brand bundle to resolve against.
     brandVariants: sanitizeBrandVariants(v.brandVariants),
+    techProposalAssets: normalizeTechProposalAssets(v.techProposalAssets),
+  };
+}
+
+/** Coerce each central Technical-Proposal image to a string, defaulting to "". */
+function normalizeTechProposalAssets(value: unknown): TechProposalAssets {
+  const v = (value ?? {}) as Partial<TechProposalAssets>;
+  const s = (x: unknown) => (typeof x === "string" ? x : "");
+  return {
+    authorizedCert: s(v.authorizedCert),
+    teamCerts: s(v.teamCerts),
+    pmCert: s(v.pmCert),
+    references: s(v.references),
   };
 }
 

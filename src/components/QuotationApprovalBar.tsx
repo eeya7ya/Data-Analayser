@@ -132,10 +132,12 @@ export default function QuotationApprovalBar({
   const sentToSales = !!state.sent_to_sales_at;
   const salesAccepted = !!state.sales_accepted_at;
 
-  // Executive-manager confirmation: presales / presales managers submit the
-  // finished quotation for the executive to sign off.
-  const canSubmitExec =
-    isAdmin || hasRole("crm", "presales") || hasRole("crm", "presales_manager");
+  // Executive-manager confirmation: a quotation is submitted to the executive
+  // by SALES / sales managers only — they own the deal (presales just prepare
+  // it), and admin is deliberately not part of this workflow gate.
+  const canSubmitExec = !!me?.module_roles.some(
+    (r) => r.module === "crm" && (r.role === "sales" || r.role === "sales_manager"),
+  );
   const execStatus = state.exec_status ?? "none";
 
   async function submitExec() {

@@ -36,17 +36,29 @@ export async function GET() {
     const stamp = manifest.generatedAt.replace(/[:.]/g, "-");
     const filename = `magictech-database-backup-${stamp}.zip`;
 
-    // The DB snapshot is compact JSON (well under Vercel's ~4.5 MB buffered
-    // response cap for this app), so a plain buffered response is simplest and
-    // proven. If the database ever grows past the cap, switch this to the
-    // browser-side assembly the Files backup uses.
-    const body = new Blob([new Uint8Array(buffer)], { type: "application/zip" });
-    return new NextResponse(body, {
+    // STREAM the zip instead of returning it buffered. A buffered response is
+    // capped at ~4.5 MB on Vercel — once the database grows past that, a
+    // buffered download fails with net::ERR_FAILED (exactly what a full DB
+    // hit here). A streamed ReadableStream response (no Content-Length) is
+    // sent in chunks and isn't subject to that cap, so large snapshots
+    // download fine. The zip is already assembled in memory; we just hand it
+    // out 1 MB at a time.
+    const CHUNK = 1 << 20; // 1 MiB
+    const bytes = new Uint8Array(buffer);
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        // Enqueue the whole buffer in bounded chunks, then close.
+        for (let off = 0; off < bytes.length; off += CHUNK) {
+          controller.enqueue(bytes.subarray(off, off + CHUNK));
+        }
+        controller.close();
+      },
+    });
+    return new Response(stream, {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${filename}"`,
-        "Content-Length": String(buffer.byteLength),
         "Cache-Control": "no-store",
       },
     });

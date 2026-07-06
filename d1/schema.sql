@@ -400,6 +400,9 @@ CREATE TABLE IF NOT EXISTS "pricing_manufacturers" (
   "created_by_user_id" INTEGER,
   "created_at" TEXT NOT NULL,
   "deleted_at" TEXT,
+  "default_shipping_rate" REAL,
+  "default_customs_rate" REAL,
+  "default_profit_margin" REAL,
   PRIMARY KEY ("id")
 );
 
@@ -442,6 +445,12 @@ CREATE TABLE IF NOT EXISTS "pricing_projects" (
   "revision_number" INTEGER NOT NULL DEFAULT 1,
   "created_at" TEXT NOT NULL,
   "deleted_at" TEXT,
+  "exec_status" TEXT NOT NULL DEFAULT 'none',
+  "exec_submitted_at" TEXT,
+  "exec_submitted_by" INTEGER,
+  "exec_decided_at" TEXT,
+  "exec_decided_by" INTEGER,
+  "exec_reject_reason" TEXT,
   PRIMARY KEY ("id")
 );
 
@@ -487,6 +496,12 @@ CREATE TABLE IF NOT EXISTS "project_assignments" (
   "notes" TEXT,
   "created_at" TEXT NOT NULL,
   "deleted_at" TEXT,
+  "scope_of_work" TEXT,
+  "status" TEXT NOT NULL DEFAULT 'assigned',
+  "company_name" TEXT,
+  "client_name" TEXT,
+  "contact_name" TEXT,
+  "contact_email" TEXT,
   PRIMARY KEY ("id")
 );
 
@@ -623,6 +638,12 @@ CREATE TABLE IF NOT EXISTS "quotations" (
   "sent_to_sales_by" INTEGER,
   "sales_accepted_at" TEXT,
   "sales_accepted_by" INTEGER,
+  "exec_status" TEXT NOT NULL DEFAULT 'none',
+  "exec_submitted_at" TEXT,
+  "exec_submitted_by" INTEGER,
+  "exec_decided_at" TEXT,
+  "exec_decided_by" INTEGER,
+  "exec_reject_reason" TEXT,
   PRIMARY KEY ("id")
 );
 
@@ -833,6 +854,30 @@ ALTER TABLE "users" ADD COLUMN "tenant_id" INTEGER;
 ALTER TABLE "users" ADD COLUMN "department_code" TEXT NOT NULL DEFAULT '';
 ALTER TABLE "leads" ADD COLUMN "sales_project_id" INTEGER;
 ALTER TABLE "products" ADD COLUMN "barcode" TEXT;
+-- Executive-manager confirmation workflow (quotations + pricing_projects).
+ALTER TABLE "quotations" ADD COLUMN "exec_status" TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE "quotations" ADD COLUMN "exec_submitted_at" TEXT;
+ALTER TABLE "quotations" ADD COLUMN "exec_submitted_by" INTEGER;
+ALTER TABLE "quotations" ADD COLUMN "exec_decided_at" TEXT;
+ALTER TABLE "quotations" ADD COLUMN "exec_decided_by" INTEGER;
+ALTER TABLE "quotations" ADD COLUMN "exec_reject_reason" TEXT;
+ALTER TABLE "pricing_projects" ADD COLUMN "exec_status" TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE "pricing_projects" ADD COLUMN "exec_submitted_at" TEXT;
+ALTER TABLE "pricing_projects" ADD COLUMN "exec_submitted_by" INTEGER;
+ALTER TABLE "pricing_projects" ADD COLUMN "exec_decided_at" TEXT;
+ALTER TABLE "pricing_projects" ADD COLUMN "exec_decided_by" INTEGER;
+ALTER TABLE "pricing_projects" ADD COLUMN "exec_reject_reason" TEXT;
+-- Project distribution (work orders) — enriched project_assignments.
+ALTER TABLE "project_assignments" ADD COLUMN "scope_of_work" TEXT;
+ALTER TABLE "project_assignments" ADD COLUMN "status" TEXT NOT NULL DEFAULT 'assigned';
+ALTER TABLE "project_assignments" ADD COLUMN "company_name" TEXT;
+ALTER TABLE "project_assignments" ADD COLUMN "client_name" TEXT;
+ALTER TABLE "project_assignments" ADD COLUMN "contact_name" TEXT;
+ALTER TABLE "project_assignments" ADD COLUMN "contact_email" TEXT;
+-- Per-manufacturer pricing defaults (decimals; NULL = fall back to globals).
+ALTER TABLE "pricing_manufacturers" ADD COLUMN "default_shipping_rate" REAL;
+ALTER TABLE "pricing_manufacturers" ADD COLUMN "default_customs_rate" REAL;
+ALTER TABLE "pricing_manufacturers" ADD COLUMN "default_profit_margin" REAL;
 
 -- ── Indexes ─────────────────────────────────────────────────────────────────
 -- Ported 1:1 from the Postgres bootstrap in src/lib/db.ts so every WHERE /
