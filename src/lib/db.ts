@@ -523,6 +523,13 @@ const PRICING_MFG_DEFAULTS_FLAG = "pricing_mfg_defaults_v1_2026_07";
  */
 const PROJECT_DISTRIBUTION_PHONE_FLAG = "project_distribution_phone_v1_2026_07";
 
+/**
+ * Incremental migration: checklist templates ("master jobs"). A project
+ * manager designs reusable checklists in the Checklist Designer; selecting one
+ * while distributing seeds that project's checklist automatically.
+ */
+const CHECKLIST_TEMPLATES_FLAG = "checklist_templates_v1_2026_07";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -562,7 +569,7 @@ export async function ensureSchema(): Promise<void> {
 // existing D1 databases re-run applyD1Schema once so the new CREATE INDEX IF NOT
 // EXISTS statements take effect — every statement is idempotent, so nothing is
 // dropped or rewritten.
-const D1_SCHEMA_FLAG = "d1_schema_bootstrap_2026_06_30_indexes";
+const D1_SCHEMA_FLAG = "d1_schema_bootstrap_2026_07_06_checklist_templates";
 
 /**
  * UNIQUE constraints the app's `INSERT ... ON CONFLICT (cols)` upserts depend
@@ -847,6 +854,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let execConfirmationApplied = false;
   let projectDistributionApplied = false;
   let projectDistributionPhoneApplied = false;
+  let checklistTemplatesApplied = false;
   let pricingMfgDefaultsApplied = false;
   try {
     const rows = (await q`
@@ -868,7 +876,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG},
         ${SEQUENCE_REALIGN_FLAG}, ${EXEC_CONFIRMATION_FLAG},
         ${PROJECT_DISTRIBUTION_FLAG}, ${PRICING_MFG_DEFAULTS_FLAG},
-        ${PROJECT_DISTRIBUTION_PHONE_FLAG}
+        ${PROJECT_DISTRIBUTION_PHONE_FLAG}, ${CHECKLIST_TEMPLATES_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -912,6 +920,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     execConfirmationApplied = keys.has(EXEC_CONFIRMATION_FLAG);
     projectDistributionApplied = keys.has(PROJECT_DISTRIBUTION_FLAG);
     projectDistributionPhoneApplied = keys.has(PROJECT_DISTRIBUTION_PHONE_FLAG);
+    checklistTemplatesApplied = keys.has(CHECKLIST_TEMPLATES_FLAG);
     pricingMfgDefaultsApplied = keys.has(PRICING_MFG_DEFAULTS_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
@@ -959,6 +968,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     execConfirmationApplied &&
     projectDistributionApplied &&
     projectDistributionPhoneApplied &&
+    checklistTemplatesApplied &&
     pricingMfgDefaultsApplied
   )
     return;
@@ -3369,6 +3379,25 @@ async function _ensureSchemaOnce(): Promise<void> {
     );
     await q`
       insert into migration_flags (key) values (${PROJECT_DISTRIBUTION_PHONE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // Checklist templates ("master jobs") — reusable checklists a project
+  // manager designs once and applies when distributing work.
+  if (!checklistTemplatesApplied) {
+    await q`
+      create table if not exists checklist_templates (
+        id bigint generated always as identity primary key,
+        name text not null,
+        items jsonb not null default '[]'::jsonb,
+        created_by integer references users(id) on delete set null,
+        created_at timestamptz not null default now(),
+        deleted_at timestamptz
+      )
+    `;
+    await q`
+      insert into migration_flags (key) values (${CHECKLIST_TEMPLATES_FLAG})
       on conflict (key) do nothing
     `;
   }

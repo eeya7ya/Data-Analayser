@@ -118,7 +118,8 @@ export default async function DashboardPage() {
     const qx = sql();
     const kpiRows = (await qx`
       select
-        (select count(distinct pa.project_id) from project_assignments pa
+        (select count(distinct p.id) from project_assignments pa
+           join projects p on p.id = pa.project_id and p.deleted_at is null
            where pa.user_id = ${me} and pa.deleted_at is null)::int as my_projects,
         (select count(distinct p.id) from project_assignments pa
            join projects p on p.id = pa.project_id and p.deleted_at is null

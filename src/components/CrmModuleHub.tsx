@@ -277,6 +277,11 @@ export default function CrmModuleHub({
               title: "Handoffs to assign",
               desc: "Assign a technician / engineer to projects pushed from sales.",
             },
+            {
+              href: "/projects/checklist-designer",
+              title: "Checklist Designer",
+              desc: "Design master-job checklists that seed a project when distributed.",
+            },
           ]
         : []),
     ],

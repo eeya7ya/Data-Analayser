@@ -296,10 +296,17 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     // Keep any presales lead opened against this project alive in the queue —
-    // sever its project link first (on D1 there is no FK to null it out on
-    // delete), then permanently remove the project. Postgres cascades the
-    // remaining children via ON DELETE CASCADE / SET NULL; D1 orphans harmlessly.
+    // sever its project link first, then permanently remove the project AND
+    // its child rows. Postgres would cascade these, but D1 has no FK
+    // enforcement, so we must delete them explicitly — otherwise an orphaned
+    // project_assignment keeps counting toward a technician's "My projects"
+    // KPI even though the project (and the list) is gone.
     await detachLeadsFromProject(q, id);
+    await q`delete from project_tasks where project_id = ${id}`;
+    await q`delete from project_assignments where project_id = ${id}`;
+    await q`delete from project_files where project_id = ${id}`;
+    await q`delete from execution_reports where project_id = ${id}`;
+    await q`delete from project_handoffs where project_id = ${id}`;
     await q`delete from projects where id = ${id}`;
     return NextResponse.json({ ok: true });
   } catch (err) {

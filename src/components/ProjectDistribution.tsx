@@ -28,6 +28,12 @@ interface Assignee {
   project_roles: string | null;
 }
 
+interface MasterJob {
+  id: number;
+  name: string;
+  items: string[];
+}
+
 interface Distribution {
   id: number;
   user_id: number;
@@ -84,6 +90,7 @@ interface FormState {
   end_date: string;
   status: string;
   notes: string;
+  template_id: string;
 }
 
 const BLANK: FormState = {
@@ -100,6 +107,7 @@ const BLANK: FormState = {
   end_date: "",
   status: "assigned",
   notes: "",
+  template_id: "",
 };
 
 export default function ProjectDistribution({
@@ -108,6 +116,7 @@ export default function ProjectDistribution({
   projectId: number;
 }) {
   const [assignees, setAssignees] = useState<Assignee[]>([]);
+  const [masterJobs, setMasterJobs] = useState<MasterJob[]>([]);
   const [distributions, setDistributions] = useState<Distribution[]>([]);
   const [form, setForm] = useState<FormState>(BLANK);
   const [loading, setLoading] = useState(true);
@@ -121,19 +130,22 @@ export default function ProjectDistribution({
     setLoading(true);
     setError(null);
     try {
-      const [ctxRes, listRes] = await Promise.all([
+      const [ctxRes, listRes, jobsRes] = await Promise.all([
         fetch(`/api/project-distributions/context?project_id=${projectId}`, {
           cache: "no-store",
         }),
         fetch(`/api/project-assignments?project_id=${projectId}`, {
           cache: "no-store",
         }),
+        fetch(`/api/checklist-templates`, { cache: "no-store" }),
       ]);
       const ctx = await ctxRes.json();
       const list = await listRes.json();
+      const jobs = await jobsRes.json().catch(() => ({}));
       if (!ctxRes.ok) throw new Error(ctx.error || "Failed to load");
       setAssignees(ctx.assignees || []);
       setDistributions(list.assignments || []);
+      setMasterJobs(jobsRes.ok ? jobs.templates || [] : []);
       // Seed the form's client context from the folder (editable).
       setForm((f) => ({
         ...f,
@@ -182,6 +194,7 @@ export default function ProjectDistribution({
           start_date: form.start_date || null,
           end_date: form.end_date || null,
           notes: form.notes || null,
+          template_id: form.template_id ? Number(form.template_id) : null,
         }),
       });
       const data = await res.json();
@@ -403,6 +416,28 @@ export default function ProjectDistribution({
               value={form.end_date}
               onChange={(e) => set("end_date", e.target.value)}
             />
+          </Field>
+        </div>
+
+        {/* Master job — its checklist seeds this project on distribute. */}
+        <div className="mt-3">
+          <Field label="Master job (seeds the checklist)">
+            <select
+              className={inputCls}
+              value={form.template_id}
+              onChange={(e) => set("template_id", e.target.value)}
+            >
+              <option value="">
+                {masterJobs.length
+                  ? "No master job — checklist stays as-is"
+                  : "No master jobs yet — design them in the Checklist Designer"}
+              </option>
+              {masterJobs.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.name} ({j.items.length} step{j.items.length === 1 ? "" : "s"})
+                </option>
+              ))}
+            </select>
           </Field>
         </div>
 
