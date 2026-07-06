@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
-import { hasModule } from "@/lib/modules";
+import { hasModule, hasModuleRole } from "@/lib/modules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,8 +60,11 @@ async function canRead(
   );
 }
 
-/** Edit/tick: admin / owner / an assigned member (the people doing the work). */
-async function canEdit(
+/**
+ * Tick items off: admin / owner / an assigned member. The technician or
+ * engineer executing the work checks items done — they don't author the list.
+ */
+async function canCheck(
   q: ReturnType<typeof sql>,
   project: ProjectRow,
   user: { id: number; role: string },
@@ -70,6 +73,23 @@ async function canEdit(
     canReadAll(user) ||
     project.owner_id === user.id ||
     (await isAssigned(q, project.id, user.id))
+  );
+}
+
+/**
+ * Author the checklist (add / rename / delete items): admin, the project
+ * owner, or a projects manager. A project member RECEIVES the checklist from
+ * the project manager — they never create it.
+ */
+async function canAuthor(
+  q: ReturnType<typeof sql>,
+  project: ProjectRow,
+  user: { id: number; role: string },
+): Promise<boolean> {
+  return (
+    canReadAll(user) ||
+    project.owner_id === user.id ||
+    (await hasModuleRole(user.id, "projects", "manager"))
   );
 }
 
@@ -112,7 +132,10 @@ export async function GET(req: NextRequest) {
     `) as Array<Record<string, unknown>>;
     return NextResponse.json({
       tasks,
-      can_edit: await canEdit(q, project, user),
+      // `can_check` — tick items done (assigned members). `can_author` — add /
+      // rename / delete items (PM / owner / admin only).
+      can_check: await canCheck(q, project, user),
+      can_author: await canAuthor(q, project, user),
     });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
@@ -137,9 +160,9 @@ export async function POST(req: NextRequest) {
     if (!project) {
       return NextResponse.json({ error: "project not found" }, { status: 404 });
     }
-    if (!(await canEdit(q, project, user))) {
+    if (!(await canAuthor(q, project, user))) {
       return NextResponse.json(
-        { error: "only assigned members can edit the checklist" },
+        { error: "only the project manager authors the checklist" },
         { status: 403 },
       );
     }
@@ -179,11 +202,12 @@ export async function PATCH(req: NextRequest) {
     if (!project) {
       return NextResponse.json({ error: "task not found" }, { status: 404 });
     }
-    if (!(await canEdit(q, project, user))) {
-      return NextResponse.json({ error: "forbidden" }, { status: 403 });
-    }
 
     if (typeof body.done === "boolean") {
+      // Ticking an item off is the assigned member's job.
+      if (!(await canCheck(q, project, user))) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
       if (body.done) {
         await q`
           update project_tasks
@@ -199,6 +223,10 @@ export async function PATCH(req: NextRequest) {
       }
     }
     if (typeof body.title === "string") {
+      // Renaming a step is authoring — PM / owner / admin only.
+      if (!(await canAuthor(q, project, user))) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
       const title = body.title.trim();
       if (title) {
         await q`update project_tasks set title = ${title.slice(0, 500)} where id = ${id}`;
@@ -223,7 +251,7 @@ export async function DELETE(req: NextRequest) {
     if (!project) {
       return NextResponse.json({ error: "task not found" }, { status: 404 });
     }
-    if (!(await canEdit(q, project, user))) {
+    if (!(await canAuthor(q, project, user))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     // Permanent delete (no Trash). Not recoverable.
