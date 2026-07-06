@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
-import { requireModuleAllowLegacy, requireCrmOrProjectsRead } from "@/lib/modules";
+import { requireCrmClientWrite, requireCrmOrProjectsRead } from "@/lib/modules";
 import { assignedProjectIds } from "@/lib/projectAccess";
 import { ensureFolderProjectCoverage } from "@/lib/projects";
 import { detachLeadsFromProject } from "@/lib/cascade";
@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmClientWrite(user);
     await ensureSchema();
     const body = (await req.json()) as {
       folder_id?: number;
@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireUser();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmClientWrite(user);
     await ensureSchema();
     const { searchParams } = new URL(req.url);
     const id = Number(searchParams.get("id"));
@@ -278,7 +278,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireUser();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmClientWrite(user);
     await ensureSchema();
     const { searchParams } = new URL(req.url);
     const id = Number(searchParams.get("id"));
