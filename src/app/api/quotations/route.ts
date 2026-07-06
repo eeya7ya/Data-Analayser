@@ -715,7 +715,30 @@ export async function PATCH(req: NextRequest) {
     // config_json with a possibly-empty or corrupted round-trip, wiping
     // saved quotations. This build-only-what-changed approach makes the
     // jsonb columns untouched unless the client actually sent new values.
-    const ref = body.ref !== undefined ? body.ref : existing.ref;
+    // Never persist the "####" preview placeholder. Use an explicit real ref
+    // if the client sent one; otherwise keep the existing ref — and if THAT is
+    // still a placeholder (a row saved before this guard existed), heal an
+    // active quotation by minting its real counter now, attributed to the
+    // owner so the initials stay correct.
+    let ref: unknown;
+    if (body.ref !== undefined && !String(body.ref).includes("#")) {
+      ref = body.ref;
+    } else if (existing.ref && !String(existing.ref).includes("#")) {
+      ref = existing.ref;
+    } else if (existing.status === "active" || !existing.status) {
+      const ownerRows = (await q!`
+        select coalesce(department_code,'') as department_code, username
+        from users where id = ${Number(existing.owner_id)} limit 1
+      `) as unknown as Array<{ department_code: string; username: string }>;
+      ref = await genActiveRef(
+        false,
+        q,
+        ownerRows[0]?.department_code || "",
+        ownerRows[0]?.username || user.username,
+      );
+    } else {
+      ref = existing.ref;
+    }
     const pn =
       body.project_name !== undefined ? body.project_name : existing.project_name;
     const cn =
@@ -936,7 +959,15 @@ export async function POST(req: NextRequest) {
     // Honour an explicit ref only for 'active' — drafts/reviews must derive
     // their ref from the parent so the D<m>/R<m> counter stays correct.
     let ref: string;
-    if (mode === "active" && body.ref && body.ref.trim()) {
+    // A ref carrying the "####" preview placeholder (or any '#') is the
+    // unfilled auto-format the Designer shows before save — never persist it.
+    // Treat it as "auto" so genActiveRef mints the real counter.
+    if (
+      mode === "active" &&
+      body.ref &&
+      body.ref.trim() &&
+      !body.ref.includes("#")
+    ) {
       ref = body.ref.trim();
     } else if (mode === "active") {
       // The reference's leading segment is the author's admin-assigned
