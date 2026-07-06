@@ -95,14 +95,48 @@ function Kpi({
   );
 }
 
-function Ratio({ expr, value, hint }: { expr: string; value: string; hint: string }) {
+function Ratio({
+  label,
+  expr,
+  value,
+  bar,
+  tone = "slate",
+}: {
+  label: string;
+  expr: string;
+  value: string;
+  /** 0–1 fill for the meter; omit for non-percentage values. */
+  bar?: number | null;
+  tone?: "accent" | "slate" | "tax";
+}) {
+  const color = tone === "tax" ? TAX : tone === "accent" ? ACCENT : "#94a3b8";
   return (
-    <div className="flex flex-col gap-0.5 border-l border-slate-100 px-4 first:border-l-0 first:pl-0">
-      <span className="font-mono text-[10px] text-slate-400">{expr}</span>
-      <span className="font-mono text-sm font-semibold tabular-nums text-slate-800">
+    <div className="rounded-lg border border-slate-200 bg-white p-3.5">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-[10.5px] font-semibold uppercase leading-tight tracking-wide text-slate-500">
+          {label}
+        </span>
+        <span className="flex-shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] text-slate-400">
+          {expr}
+        </span>
+      </div>
+      <p
+        className="mt-2 font-mono text-xl font-bold leading-none tabular-nums"
+        style={{ color: tone === "slate" ? INK : color }}
+      >
         {value}
-      </span>
-      <span className="text-[9px] uppercase tracking-wider text-slate-400">{hint}</span>
+      </p>
+      {bar != null && (
+        <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${Math.max(2, Math.min(100, bar * 100))}%`,
+              background: color,
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -302,13 +336,42 @@ export function PricingCharts({ rows, constants }: Props) {
         </ul>
       </div>
 
-      {/* Ratios */}
-      <div className="flex flex-wrap gap-y-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
-        <Ratio expr="π ⁄ C" value={`${a.markupPct.toFixed(2)} %`} hint="markup on cost" />
-        <Ratio expr="C ⁄ R" value={`${a.costRatioPct.toFixed(2)} %`} hint="cost ratio" />
-        <Ratio expr="T ⁄ pretax" value={`${a.effTaxPct.toFixed(2)} %`} hint="effective tax" />
-        <Ratio expr="R ⁄ n" value={fmtJod(a.avgUnitRevenue)} hint="avg unit revenue" />
-        <Ratio expr="top₂" value={`${a.top2Pct.toFixed(1)} %`} hint="revenue in top 2" />
+      {/* Derived ratios — each a clear stat with a meter */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <Ratio
+          label="Markup on cost"
+          expr="π⁄C"
+          value={`${a.markupPct.toFixed(1)}%`}
+          bar={a.markupPct / 100}
+          tone="accent"
+        />
+        <Ratio
+          label="Cost ratio"
+          expr="C⁄R"
+          value={`${a.costRatioPct.toFixed(1)}%`}
+          bar={a.costRatioPct / 100}
+          tone="slate"
+        />
+        <Ratio
+          label="Effective tax"
+          expr="T⁄pretax"
+          value={`${a.effTaxPct.toFixed(1)}%`}
+          bar={a.effTaxPct / 100}
+          tone="tax"
+        />
+        <Ratio
+          label="Avg unit revenue"
+          expr="R⁄n"
+          value={`${fmtJod(a.avgUnitRevenue)} JOD`}
+          tone="slate"
+        />
+        <Ratio
+          label="Revenue in top 2"
+          expr="top₂"
+          value={`${a.top2Pct.toFixed(1)}%`}
+          bar={a.top2Pct / 100}
+          tone="accent"
+        />
       </div>
 
       {/* Waterfall + Donut */}
