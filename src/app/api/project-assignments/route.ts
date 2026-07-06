@@ -45,6 +45,12 @@ interface AssignmentRow {
   start_date: string | null;
   end_date: string | null;
   notes: string | null;
+  scope_of_work: string | null;
+  status: string | null;
+  company_name: string | null;
+  client_name: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
   created_at: string;
 }
 
@@ -132,7 +138,9 @@ export async function GET(req: NextRequest) {
       const rows = (await q`
         select pa.id, pa.project_id, pa.user_id, u.username,
                pa.role, pa.assigned_by, au.username as assigned_by_username,
-               pa.location, pa.start_date, pa.end_date, pa.notes, pa.created_at
+               pa.location, pa.start_date, pa.end_date, pa.notes,
+               pa.scope_of_work, pa.status, pa.company_name, pa.client_name,
+               pa.contact_name, pa.contact_email, pa.created_at
         from project_assignments pa
         join users u on u.id = pa.user_id
         left join users au on au.id = pa.assigned_by
@@ -192,6 +200,13 @@ export async function POST(req: NextRequest) {
       start_date?: string | null;
       end_date?: string | null;
       notes?: string | null;
+      // Distribution work-order fields.
+      scope_of_work?: string | null;
+      status?: string | null;
+      company_name?: string | null;
+      client_name?: string | null;
+      contact_name?: string | null;
+      contact_email?: string | null;
     };
 
     const projectId = Number(body.project_id);
@@ -270,17 +285,27 @@ export async function POST(req: NextRequest) {
         set location = ${body.location ?? null},
             start_date = ${body.start_date ?? null},
             end_date = ${body.end_date ?? null},
-            notes = ${body.notes ?? null}
+            notes = ${body.notes ?? null},
+            scope_of_work = ${body.scope_of_work ?? null},
+            status = ${body.status ?? "assigned"},
+            company_name = ${body.company_name ?? null},
+            client_name = ${body.client_name ?? null},
+            contact_name = ${body.contact_name ?? null},
+            contact_email = ${body.contact_email ?? null}
         where id = ${assignmentId}
       `;
     } else {
       const inserted = (await q`
         insert into project_assignments
-          (project_id, user_id, role, assigned_by, location, start_date, end_date, notes)
+          (project_id, user_id, role, assigned_by, location, start_date, end_date, notes,
+           scope_of_work, status, company_name, client_name, contact_name, contact_email)
         values
           (${projectId}, ${userId}, ${role}, ${user.id},
            ${body.location ?? null}, ${body.start_date ?? null},
-           ${body.end_date ?? null}, ${body.notes ?? null})
+           ${body.end_date ?? null}, ${body.notes ?? null},
+           ${body.scope_of_work ?? null}, ${body.status ?? "assigned"},
+           ${body.company_name ?? null}, ${body.client_name ?? null},
+           ${body.contact_name ?? null}, ${body.contact_email ?? null})
         returning id
       `) as Array<{ id: number }>;
       assignmentId = inserted[0].id;
@@ -328,6 +353,15 @@ export async function PATCH(req: NextRequest) {
       start_date?: string | null;
       end_date?: string | null;
       user_id?: number;
+      // Distribution work-order edits.
+      scope_of_work?: string | null;
+      status?: string | null;
+      location?: string | null;
+      notes?: string | null;
+      company_name?: string | null;
+      client_name?: string | null;
+      contact_name?: string | null;
+      contact_email?: string | null;
     };
     const id = Number(body.id);
     if (!Number.isInteger(id) || id <= 0) {
@@ -351,6 +385,34 @@ export async function PATCH(req: NextRequest) {
     }
     if (!(await canManageAssignments(user.id, user.role, rows[0].owner_id))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    // Distribution work-order edit: the PM tweaks scope / status / notes /
+    // context on an existing distribution. The edit form posts the full field
+    // set, so we set them all when any distribution field is present. Runs
+    // independently of the date reschedule below (they can arrive together).
+    const isDistributionUpdate =
+      body.scope_of_work !== undefined ||
+      body.status !== undefined ||
+      body.location !== undefined ||
+      body.notes !== undefined ||
+      body.company_name !== undefined ||
+      body.client_name !== undefined ||
+      body.contact_name !== undefined ||
+      body.contact_email !== undefined;
+    if (isDistributionUpdate) {
+      await q`
+        update project_assignments
+        set scope_of_work = ${body.scope_of_work ?? null},
+            status = ${body.status ?? "assigned"},
+            location = ${body.location ?? null},
+            notes = ${body.notes ?? null},
+            company_name = ${body.company_name ?? null},
+            client_name = ${body.client_name ?? null},
+            contact_name = ${body.contact_name ?? null},
+            contact_email = ${body.contact_email ?? null}
+        where id = ${id}
+      `;
     }
 
     // Reschedule / reassign (the day scheduler) vs. soft-revoke (unassign).
@@ -410,6 +472,12 @@ export async function PATCH(req: NextRequest) {
       `;
 
       return NextResponse.json({ ok: true });
+    }
+
+    // A distribution-only edit (no reschedule fields) is already applied above
+    // — return success instead of falling through to the bare-{id} unassign.
+    if (isDistributionUpdate) {
+      return NextResponse.json({ ok: true, id });
     }
 
     await q`

@@ -12,6 +12,7 @@ import Link from "next/link";
 import Spinner from "@/components/Spinner";
 import QuotationRowActions from "@/components/QuotationRowActions";
 import RequestQuotationButton from "@/components/RequestQuotationButton";
+import ProjectDistribution from "@/components/ProjectDistribution";
 
 interface Project {
   id: number;
@@ -116,6 +117,10 @@ interface CrmCaps {
   canRequestQuotation: boolean;
   canSeeFinancialOffer: boolean;
   canSeeTechnicalProposal: boolean;
+  /** Projects manager / admin: the project-distribution tool. */
+  canDistribute: boolean;
+  /** Pure projects users: hide the Quotations tab (they distribute, not quote). */
+  hideQuotations: boolean;
 }
 
 /** The server-resolved caps the page seeds the provider with. No `loaded`
@@ -128,6 +133,8 @@ const EMPTY_CAPS: CrmCaps = {
   canRequestQuotation: false,
   canSeeFinancialOffer: false,
   canSeeTechnicalProposal: false,
+  canDistribute: false,
+  hideQuotations: false,
 };
 
 const CrmCapsContext = createContext<CrmCaps>(EMPTY_CAPS);
@@ -172,12 +179,18 @@ function CrmCapsProvider({
           crm.includes("presales") || crm.includes("presales_manager");
         const hasSales =
           crm.includes("sales") || crm.includes("sales_manager");
+        const projects = (data.module_roles ?? []).filter(
+          (r) => r.module === "projects",
+        );
+        const isProjectsManager = projects.some((r) => r.role === "manager");
         setCaps({
           loaded: true,
           canAuthorQuotation: isAdmin || hasPresales,
           canRequestQuotation: hasSales,
           canSeeFinancialOffer: isAdmin || hasPresales || hasSales,
           canSeeTechnicalProposal: isAdmin || hasPresales,
+          canDistribute: isAdmin || isProjectsManager,
+          hideQuotations: !isAdmin && projects.length > 0 && crm.length === 0,
         });
       } catch {
         if (!cancelled) setCaps((prev) => ({ ...prev, loaded: true }));
@@ -659,6 +672,7 @@ function NewProjectButton({
 }
 
 type ProjectTab =
+  | "distribution"
   | "quotations"
   | "pos"
   | "boq"
@@ -702,22 +716,28 @@ function ProjectPanel({
   );
   const caps = useCrmCaps();
   const tabs = useMemo(() => {
-    const base: Array<[ProjectTab, string]> = [
-      ["quotations", "Quotations"],
-      ["pos", "Purchase Orders"],
-      ["boq", "BOQ"],
-      ["files", "Files"],
-    ];
+    const base: Array<[ProjectTab, string]> = [];
+    // Project managers distribute the project instead of quoting it.
+    if (caps.canDistribute) base.push(["distribution", "Distribution"]);
+    if (!caps.hideQuotations) base.push(["quotations", "Quotations"]);
+    base.push(["pos", "Purchase Orders"], ["boq", "BOQ"], ["files", "Files"]);
     if (caps.canSeeFinancialOffer) base.push(["financial", "Financial Offer"]);
     if (caps.canSeeTechnicalProposal) base.push(["technical", "Technical Proposal"]);
     return base;
-  }, [caps.canSeeFinancialOffer, caps.canSeeTechnicalProposal]);
+  }, [
+    caps.canDistribute,
+    caps.hideQuotations,
+    caps.canSeeFinancialOffer,
+    caps.canSeeTechnicalProposal,
+  ]);
 
-  // If the active tab is hidden by a role change mid-session (or a stale
-  // initial state), fall back to Quotations so the panel never renders
-  // an empty body.
+  // If the active tab isn't available (role change mid-session, a stale
+  // initial state, or Quotations hidden for a project manager), fall back to
+  // the first available tab so the panel never renders an empty body.
   useEffect(() => {
-    if (!tabs.some(([k]) => k === tab)) setTab("quotations");
+    if (tabs.length > 0 && !tabs.some(([k]) => k === tab)) {
+      setTab(tabs[0][0]);
+    }
   }, [tabs, tab]);
 
   return (
@@ -749,6 +769,9 @@ function ProjectPanel({
         })}
       </div>
       <div className="p-4">
+        {tab === "distribution" && (
+          <ProjectDistribution projectId={project.id} />
+        )}
         {tab === "quotations" && (
           <QuotationsTab
             project={project}
