@@ -83,6 +83,26 @@ export function PricingSheet({
   // Executive-manager confirmation state for the selected sheet.
   const [execStatus, setExecStatus] = useState<string>("none");
   const [submittingExec, setSubmittingExec] = useState(false);
+  // Only presales managers may submit a pricing sheet to the executive
+  // (admin is deliberately not part of this workflow gate).
+  const [canSubmitExec, setCanSubmitExec] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void fetch("/api/auth/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { module_roles?: Array<{ module: string; role: string }> }) => {
+        if (!alive) return;
+        setCanSubmitExec(
+          !!d.module_roles?.some(
+            (r) => r.module === "crm" && r.role === "presales_manager",
+          ),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Track whether we've done the initial project auto-select
   const initialSelectDone = useRef(false);
@@ -599,23 +619,25 @@ export function PricingSheet({
                 <Save className="h-3.5 w-3.5" />
                 {saving ? "Saving…" : "Save"}
               </button>
-              <button
-                onClick={handleSubmitExec}
-                disabled={submittingExec || execStatus === "pending"}
-                title="Submit this pricing sheet to the executive manager for confirmation"
-                className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition-colors hover:border-rose-300 hover:bg-rose-50 disabled:opacity-60"
-              >
-                <BadgeCheck className="h-3.5 w-3.5" />
-                {submittingExec
-                  ? "Submitting…"
-                  : execStatus === "pending"
-                    ? "Awaiting confirmation"
-                    : execStatus === "confirmed"
-                      ? "Confirmed ✓"
-                      : execStatus === "rejected"
-                        ? "Rejected — re-submit"
-                        : "Submit for confirmation"}
-              </button>
+              {canSubmitExec && (
+                <button
+                  onClick={handleSubmitExec}
+                  disabled={submittingExec || execStatus === "pending"}
+                  title="Submit this pricing sheet to the executive manager for confirmation"
+                  className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition-colors hover:border-rose-300 hover:bg-rose-50 disabled:opacity-60"
+                >
+                  <BadgeCheck className="h-3.5 w-3.5" />
+                  {submittingExec
+                    ? "Submitting…"
+                    : execStatus === "pending"
+                      ? "Awaiting confirmation"
+                      : execStatus === "confirmed"
+                        ? "Confirmed ✓"
+                        : execStatus === "rejected"
+                          ? "Rejected — re-submit"
+                          : "Submit for confirmation"}
+                </button>
+              )}
               <button
                 onClick={() => setShowConvertDialog(true)}
                 disabled={converting || rows.length === 0}

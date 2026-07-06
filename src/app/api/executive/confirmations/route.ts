@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import {
-  isExecutiveManager,
-  isPresalesManager,
-  canSubmitForExecutive,
-} from "@/lib/modules";
+import { isExecutiveManager, hasModuleRole } from "@/lib/modules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,11 +28,6 @@ type ItemType = "quotation" | "pricing";
 const TABLE: Record<ItemType, string> = {
   quotation: "quotations",
   pricing: "pricing_projects",
-};
-/** Owner column differs per table. */
-const OWNER_COL: Record<ItemType, string> = {
-  quotation: "owner_id",
-  pricing: "user_id",
 };
 
 export async function GET() {
@@ -110,27 +101,28 @@ export async function POST(req: Request) {
     }
 
     const table = TABLE[type];
-    const ownerCol = OWNER_COL[type];
     const q = sql();
 
-    // Fetch the row's owner so we can enforce who may act on it.
+    // Confirm the row exists (and isn't deleted) before acting on it.
     const rows = (await q.unsafe(
-      `select ${ownerCol} as owner_id, exec_status from ${table} where id = $1 and deleted_at is null`,
+      `select 1 as ok from ${table} where id = $1 and deleted_at is null`,
       [id],
-    )) as Array<{ owner_id: number | null; exec_status: string }>;
+    )) as Array<{ ok: number }>;
     if (rows.length === 0) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
-    const ownerId = rows[0].owner_id;
 
     if (action === "submit") {
-      // Presales prepares the item; a presales_manager / admin may submit any
-      // team item, a presales member only their own.
-      const manager = user.role === "admin" || (await isPresalesManager(user));
-      if (!manager) {
-        if (!(await canSubmitForExecutive(user))) throw new Error("FORBIDDEN");
-        if (ownerId !== user.id) throw new Error("FORBIDDEN");
-      }
+      // Who may submit is role-specific and deliberately EXCLUDES admin:
+      //   • a quotation is submitted to the executive by sales / sales managers
+      //     (they own the deal — presales only prepare it),
+      //   • a pricing sheet is submitted by presales managers.
+      const allowed =
+        type === "quotation"
+          ? (await hasModuleRole(user.id, "crm", "sales")) ||
+            (await hasModuleRole(user.id, "crm", "sales_manager"))
+          : await hasModuleRole(user.id, "crm", "presales_manager");
+      if (!allowed) throw new Error("FORBIDDEN");
       await q.unsafe(
         `update ${table}
            set exec_status = 'pending',
