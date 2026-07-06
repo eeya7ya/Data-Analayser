@@ -178,16 +178,24 @@ export async function PUT(req: Request, { params }: Ctx) {
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
     }
-    // postgres.js lets us interpolate an object as a dynamic SET clause
-    // using `q(patch, ...keys)`, which also keeps every value safely
-    // parameterised. The patch's keys are a closed set we control above,
-    // so the column list passed to the helper is fully literal.
-    const updateKeys = Object.keys(patch) as Array<keyof typeof patch>;
+    // Apply each provided field as its own plain template update. The
+    // postgres.js `sql(obj, ...keys)` dynamic-SET helper is not supported by
+    // the D1 client (it can't compose query fragments), so a shared helper
+    // here would fail on D1 with `near "?": syntax error`.
+    if (patch.name !== undefined) {
+      await q`update pricing_manufacturers set name = ${patch.name} where id = ${mfgId} and deleted_at is null`;
+    }
+    if (patch.color !== undefined) {
+      await q`update pricing_manufacturers set color = ${patch.color} where id = ${mfgId} and deleted_at is null`;
+    }
+    if (patch.tag !== undefined) {
+      await q`update pricing_manufacturers set tag = ${patch.tag} where id = ${mfgId} and deleted_at is null`;
+    }
     const rows = (await q`
-      update pricing_manufacturers
-      set ${q(patch, ...updateKeys)}
+      select id, name, color, tag, created_by_user_id
+      from pricing_manufacturers
       where id = ${mfgId} and deleted_at is null
-      returning id, name, color, tag, created_by_user_id
+      limit 1
     `) as Array<typeof existing>;
     const updated = rows[0];
     if (!updated) {
@@ -201,15 +209,46 @@ export async function PUT(req: Request, { params }: Ctx) {
   }
 }
 
-/** Soft-delete a manufacturer. Admin only. */
+/**
+ * Delete a manufacturer.
+ *
+ *   • Admin — soft-delete the GLOBAL `pricing_manufacturers` row (removes the
+ *     brand for everyone).
+ *   • Regular user — unpin only THEIR OWN pin. The global row is shared across
+ *     users, so we never touch it here, and we never touch other users' pins.
+ *     Their pricing projects are left intact (soft-recoverable): re-adding the
+ *     manufacturer restores the pin and the sheets reappear. That reversibility
+ *     is why the client guards this with a double confirmation rather than a
+ *     hard wipe.
+ */
 export async function DELETE(_req: Request, { params }: Ctx) {
   try {
-    const user = await requireAdmin();
+    const user = await requireWriter();
     await requireModuleAllowLegacy(user, "pricing");
     await ensureSchema();
     const { id } = await params;
     const mfgId = parseInt(id, 10);
     const q = sql();
+
+    if (!isPricingAdmin(user)) {
+      const pinRows = (await q`
+        select id from pricing_user_manufacturers
+        where user_id = ${user.id}
+          and manufacturer_id = ${mfgId}
+          and deleted_at is null
+        limit 1
+      `) as Array<{ id: number }>;
+      if (pinRows.length === 0) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      await q`
+        update pricing_user_manufacturers
+        set deleted_at = now()
+        where id = ${pinRows[0].id}
+      `;
+      return NextResponse.json({ success: true });
+    }
+
     await q`
       update pricing_manufacturers
       set deleted_at = now()

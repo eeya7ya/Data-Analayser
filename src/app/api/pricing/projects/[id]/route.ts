@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { sql, ensureSchema } from "@/lib/db";
+import { sql, ensureSchema, rawBinder } from "@/lib/db";
 import { requireUser, requireWriter } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 import { isPricingAdmin } from "@/lib/pricing/access";
@@ -183,21 +183,19 @@ export async function PUT(req: Request, { params }: Ctx) {
     const q = sql();
 
     // Header fields — only update when actually provided so a partial
-    // edit (e.g. just the constants) doesn't blank out the name.
-    const headerPatch: Record<string, unknown> = {};
-    if (body.name !== undefined) headerPatch.name = body.name.trim();
-    if (body.date !== undefined) headerPatch.date = body.date ?? null;
-    if (body.responsiblePerson !== undefined) {
-      headerPatch.responsible_person =
-        body.responsiblePerson?.trim() || null;
+    // edit (e.g. just the constants) doesn't blank out the name. Each field
+    // is its own plain template update: the postgres.js `sql(obj, ...keys)`
+    // dynamic-SET helper is NOT supported by the D1 client (it can't compose
+    // query fragments), which is what made every Save on D1 fail with
+    // `near "?": syntax error`.
+    if (body.name !== undefined) {
+      await q`update pricing_projects set name = ${body.name.trim()} where id = ${projectId}`;
     }
-    if (Object.keys(headerPatch).length > 0) {
-      const keys = Object.keys(headerPatch) as Array<keyof typeof headerPatch>;
-      await q`
-        update pricing_projects
-        set ${q(headerPatch, ...keys)}
-        where id = ${projectId}
-      `;
+    if (body.date !== undefined) {
+      await q`update pricing_projects set date = ${body.date ?? null} where id = ${projectId}`;
+    }
+    if (body.responsiblePerson !== undefined) {
+      await q`update pricing_projects set responsible_person = ${body.responsiblePerson?.trim() || null} where id = ${projectId}`;
     }
 
     // Coerce any value to a finite-number string, or a fallback. Critical
@@ -235,19 +233,35 @@ export async function PUT(req: Request, { params }: Ctx) {
         delete from pricing_product_lines where project_id = ${projectId}
       `;
       if (body.productLines.length > 0) {
-        const rows = body.productLines.map((line, idx) => ({
-          project_id: projectId,
-          position: idx + 1,
-          item_model: line.itemModel ?? "",
-          price_usd: numStr(line.priceUsd, 0),
-          quantity: Number.isFinite(Number(line.quantity)) ? line.quantity : 1,
-          shipping_override: numStrOrNull(line.shippingOverride),
-          customs_override: numStrOrNull(line.customsOverride),
-          shipping_rate_override: numStrOrNull(line.shippingRateOverride),
-          customs_rate_override: numStrOrNull(line.customsRateOverride),
-          profit_rate_override: numStrOrNull(line.profitRateOverride),
-        }));
-        await q`insert into pricing_product_lines ${q(rows)}`;
+        // One multi-row INSERT built with backend-aware placeholders. The
+        // postgres.js `sql(rows)` bulk-insert helper is NOT supported by the
+        // D1 client, so we assemble the VALUES tuples ourselves via rawBinder.
+        const { P, params } = rawBinder();
+        const tuples = body.productLines
+          .map((line, idx) => {
+            const cells = [
+              P(projectId),
+              P(idx + 1),
+              P(line.itemModel ?? ""),
+              P(numStr(line.priceUsd, 0)),
+              P(Number.isFinite(Number(line.quantity)) ? Number(line.quantity) : 1),
+              P(numStrOrNull(line.shippingOverride)),
+              P(numStrOrNull(line.customsOverride)),
+              P(numStrOrNull(line.shippingRateOverride)),
+              P(numStrOrNull(line.customsRateOverride)),
+              P(numStrOrNull(line.profitRateOverride)),
+            ];
+            return `(${cells.join(", ")})`;
+          })
+          .join(", ");
+        await q.unsafe(
+          `insert into pricing_product_lines
+             (project_id, position, item_model, price_usd, quantity,
+              shipping_override, customs_override,
+              shipping_rate_override, customs_rate_override, profit_rate_override)
+           values ${tuples}`,
+          params,
+        );
       }
     }
 

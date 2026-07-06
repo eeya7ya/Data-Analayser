@@ -156,20 +156,18 @@ export async function POST(req: Request) {
     }>;
     const md = mfgDefaults[0];
     if (md) {
-      // Build the SET clause from only the defaults the manufacturer actually
-      // carries — no cast / coalesce, so it runs identically on Postgres and
-      // D1/SQLite (NULL leaves the seeded global default in place).
-      const constPatch: Record<string, unknown> = {};
-      if (md.ship !== null) constPatch.shipping_rate = md.ship;
-      if (md.cust !== null) constPatch.customs_rate = md.cust;
-      if (md.profit !== null) constPatch.profit_margin = md.profit;
-      const keys = Object.keys(constPatch) as Array<keyof typeof constPatch>;
-      if (keys.length > 0) {
-        await q`
-          update pricing_project_constants
-          set ${q(constPatch, ...keys)}
-          where project_id = ${projectId}
-        `;
+      // Apply each default the manufacturer actually carries as its own plain
+      // template update. NULL leaves the seeded global default in place. Plain
+      // per-field updates (not the postgres.js `sql(obj, ...keys)` helper,
+      // which the D1 client can't compose) so this runs on Postgres and D1.
+      if (md.ship !== null) {
+        await q`update pricing_project_constants set shipping_rate = ${md.ship} where project_id = ${projectId}`;
+      }
+      if (md.cust !== null) {
+        await q`update pricing_project_constants set customs_rate = ${md.cust} where project_id = ${projectId}`;
+      }
+      if (md.profit !== null) {
+        await q`update pricing_project_constants set profit_margin = ${md.profit} where project_id = ${projectId}`;
       }
     }
 
