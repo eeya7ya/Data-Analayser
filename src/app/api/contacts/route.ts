@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema, usingD1, rawBinder } from "@/lib/db";
 import { requireUser, canReadAll } from "@/lib/auth";
-import { requireModuleAllowLegacy } from "@/lib/modules";
+import { requireCrmClientWrite, requireCrmOrProjectsRead } from "@/lib/modules";
 import { ensurePersonFolder } from "@/lib/crmPeople";
 import { tokenize } from "@/lib/search";
 import { isFtsReady, matchAll, ftsPredicate } from "@/lib/fts";
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmOrProjectsRead(user);
 
     const { searchParams } = new URL(req.url);
     const idParam = searchParams.get("id");
@@ -160,7 +160,7 @@ export async function POST(req: Request) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmClientWrite(user);
 
     const body = (await req.json()) as {
       company_id?: number | null;
@@ -268,7 +268,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmClientWrite(user);
 
     const { searchParams } = new URL(req.url);
     const id = Number(searchParams.get("id"));

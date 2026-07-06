@@ -4,7 +4,8 @@ import { requireUser } from "@/lib/auth";
 import {
   hasModule,
   hasModuleRole,
-  requireModuleAllowLegacy,
+  requireCrmClientWrite,
+  requireCrmOrProjectsRead,
 } from "@/lib/modules";
 import { sendPushToUsers } from "@/lib/push";
 
@@ -97,7 +98,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmOrProjectsRead(user);
 
     const { searchParams } = new URL(req.url);
     const projectIdParam = searchParams.get("project_id");
@@ -181,7 +182,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmClientWrite(user);
 
     const body = (await req.json()) as {
       project_id?: number;
@@ -320,7 +321,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureSchema();
-    await requireModuleAllowLegacy(user, "crm");
+    await requireCrmClientWrite(user);
 
     const body = (await req.json()) as {
       id?: number;
