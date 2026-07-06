@@ -210,16 +210,20 @@ export async function PUT(req: Request, { params }: Ctx) {
 }
 
 /**
- * Delete a manufacturer.
+ * Delete a manufacturer AND its pricing sheets.
  *
  *   • Admin — soft-delete the GLOBAL `pricing_manufacturers` row (removes the
- *     brand for everyone).
- *   • Regular user — unpin only THEIR OWN pin. The global row is shared across
- *     users, so we never touch it here, and we never touch other users' pins.
- *     Their pricing projects are left intact (soft-recoverable): re-adding the
- *     manufacturer restores the pin and the sheets reappear. That reversibility
- *     is why the client guards this with a double confirmation rather than a
- *     hard wipe.
+ *     brand for everyone) and every sheet under it.
+ *   • Regular user — unpin only THEIR OWN pin (the global row is shared, so we
+ *     never touch it or other users' pins) and soft-delete THEIR OWN sheets
+ *     under it.
+ *
+ * The sheets are cascaded on purpose: previously delete only removed the pin,
+ * so re-adding the manufacturer restored the pin and every old sheet came back
+ * ("I delete it and create it again and it renders the old data"). Cascading
+ * the sheets makes a re-add a genuine clean slate. Soft-delete, not a hard
+ * wipe, so the sheets land in Trash (/pricing/trash) and can be restored or
+ * purged there.
  */
 export async function DELETE(_req: Request, { params }: Ctx) {
   try {
@@ -241,6 +245,15 @@ export async function DELETE(_req: Request, { params }: Ctx) {
       if (pinRows.length === 0) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
+      // Cascade to this user's sheets under the manufacturer so re-adding
+      // starts clean.
+      await q`
+        update pricing_projects
+        set deleted_at = now()
+        where manufacturer_id = ${mfgId}
+          and user_id = ${user.id}
+          and deleted_at is null
+      `;
       await q`
         update pricing_user_manufacturers
         set deleted_at = now()
@@ -249,6 +262,13 @@ export async function DELETE(_req: Request, { params }: Ctx) {
       return NextResponse.json({ success: true });
     }
 
+    // Admin: remove the shared brand and every sheet under it.
+    await q`
+      update pricing_projects
+      set deleted_at = now()
+      where manufacturer_id = ${mfgId}
+        and deleted_at is null
+    `;
     await q`
       update pricing_manufacturers
       set deleted_at = now()
