@@ -142,12 +142,12 @@ export function sql(): Sql {
  * running on either backend.
  */
 export function rawBinder(): {
-  P: (value: string | number) => string;
-  params: Array<string | number>;
+  P: (value: string | number | null) => string;
+  params: Array<string | number | null>;
 } {
   const d1 = usingD1();
-  const params: Array<string | number> = [];
-  const P = (value: string | number): string => {
+  const params: Array<string | number | null> = [];
+  const P = (value: string | number | null): string => {
     params.push(value);
     return d1 ? "?" : `$${params.length}`;
   };
