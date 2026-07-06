@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { confirmDelete } from "@/lib/confirmDelete";
 import { EditFolderDialog } from "@/components/EditFolderDialog";
 import { useNameConflicts } from "@/components/useNameConflicts";
 import { LIST_SORT_OPTIONS, sortList, type ListSortKey } from "@/lib/listSort";
@@ -110,8 +111,8 @@ export default function ClientListClient({
 
   async function softDelete(id: number) {
     if (
-      !window.confirm(
-        "Delete this client? It moves to Trash and can be restored from there.",
+      !confirmDelete(
+        "Permanently delete this client and everything filed under it (projects, quotations, POs, files)?",
       )
     )
       return;

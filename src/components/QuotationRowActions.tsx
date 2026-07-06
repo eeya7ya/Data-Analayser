@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight, Copy, Trash2 } from "lucide-react";
 import Spinner from "@/components/Spinner";
+import { confirmDelete } from "@/lib/confirmDelete";
 
 interface FolderLite {
   id: number;
@@ -240,11 +241,7 @@ export default function QuotationRowActions({
 
   const handleDelete = useCallback(async () => {
     if (deleting) return;
-    if (
-      !window.confirm(
-        "Delete this quotation?\n\nIt will be moved to the trash — the original work is recoverable from there, but it will no longer appear in this project.",
-      )
-    ) {
+    if (!confirmDelete("Permanently delete this quotation?")) {
       return;
     }
     setDeleting(true);

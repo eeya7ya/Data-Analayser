@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { confirmDelete } from "@/lib/confirmDelete";
 
 interface PurchaseOrder {
   id: number;
@@ -264,12 +265,7 @@ export default function PurchaseOrdersClient({
   }
 
   async function deletePo(id: number) {
-    if (
-      !confirm(
-        "Move this purchase order to the trash? It can be restored later.",
-      )
-    )
-      return;
+    if (!confirmDelete("Permanently delete this purchase order?")) return;
     try {
       const res = await fetch(`/api/purchase-orders?id=${id}`, {
         method: "DELETE",

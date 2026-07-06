@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { confirmDelete } from "@/lib/confirmDelete";
 
 /**
  * Admin → Users & Roles.
@@ -248,7 +249,7 @@ export default function UsersAndRolesPanel({
   }
 
   async function deleteUser(id: number) {
-    if (!window.confirm("Delete this user?")) return;
+    if (!confirmDelete("Permanently delete this user?")) return;
     setBusyUserId(id);
     try {
       await fetch(`/api/users?id=${id}`, { method: "DELETE" });

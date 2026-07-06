@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { confirmDelete } from "@/lib/confirmDelete";
 
 /**
  * TrashView — the "junction box" for soft-deleted client folders,
@@ -132,8 +133,8 @@ export default function TrashView({ isAdmin }: { isAdmin: boolean }) {
         ? "\n\nAll of its projects and quotations will be permanently deleted too."
         : "";
     if (
-      !window.confirm(
-        `Permanently delete the ${noun} "${label}"? This CANNOT be undone.${extra}`,
+      !confirmDelete(
+        `Permanently delete the ${noun} "${label}"?${extra}`,
       )
     )
       return;

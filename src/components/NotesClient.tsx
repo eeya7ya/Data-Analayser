@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { confirmDelete } from "@/lib/confirmDelete";
 import {
   NotebookPen,
   Plus,
@@ -133,7 +134,7 @@ export default function NotesClient({ authorName }: { authorName: string }) {
   }
 
   async function deleteNote(id: number) {
-    if (!confirm("Delete this note? This can't be undone from here.")) return;
+    if (!confirmDelete("Permanently delete this note?")) return;
     await fetch(`/api/notes/${id}`, { method: "DELETE" });
     setNotes((prev) => {
       const next = prev.filter((n) => n.id !== id);

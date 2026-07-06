@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2, ListChecks } from "lucide-react";
+import { confirmDelete } from "@/lib/confirmDelete";
 
 /**
  * Per-project to-do checklist. The assigned technician/engineer ticks items
@@ -96,6 +97,7 @@ export default function ProjectTasksPanel({ projectId }: { projectId: number }) 
   }
 
   async function remove(id: number) {
+    if (!confirmDelete("Permanently delete this task?")) return;
     setTasks((prev) => prev.filter((t) => t.id !== id));
     try {
       const res = await fetch(`/api/project-tasks?id=${id}`, {

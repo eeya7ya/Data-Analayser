@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { confirmDelete } from "@/lib/confirmDelete";
 import { useRouter } from "next/navigation";
 import { LEAD_STATUS_LABEL } from "@/lib/leadConstants";
 import PageLoader from "@/components/PageLoader";
@@ -201,7 +202,7 @@ export default function LeadsClient({
     leadId: number,
     action: "junk" | "restore" | "purge",
   ) {
-    if (action === "purge" && !window.confirm("Delete this lead forever? This cannot be undone.")) {
+    if (action === "purge" && !confirmDelete("Delete this lead forever?")) {
       return;
     }
     setActBusy(true);
