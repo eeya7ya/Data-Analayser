@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { sql, ensureSchema } from "@/lib/db";
+import { sql, ensureSchema, rawBinder } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { requireModuleAllowLegacy } from "@/lib/modules";
 import { isPricingAdmin } from "@/lib/pricing/access";
@@ -72,20 +72,28 @@ export async function GET(req: Request) {
 
     const mfgFilterId = restrictMfg ? parseInt(restrictMfg, 10) : null;
 
-    const visibilityFragment = admin
-      ? restrictOwnerId != null
-        ? q`and p.user_id = ${restrictOwnerId}`
-        : q``
-      : q`and p.user_id = ${user.id}
-         and p.manufacturer_id = any(${allowedMfgIds!}::int[])`;
-    const mfgFragment =
+    // rawBinder (not q`…` fragments — those are Promises on the D1 client).
+    // P() is called in the order its placeholder appears in the SQL below.
+    const { P, params } = rawBinder();
+    const joinUser = P(user.id); // JOIN um.user_id
+    const likeP = P(like); // where pl.item_model ilike ?
+    let visibility = "";
+    if (admin) {
+      if (restrictOwnerId != null) visibility = `and p.user_id = ${P(restrictOwnerId)}`;
+    } else {
+      const ids = allowedMfgIds!.map((id) => P(id)).join(", ");
+      visibility = `and p.user_id = ${P(user.id)} and p.manufacturer_id in (${ids})`;
+    }
+    const mfgFilter =
       mfgFilterId != null && Number.isFinite(mfgFilterId)
-        ? q`and p.manufacturer_id = ${mfgFilterId}`
-        : q``;
+        ? `and p.manufacturer_id = ${P(mfgFilterId)}`
+        : "";
+    const lim = P(limit);
 
     // One row per matching line, carrying the project's constants snapshot
     // and any per-line override so we can reproduce the sheet's numbers.
-    const rows = (await q`
+    const rows = (await q.unsafe(
+      `
       select
         pl.id                       as line_id,
         pl.item_model               as item_model,
@@ -119,14 +127,16 @@ export async function GET(req: Request) {
       left join pricing_project_constants c on c.project_id = p.id
       left join pricing_user_manufacturers um
         on um.manufacturer_id = m.id
-       and um.user_id = ${user.id}
+       and um.user_id = ${joinUser}
        and um.deleted_at is null
       where p.deleted_at is null
-        and pl.item_model ilike ${like}
-        ${visibilityFragment}
-        ${mfgFragment}
-      limit ${limit}
-    `) as Array<Record<string, unknown>>;
+        and pl.item_model ilike ${likeP}
+        ${visibility}
+        ${mfgFilter}
+      limit ${lim}
+    `,
+      params,
+    )) as Array<Record<string, unknown>>;
 
     const num = (v: unknown, fallback = 0): number => {
       const n = typeof v === "number" ? v : parseFloat(String(v));
