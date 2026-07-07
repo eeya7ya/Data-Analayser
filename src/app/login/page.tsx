@@ -73,18 +73,19 @@ export default async function LoginPage() {
         }}
       />
 
-      {/* LEFT — showcase (desktop only, evenly distributed) */}
-      <aside className="relative z-10 hidden flex-col justify-between p-14 lg:flex">
+      {/* LEFT — showcase (desktop only): one centered, contained block so
+          nothing hugs the corners and there's no dead middle space. */}
+      <aside className="relative z-10 hidden flex-col justify-center gap-9 p-16 xl:px-20 lg:flex">
         <Image
           src="/logo.png"
           alt="MagicTech"
           width={680}
           height={200}
           priority
-          className="w-[260px] object-contain brightness-0 invert"
+          className="w-[250px] object-contain brightness-0 invert"
         />
         <div>
-          <h2 className="text-5xl font-bold leading-[1.08] tracking-tight text-white">
+          <h2 className="text-5xl font-bold leading-[1.1] tracking-tight text-white">
             Data Analytics &amp;
             <br />
             Quotation Platform
@@ -93,11 +94,9 @@ export default async function LoginPage() {
             Sales, presales, pricing and execution — from the first RFQ to the
             delivered job.
           </p>
-          <div className="mt-10">
-            <DashboardMock />
-          </div>
         </div>
-        <span className="text-[11px] uppercase tracking-[0.3em] text-white/30">
+        <DashboardMock />
+        <span className="text-[11px] uppercase tracking-[0.3em] text-white/25">
           MagicTech · Secure Access
         </span>
       </aside>
