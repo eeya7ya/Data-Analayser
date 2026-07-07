@@ -37,11 +37,11 @@ export default function LoginForm() {
     <form onSubmit={onSubmit} className="space-y-5" autoComplete="on">
       {/* Username */}
       <div>
-        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-white/50">
           Username
         </label>
         <div className="group relative">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[#E2231A]">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 transition-colors group-focus-within:text-[#ff6a60]">
             <svg
               className="h-4 w-4"
               fill="none"
@@ -57,7 +57,7 @@ export default function LoginForm() {
             </svg>
           </span>
           <input
-            className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-[#E2231A]/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E2231A]/15"
+            className="block w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-white placeholder:text-white/30 transition focus:border-[#ff6a60]/50 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-[#E2231A]/30"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="your.username"
@@ -69,11 +69,11 @@ export default function LoginForm() {
 
       {/* Password */}
       <div>
-        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-white/50">
           Password
         </label>
         <div className="group relative">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[#E2231A]">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 transition-colors group-focus-within:text-[#ff6a60]">
             <svg
               className="h-4 w-4"
               fill="none"
@@ -90,7 +90,7 @@ export default function LoginForm() {
           </span>
           <input
             type={showPw ? "text" : "password"}
-            className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-11 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-[#E2231A]/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E2231A]/15"
+            className="block w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 pl-10 pr-11 text-sm text-white placeholder:text-white/30 transition focus:border-[#ff6a60]/50 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-[#E2231A]/30"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
@@ -100,7 +100,7 @@ export default function LoginForm() {
           <button
             type="button"
             onClick={() => setShowPw((s) => !s)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/40 transition hover:bg-white/5 hover:text-white/80"
             aria-label={showPw ? "Hide password" : "Show password"}
             tabIndex={-1}
           >
@@ -143,7 +143,7 @@ export default function LoginForm() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700">
+        <div className="flex items-start gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-3.5 py-2.5 text-xs font-medium text-red-200">
           <svg
             className="mt-0.5 h-4 w-4 shrink-0"
             fill="none"
