@@ -5,138 +5,155 @@ import LoginForm from "@/components/LoginForm";
 
 export const dynamic = "force-dynamic";
 
-const HIGHLIGHTS: Array<{ title: string; desc: string; icon: React.ReactNode }> = [
-  {
-    title: "CRM & Pipeline",
-    desc: "Companies, clients and the full quote-to-delivery board.",
-    icon: (
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h10" />
-    ),
-  },
-  {
-    title: "Smart Pricing",
-    desc: "Per-manufacturer sheets with landed-cost and margin analysis.",
-    icon: (
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 19V5m4 14V9m4 10V7m4 12v-6m4 6V4" />
-    ),
-  },
-  {
-    title: "Execution",
-    desc: "Distribute work, track checklists and execution reports.",
-    icon: (
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-    ),
-  },
-];
-
 export default async function LoginPage() {
   const user = await getSessionUser();
   if (user) redirect("/");
 
   return (
-    <main className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      {/* ── LEFT — branded showcase (dark, hidden on small screens) ── */}
-      <aside className="relative hidden overflow-hidden bg-[#0b0f1a] lg:block">
-        {/* Depth layers */}
+    <main className="grid min-h-screen lg:grid-cols-[1.08fr_1fr]">
+      {/* ── LEFT — vibrant branded showcase (hidden on small screens) ── */}
+      <aside className="relative hidden overflow-hidden lg:block">
+        {/* Gradient base */}
         <div
           aria-hidden
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(120% 120% at 15% 0%, #1a2036 0%, #0b0f1a 55%, #070a12 100%)",
+              "linear-gradient(135deg, #ff4d3d 0%, #E2231A 24%, #a3123a 52%, #4a1236 76%, #180a1c 100%)",
           }}
+        />
+        {/* Blurred colour blobs for depth */}
+        <div
+          aria-hidden
+          className="absolute -left-24 -top-24 h-96 w-96 rounded-full opacity-60 blur-3xl"
+          style={{ background: "radial-gradient(circle, #ff7a45, transparent 65%)" }}
         />
         <div
           aria-hidden
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(50% 45% at 22% 30%, rgba(226,35,26,0.22), transparent 70%)",
-          }}
+          className="absolute -bottom-32 left-1/3 h-[26rem] w-[26rem] rounded-full opacity-40 blur-3xl"
+          style={{ background: "radial-gradient(circle, #8b5cf6, transparent 65%)" }}
         />
+        {/* Fine grid texture */}
         <div
           aria-hidden
-          className="absolute inset-0 opacity-[0.06]"
+          className="absolute inset-0 opacity-[0.12]"
           style={{
             backgroundImage:
-              "linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)",
-            backgroundSize: "46px 46px",
-            maskImage:
-              "radial-gradient(ellipse at 30% 40%, black 30%, transparent 78%)",
-            WebkitMaskImage:
-              "radial-gradient(ellipse at 30% 40%, black 30%, transparent 78%)",
+              "linear-gradient(rgba(255,255,255,0.7) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.7) 1px, transparent 1px)",
+            backgroundSize: "40px 40px",
+            maskImage: "radial-gradient(ellipse at 60% 40%, black 20%, transparent 75%)",
+            WebkitMaskImage: "radial-gradient(ellipse at 60% 40%, black 20%, transparent 75%)",
           }}
         />
 
         <div className="relative z-10 flex h-full flex-col justify-between p-12 xl:p-16">
-          <div className="w-[240px] xl:w-[280px]">
+          {/* Logo */}
+          <div className="w-[230px] xl:w-[260px]">
             <Image
               src="/logo.png"
               alt="MagicTech"
               width={680}
               height={200}
               priority
-              className="h-auto w-full object-contain drop-shadow-[0_10px_36px_rgba(226,35,26,0.45)]"
+              className="h-auto w-full object-contain brightness-0 invert drop-shadow-lg"
             />
           </div>
 
-          <div className="max-w-md">
-            <h1 className="text-4xl font-bold leading-tight tracking-tight text-white xl:text-[2.7rem]">
+          {/* Headline + floating analytics mockup */}
+          <div className="relative max-w-lg">
+            <h1 className="text-[2.6rem] font-bold leading-[1.08] tracking-tight text-white xl:text-5xl">
               Data Analytics &amp;
               <br />
               Quotation Platform
             </h1>
-            <p className="mt-4 text-[15px] leading-relaxed text-white/55">
-              One workspace for sales, presales, pricing and project execution —
-              from the first RFQ to the delivered job.
+            <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/70">
+              Sales, presales, pricing and execution — from the first RFQ to the
+              delivered job, in one workspace.
             </p>
 
-            <ul className="mt-10 space-y-5">
-              {HIGHLIGHTS.map((h) => (
-                <li key={h.title} className="flex items-start gap-4">
-                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-[#ff6a60]">
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                      {h.icon}
-                    </svg>
+            {/* Floating glass dashboard preview */}
+            <div className="relative mt-12 h-[230px]">
+              {/* main card */}
+              <div className="absolute left-0 top-2 w-[340px] rotate-[-3deg] rounded-2xl border border-white/20 bg-white/10 p-5 shadow-2xl backdrop-blur-xl">
+                <div className="mb-4 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-white/80">
+                    Revenue Analysis
                   </span>
-                  <div>
-                    <p className="text-sm font-semibold text-white/90">{h.title}</p>
-                    <p className="mt-0.5 text-[13px] leading-snug text-white/45">{h.desc}</p>
+                  <span className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-300">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                    Live
+                  </span>
+                </div>
+                <div className="flex items-center gap-5">
+                  {/* donut */}
+                  <svg viewBox="0 0 120 120" className="h-24 w-24 flex-shrink-0">
+                    <circle cx="60" cy="60" r="44" fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="14" />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="44"
+                      fill="none"
+                      stroke="#2dd4bf"
+                      strokeWidth="14"
+                      strokeLinecap="round"
+                      strokeDasharray="199 277"
+                      transform="rotate(-90 60 60)"
+                    />
+                    <text x="60" y="58" textAnchor="middle" fontSize="20" fontWeight="700" fill="#fff" fontFamily="ui-monospace,monospace">72%</text>
+                    <text x="60" y="74" textAnchor="middle" fontSize="9" fill="rgba(255,255,255,0.6)">landed</text>
+                  </svg>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-mono text-2xl font-bold leading-none text-white">7,084</p>
+                      <p className="mt-1 text-[11px] text-white/60">JOD revenue</p>
+                    </div>
+                    <div>
+                      <p className="font-mono text-lg font-bold leading-none text-teal-300">14.4%</p>
+                      <p className="mt-1 text-[11px] text-white/60">net margin</p>
+                    </div>
                   </div>
-                </li>
-              ))}
-            </ul>
+                </div>
+                {/* mini bars */}
+                <div className="mt-4 flex items-end gap-1.5">
+                  {[40, 62, 48, 78, 90, 66, 100].map((h, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 rounded-sm bg-white/25"
+                      style={{ height: `${h * 0.36}px`, background: i === 6 ? "#2dd4bf" : undefined }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* floating pills */}
+              <div className="absolute right-4 top-0 rotate-[4deg] rounded-xl border border-white/25 bg-white/15 px-3.5 py-2 shadow-xl backdrop-blur-md">
+                <p className="text-[10px] text-white/60">Markup on cost</p>
+                <p className="font-mono text-sm font-bold text-white">π ⁄ C · 20.0%</p>
+              </div>
+              <div className="absolute bottom-0 right-16 rotate-[-2deg] rounded-xl border border-white/25 bg-white/15 px-3.5 py-2 shadow-xl backdrop-blur-md">
+                <p className="text-[10px] text-white/60">Top 2 SKUs</p>
+                <p className="font-mono text-sm font-bold text-teal-200">86.3% of R</p>
+              </div>
+            </div>
           </div>
 
-          <p className="text-[11px] uppercase tracking-[0.3em] text-white/30">
+          <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">
             MagicTech · Secure Access
           </p>
         </div>
       </aside>
 
-      {/* ── RIGHT — sign-in (light) ── */}
+      {/* ── RIGHT — clean sign-in ── */}
       <section className="relative flex items-center justify-center bg-gradient-to-b from-white to-slate-50 px-6 py-12">
-        {/* Faint brand wash behind the card */}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(60% 40% at 50% 0%, rgba(226,35,26,0.05), transparent 70%)",
-          }}
+          style={{ background: "radial-gradient(60% 40% at 50% 0%, rgba(226,35,26,0.05), transparent 70%)" }}
         />
 
         <div className="relative z-10 w-full max-w-[400px]">
-          {/* Mobile logo (left panel is hidden below lg) */}
           <div className="mb-8 flex justify-center lg:hidden">
-            <Image
-              src="/logo.png"
-              alt="MagicTech"
-              width={400}
-              height={120}
-              priority
-              className="h-auto w-[200px] object-contain"
-            />
+            <Image src="/logo.png" alt="MagicTech" width={400} height={120} priority className="h-auto w-[200px] object-contain" />
           </div>
 
           <div className="mb-8">
@@ -144,7 +161,7 @@ export default async function LoginPage() {
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               Sign in
             </span>
-            <h2 className="mt-4 text-[28px] font-bold tracking-tight text-slate-900">
+            <h2 className="mt-4 text-[30px] font-bold tracking-tight text-slate-900">
               Welcome back
             </h2>
             <p className="mt-1.5 text-sm text-slate-500">
