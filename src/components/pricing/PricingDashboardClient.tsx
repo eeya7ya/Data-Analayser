@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus, Factory, BarChart3, AlertCircle, ScanSearch } from "lucide-react";
 import PageLoader from "@/components/PageLoader";
 import { ManufacturerCard } from "@/components/pricing/ManufacturerCard";
+import { PricingBackupToolbar } from "@/components/pricing/ManufacturerBackup";
 import { cn } from "@/lib/pricing/utils";
 import { useAuth } from "@/lib/pricing/authContext";
 
@@ -354,6 +355,27 @@ export default function DashboardPage() {
               />
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Whole-workspace backup — every manufacturer together ── */}
+      {!showSpinner && (
+        <div className="mt-10 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-gray-50/60 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800">
+              Backup all manufacturers
+            </h3>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Every manufacturer, sheet, constant and product line in one file —
+              JSON or CSV. Restore adds them back; existing work is untouched.
+            </p>
+          </div>
+          <PricingBackupToolbar
+            endpoint="/api/pricing/backup"
+            filenameBase="all-manufacturers-pricing"
+            scopeLabel="your workspace (all manufacturers)"
+            onRestored={loadData}
+          />
         </div>
       )}
     </div>
