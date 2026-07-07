@@ -37,7 +37,7 @@ export default function LoginForm() {
     <form onSubmit={onSubmit} className="space-y-5" autoComplete="on">
       {/* Username */}
       <div>
-        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
           Username
         </label>
         <div className="group relative">
@@ -69,7 +69,7 @@ export default function LoginForm() {
 
       {/* Password */}
       <div>
-        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
           Password
         </label>
         <div className="group relative">

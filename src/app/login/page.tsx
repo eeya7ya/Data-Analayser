@@ -5,157 +5,133 @@ import LoginForm from "@/components/LoginForm";
 
 export const dynamic = "force-dynamic";
 
-const HIGHLIGHTS: Array<{ title: string; desc: string; icon: React.ReactNode }> = [
-  {
-    title: "CRM & Pipeline",
-    desc: "Companies, clients and the full quote-to-delivery board.",
-    icon: (
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h10" />
-    ),
-  },
-  {
-    title: "Smart Pricing",
-    desc: "Per-manufacturer sheets with landed-cost and margin analysis.",
-    icon: (
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 19V5m4 14V9m4 10V7m4 12v-6m4 6V4" />
-    ),
-  },
-  {
-    title: "Execution",
-    desc: "Distribute work, track checklists and execution reports.",
-    icon: (
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-    ),
-  },
-];
+/** Small live-analytics mockup shown in the desktop showcase panel. */
+function DashboardMock() {
+  return (
+    <div className="w-[330px] rotate-[-3deg] rounded-2xl border border-white/20 bg-white/10 p-5 shadow-2xl backdrop-blur-xl">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-white/80">
+          Revenue Analysis
+        </span>
+        <span className="flex items-center gap-1.5 text-[10px] text-emerald-300">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+          Live
+        </span>
+      </div>
+      <div className="flex items-center gap-4">
+        <svg viewBox="0 0 120 120" className="h-20 w-20 flex-shrink-0">
+          <circle cx="60" cy="60" r="44" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="14" />
+          <circle cx="60" cy="60" r="44" fill="none" stroke="#2dd4bf" strokeWidth="14" strokeLinecap="round" strokeDasharray="199 277" transform="rotate(-90 60 60)" />
+          <text x="60" y="65" textAnchor="middle" fontSize="18" fontWeight="700" fill="#fff" fontFamily="ui-monospace,monospace">72%</text>
+        </svg>
+        <div>
+          <p className="font-mono text-xl font-bold text-white">7,084</p>
+          <p className="text-[11px] text-white/60">JOD revenue</p>
+          <p className="mt-2 font-mono text-base font-bold text-teal-300">14.4%</p>
+          <p className="text-[11px] text-white/60">net margin</p>
+        </div>
+      </div>
+      <div className="mt-4 flex h-10 items-end gap-1.5">
+        {[40, 62, 48, 78, 90, 66, 100].map((h, i) => (
+          <div
+            key={i}
+            className="flex-1 rounded-sm"
+            style={{ height: `${h}%`, background: i === 6 ? "#2dd4bf" : "rgba(255,255,255,0.25)" }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default async function LoginPage() {
   const user = await getSessionUser();
   if (user) redirect("/");
 
   return (
-    <main className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      {/* ── LEFT — branded showcase (dark, hidden on small screens) ── */}
-      <aside className="relative hidden overflow-hidden bg-[#0b0f1a] lg:block">
-        {/* Depth layers */}
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(120% 120% at 15% 0%, #1a2036 0%, #0b0f1a 55%, #070a12 100%)",
-          }}
+    <main className="relative min-h-screen overflow-hidden bg-[#0b0d12] lg:grid lg:grid-cols-[1.15fr_1fr]">
+      {/* One dark canvas behind everything */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(55% 55% at 18% 30%, rgba(226,35,26,0.30), transparent 60%)," +
+            "radial-gradient(45% 45% at 92% 88%, rgba(226,35,26,0.12), transparent 60%)," +
+            "linear-gradient(160deg, #15171e 0%, #0b0d12 58%, #070809 100%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.05]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)",
+          backgroundSize: "46px 46px",
+          maskImage: "radial-gradient(ellipse at 30% 45%, black 20%, transparent 72%)",
+          WebkitMaskImage: "radial-gradient(ellipse at 30% 45%, black 20%, transparent 72%)",
+        }}
+      />
+
+      {/* LEFT — showcase (desktop only, evenly distributed) */}
+      <aside className="relative z-10 hidden flex-col justify-between p-14 lg:flex">
+        <Image
+          src="/logo.png"
+          alt="MagicTech"
+          width={680}
+          height={200}
+          priority
+          className="w-[260px] object-contain brightness-0 invert"
         />
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(50% 45% at 22% 30%, rgba(226,35,26,0.22), transparent 70%)",
-          }}
-        />
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-[0.06]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)",
-            backgroundSize: "46px 46px",
-            maskImage:
-              "radial-gradient(ellipse at 30% 40%, black 30%, transparent 78%)",
-            WebkitMaskImage:
-              "radial-gradient(ellipse at 30% 40%, black 30%, transparent 78%)",
-          }}
-        />
-
-        <div className="relative z-10 flex h-full flex-col justify-between p-12 xl:p-16">
-          <div className="w-[240px] xl:w-[280px]">
-            <Image
-              src="/logo.png"
-              alt="MagicTech"
-              width={680}
-              height={200}
-              priority
-              className="h-auto w-full object-contain drop-shadow-[0_10px_36px_rgba(226,35,26,0.45)]"
-            />
-          </div>
-
-          <div className="max-w-md">
-            <h1 className="text-4xl font-bold leading-tight tracking-tight text-white xl:text-[2.7rem]">
-              Data Analytics &amp;
-              <br />
-              Quotation Platform
-            </h1>
-            <p className="mt-4 text-[15px] leading-relaxed text-white/55">
-              One workspace for sales, presales, pricing and project execution —
-              from the first RFQ to the delivered job.
-            </p>
-
-            <ul className="mt-10 space-y-5">
-              {HIGHLIGHTS.map((h) => (
-                <li key={h.title} className="flex items-start gap-4">
-                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-[#ff6a60]">
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                      {h.icon}
-                    </svg>
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-white/90">{h.title}</p>
-                    <p className="mt-0.5 text-[13px] leading-snug text-white/45">{h.desc}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <p className="text-[11px] uppercase tracking-[0.3em] text-white/30">
-            MagicTech · Secure Access
+        <div>
+          <h2 className="text-5xl font-bold leading-[1.08] tracking-tight text-white">
+            Data Analytics &amp;
+            <br />
+            Quotation Platform
+          </h2>
+          <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/60">
+            Sales, presales, pricing and execution — from the first RFQ to the
+            delivered job.
           </p>
+          <div className="mt-10">
+            <DashboardMock />
+          </div>
         </div>
+        <span className="text-[11px] uppercase tracking-[0.3em] text-white/30">
+          MagicTech · Secure Access
+        </span>
       </aside>
 
-      {/* ── RIGHT — sign-in (light) ── */}
-      <section className="relative flex items-center justify-center bg-gradient-to-b from-white to-slate-50 px-6 py-12">
-        {/* Faint brand wash behind the card */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(60% 40% at 50% 0%, rgba(226,35,26,0.05), transparent 70%)",
-          }}
+      {/* RIGHT (desktop) / full (mobile) — centered framed sign-in card */}
+      <section className="relative z-10 flex min-h-screen flex-col items-center justify-center p-6 sm:p-10 lg:min-h-0">
+        {/* Mobile-only logo above the card */}
+        <Image
+          src="/logo.png"
+          alt="MagicTech"
+          width={680}
+          height={200}
+          priority
+          className="mb-8 w-[240px] object-contain brightness-0 invert lg:hidden"
         />
 
-        <div className="relative z-10 w-full max-w-[400px]">
-          {/* Mobile logo (left panel is hidden below lg) */}
-          <div className="mb-8 flex justify-center lg:hidden">
-            <Image
-              src="/logo.png"
-              alt="MagicTech"
-              width={400}
-              height={120}
-              priority
-              className="h-auto w-[200px] object-contain"
-            />
-          </div>
-
-          <div className="mb-8">
-            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500 shadow-sm">
+        <div className="w-full max-w-[380px] rounded-3xl border border-white/10 bg-white p-8 shadow-[0_30px_90px_-20px_rgba(0,0,0,0.7)] sm:p-9">
+          <div className="mb-7 text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               Sign in
             </span>
-            <h2 className="mt-4 text-[28px] font-bold tracking-tight text-slate-900">
+            <h1 className="mt-4 text-[26px] font-bold tracking-tight text-slate-900">
               Welcome back
-            </h2>
+            </h1>
             <p className="mt-1.5 text-sm text-slate-500">
-              Enter your credentials to access your workspace.
+              Enter your credentials to continue.
             </p>
           </div>
 
           <LoginForm />
 
-          <p className="mt-8 text-center text-xs text-slate-400">
-            Protected workspace · Access is role-based and audited.
+          <p className="mt-7 text-center text-[11px] text-slate-400">
+            Protected workspace · role-based &amp; audited.
           </p>
         </div>
       </section>
