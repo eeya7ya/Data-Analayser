@@ -96,10 +96,10 @@ const TRUST: { label: string; icon: ReactNode }[] = [
 /** A single feature highlight in the left showcase grid. */
 function FeatureCard({ title, desc, icon }: Feature) {
   return (
-    <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-sm transition-colors hover:border-white/20 hover:bg-white/[0.07]">
-      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#E2231A]/15 text-[#ff6b63]">
+    <div className="flex gap-3.5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm transition-colors hover:border-white/20 hover:bg-white/[0.07] xl:p-5">
+      <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#E2231A]/15 text-[#ff6b63]">
         <svg
-          className="h-[18px] w-[18px]"
+          className="h-[22px] w-[22px]"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -109,8 +109,8 @@ function FeatureCard({ title, desc, icon }: Feature) {
         </svg>
       </span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-white">{title}</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-white/50">{desc}</p>
+        <p className="text-[15px] font-semibold text-white">{title}</p>
+        <p className="mt-0.5 text-[13px] leading-relaxed text-white/50">{desc}</p>
       </div>
     </div>
   );
@@ -167,7 +167,7 @@ function TrustBadge({ label, icon }: { label: string; icon: ReactNode }) {
 /** Small live-analytics mockup shown in the desktop showcase panel. */
 function DashboardMock() {
   return (
-    <div className="w-[330px] rotate-[-3deg] rounded-2xl border border-white/20 bg-white/10 p-5 shadow-2xl backdrop-blur-xl">
+    <div className="w-[360px] rotate-[-3deg] rounded-2xl border border-white/20 bg-white/10 p-6 shadow-2xl backdrop-blur-xl">
       <div className="mb-3 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-white/80">
           Revenue Analysis
@@ -236,14 +236,14 @@ export default async function LoginPage() {
       {/* LEFT — showcase (desktop only). A full-height, three-band layout
           (brand · story · live proof) that spreads top-to-bottom and reaches
           across the column so no dead space is left between it and the card. */}
-      <aside className="relative z-10 hidden flex-col justify-between gap-8 p-10 xl:p-14 2xl:p-16 lg:flex lg:border-r lg:border-white/[0.06]">
+      <aside className="relative z-10 hidden flex-col justify-between gap-8 py-10 pl-14 pr-10 xl:py-14 xl:pl-20 xl:pr-10 2xl:pl-28 lg:flex lg:border-r lg:border-white/[0.06]">
         <Image
           src="/logo.png"
           alt="MagicTech"
           width={680}
           height={200}
           priority
-          className="w-[230px] object-contain brightness-0 invert"
+          className="w-[310px] object-contain brightness-0 invert"
         />
 
         <div className="space-y-8">
@@ -252,18 +252,18 @@ export default async function LoginPage() {
               <span className="h-1.5 w-1.5 rounded-full bg-[#E2231A]" />
               MagicTech Workspace
             </span>
-            <h2 className="mt-5 text-[2.7rem] font-bold leading-[1.08] tracking-tight text-white xl:text-5xl">
+            <h2 className="mt-5 text-5xl font-bold leading-[1.06] tracking-tight text-white xl:text-6xl">
               Data Analytics &amp;
               <br />
               Quotation Platform
             </h2>
-            <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/60">
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-white/60 xl:text-lg">
               Sales, presales, pricing and execution — from the first RFQ to the
               delivered job, in one connected workspace.
             </p>
           </div>
 
-          <div className="grid max-w-xl grid-cols-2 gap-3.5">
+          <div className="grid max-w-[900px] grid-cols-2 gap-4">
             {FEATURES.map((f) => (
               <FeatureCard key={f.title} {...f} />
             ))}
@@ -271,11 +271,12 @@ export default async function LoginPage() {
         </div>
 
         <div className="space-y-5">
-          <div className="flex items-end gap-6">
+          <div className="flex w-full max-w-[900px] items-end justify-between gap-6">
             <DashboardMock />
-            <div className="mb-2 hidden animate-mt-float flex-col gap-3 xl:flex">
+            <div className="mb-2 hidden animate-mt-float flex-col gap-4 xl:flex">
               <GlassStat value="1.2k+" label="Quotes issued" className="rotate-[2deg]" />
               <GlassStat value="32" label="Active RFQs" accent className="rotate-[-1.5deg]" />
+              <GlassStat value="24" label="Projects live" className="rotate-[1deg]" />
             </div>
           </div>
           <span className="text-[11px] uppercase tracking-[0.3em] text-white/25">
@@ -294,26 +295,26 @@ export default async function LoginPage() {
           width={680}
           height={200}
           priority
-          className="w-[220px] object-contain brightness-0 invert lg:hidden"
+          className="w-[260px] object-contain brightness-0 invert lg:hidden"
         />
 
-        <div className="w-full max-w-[400px] rounded-3xl border border-white/10 bg-white p-8 shadow-[0_30px_90px_-20px_rgba(0,0,0,0.7)] sm:p-9">
-          <div className="mb-7 text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        <div className="w-full max-w-[460px] rounded-3xl border border-white/10 bg-white p-9 shadow-[0_30px_90px_-20px_rgba(0,0,0,0.7)] sm:p-11">
+          <div className="mb-8 text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               Sign in
             </span>
-            <h1 className="mt-4 text-[26px] font-bold tracking-tight text-slate-900">
+            <h1 className="mt-4 text-[32px] font-bold tracking-tight text-slate-900">
               Welcome back
             </h1>
-            <p className="mt-1.5 text-sm text-slate-500">
+            <p className="mt-2 text-[15px] text-slate-500">
               Enter your credentials to continue.
             </p>
           </div>
 
           <LoginForm />
 
-          <p className="mt-7 text-center text-[11px] text-slate-400">
+          <p className="mt-8 text-center text-xs text-slate-400">
             Protected workspace · role-based &amp; audited.
           </p>
         </div>
