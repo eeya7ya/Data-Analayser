@@ -399,8 +399,8 @@ function NewClientModal({
             className="w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
           />
           <p className="mt-1 text-[11px] text-magic-ink/50">
-            Names the first project created for this client. Leave blank to use
-            the client’s name.
+            Names the first project created for this client. Leave blank for a
+            generic “Default Project” you can rename later.
           </p>
         </div>
         {error && (

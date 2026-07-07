@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
     // Spin up the folder's first project up-front so any quotation created
     // from this client (even the very first one) lands on a real project
     // instead of "Unfiled". Uses the name the user typed in the New Client
-    // dialog; falls back to the client's name when left blank.
+    // dialog; falls back to a neutral "Default Project" when left blank.
     await ensureDefaultProject({
       folderId: rows[0].id,
       ownerId: rows[0].owner_id ?? user.id,
