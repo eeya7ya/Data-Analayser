@@ -286,6 +286,7 @@ function NewClientModal({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [projectName, setProjectName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Only individual clients are subject to the cross-kind block; company
@@ -307,6 +308,8 @@ function NewClientModal({
           client_phone: phone.trim() || null,
           kind,
           company_id: kind === "company" ? companyId : null,
+          // Names the client's first project; blank falls back to the client name.
+          project_name: projectName.trim() || null,
         }),
       });
       const data = await res.json();
@@ -386,6 +389,20 @@ function NewClientModal({
           disabled={busy}
           className="w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
         />
+        <div>
+          <input
+            type="text"
+            placeholder="First project name (optional)"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            disabled={busy}
+            className="w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-[11px] text-magic-ink/50">
+            Names the first project created for this client. Leave blank to use
+            the client’s name.
+          </p>
+        </div>
         {error && (
           <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
             {error}
