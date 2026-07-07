@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { canReadAll, requireUser } from "@/lib/auth";
-import { quotationRefPrefix } from "@/lib/quotationRef";
+import { quotationRefPrefix, hex4, nextRefCounter } from "@/lib/quotationRef";
 import {
   requireModuleAllowLegacy,
   isSalesEditLocked,
@@ -44,11 +44,6 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** 4-digit (min) uppercase hex, e.g. 1 → "0001", 4096 → "1000". */
-function hex4(n: number): string {
-  return n.toString(16).toUpperCase().padStart(4, "0");
-}
-
 async function genActiveRef(
   useD1: boolean,
   q: Sql | null,
@@ -76,20 +71,13 @@ async function genActiveRef(
     `) as Array<{ ref: string }>;
   }
 
-  // Collect used counters for THIS department + year. The counter is exactly
-  // the 4 hex chars right after the prefix; draft/review refs append a
-  // `.D<m>` / `.R<m>` suffix (the dot keeps them out of the hex run), and they
-  // share their root's counter, so reading the leading 4 hex chars is correct.
-  const used = new Set<number>();
-  for (const { ref } of rows) {
-    if (!ref || !ref.startsWith(prefix)) continue;
-    const tail = ref.slice(prefix.length, prefix.length + 4);
-    if (/^[0-9A-Fa-f]{4}$/.test(tail)) used.add(parseInt(tail, 16));
-  }
-
-  // Lowest unused positive integer.
-  let n = 1;
-  while (used.has(n)) n++;
+  // Lowest unused positive counter for THIS department + year. Shared with the
+  // Designer's /next-ref preview (nextRefCounter) so the number the user sees
+  // before saving is the same one minted here.
+  let n = nextRefCounter(
+    rows.map((r) => r.ref),
+    prefix,
+  );
 
   // Collision probe. The unique index on `ref` is authoritative; this
   // pre-check just avoids a failed INSERT round-trip if two requests race on

@@ -167,7 +167,7 @@ function TrustBadge({ label, icon }: { label: string; icon: ReactNode }) {
 /** Small live-analytics mockup shown in the desktop showcase panel. */
 function DashboardMock() {
   return (
-    <div className="w-[360px] rotate-[-3deg] rounded-2xl border border-white/20 bg-white/10 p-6 shadow-2xl backdrop-blur-xl">
+    <div className="w-[360px] rotate-[3deg] rounded-2xl border border-white/20 bg-white/10 p-6 shadow-2xl backdrop-blur-xl">
       <div className="mb-3 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-white/80">
           Revenue Analysis
@@ -271,13 +271,15 @@ export default async function LoginPage() {
         </div>
 
         <div className="space-y-5">
+          {/* Stat boxes on the LEFT, the revenue card on the RIGHT (swapped
+              from the original card-left / boxes-right layout). */}
           <div className="flex w-full max-w-[900px] items-end justify-between gap-6">
-            <DashboardMock />
             <div className="mb-2 hidden animate-mt-float flex-col gap-4 xl:flex">
-              <GlassStat value="1.2k+" label="Quotes issued" className="rotate-[2deg]" />
-              <GlassStat value="32" label="Active RFQs" accent className="rotate-[-1.5deg]" />
-              <GlassStat value="24" label="Projects live" className="rotate-[1deg]" />
+              <GlassStat value="1.2k+" label="Quotes issued" className="rotate-[-2deg]" />
+              <GlassStat value="32" label="Active RFQs" accent className="rotate-[1.5deg]" />
+              <GlassStat value="24" label="Projects live" className="rotate-[-1deg]" />
             </div>
+            <DashboardMock />
           </div>
           <span className="text-[11px] uppercase tracking-[0.3em] text-white/25">
             MagicTech · Secure Access

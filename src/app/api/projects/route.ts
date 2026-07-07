@@ -4,7 +4,7 @@ import { canReadAll, requireUser } from "@/lib/auth";
 import { requireCrmClientWrite, requireCrmOrProjectsRead } from "@/lib/modules";
 import { assignedProjectIds } from "@/lib/projectAccess";
 import { ensureFolderProjectCoverage } from "@/lib/projects";
-import { detachLeadsFromProject } from "@/lib/cascade";
+import { removeLeadsForProject } from "@/lib/cascade";
 
 export const runtime = "nodejs";
 
@@ -295,13 +295,15 @@ export async function DELETE(req: NextRequest) {
     if (user.role !== "admin" && owned[0].owner_id !== user.id) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
-    // Keep any presales lead opened against this project alive in the queue —
-    // sever its project link first, then permanently remove the project AND
-    // its child rows. Postgres would cascade these, but D1 has no FK
-    // enforcement, so we must delete them explicitly — otherwise an orphaned
-    // project_assignment keeps counting toward a technician's "My projects"
-    // KPI even though the project (and the list) is gone.
-    await detachLeadsFromProject(q, id);
+    // Remove any presales lead opened against this project (junked, so it's
+    // recoverable) — deleting a project takes its lead with it instead of
+    // leaving it orphaned in the queue. This also severs the lead's project
+    // link, which must happen before the project row is deleted below.
+    // Then permanently remove the project AND its child rows: Postgres would
+    // cascade these, but D1 has no FK enforcement, so we delete them
+    // explicitly — otherwise an orphaned project_assignment keeps counting
+    // toward a technician's "My projects" KPI even though the project is gone.
+    await removeLeadsForProject(q, id);
     await q`delete from project_tasks where project_id = ${id}`;
     await q`delete from project_assignments where project_id = ${id}`;
     await q`delete from project_files where project_id = ${id}`;

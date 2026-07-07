@@ -131,6 +131,8 @@ export async function POST(req: NextRequest) {
       client_company?: string | null;
       kind?: "company" | "individual" | null;
       company_id?: number | null;
+      /** Optional name for the client's first (auto-created) project. */
+      project_name?: string | null;
     };
     const name = body.name?.trim();
     if (!name) {
@@ -217,12 +219,14 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
-    // Spin up the folder's Default Project up-front so any quotation
-    // created from this client (even the very first one) lands on a
-    // real project instead of "Unfiled".
+    // Spin up the folder's first project up-front so any quotation created
+    // from this client (even the very first one) lands on a real project
+    // instead of "Unfiled". Uses the name the user typed in the New Client
+    // dialog; falls back to a neutral "Default Project" when left blank.
     await ensureDefaultProject({
       folderId: rows[0].id,
       ownerId: rows[0].owner_id ?? user.id,
+      projectName: body.project_name,
     });
     // Invalidate the Next.js Router Cache for pages that render the folder
     // list, so navigating back to /quotation after creating a client — even

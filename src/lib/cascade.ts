@@ -320,21 +320,29 @@ export async function cascadeRestoreCompany(
 }
 
 /**
- * Detach (never delete) any presales lead tied to a single project that is
- * being soft-deleted. Mirrors the folder/company cascades: the lead stays
- * live in the queue and only its project links are severed — the client
- * folder it sits under is untouched, so presales can re-file it under another
- * project of the same client.
+ * Remove (junk) any presales lead tied to a single project that is being
+ * deleted. Per the product decision, deleting a project takes its lead with it
+ * — even a lead a presales user has already claimed — so a deleted project
+ * never leaves an orphan lead lingering in the queue.
+ *
+ * The lead is SOFT-deleted (moved to junk via `deleted_at`, not purged), so it
+ * stays recoverable from the lead trash, matching how leads are junked
+ * elsewhere. We also null the project links in the same statement: the project
+ * row is hard-deleted right after this, and `leads.project_id` /
+ * `sales_project_id` reference it, so the links must be severed first to avoid
+ * a foreign-key violation. Matches leads on either the sales-side
+ * (`sales_project_id`) or presales-side (`project_id`) project.
  */
-export async function detachLeadsFromProject(
+export async function removeLeadsForProject(
   q: Q,
   projectId: number,
 ): Promise<void> {
   await q`
     update leads set
+      deleted_at = now(),
+      updated_at = now(),
       project_id = case when project_id = ${projectId} then null else project_id end,
-      sales_project_id = case when sales_project_id = ${projectId} then null else sales_project_id end,
-      updated_at = now()
+      sales_project_id = case when sales_project_id = ${projectId} then null else sales_project_id end
     where deleted_at is null
       and (project_id = ${projectId} or sales_project_id = ${projectId})
   `;

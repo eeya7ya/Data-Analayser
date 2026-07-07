@@ -20,6 +20,15 @@ import { sql } from "@/lib/db";
 export async function ensureDefaultProject(args: {
   folderId: number;
   ownerId: number | null;
+  /**
+   * Name for the project when one has to be created. Passed by the New Client
+   * dialog so the user names their first project up-front (like naming the
+   * client / company). When omitted or blank — the company-contact sync and
+   * other background heal-on-read paths — the project is named a neutral
+   * "Default Project" rather than copying the client's name, so nothing is
+   * silently labelled with the client name. The user can rename it any time.
+   */
+  projectName?: string | null;
 }): Promise<number | null> {
   const { folderId, ownerId } = args;
   const q = sql();
@@ -32,13 +41,9 @@ export async function ensureDefaultProject(args: {
   `) as Array<{ id: number }>;
   if (existing.length > 0) return existing[0].id;
 
-  // Name the auto-created project after the client folder it belongs to, so
-  // projects are meaningfully NAMED (e.g. "Acme Corp") instead of a generic
-  // "Default Project". The user can still rename or split it at any time.
-  const folderRows = (await q`
-    select name from client_folders where id = ${folderId} limit 1
-  `) as Array<{ name: string | null }>;
-  const projectName = (folderRows[0]?.name || "").trim() || "Project";
+  // Use the caller-supplied name (New Client dialog); otherwise a neutral
+  // placeholder that clearly invites a rename.
+  const projectName = (args.projectName || "").trim() || "Default Project";
 
   const inserted = (await q`
     insert into projects (folder_id, owner_id, name, description, status)

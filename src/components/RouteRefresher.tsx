@@ -10,9 +10,10 @@ import { useRouter } from "next/navigation";
  * Router Cache can still hand back a previously-rendered RSC payload when the
  * user navigates back to it, so freshly-changed database numbers appeared to
  * "lag". This calls `router.refresh()` — which re-runs the server component and
- * reconciles in place, no full page reload — whenever the tab regains
- * focus/visibility, plus on a light interval while the page is visible, so the
- * numbers track the database closely.
+ * reconciles in place, no full page reload — on mount (so an in-app navigation
+ * back here after deleting rows pulls fresh counts immediately, not after the
+ * interval), whenever the tab regains focus/visibility, and on a light interval
+ * while the page is visible, so the numbers track the database closely.
  */
 export default function RouteRefresher({
   intervalMs = 30000,
@@ -25,6 +26,10 @@ export default function RouteRefresher({
     const refresh = () => {
       if (document.visibilityState === "visible") router.refresh();
     };
+    // Reconcile once on mount: a client-side navigation back to the dashboard
+    // renders the cached RSC payload first, so without this the KPI counts show
+    // pre-delete numbers until a focus/interval refresh lands.
+    refresh();
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     const id =

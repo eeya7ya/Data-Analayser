@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { confirmDelete } from "@/lib/confirmDelete";
+import { redirectIfSessionExpired } from "@/lib/clientAuth";
 
 /**
  * Admin → Users & Roles.
@@ -137,6 +138,9 @@ export default function UsersAndRolesPanel({
         fetch("/api/users", { cache: "no-store" }),
         fetch("/api/admin/module-roles", { cache: "no-store" }),
       ]);
+      // Session expired while this tab was open → bounce to login instead of
+      // rendering a wall of "UNAUTHENTICATED" errors.
+      if (redirectIfSessionExpired(uRes) || redirectIfSessionExpired(mRes)) return;
       const uData = await uRes.json();
       const mData = await mRes.json();
       if (!uRes.ok) throw new Error(uData.error || `users HTTP ${uRes.status}`);
@@ -287,6 +291,7 @@ export default function UsersAndRolesPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      if (redirectIfSessionExpired(res)) return;
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed");
       setEditUser(null);
@@ -298,12 +303,94 @@ export default function UsersAndRolesPanel({
     }
   }
 
+  /**
+   * Download every user's details as a CSV (opens in Excel).
+   *
+   * Passwords are intentionally NOT included: they are stored only as one-way
+   * PBKDF2 hashes, so the plaintext a user signs in with does not exist in the
+   * database and cannot be exported. To hand someone a working credential, set
+   * a new password via the Edit dialog and share that. The UTF-8 BOM keeps
+   * Arabic names readable when Excel opens the file.
+   */
+  function exportUsers() {
+    const cols = [
+      "Username",
+      "Display name",
+      "Email",
+      "Phone",
+      "Department",
+      "Access level",
+      "Roles",
+      "Created",
+    ];
+    const cell = (v: string) =>
+      /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    const accessLevel = (u: U) =>
+      u.role === "admin" ? "Admin" : u.role === "viewer" ? "Viewer" : "User";
+    const rows = users.map((u) => {
+      const roleLabels = currentRolesFor(u, grantsByUser.get(u.id) ?? [])
+        .filter((v) => v !== "admin" && v !== "viewer" && v !== "none")
+        .map((v) => LABEL_BY_VALUE[v] ?? v)
+        .join(" | ");
+      const created = u.created_at
+        ? new Date(u.created_at).toISOString().slice(0, 10)
+        : "";
+      return [
+        u.username,
+        u.display_name || "",
+        u.email || "",
+        u.phone || "",
+        u.department_code || "",
+        accessLevel(u),
+        roleLabels,
+        created,
+      ]
+        .map((v) => cell(String(v)))
+        .join(",");
+    });
+    const csv = "﻿" + [cols.join(","), ...rows].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `users-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   if (loading) {
     return <p className="text-sm text-magic-ink/60">Loading users &amp; roles…</p>;
   }
 
   return (
     <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-magic-ink">Users &amp; roles</h3>
+        <button
+          type="button"
+          onClick={exportUsers}
+          disabled={users.length === 0}
+          title="Download all users' details as a CSV (Excel). Passwords are one-way hashed and cannot be exported."
+          className="inline-flex items-center gap-1.5 rounded-lg border border-magic-border bg-white px-3 py-1.5 text-xs font-semibold text-magic-ink hover:border-magic-red/40 hover:text-magic-red disabled:opacity-50"
+        >
+          <svg
+            className="h-3.5 w-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"
+            />
+          </svg>
+          Export users
+        </button>
+      </div>
       <div className="grid grid-cols-3 gap-3">
         <StatCard label="Users" value={stats.total} />
         <StatCard label="Admins" value={stats.admins} />

@@ -27,3 +27,31 @@ export function quotationRefPrefix(
   const yy = String(new Date().getFullYear()).slice(-2);
   return `${base}-FO${yy}-`;
 }
+
+/** 4-digit (min) uppercase hex, e.g. 1 → "0001", 4096 → "1000". */
+export function hex4(n: number): string {
+  return n.toString(16).toUpperCase().padStart(4, "0");
+}
+
+/**
+ * Lowest unused positive counter for `prefix`, given every LIVE (non-deleted)
+ * ref. This is the single source of truth for "the next available number", so
+ * the Designer's ref preview shows exactly what the server will mint on save
+ * (see genActiveRef, which now defers to this too).
+ *
+ * The counter is the 4 hex chars right after the prefix; draft/review refs
+ * append a `.D<m>` / `.R<m>` suffix and share their root's counter, so reading
+ * the leading 4 hex chars is correct. Callers pass only non-deleted refs, so a
+ * trashed quotation's number is freed for reuse.
+ */
+export function nextRefCounter(liveRefs: string[], prefix: string): number {
+  const used = new Set<number>();
+  for (const ref of liveRefs) {
+    if (!ref || !ref.startsWith(prefix)) continue;
+    const tail = ref.slice(prefix.length, prefix.length + 4);
+    if (/^[0-9A-Fa-f]{4}$/.test(tail)) used.add(parseInt(tail, 16));
+  }
+  let n = 1;
+  while (used.has(n)) n++;
+  return n;
+}
