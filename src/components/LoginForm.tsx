@@ -34,16 +34,16 @@ export default function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5" autoComplete="on">
+    <form onSubmit={onSubmit} className="space-y-6" autoComplete="on">
       {/* Username */}
       <div>
-        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
           Username
         </label>
         <div className="group relative">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[#E2231A]">
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[#E2231A]">
             <svg
-              className="h-4 w-4"
+              className="h-[18px] w-[18px]"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -57,7 +57,7 @@ export default function LoginForm() {
             </svg>
           </span>
           <input
-            className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-[#E2231A]/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E2231A]/15"
+            className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-4 text-[15px] text-slate-900 placeholder:text-slate-400 transition focus:border-[#E2231A]/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E2231A]/15"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="your.username"
@@ -69,13 +69,13 @@ export default function LoginForm() {
 
       {/* Password */}
       <div>
-        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
           Password
         </label>
         <div className="group relative">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[#E2231A]">
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[#E2231A]">
             <svg
-              className="h-4 w-4"
+              className="h-[18px] w-[18px]"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -90,7 +90,7 @@ export default function LoginForm() {
           </span>
           <input
             type={showPw ? "text" : "password"}
-            className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-11 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-[#E2231A]/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E2231A]/15"
+            className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-11 text-[15px] text-slate-900 placeholder:text-slate-400 transition focus:border-[#E2231A]/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E2231A]/15"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
@@ -164,7 +164,7 @@ export default function LoginForm() {
       <button
         type="submit"
         disabled={loading}
-        className="group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-[#E2231A] via-[#ff3d32] to-[#E2231A] bg-[length:200%_100%] py-3.5 text-sm font-bold tracking-wide text-white shadow-lg shadow-[#E2231A]/30 transition-all duration-300 hover:bg-[position:100%_0] hover:shadow-xl hover:shadow-[#E2231A]/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+        className="group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-[#E2231A] via-[#ff3d32] to-[#E2231A] bg-[length:200%_100%] py-4 text-base font-bold tracking-wide text-white shadow-lg shadow-[#E2231A]/30 transition-all duration-300 hover:bg-[position:100%_0] hover:shadow-xl hover:shadow-[#E2231A]/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span className="relative z-10 flex items-center justify-center gap-2">
           {loading ? (
