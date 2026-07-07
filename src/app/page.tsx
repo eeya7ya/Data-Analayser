@@ -454,6 +454,12 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
+      {/* Keep the KPI counts in step with the database: without this, Next's
+          client-side Router Cache can serve a stale RSC payload when the user
+          navigates back after deleting a quotation/client/company/project, so
+          the "removed everything" numbers appeared to linger. Mirrors the
+          admin / execution / storage dashboards above. */}
+      <RouteRefresher />
       <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
         <DashboardClient
           data={data}

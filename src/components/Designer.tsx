@@ -546,16 +546,24 @@ export default function Designer({
   }
 
   // ── Hydrate state on mount ────────────────────────────────────────────────
-  // For a NEW quotation, preview the auto-reference format (<DEPT>-FO<YY>-####)
-  // so the Ref field reflects the auto-referencing scheme instead of "(auto)".
+  // For a NEW quotation, preview the REAL next reference (<DEPT>-FO<YY>-<HEX4>,
+  // e.g. "ITYA-FO26-0001") — the actual next-available number the server will
+  // mint on save, not a bare "(auto)" or a "####" placeholder. The number is
+  // still assigned authoritatively on save, so this is display-only and can
+  // shift if someone else claims the same counter first.
   useEffect(() => {
     if (existing) return;
     let alive = true;
     (async () => {
       try {
         const res = await fetch("/api/quotations/next-ref");
-        const data = (await res.json().catch(() => ({}))) as { prefix?: string };
-        if (alive && res.ok && data.prefix) setRefPreview(`${data.prefix}####`);
+        const data = (await res.json().catch(() => ({}))) as {
+          prefix?: string;
+          ref?: string;
+        };
+        if (alive && res.ok && (data.ref || data.prefix)) {
+          setRefPreview(data.ref || `${data.prefix}####`);
+        }
       } catch {
         /* keep the plain "(auto)" fallback */
       }
