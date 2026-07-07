@@ -24,7 +24,15 @@ export default function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
-      router.push("/");
+      // Honour a `?next=` return path (set when a session expiry bounced the
+      // user here), but only a same-origin path — never an absolute/protocol
+      // URL — so this can't be turned into an open redirect.
+      const nextParam = new URLSearchParams(window.location.search).get("next");
+      const dest =
+        nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
+          ? nextParam
+          : "/";
+      router.push(dest);
       router.refresh();
     } catch (err) {
       setError((err as Error).message);

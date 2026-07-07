@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { redirectIfSessionExpired } from "@/lib/clientAuth";
 
 interface ClickEvent {
   id: number;
@@ -29,6 +30,7 @@ export default function SyslogPanel({ readOnly = false }: { readOnly?: boolean }
     setError(null);
     try {
       const res = await fetch("/api/syslog", { method: "GET" });
+      if (redirectIfSessionExpired(res)) return;
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setEvents(Array.isArray(data.events) ? data.events : []);
