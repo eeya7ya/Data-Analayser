@@ -539,6 +539,17 @@ const CHECKLIST_TEMPLATES_FLAG = "checklist_templates_v1_2026_07";
  */
 const V18_MODULES_FLAG = "v18_modules_v1_2026_07";
 
+/**
+ * V1.8 — selective cross-role file sharing. Adds
+ * `project_files.shared_with_counterpart`: the uploader flips this per file to
+ * expose that ONE upload to the sales↔presales counterpart on the same deal,
+ * replacing the old all-or-nothing "counterpart sees every file" rule. Existing
+ * files are backfilled to `true` so nothing currently visible disappears; new
+ * uploads default `false` (opt-in). The inline CREATE TABLE lists the column
+ * for fresh DBs; this flag carries the ALTER + backfill for existing ones.
+ */
+const V18_FILE_SHARE_FLAG = "v18_file_share_v1_2026_07";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -866,6 +877,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let checklistTemplatesApplied = false;
   let pricingMfgDefaultsApplied = false;
   let v18ModulesApplied = false;
+  let v18FileShareApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -887,7 +899,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${SEQUENCE_REALIGN_FLAG}, ${EXEC_CONFIRMATION_FLAG},
         ${PROJECT_DISTRIBUTION_FLAG}, ${PRICING_MFG_DEFAULTS_FLAG},
         ${PROJECT_DISTRIBUTION_PHONE_FLAG}, ${CHECKLIST_TEMPLATES_FLAG},
-        ${V18_MODULES_FLAG}
+        ${V18_MODULES_FLAG}, ${V18_FILE_SHARE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -934,6 +946,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     checklistTemplatesApplied = keys.has(CHECKLIST_TEMPLATES_FLAG);
     pricingMfgDefaultsApplied = keys.has(PRICING_MFG_DEFAULTS_FLAG);
     v18ModulesApplied = keys.has(V18_MODULES_FLAG);
+    v18FileShareApplied = keys.has(V18_FILE_SHARE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -982,7 +995,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     projectDistributionPhoneApplied &&
     checklistTemplatesApplied &&
     pricingMfgDefaultsApplied &&
-    v18ModulesApplied
+    v18ModulesApplied &&
+    v18FileShareApplied
   )
     return;
 
@@ -3451,6 +3465,31 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${V18_MODULES_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!v18FileShareApplied) {
+    // V1.8 — per-file counterpart sharing. Add the column (default false so
+    // new uploads are private until the uploader opts in), then backfill every
+    // EXISTING file to true so the current all-files-visible behaviour is
+    // preserved for work already in flight — no file that a counterpart can
+    // see today disappears. Idempotent: guarded by the flag, and add-column is
+    // `if not exists`.
+    await q`
+      alter table project_files
+        add column if not exists shared_with_counterpart boolean not null default false
+    `;
+    await q`
+      update project_files set shared_with_counterpart = true
+      where shared_with_counterpart = false
+    `;
+    await q`
+      create index if not exists project_files_counterpart_idx
+        on project_files(project_id, shared_with_counterpart, deleted_at)
+    `;
+    await q`
+      insert into migration_flags (key) values (${V18_FILE_SHARE_FLAG})
       on conflict (key) do nothing
     `;
   }

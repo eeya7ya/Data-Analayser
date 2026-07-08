@@ -528,6 +528,7 @@ CREATE TABLE IF NOT EXISTS "project_files" (
   "created_at" TEXT NOT NULL,
   "deleted_at" TEXT,
   "shared_to_projects" INTEGER NOT NULL DEFAULT 0,
+  "shared_with_counterpart" INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY ("id")
 );
 
