@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LEAD_STATUS_LABEL } from "@/lib/leadConstants";
 import PageLoader from "@/components/PageLoader";
+import LeadLifecycleMap from "@/components/LeadLifecycleMap";
 
 /**
  * Lead detail surface, V1.4D.
@@ -48,6 +49,18 @@ interface LeadRow {
   contact_last_name: string | null;
   created_at: string;
   updated_at: string;
+  // Lifecycle timestamps (from leads.*) — drive the lifecycle map.
+  quotation_sent_at: string | null;
+  quotation_ref: string | null;
+  outcome: string | null;
+  outcome_at: string | null;
+  outcome_by_username: string | null;
+  boq_uploaded_at: string | null;
+  boq_filename: string | null;
+  sent_to_execution_at: string | null;
+  execution_assignee_name: string | null;
+  execution_assignee_username: string | null;
+  completed_at: string | null;
 }
 
 interface LeadEvent {
@@ -335,6 +348,9 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
             )}
           </div>
         </div>
+
+        {/* ── Lifecycle map ────────────────────────────────────────────── */}
+        <LeadLifecycleMap lead={lead} />
 
         {/* ── Timeline card ────────────────────────────────────────────── */}
         <div className="rounded-2xl border border-magic-border bg-white p-5 shadow-sm">
