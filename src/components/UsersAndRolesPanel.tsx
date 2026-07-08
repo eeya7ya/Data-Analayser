@@ -73,6 +73,27 @@ const ROLE_GROUPS: Array<{ group: string; options: RoleOption[] }> = [
     ],
   },
   {
+    group: "Delivery",
+    options: [
+      { value: "delivery.driver", label: "Delivery Driver" },
+      { value: "delivery.manager", label: "Delivery Manager" },
+    ],
+  },
+  {
+    group: "Showroom",
+    options: [
+      { value: "showroom.staff", label: "Showroom Staff" },
+      { value: "showroom.manager", label: "Showroom Manager" },
+    ],
+  },
+  {
+    group: "Accounting",
+    options: [
+      { value: "accountant.accountant", label: "Accountant" },
+      { value: "accountant.manager", label: "Accounting Manager" },
+    ],
+  },
+  {
     group: "—",
     options: [{ value: "none", label: "No role yet" }],
   },

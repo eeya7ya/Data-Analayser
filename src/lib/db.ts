@@ -530,6 +530,15 @@ const PROJECT_DISTRIBUTION_PHONE_FLAG = "project_distribution_phone_v1_2026_07";
  */
 const CHECKLIST_TEMPLATES_FLAG = "checklist_templates_v1_2026_07";
 
+/**
+ * V1.8 — new departments. Widens the `user_module_roles.module` CHECK
+ * constraint to accept the delivery / showroom / accountant module names so
+ * admins can grant those roles. The inline CREATE TABLE already lists them for
+ * fresh DBs; this flag carries the DROP-then-ADD for existing databases,
+ * mirroring how `pricing` was added.
+ */
+const V18_MODULES_FLAG = "v18_modules_v1_2026_07";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -856,6 +865,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let projectDistributionPhoneApplied = false;
   let checklistTemplatesApplied = false;
   let pricingMfgDefaultsApplied = false;
+  let v18ModulesApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -876,7 +886,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG},
         ${SEQUENCE_REALIGN_FLAG}, ${EXEC_CONFIRMATION_FLAG},
         ${PROJECT_DISTRIBUTION_FLAG}, ${PRICING_MFG_DEFAULTS_FLAG},
-        ${PROJECT_DISTRIBUTION_PHONE_FLAG}, ${CHECKLIST_TEMPLATES_FLAG}
+        ${PROJECT_DISTRIBUTION_PHONE_FLAG}, ${CHECKLIST_TEMPLATES_FLAG},
+        ${V18_MODULES_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -922,6 +933,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     projectDistributionPhoneApplied = keys.has(PROJECT_DISTRIBUTION_PHONE_FLAG);
     checklistTemplatesApplied = keys.has(CHECKLIST_TEMPLATES_FLAG);
     pricingMfgDefaultsApplied = keys.has(PRICING_MFG_DEFAULTS_FLAG);
+    v18ModulesApplied = keys.has(V18_MODULES_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -969,7 +981,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     projectDistributionApplied &&
     projectDistributionPhoneApplied &&
     checklistTemplatesApplied &&
-    pricingMfgDefaultsApplied
+    pricingMfgDefaultsApplied &&
+    v18ModulesApplied
   )
     return;
 
@@ -1981,7 +1994,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`
       create table if not exists user_module_roles (
         user_id    integer not null references users(id) on delete cascade,
-        module     text not null check (module in ('crm','projects','storage','admin','pricing')),
+        module     text not null check (module in ('crm','projects','storage','admin','pricing','delivery','showroom','accountant')),
         role       text not null,
         granted_by integer references users(id) on delete set null,
         created_at timestamptz not null default now(),
@@ -3418,6 +3431,26 @@ async function _ensureSchemaOnce(): Promise<void> {
     );
     await q`
       insert into migration_flags (key) values (${PRICING_MFG_DEFAULTS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!v18ModulesApplied) {
+    // V1.8 — widen the module CHECK so delivery / showroom / accountant grants
+    // validate on existing databases. DROP-then-ADD swaps the auto-named
+    // constraint for a wider one; the fresh-DB inline CREATE TABLE already
+    // lists these, so this ALTER is a no-op there. Mirrors the pricing add.
+    await q`
+      alter table user_module_roles
+        drop constraint if exists user_module_roles_module_check
+    `;
+    await q`
+      alter table user_module_roles
+        add constraint user_module_roles_module_check
+        check (module in ('crm','projects','storage','admin','pricing','delivery','showroom','accountant'))
+    `;
+    await q`
+      insert into migration_flags (key) values (${V18_MODULES_FLAG})
       on conflict (key) do nothing
     `;
   }

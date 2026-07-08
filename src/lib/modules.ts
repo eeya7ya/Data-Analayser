@@ -17,7 +17,21 @@ import { canReadAll, type SessionUser } from "./auth";
  * (the composite PK enforces uniqueness across (user_id, module, role)).
  */
 
-export const MODULES = ["crm", "projects", "storage", "admin", "pricing"] as const;
+export const MODULES = [
+  "crm",
+  "projects",
+  "storage",
+  "admin",
+  "pricing",
+  // V1.8 — new departments. `delivery` is a working module (delivery requests
+  // routed from sales and from projects). `showroom` and `accountant` are
+  // scaffolded as infrastructure only for now: the module + roles exist so
+  // admins can assign them and grants validate, but their workspaces land in a
+  // later phase.
+  "delivery",
+  "showroom",
+  "accountant",
+] as const;
 export type Module = (typeof MODULES)[number];
 
 /**
@@ -40,6 +54,13 @@ export const ROLES_PER_MODULE = {
   storage: ["worker", "manager"],
   admin: ["admin"],
   pricing: ["sales", "presales", "manager"],
+  // V1.8 departments. `delivery` fulfils delivery requests (a driver does the
+  // runs, a manager dispatches / triages the queue). `showroom` and
+  // `accountant` carry a staff + manager pair so the org chart is complete;
+  // their feature surfaces are added later.
+  delivery: ["driver", "manager"],
+  showroom: ["staff", "manager"],
+  accountant: ["accountant", "manager"],
 } as const satisfies Record<Module, readonly string[]>;
 
 export type ModuleRole<M extends Module = Module> =
