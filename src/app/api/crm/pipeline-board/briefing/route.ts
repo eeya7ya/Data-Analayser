@@ -20,8 +20,9 @@ export const dynamic = "force-dynamic";
  * stage + next-best-action signals from `@/lib/pipeline` are fed in as grounding
  * so the model reasons over real data rather than inventing it.
  *
- * Sales-only, same gate as the board: admin / viewer never reach it; a
- * sales_manager briefs on the whole team, a salesperson on their own deals.
+ * Sales-only, same gate as the board: admin never reaches it; every sales
+ * user — manager included — briefs on their OWN deals, and only the read-only
+ * `viewer` role briefs across the whole tenant.
  */
 
 interface Row {
@@ -86,9 +87,10 @@ export async function POST() {
     }
 
     const q = sql();
-    // Tenant isolation — see the board route. Manager/viewer brief on their own
-    // tenant's deals; a salesperson only their own. Fails closed.
-    const tenantWide = isManager || isViewer;
+    // Tenant isolation — see the board route. Only the read-only `viewer` role
+    // briefs on the whole tenant; every sales user, manager included, briefs on
+    // their own deals only. Fails closed.
+    const tenantWide = isViewer;
     const ownerIds = tenantWide
       ? (
           (await q`

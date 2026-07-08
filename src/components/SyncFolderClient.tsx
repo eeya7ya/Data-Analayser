@@ -247,7 +247,7 @@ export default function SyncFolderClient() {
             <div className="mt-1 text-magic-ink/70">
               {report.downloaded} downloaded · {report.uploaded} uploaded ·{" "}
               {report.quotations} quotation{report.quotations === 1 ? "" : "s"} ·{" "}
-              {report.skipped} already in sync
+              {report.pricing} pricing · {report.skipped} already in sync
               {report.errors.length > 0 && (
                 <> · {report.errors.length} problem(s)</>
               )}
@@ -287,6 +287,15 @@ export default function SyncFolderClient() {
             </code>{" "}
             subfolder, and re-exported automatically when you edit them in the
             app.
+          </li>
+          <li>
+            • Your priced projects from the Pricing module are exported as Excel
+            files into a{" "}
+            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">
+              _Pricing
+            </code>{" "}
+            folder, one subfolder per manufacturer, and re-exported when their
+            lines or rates change.
           </li>
           <li>
             • Nothing is ever deleted on either side, and edits to an uploaded

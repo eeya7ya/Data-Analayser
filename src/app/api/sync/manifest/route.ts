@@ -109,7 +109,111 @@ export async function GET() {
       limit 5000
     `) as Array<Record<string, unknown>>;
 
+    // Pricing-module priced projects. These live in their OWN tables
+    // (pricing_projects + product lines + a constants snapshot), entirely
+    // separate from CRM quotations, so they were previously invisible to the
+    // sync folder. Scope mirrors files/quotations: a member syncs the priced
+    // projects they own; admins get everything. Fault-isolated — if the
+    // pricing tables aren't present on a deployment, the rest of the manifest
+    // still returns. The client renders each into `_Pricing/<Manufacturer>/…`.
+    let pricingOut: Array<Record<string, unknown>> = [];
+    try {
+      const projectRows = (await q`
+        select pp.id, pp.name, pp.responsible_person,
+               m.name as manufacturer_name,
+               coalesce(pc.currency_rate, 0.71)   as currency_rate,
+               coalesce(pc.shipping_rate, 0.15)   as shipping_rate,
+               coalesce(pc.customs_rate, 0.12)    as customs_rate,
+               coalesce(pc.profit_margin, 0.25)   as profit_margin,
+               coalesce(pc.tax_rate, 0.16)        as tax_rate,
+               coalesce(pc.target_currency, 'JOD') as target_currency
+        from pricing_projects pp
+        join pricing_manufacturers m on m.id = pp.manufacturer_id
+        left join pricing_project_constants pc on pc.project_id = pp.id
+        where pp.deleted_at is null
+          and (${all}::boolean = true or pp.user_id = ${uid})
+        order by m.name asc, pp.name asc
+        limit 2000
+      `) as Array<Record<string, unknown>>;
+
+      const pids = projectRows.map((r) => Number(r.id));
+      const linesByProject = new Map<number, Array<Record<string, unknown>>>();
+      if (pids.length > 0) {
+        const lineRows = (await q`
+          select project_id, position, item_model, price_usd, quantity,
+                 shipping_override, customs_override,
+                 shipping_rate_override, customs_rate_override,
+                 profit_rate_override
+          from pricing_product_lines
+          where project_id = any(${pids}::int[])
+          order by project_id asc, position asc
+        `) as Array<Record<string, unknown>>;
+        for (const l of lineRows) {
+          const pid = Number(l.project_id);
+          if (!linesByProject.has(pid)) linesByProject.set(pid, []);
+          linesByProject.get(pid)!.push(l);
+        }
+      }
+
+      const numOrNull = (v: unknown): number | null =>
+        v === null || v === undefined ? null : Number(v);
+
+      pricingOut = projectRows.map((r) => {
+        const id = Number(r.id);
+        const rows = (linesByProject.get(id) ?? []).map((l) => ({
+          position: Number(l.position) || 0,
+          itemModel: String(l.item_model ?? ""),
+          priceUsd: Number(l.price_usd) || 0,
+          quantity: Number(l.quantity) || 0,
+          shippingOverride: numOrNull(l.shipping_override),
+          customsOverride: numOrNull(l.customs_override),
+          shippingRateOverride: numOrNull(l.shipping_rate_override),
+          customsRateOverride: numOrNull(l.customs_rate_override),
+          profitRateOverride: numOrNull(l.profit_rate_override),
+        }));
+        // Content fingerprint so the client re-exports only when something
+        // actually changed (pricing_projects has no updated_at, and the lines
+        // live in a child table, so mtime alone can't signal a change).
+        const fingerprint = JSON.stringify({
+          n: r.name,
+          rp: r.responsible_person,
+          c: [
+            r.currency_rate,
+            r.shipping_rate,
+            r.customs_rate,
+            r.profit_margin,
+            r.tax_rate,
+            r.target_currency,
+          ],
+          rows,
+        });
+        return {
+          id,
+          name: String(r.name ?? `project-${id}`),
+          manufacturerName: String(r.manufacturer_name ?? "Manufacturer"),
+          responsiblePerson: r.responsible_person
+            ? String(r.responsible_person)
+            : null,
+          targetCurrency: String(r.target_currency ?? "JOD"),
+          constants: {
+            currencyRate: Number(r.currency_rate),
+            shippingRate: Number(r.shipping_rate),
+            customsRate: Number(r.customs_rate),
+            profitMargin: Number(r.profit_margin),
+            taxRate: Number(r.tax_rate),
+          },
+          rows,
+          fingerprint,
+        };
+      });
+    } catch {
+      // Pricing tables missing / query shape mismatch — skip pricing sync,
+      // the files + quotations manifest still returns normally.
+      pricingOut = [];
+    }
+
     return NextResponse.json({
+      pricingProjects: pricingOut,
       files: fileRows.map((r) => ({
         id: r.id,
         projectId: r.project_id,
