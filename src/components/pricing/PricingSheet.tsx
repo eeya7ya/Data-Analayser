@@ -367,10 +367,16 @@ export function PricingSheet({
       if (!selectedProjectId || converting) return;
       setConverting(true);
       try {
-        if (savedAt == null || rows.length === 0) {
-          // Run a save when there's no clean checkpoint — keeps the
-          // server-side conversion in sync with the live snapshot.
-          await fetch(`/api/pricing/projects/${selectedProjectId}`, {
+        // ALWAYS persist the on-screen sheet before converting, and verify it
+        // succeeded. The server-side convert reads product lines straight from
+        // the DB, so if the DB is out of sync with what the user sees it wrongly
+        // reports "Project has no priced product lines yet". The old code
+        // skipped this save whenever a stale `savedAt` checkpoint existed (and
+        // ignored the save's result), which is exactly how a sheet full of
+        // priced lines could fail to convert.
+        const saveRes = await fetch(
+          `/api/pricing/projects/${selectedProjectId}`,
+          {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -380,8 +386,16 @@ export function PricingSheet({
               constants: { ...constants, targetCurrency, sourceCurrency },
               productLines: rows,
             }),
-          });
+          },
+        );
+        if (!saveRes.ok) {
+          const e = (await saveRes.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          alert(e?.error ?? "Couldn't save the pricing sheet before converting.");
+          return;
         }
+        setSavedAt(new Date());
         const res = await fetch(
           `/api/pricing/projects/${selectedProjectId}/convert-to-quotation`,
           {
