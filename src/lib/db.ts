@@ -530,6 +530,35 @@ const PROJECT_DISTRIBUTION_PHONE_FLAG = "project_distribution_phone_v1_2026_07";
  */
 const CHECKLIST_TEMPLATES_FLAG = "checklist_templates_v1_2026_07";
 
+/**
+ * V1.8 — new departments. Widens the `user_module_roles.module` CHECK
+ * constraint to accept the delivery / showroom / accountant module names so
+ * admins can grant those roles. The inline CREATE TABLE already lists them for
+ * fresh DBs; this flag carries the DROP-then-ADD for existing databases,
+ * mirroring how `pricing` was added.
+ */
+const V18_MODULES_FLAG = "v18_modules_v1_2026_07";
+
+/**
+ * V1.8 — selective cross-role file sharing. Adds
+ * `project_files.shared_with_counterpart`: the uploader flips this per file to
+ * expose that ONE upload to the sales↔presales counterpart on the same deal,
+ * replacing the old all-or-nothing "counterpart sees every file" rule. Existing
+ * files are backfilled to `true` so nothing currently visible disappears; new
+ * uploads default `false` (opt-in). The inline CREATE TABLE lists the column
+ * for fresh DBs; this flag carries the ALTER + backfill for existing ones.
+ */
+const V18_FILE_SHARE_FLAG = "v18_file_share_v1_2026_07";
+
+/**
+ * V1.8 — Delivery module. `delivery_requests` is the queue the delivery team
+ * works: sales and projects raise a request (against a project / quotation /
+ * lead) and the delivery driver/manager schedules it, marks it out for
+ * delivery, then delivered. New standalone table, so the flag simply carries a
+ * `create table if not exists` that runs on fresh and existing databases alike.
+ */
+const DELIVERY_REQUESTS_FLAG = "delivery_requests_v1_2026_07";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -856,6 +885,9 @@ async function _ensureSchemaOnce(): Promise<void> {
   let projectDistributionPhoneApplied = false;
   let checklistTemplatesApplied = false;
   let pricingMfgDefaultsApplied = false;
+  let v18ModulesApplied = false;
+  let v18FileShareApplied = false;
+  let deliveryRequestsApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -876,7 +908,9 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${MULTITENANCY_FLAG}, ${DEPARTMENT_CODE_FLAG},
         ${SEQUENCE_REALIGN_FLAG}, ${EXEC_CONFIRMATION_FLAG},
         ${PROJECT_DISTRIBUTION_FLAG}, ${PRICING_MFG_DEFAULTS_FLAG},
-        ${PROJECT_DISTRIBUTION_PHONE_FLAG}, ${CHECKLIST_TEMPLATES_FLAG}
+        ${PROJECT_DISTRIBUTION_PHONE_FLAG}, ${CHECKLIST_TEMPLATES_FLAG},
+        ${V18_MODULES_FLAG}, ${V18_FILE_SHARE_FLAG},
+        ${DELIVERY_REQUESTS_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -922,6 +956,9 @@ async function _ensureSchemaOnce(): Promise<void> {
     projectDistributionPhoneApplied = keys.has(PROJECT_DISTRIBUTION_PHONE_FLAG);
     checklistTemplatesApplied = keys.has(CHECKLIST_TEMPLATES_FLAG);
     pricingMfgDefaultsApplied = keys.has(PRICING_MFG_DEFAULTS_FLAG);
+    v18ModulesApplied = keys.has(V18_MODULES_FLAG);
+    v18FileShareApplied = keys.has(V18_FILE_SHARE_FLAG);
+    deliveryRequestsApplied = keys.has(DELIVERY_REQUESTS_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -969,7 +1006,10 @@ async function _ensureSchemaOnce(): Promise<void> {
     projectDistributionApplied &&
     projectDistributionPhoneApplied &&
     checklistTemplatesApplied &&
-    pricingMfgDefaultsApplied
+    pricingMfgDefaultsApplied &&
+    v18ModulesApplied &&
+    v18FileShareApplied &&
+    deliveryRequestsApplied
   )
     return;
 
@@ -1981,7 +2021,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`
       create table if not exists user_module_roles (
         user_id    integer not null references users(id) on delete cascade,
-        module     text not null check (module in ('crm','projects','storage','admin','pricing')),
+        module     text not null check (module in ('crm','projects','storage','admin','pricing','delivery','showroom','accountant')),
         role       text not null,
         granted_by integer references users(id) on delete set null,
         created_at timestamptz not null default now(),
@@ -3418,6 +3458,93 @@ async function _ensureSchemaOnce(): Promise<void> {
     );
     await q`
       insert into migration_flags (key) values (${PRICING_MFG_DEFAULTS_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!v18ModulesApplied) {
+    // V1.8 — widen the module CHECK so delivery / showroom / accountant grants
+    // validate on existing databases. DROP-then-ADD swaps the auto-named
+    // constraint for a wider one; the fresh-DB inline CREATE TABLE already
+    // lists these, so this ALTER is a no-op there. Mirrors the pricing add.
+    await q`
+      alter table user_module_roles
+        drop constraint if exists user_module_roles_module_check
+    `;
+    await q`
+      alter table user_module_roles
+        add constraint user_module_roles_module_check
+        check (module in ('crm','projects','storage','admin','pricing','delivery','showroom','accountant'))
+    `;
+    await q`
+      insert into migration_flags (key) values (${V18_MODULES_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!v18FileShareApplied) {
+    // V1.8 — per-file counterpart sharing. Add the column (default false so
+    // new uploads are private until the uploader opts in), then backfill every
+    // EXISTING file to true so the current all-files-visible behaviour is
+    // preserved for work already in flight — no file that a counterpart can
+    // see today disappears. Idempotent: guarded by the flag, and add-column is
+    // `if not exists`.
+    await q`
+      alter table project_files
+        add column if not exists shared_with_counterpart boolean not null default false
+    `;
+    await q`
+      update project_files set shared_with_counterpart = true
+      where shared_with_counterpart = false
+    `;
+    await q`
+      create index if not exists project_files_counterpart_idx
+        on project_files(project_id, shared_with_counterpart, deleted_at)
+    `;
+    await q`
+      insert into migration_flags (key) values (${V18_FILE_SHARE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!deliveryRequestsApplied) {
+    // V1.8 — the delivery team's work queue. Sales / projects raise a request
+    // (optionally linked to a project / quotation / lead); the delivery
+    // driver/manager progresses it requested → scheduled → out_for_delivery →
+    // delivered (or cancelled). FKs are ON DELETE SET NULL so removing the
+    // origin project/quotation/lead never deletes the delivery record.
+    await q`
+      create table if not exists delivery_requests (
+        id                 serial primary key,
+        source             text not null default 'sales',
+        status             text not null default 'requested',
+        priority           text not null default 'normal',
+        project_id         integer references projects(id) on delete set null,
+        quotation_id       integer references quotations(id) on delete set null,
+        lead_id            integer references leads(id) on delete set null,
+        client_name        text,
+        destination        text,
+        contact_phone      text,
+        notes              text,
+        requested_by       integer references users(id) on delete set null,
+        assigned_driver_id integer references users(id) on delete set null,
+        scheduled_at       timestamptz,
+        delivered_at       timestamptz,
+        created_at         timestamptz not null default now(),
+        updated_at         timestamptz not null default now(),
+        deleted_at         timestamptz
+      )
+    `;
+    await q`
+      create index if not exists delivery_requests_status_idx
+        on delivery_requests(status, deleted_at)
+    `;
+    await q`
+      create index if not exists delivery_requests_requested_by_idx
+        on delivery_requests(requested_by, deleted_at)
+    `;
+    await q`
+      insert into migration_flags (key) values (${DELIVERY_REQUESTS_FLAG})
       on conflict (key) do nothing
     `;
   }

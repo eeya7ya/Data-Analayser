@@ -23,6 +23,8 @@ export interface ProjectFileRow {
   size_bytes: number;
   storage_path: string;
   shared_to_projects?: boolean;
+  /** V1.8 — shared with the sales ↔ presales counterpart on this deal. */
+  shared_with_counterpart?: boolean;
   created_at: string;
 }
 
@@ -84,6 +86,39 @@ export default function ProjectBoqsList({
       setItems((prev) =>
         prev.map((f) =>
           f.id === file.id ? { ...f, shared_to_projects: !next } : f,
+        ),
+      );
+      setError((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // V1.8 — expose (or hide) this one file to the sales ↔ presales counterpart
+  // on the same deal. Same optimistic-flip + rollback shape as toggleShare.
+  async function toggleCounterpart(file: ProjectFileRow) {
+    const next = !file.shared_with_counterpart;
+    setBusyId(file.id);
+    setError(null);
+    setItems((prev) =>
+      prev.map((f) =>
+        f.id === file.id ? { ...f, shared_with_counterpart: next } : f,
+      ),
+    );
+    try {
+      const res = await fetch(`/api/project-files/${file.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shared_with_counterpart: next }),
+      });
+      if (!res.ok) {
+        const b = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(b.error || `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      setItems((prev) =>
+        prev.map((f) =>
+          f.id === file.id ? { ...f, shared_with_counterpart: !next } : f,
         ),
       );
       setError((err as Error).message);
@@ -164,6 +199,11 @@ export default function ProjectBoqsList({
                           Shared to projects
                         </span>
                       )}
+                      {f.shared_with_counterpart && (
+                        <span className="inline-flex items-center rounded-full border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                          Shared with counterpart
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-magic-ink/50 mt-0.5">
                       {f.mime} · {humanSize(Number(f.size_bytes))} · uploaded{" "}
@@ -171,27 +211,50 @@ export default function ProjectBoqsList({
                     </div>
                   </div>
                   {canShare && (
-                    <button
-                      type="button"
-                      onClick={() => void toggleShare(f)}
-                      disabled={busyId === f.id}
-                      title={
-                        f.shared_to_projects
-                          ? "Stop sharing with the projects team"
-                          : "Let the projects team (managers / engineers) read this file"
-                      }
-                      className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-50 ${
-                        f.shared_to_projects
-                          ? "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                          : "border-magic-border text-magic-ink/70 hover:bg-magic-soft"
-                      }`}
-                    >
-                      {busyId === f.id
-                        ? "…"
-                        : f.shared_to_projects
-                          ? "Unshare"
-                          : "Share to projects"}
-                    </button>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => void toggleCounterpart(f)}
+                        disabled={busyId === f.id}
+                        title={
+                          f.shared_with_counterpart
+                            ? "Stop showing this file to the sales/presales counterpart on this deal"
+                            : "Show this file to the sales/presales counterpart handling this deal"
+                        }
+                        className={`rounded-md border px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                          f.shared_with_counterpart
+                            ? "border-sky-300 text-sky-700 hover:bg-sky-50"
+                            : "border-magic-border text-magic-ink/70 hover:bg-magic-soft"
+                        }`}
+                      >
+                        {busyId === f.id
+                          ? "…"
+                          : f.shared_with_counterpart
+                            ? "Hide from counterpart"
+                            : "Share with counterpart"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void toggleShare(f)}
+                        disabled={busyId === f.id}
+                        title={
+                          f.shared_to_projects
+                            ? "Stop sharing with the projects team"
+                            : "Let the projects team (managers / engineers) read this file"
+                        }
+                        className={`rounded-md border px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                          f.shared_to_projects
+                            ? "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                            : "border-magic-border text-magic-ink/70 hover:bg-magic-soft"
+                        }`}
+                      >
+                        {busyId === f.id
+                          ? "…"
+                          : f.shared_to_projects
+                            ? "Unshare"
+                            : "Share to projects"}
+                      </button>
+                    </div>
                   )}
                 </li>
               ))}

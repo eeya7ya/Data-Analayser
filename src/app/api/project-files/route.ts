@@ -51,6 +51,8 @@ type FileRow = {
   size_bytes: number;
   storage_path: string;
   shared_to_projects: boolean;
+  /** V1.8 — this file is exposed to the deal counterpart (sales ↔ presales). */
+  shared_with_counterpart: boolean;
   created_at: string;
 };
 
@@ -104,21 +106,38 @@ async function linkedProjectFileAccess(
   q: ReturnType<typeof sql>,
   projectId: number,
   user: { id: number; role: string },
-): Promise<{ tier: "full" | "shared" | null; projectIds: number[] }> {
+): Promise<{
+  tier: "full" | "shared" | null;
+  projectIds: number[];
+  /** Subset of `projectIds` the caller personally owns ("full"). Their OWN
+   *  side of the deal — they see every file there. Files on the linked
+   *  projects NOT in this set (the counterpart's side) are visible only when
+   *  the uploader flagged them `shared_with_counterpart` (V1.8). */
+  ownedProjectIds: number[];
+}> {
   const projectIds = await getLinkedProjectIds(projectId);
   if (projectIds.length === 0) {
-    return { tier: await projectFileAccess(q, projectId, user), projectIds: [projectId] };
+    const tier = await projectFileAccess(q, projectId, user);
+    return {
+      tier,
+      projectIds: [projectId],
+      ownedProjectIds: tier === "full" ? [projectId] : [],
+    };
   }
   let best: "full" | "shared" | null = null;
+  const ownedProjectIds: number[] = [];
+  // Don't break early: we need EVERY owned project so the query can show all
+  // of the caller's own files while gating the counterpart's side per file.
   for (const pid of projectIds) {
     const tier = await projectFileAccess(q, pid, user);
     if (tier === "full") {
       best = "full";
-      break;
+      ownedProjectIds.push(pid);
+    } else if (tier === "shared" && best !== "full") {
+      best = "shared";
     }
-    if (tier === "shared") best = "shared";
   }
-  return { tier: best, projectIds };
+  return { tier: best, projectIds, ownedProjectIds };
 }
 
 /**
@@ -139,35 +158,61 @@ export async function GET(req: NextRequest) {
       );
     }
     const q = sql();
-    const { tier, projectIds } = await linkedProjectFileAccess(q, projectId, user);
+    const { tier, projectIds, ownedProjectIds } = await linkedProjectFileAccess(
+      q,
+      projectId,
+      user,
+    );
     if (!tier) {
       return NextResponse.json({ files: [] });
     }
     const sharedOnly = tier === "shared";
     const kindParam = searchParams.get("kind");
+    // Visibility (V1.8), inlined into both queries:
+    //   • projects-module / assigned ("shared" tier) → only shared_to_projects.
+    //   • a deal party ("full" tier) → every file on THEIR own linked
+    //     project(s), plus only the counterpart's files the uploader opted in
+    //     via shared_with_counterpart. This makes counterpart sharing selective
+    //     per file instead of all-or-nothing.
     const rows = kindParam
       ? ((await q`
           select pf.id, pf.project_id, pf.owner_id, u.username as owner_name,
                  pf.kind, pf.filename, pf.mime, pf.size_bytes,
-                 pf.storage_path, pf.shared_to_projects, pf.created_at
+                 pf.storage_path, pf.shared_to_projects,
+                 pf.shared_with_counterpart, pf.created_at
           from project_files pf
           left join users u on u.id = pf.owner_id
           where pf.project_id = any(${projectIds}::int[])
             and pf.kind = ${kindParam}
             and pf.deleted_at is null
-            and (${sharedOnly}::boolean = false or pf.shared_to_projects = true)
+            and (
+              (${sharedOnly}::boolean = true and pf.shared_to_projects = true)
+              or
+              (${sharedOnly}::boolean = false and (
+                pf.project_id = any(${ownedProjectIds}::int[])
+                or pf.shared_with_counterpart = true
+              ))
+            )
           order by pf.created_at desc, pf.id desc
           limit 500
         `) as FileRow[])
       : ((await q`
           select pf.id, pf.project_id, pf.owner_id, u.username as owner_name,
                  pf.kind, pf.filename, pf.mime, pf.size_bytes,
-                 pf.storage_path, pf.shared_to_projects, pf.created_at
+                 pf.storage_path, pf.shared_to_projects,
+                 pf.shared_with_counterpart, pf.created_at
           from project_files pf
           left join users u on u.id = pf.owner_id
           where pf.project_id = any(${projectIds}::int[])
             and pf.deleted_at is null
-            and (${sharedOnly}::boolean = false or pf.shared_to_projects = true)
+            and (
+              (${sharedOnly}::boolean = true and pf.shared_to_projects = true)
+              or
+              (${sharedOnly}::boolean = false and (
+                pf.project_id = any(${ownedProjectIds}::int[])
+                or pf.shared_with_counterpart = true
+              ))
+            )
           order by pf.created_at desc, pf.id desc
           limit 500
         `) as FileRow[]);

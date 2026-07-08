@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import RequestQuotationButton from "@/components/RequestQuotationButton";
+import RequestDeliveryButton from "@/components/RequestDeliveryButton";
 
 /**
  * Project-level action buttons (Request for Quotation) for the project
@@ -32,6 +33,7 @@ export default function ProjectHeaderActions({
   return (
     <div className="no-print flex flex-col items-end gap-2 shrink-0">
       <RequestQuotationButton projectId={projectId} projectName={projectName} />
+      <RequestDeliveryButton projectId={projectId} projectName={projectName} />
     </div>
   );
 }

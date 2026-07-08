@@ -35,6 +35,19 @@ export interface ReleaseNote {
 /** Newest first. The first entry's `version` is the current app version. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.80",
+    date: "2026-07-08",
+    title: "v1.80 — New departments + groundwork",
+    audience_modules: ["all"],
+    audience_roles: ["all"],
+    pinned: true,
+    body: [
+      "V1.8 opens up the org chart and lays the groundwork for a smoother sales flow. This release ships the foundation; the workspaces build on top of it over the next updates.",
+      "- New departments — Delivery, Showroom and Accounting are now assignable job roles. Admins can grant them from Users & Roles today; the Delivery workspace (delivery requests from sales and from projects) and the Showroom / Accounting surfaces follow.",
+      "- Coming next — one-screen lead creation for sales, cross-role file sharing (choose exactly which files presales/sales see), and a per-lead lifecycle map that time-stamps every step so delays are easy to spot.",
+    ].join("\n"),
+  },
+  {
     version: "1.70",
     date: "2026-06-28",
     title: "v1.70 — Pipeline-first sales, cleaner quotations",

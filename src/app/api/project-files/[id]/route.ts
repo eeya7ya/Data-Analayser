@@ -33,6 +33,8 @@ interface FileRecord {
   mime: string;
   storage_path: string;
   shared_to_projects: boolean;
+  /** V1.8 — uploader opted this specific file in for the deal counterpart. */
+  shared_with_counterpart: boolean;
 }
 
 /**
@@ -60,7 +62,8 @@ async function loadFileRow(
   id: number,
 ): Promise<FileRecord | null> {
   const rows = (await q`
-    select id, owner_id, project_id, filename, mime, storage_path, shared_to_projects
+    select id, owner_id, project_id, filename, mime, storage_path,
+           shared_to_projects, shared_with_counterpart
     from project_files
     where id = ${id} and deleted_at is null
     limit 1
@@ -96,8 +99,13 @@ async function userOwnsLinkedProject(
 
 /**
  * Read access: admin / owner always; the sales ↔ presales counterpart on the
- * same lead always (shared file workspace); otherwise a projects-module user
- * (or an assigned member) may read it only when it's been shared to projects.
+ * same lead may read a file only when the uploader opted THAT file in
+ * (`shared_with_counterpart`) — V1.8 made counterpart visibility selective per
+ * file instead of all-or-nothing; otherwise a projects-module user (or an
+ * assigned member) may read it only when it's been shared to projects.
+ *
+ * The `shared_with_counterpart` guard is checked BEFORE the linked-project
+ * lookup so a non-shared file short-circuits without the extra query.
  */
 async function canReadFile(
   q: ReturnType<typeof sql>,
@@ -105,7 +113,11 @@ async function canReadFile(
   user: { id: number; role: string },
 ): Promise<boolean> {
   if (canReadAll(user) || file.owner_id === user.id) return true;
-  if (await userOwnsLinkedProject(q, file.project_id, user.id)) return true;
+  if (
+    file.shared_with_counterpart &&
+    (await userOwnsLinkedProject(q, file.project_id, user.id))
+  )
+    return true;
   if (!file.shared_to_projects) return false;
   if (await hasModule(user.id, "projects")) return true;
   const assigned = (await q`
@@ -199,6 +211,7 @@ export async function PATCH(
     const body = (await req.json()) as {
       project_id?: number;
       shared_to_projects?: boolean;
+      shared_with_counterpart?: boolean;
     };
     const q = sql();
     const file = await loadFileRow(q, id);
@@ -225,6 +238,27 @@ export async function PATCH(
       return NextResponse.json({
         ok: true,
         shared_to_projects: body.shared_to_projects,
+      });
+    }
+
+    // Counterpart share toggle (V1.8) — expose this one file to the sales ↔
+    // presales counterpart on the same deal. Same manage permission as the
+    // projects-share toggle above (owner / client-folder owner / admin).
+    if (typeof body.shared_with_counterpart === "boolean") {
+      await q`
+        update project_files
+        set shared_with_counterpart = ${body.shared_with_counterpart}
+        where id = ${id}
+      `;
+      await q`
+        insert into activity_log (actor_id, entity_type, entity_id, verb, meta_json)
+        values (${user.id}, 'project_file', ${id},
+                ${body.shared_with_counterpart ? "share_to_counterpart" : "unshare_from_counterpart"},
+                '{}'::jsonb)
+      `;
+      return NextResponse.json({
+        ok: true,
+        shared_with_counterpart: body.shared_with_counterpart,
       });
     }
 
