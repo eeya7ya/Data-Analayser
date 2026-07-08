@@ -2013,6 +2013,10 @@ function SystemTable({
   // <tr> too, so this scope is sufficient.
   const [dragGlobalIndex, setDragGlobalIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+  // In-app note editor (replaces the old browser prompt). Holds the row being
+  // annotated and the working text.
+  const [noteEditIndex, setNoteEditIndex] = useState<number | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
   // Base = No, Brand, Model, Description, [Picture], Quantity, Delivery,
   // Unit Price, Total Price — plus one cell per manual column. In BoQ
   // mode the two pricing columns (Unit Price, Total Price) drop out, so
@@ -2152,6 +2156,7 @@ function SystemTable({
   };
 
   return (
+    <>
     <table>
       <thead>
         <tr>
@@ -2621,12 +2626,8 @@ function SystemTable({
                       <button
                         type="button"
                         onClick={() => {
-                          const n = prompt(
-                            "Internal note for this row.\nThis is for your team only — it never appears on the printed sheet, PDF, or Excel export.",
-                            item.note ?? "",
-                          );
-                          if (n !== null)
-                            onUpdate(globalIndex, { note: n.trim() });
+                          setNoteDraft(item.note ?? "");
+                          setNoteEditIndex(globalIndex);
                         }}
                         title="Attach an internal note that never prints"
                         className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
@@ -2681,6 +2682,67 @@ function SystemTable({
         )}
       </tbody>
     </table>
+
+    {/* In-app note editor — replaces the old browser prompt. A proper panel
+        that matches the app: free multi-line writing, blank lines for spacing,
+        and typed bullet points (•/-) are all preserved. Internal only — never
+        printed or exported. */}
+    {noteEditIndex !== null && (
+      <div className="no-print fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          onClick={() => setNoteEditIndex(null)}
+        />
+        <div className="relative z-10 w-full max-w-lg rounded-2xl border border-magic-border bg-white shadow-2xl">
+          <div className="flex items-center justify-between border-b border-magic-border px-5 py-3">
+            <h3 className="text-sm font-bold text-magic-ink">Internal note</h3>
+            <button
+              type="button"
+              onClick={() => setNoteEditIndex(null)}
+              className="rounded-md p-1 text-magic-ink/50 hover:bg-magic-soft"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="px-5 py-4">
+            <p className="mb-2 text-[11px] text-magic-ink/50">
+              For your team only — this never appears on the printed sheet, PDF
+              or Excel export. Write freely: blank lines and bullet points
+              (start a line with • or -) are kept.
+            </p>
+            <textarea
+              autoFocus
+              value={noteDraft}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              rows={8}
+              placeholder={"e.g.\n• Confirm cable route with the client\n• Price assumes existing conduit\n\nNotes, reminders, anything."}
+              className="w-full resize-y rounded-lg border border-magic-border px-3 py-2 text-sm leading-relaxed text-magic-ink focus:border-magic-red/40 focus:outline-none"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t border-magic-border px-5 py-3">
+            <button
+              type="button"
+              onClick={() => setNoteEditIndex(null)}
+              className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onUpdate(noteEditIndex, { note: noteDraft.trim() });
+                setNoteEditIndex(null);
+              }}
+              className="rounded-lg bg-magic-red px-4 py-1.5 text-xs font-semibold text-white hover:bg-magic-red/90"
+            >
+              Save note
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
