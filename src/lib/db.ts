@@ -3483,19 +3483,18 @@ async function _ensureSchemaOnce(): Promise<void> {
   }
 
   if (!v18FileShareApplied) {
-    // V1.8 — per-file counterpart sharing. Add the column (default false so
-    // new uploads are private until the uploader opts in), then backfill every
-    // EXISTING file to true so the current all-files-visible behaviour is
-    // preserved for work already in flight — no file that a counterpart can
-    // see today disappears. Idempotent: guarded by the flag, and add-column is
-    // `if not exists`.
+    // V1.8 — per-file counterpart sharing. The column defaults to false so
+    // sharing is opt-in per file (selective, matching the product intent — the
+    // counterpart no longer sees every file automatically). We deliberately do
+    // NOT backfill existing rows: a blanket `update project_files set ... = true`
+    // over a large table can exceed the serverless statement timeout, which
+    // would throw out of ensureSchema on EVERY request (the flag is set only
+    // after this block), 500-ing the whole app in a retry loop. The column add
+    // is metadata-only and instant; existing files simply start un-shared and
+    // the uploader shares the ones the counterpart should see.
     await q`
       alter table project_files
         add column if not exists shared_with_counterpart boolean not null default false
-    `;
-    await q`
-      update project_files set shared_with_counterpart = true
-      where shared_with_counterpart = false
     `;
     await q`
       create index if not exists project_files_counterpart_idx

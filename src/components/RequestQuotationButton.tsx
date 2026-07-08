@@ -241,6 +241,49 @@ function RequestQuotationModal({
   const [priority, setPriority] = useState("normal");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Files on this project the salesperson can choose to share with the
+  // presales who picks up the RFQ (selective sales↔presales sharing).
+  const [files, setFiles] = useState<Array<{ id: number; filename: string }>>([]);
+  const [shareIds, setShareIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/project-files?project_id=${projectId}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          files?: Array<{ id: number; filename: string; shared_with_counterpart?: boolean }>;
+        };
+        if (cancelled) return;
+        setFiles((data.files ?? []).map((f) => ({ id: f.id, filename: f.filename })));
+        // Pre-tick any files already shared, so the selection reflects reality.
+        setShareIds(
+          new Set(
+            (data.files ?? [])
+              .filter((f) => f.shared_with_counterpart)
+              .map((f) => f.id),
+          ),
+        );
+      } catch {
+        /* no files / no access — the checklist just stays empty */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  function toggleShare(id: number) {
+    setShareIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function submit() {
     if (!title.trim()) {
@@ -269,6 +312,17 @@ function RequestQuotationModal({
         const b = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(b.error || `HTTP ${res.status}`);
       }
+      // Share the ticked files with the presales counterpart. Best-effort per
+      // file — a share hiccup shouldn't fail the RFQ that was just created.
+      await Promise.all(
+        files.map((f) =>
+          fetch(`/api/project-files/${f.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ shared_with_counterpart: shareIds.has(f.id) }),
+          }).catch(() => {}),
+        ),
+      );
       onDone();
     } catch (err) {
       setError((err as Error).message);
@@ -339,6 +393,40 @@ function RequestQuotationModal({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-magic-ink/70 mb-1">
+              Share files with presales
+            </label>
+            {files.length === 0 ? (
+              <p className="rounded border border-dashed border-magic-border px-2 py-2 text-xs text-magic-ink/45">
+                No files on this project yet. Upload files under the project&apos;s
+                Files/BOQ tab, then choose them here.
+              </p>
+            ) : (
+              <>
+                <p className="mb-1 text-[11px] text-magic-ink/50">
+                  Only the files you tick are visible to the presales who builds
+                  the quote — nothing else is shared.
+                </p>
+                <div className="max-h-40 space-y-1 overflow-y-auto rounded border border-magic-border p-2">
+                  {files.map((f) => (
+                    <label
+                      key={f.id}
+                      className="flex items-center gap-2 text-xs text-magic-ink/80"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={shareIds.has(f.id)}
+                        onChange={() => toggleShare(f.id)}
+                      />
+                      <span className="truncate">{f.filename}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
