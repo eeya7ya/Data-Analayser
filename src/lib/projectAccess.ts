@@ -183,6 +183,21 @@ export async function userOwnsProjectOrLinked(
   return rows.length > 0;
 }
 
+/** True when the user has an active assignment on this exact project. */
+export async function userIsAssignedToProject(
+  projectId: number,
+  userId: number,
+): Promise<boolean> {
+  const q = sql();
+  const rows = (await q`
+    select 1 from project_assignments
+    where project_id = ${projectId} and user_id = ${userId}
+      and deleted_at is null
+    limit 1
+  `) as Array<{ "?column?": number }>;
+  return rows.length > 0;
+}
+
 /** True when the user is assigned to any live project inside the folder. */
 export async function userHasAssignedProjectInFolder(
   userId: number,
