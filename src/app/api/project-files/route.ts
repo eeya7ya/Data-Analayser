@@ -7,6 +7,7 @@ import { notifyPresalesOfProjectUpload } from "@/lib/leads";
 import {
   getLinkedProjectIds,
   userOwnsProjectOrLinked,
+  userIsAssignedToProject,
 } from "@/lib/projectAccess";
 
 export const runtime = "nodejs";
@@ -267,7 +268,9 @@ export async function POST(req: NextRequest) {
     // lead-linked deal may also register a file into the shared workspace.
     const tier = await projectFileAccess(q, projectId, user);
     const canWrite =
-      tier === "full" || (await userOwnsProjectOrLinked(projectId, user.id));
+      tier === "full" ||
+      (await userOwnsProjectOrLinked(projectId, user.id)) ||
+      (await userIsAssignedToProject(projectId, user.id));
     if (!canWrite) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }

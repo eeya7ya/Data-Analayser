@@ -122,7 +122,7 @@ export async function POST(
       select position, item_model, price_usd, quantity,
              shipping_override, customs_override,
              shipping_rate_override, customs_rate_override,
-             profit_rate_override
+             profit_rate_override, description
       from pricing_product_lines
       where project_id = ${projectId}
       order by position asc
@@ -136,6 +136,7 @@ export async function POST(
       shipping_rate_override: string | null;
       customs_rate_override: string | null;
       profit_rate_override: string | null;
+      description: string | null;
     }>;
 
     const calculated = lineRows
@@ -153,6 +154,7 @@ export async function POST(
             l.customs_rate_override != null ? Number(l.customs_rate_override) : null,
           profitRateOverride:
             l.profit_rate_override != null ? Number(l.profit_rate_override) : null,
+          description: l.description,
         };
         return { input, calc: calculateRow(input, constants) };
       });
@@ -175,7 +177,12 @@ export async function POST(
       system: "Equipment",
       brand: project.manufacturer_name,
       model: input.itemModel || "—",
-      description: `Imported from pricing sheet · USD ${input.priceUsd} × ${input.quantity}`,
+      // Prefer the line's ready description (filled on the pricing sheet); fall
+      // back to the traceability line when none was written.
+      description:
+        typeof input.description === "string" && input.description.trim()
+          ? input.description.trim()
+          : `Imported from pricing sheet · USD ${input.priceUsd} × ${input.quantity}`,
       quantity: input.quantity,
       unit_price: Number(calc.preTaxPrice.toFixed(3)),
       price_si: Number(calc.preTaxPrice.toFixed(3)),

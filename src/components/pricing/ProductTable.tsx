@@ -62,6 +62,9 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
   const [copiedCol, setCopiedCol] = useState<InputField | "usdTotal" | null>(null);
   const [copiedCalcCol, setCopiedCalcCol] = useState<string | null>(null);
   const [openRatesRowId, setOpenRatesRowId] = useState<number | null>(null);
+  // V1.8 — reveal the per-line internal description field (hidden by default;
+  // never prints; carried into the quotation item description on convert).
+  const [showDescriptions, setShowDescriptions] = useState(false);
   // When the clipboard can't be read on click, the paste button opens a
   // focused paste box for this column instead.
   const [pastePrompt, setPastePrompt] = useState<InputField | null>(null);
@@ -543,6 +546,21 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
           </div>
         </div>
       )}
+      <div className="mb-2 flex items-center justify-end">
+        <button
+          type="button"
+          onClick={() => setShowDescriptions((v) => !v)}
+          className={cn(
+            "rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors",
+            showDescriptions
+              ? "border-sky-300 bg-sky-50 text-sky-700"
+              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+          )}
+          title="Show a per-line internal description. It never prints, but fills the item description when you convert this sheet to a quotation."
+        >
+          {showDescriptions ? "Hide descriptions" : "Show descriptions"}
+        </button>
+      </div>
       <div className="table-container max-w-full overflow-x-auto rounded-xl border border-gray-200 bg-white">
       <table className="w-full border-collapse text-xs">
         <thead>
@@ -704,6 +722,15 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
                   }}
                   className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-center text-gray-800 placeholder-gray-300 transition-colors focus:border-gray-300 focus:bg-gray-50 focus:outline-none"
                 />
+                {showDescriptions && (
+                  <textarea
+                    value={row.description ?? ""}
+                    placeholder="Internal description — never prints; fills the item description on convert"
+                    onChange={(e) => updateRow(i, "description", e.target.value)}
+                    rows={2}
+                    className="no-print mt-1 w-full resize-y rounded border border-dashed border-sky-300 bg-sky-50/40 px-1.5 py-1 text-left text-[11px] text-gray-700 placeholder-gray-400 focus:border-sky-400 focus:bg-white focus:outline-none"
+                  />
+                )}
               </td>
               {/* USD Price (input) */}
               <td className="border-l border-gray-100 px-2 py-1.5">

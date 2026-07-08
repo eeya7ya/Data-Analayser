@@ -125,6 +125,11 @@ export default function UsersAndRolesPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<number | null>(null);
+  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "json">(
+    "xlsx",
+  );
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   // Create-user form.
   const [username, setUsername] = useState("");
@@ -325,60 +330,322 @@ export default function UsersAndRolesPanel({
   }
 
   /**
-   * Download every user's details as a CSV (opens in Excel).
-   *
-   * Passwords are intentionally NOT included: they are stored only as one-way
-   * PBKDF2 hashes, so the plaintext a user signs in with does not exist in the
-   * database and cannot be exported. To hand someone a working credential, set
-   * a new password via the Edit dialog and share that. The UTF-8 BOM keeps
-   * Arabic names readable when Excel opens the file.
+   * Export / import users. Columns are Username, Display name, Email, Phone,
+   * Department, Roles and Password — the access-level and created-date columns
+   * were dropped (access level is folded into Roles), and a deliberately EMPTY
+   * Password column is added so an admin can fill it in the sheet and re-import
+   * to set credentials in bulk. Passwords are never READ back from the DB (they
+   * are one-way hashed), so the column always exports blank. Three formats:
+   * CSV / Excel (styled) / JSON.
    */
-  function exportUsers() {
-    const cols = [
-      "Username",
-      "Display name",
-      "Email",
-      "Phone",
-      "Department",
-      "Access level",
-      "Roles",
-      "Created",
-    ];
-    const cell = (v: string) =>
-      /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-    const accessLevel = (u: U) =>
-      u.role === "admin" ? "Admin" : u.role === "viewer" ? "Viewer" : "User";
-    const rows = users.map((u) => {
-      const roleLabels = currentRolesFor(u, grantsByUser.get(u.id) ?? [])
-        .filter((v) => v !== "admin" && v !== "viewer" && v !== "none")
-        .map((v) => LABEL_BY_VALUE[v] ?? v)
-        .join(" | ");
-      const created = u.created_at
-        ? new Date(u.created_at).toISOString().slice(0, 10)
-        : "";
-      return [
-        u.username,
-        u.display_name || "",
-        u.email || "",
-        u.phone || "",
-        u.department_code || "",
-        accessLevel(u),
-        roleLabels,
-        created,
-      ]
-        .map((v) => cell(String(v)))
-        .join(",");
+  const EXPORT_COLS = [
+    "Username",
+    "Display name",
+    "Email",
+    "Phone",
+    "Department",
+    "Roles",
+    "Password",
+  ] as const;
+
+  /** Reverse of LABEL_BY_VALUE, lower-cased, so imports accept friendly labels. */
+  const VALUE_BY_LABEL: Record<string, string> = Object.fromEntries(
+    Object.entries(LABEL_BY_VALUE).map(([v, l]) => [l.toLowerCase(), v]),
+  );
+
+  function userRecords() {
+    return users.map((u) => {
+      const roleValues = currentRolesFor(u, grantsByUser.get(u.id) ?? []).filter(
+        (v) => v !== "none",
+      );
+      return {
+        username: u.username,
+        display_name: u.display_name || "",
+        email: u.email || "",
+        phone: u.phone || "",
+        department: u.department_code || "",
+        roles: roleValues,
+        roleLabels: roleValues.map((v) => LABEL_BY_VALUE[v] ?? v).join(" | "),
+      };
     });
-    const csv = "﻿" + [cols.join(","), ...rows].join("\r\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  }
+
+  function downloadBlob(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `users-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  async function exportUsers(format: "csv" | "xlsx" | "json") {
+    const recs = userRecords();
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    if (format === "json") {
+      const payload = recs.map((r) => ({
+        username: r.username,
+        display_name: r.display_name,
+        email: r.email,
+        phone: r.phone,
+        department: r.department,
+        roles: r.roles,
+        password: "",
+      }));
+      downloadBlob(
+        new Blob([JSON.stringify(payload, null, 2)], {
+          type: "application/json",
+        }),
+        `users-${stamp}.json`,
+      );
+      return;
+    }
+
+    const rowValues = (r: (typeof recs)[number]) => [
+      r.username,
+      r.display_name,
+      r.email,
+      r.phone,
+      r.department,
+      r.roleLabels,
+      "", // Password — always blank; fill it in to set credentials on import.
+    ];
+
+    if (format === "xlsx") {
+      const ExcelJSmod = (await import("exceljs")) as unknown as {
+        Workbook?: new () => import("exceljs").Workbook;
+        default?: { Workbook: new () => import("exceljs").Workbook };
+      };
+      const Workbook = ExcelJSmod.Workbook ?? ExcelJSmod.default?.Workbook;
+      if (!Workbook) return;
+      const wb = new Workbook();
+      const ws = wb.addWorksheet("Users", {
+        views: [{ state: "frozen", ySplit: 1 }],
+      });
+      const header = ws.addRow([...EXPORT_COLS]);
+      header.eachCell?.((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF0F172A" },
+        };
+        cell.alignment = { vertical: "middle" };
+      });
+      for (const r of recs) ws.addRow(rowValues(r));
+      ws.columns.forEach((col, i) => {
+        col.width = [18, 22, 26, 16, 14, 34, 16][i] ?? 16;
+      });
+      ws.autoFilter = { from: "A1", to: "G1" };
+      const buf = await wb.xlsx.writeBuffer();
+      downloadBlob(
+        new Blob([buf], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+        `users-${stamp}.xlsx`,
+      );
+      return;
+    }
+
+    // CSV (UTF-8 BOM keeps Arabic names readable in Excel).
+    const cell = (v: string) =>
+      /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    const lines = [
+      EXPORT_COLS.join(","),
+      ...recs.map((r) => rowValues(r).map((v) => cell(String(v))).join(",")),
+    ];
+    downloadBlob(
+      new Blob(["﻿" + lines.join("\r\n")], {
+        type: "text/csv;charset=utf-8;",
+      }),
+      `users-${stamp}.csv`,
+    );
+  }
+
+  /** Minimal RFC-4180 CSV parser (handles quoted fields, commas, newlines). */
+  function parseCsv(text: string): string[][] {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = "";
+    let inQuotes = false;
+    const s = text.replace(/^﻿/, "");
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (s[i + 1] === '"') {
+            field += '"';
+            i++;
+          } else inQuotes = false;
+        } else field += c;
+      } else if (c === '"') inQuotes = true;
+      else if (c === ",") {
+        row.push(field);
+        field = "";
+      } else if (c === "\n" || c === "\r") {
+        if (c === "\r" && s[i + 1] === "\n") i++;
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = "";
+      } else field += c;
+    }
+    if (field.length > 0 || row.length > 0) {
+      row.push(field);
+      rows.push(row);
+    }
+    return rows.filter((r) => r.some((c) => c.trim() !== ""));
+  }
+
+  /** Turn a Roles cell ("Sales | Presales" or "crm.sales|admin") into values. */
+  function parseRolesField(raw: string): string[] {
+    return raw
+      .split(/[|,]/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((t) => {
+        if (t === "admin" || t === "viewer" || /^[a-z_]+\.[a-z_]+$/.test(t)) {
+          return t;
+        }
+        return VALUE_BY_LABEL[t.toLowerCase()] ?? null;
+      })
+      .filter((v): v is string => Boolean(v));
+  }
+
+  async function importUsers(file: File) {
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const text = await file.text();
+      type Rec = {
+        username: string;
+        display_name?: string;
+        email?: string;
+        phone?: string;
+        department?: string;
+        password?: string;
+        roles: string[];
+      };
+      let records: Rec[];
+      if (/\.json$/i.test(file.name)) {
+        const parsed = JSON.parse(text) as Array<Record<string, unknown>>;
+        records = parsed.map((r) => ({
+          username: String(r.username ?? "").trim(),
+          display_name: r.display_name ? String(r.display_name) : "",
+          email: r.email ? String(r.email) : "",
+          phone: r.phone ? String(r.phone) : "",
+          department: r.department ? String(r.department) : "",
+          password: r.password ? String(r.password) : "",
+          roles: Array.isArray(r.roles)
+            ? (r.roles as unknown[]).map(String)
+            : parseRolesField(String(r.roles ?? "")),
+        }));
+      } else {
+        const grid = parseCsv(text);
+        const header = (grid[0] ?? []).map((h) => h.trim().toLowerCase());
+        const col = (names: string[]) =>
+          header.findIndex((h) => names.includes(h));
+        const iUser = col(["username"]);
+        const iName = col(["display name", "display_name"]);
+        const iEmail = col(["email"]);
+        const iPhone = col(["phone"]);
+        const iDept = col(["department", "department_code"]);
+        const iRoles = col(["roles"]);
+        const iPass = col(["password"]);
+        if (iUser < 0) throw new Error("CSV needs a Username column.");
+        records = grid.slice(1).map((r) => ({
+          username: (r[iUser] ?? "").trim(),
+          display_name: iName >= 0 ? r[iName] ?? "" : "",
+          email: iEmail >= 0 ? r[iEmail] ?? "" : "",
+          phone: iPhone >= 0 ? r[iPhone] ?? "" : "",
+          department: iDept >= 0 ? r[iDept] ?? "" : "",
+          password: iPass >= 0 ? r[iPass] ?? "" : "",
+          roles: iRoles >= 0 ? parseRolesField(r[iRoles] ?? "") : [],
+        }));
+      }
+
+      let created = 0;
+      let updated = 0;
+      const failures: string[] = [];
+      for (const rec of records) {
+        if (!rec.username) continue;
+        try {
+          const roles = rec.roles;
+          const accessLevel = roles.includes("admin")
+            ? "admin"
+            : roles.includes("viewer")
+              ? "viewer"
+              : "user";
+          const existing = users.find(
+            (u) => u.username.toLowerCase() === rec.username.toLowerCase(),
+          );
+          if (existing) {
+            const body: Record<string, string> = {
+              display_name: rec.display_name ?? "",
+              email: rec.email ?? "",
+              phone: rec.phone ?? "",
+              department_code: rec.department ?? "",
+            };
+            if (rec.password) body.password = rec.password;
+            const res = await fetch(`/api/users?id=${existing.id}`, {
+              method: "PATCH",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) throw new Error((await res.json()).error || "update failed");
+            await fetch("/api/admin/assign-role", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ user_id: existing.id, roles }),
+            });
+            updated++;
+          } else {
+            if (!rec.password) {
+              throw new Error("new user needs a password in the Password column");
+            }
+            const res = await fetch("/api/users", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                username: rec.username,
+                password: rec.password,
+                role: accessLevel,
+                display_name: rec.display_name ?? "",
+                phone: rec.phone ?? "",
+                email: rec.email ?? "",
+                department_code: rec.department ?? "",
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "create failed");
+            if (data.user?.id && roles.length > 0) {
+              await fetch("/api/admin/assign-role", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ user_id: data.user.id, roles }),
+              });
+            }
+            created++;
+          }
+        } catch (e) {
+          failures.push(`${rec.username}: ${(e as Error).message}`);
+        }
+      }
+      await loadAll();
+      setImportMsg(
+        `Imported — ${created} created, ${updated} updated` +
+          (failures.length
+            ? `, ${failures.length} skipped (${failures.slice(0, 3).join("; ")}${failures.length > 3 ? "…" : ""})`
+            : "."),
+      );
+    } catch (e) {
+      setImportMsg(`Import failed: ${(e as Error).message}`);
+    } finally {
+      setImporting(false);
+    }
   }
 
   if (loading) {
@@ -389,29 +656,55 @@ export default function UsersAndRolesPanel({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-magic-ink">Users &amp; roles</h3>
-        <button
-          type="button"
-          onClick={exportUsers}
-          disabled={users.length === 0}
-          title="Download all users' details as a CSV (Excel). Passwords are one-way hashed and cannot be exported."
-          className="inline-flex items-center gap-1.5 rounded-lg border border-magic-border bg-white px-3 py-1.5 text-xs font-semibold text-magic-ink hover:border-magic-red/40 hover:text-magic-red disabled:opacity-50"
-        >
-          <svg
-            className="h-3.5 w-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={exportFormat}
+            onChange={(e) =>
+              setExportFormat(e.target.value as "csv" | "xlsx" | "json")
+            }
+            className="rounded-lg border border-magic-border bg-white px-2 py-1.5 text-xs font-semibold text-magic-ink"
+            title="Choose the export format"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"
-            />
-          </svg>
-          Export users
-        </button>
+            <option value="xlsx">Excel (.xlsx)</option>
+            <option value="csv">CSV</option>
+            <option value="json">JSON</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => void exportUsers(exportFormat)}
+            disabled={users.length === 0}
+            title="Download all users. The Password column is blank — fill it in and re-import to set credentials."
+            className="inline-flex items-center gap-1.5 rounded-lg border border-magic-border bg-white px-3 py-1.5 text-xs font-semibold text-magic-ink hover:border-magic-red/40 hover:text-magic-red disabled:opacity-50"
+          >
+            Export
+          </button>
+          {!readOnly && (
+            <label
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-magic-border bg-white px-3 py-1.5 text-xs font-semibold text-magic-ink hover:border-magic-red/40 hover:text-magic-red ${
+                importing ? "pointer-events-none opacity-50" : ""
+              }`}
+              title="Import users from a CSV or JSON file (same columns as the export). Existing usernames are updated; new ones are created when a Password is provided."
+            >
+              {importing ? "Importing…" : "Import"}
+              <input
+                type="file"
+                accept=".csv,.json,application/json,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void importUsers(f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          )}
+        </div>
       </div>
+      {importMsg && (
+        <p className="rounded-lg border border-magic-border bg-magic-soft/40 px-3 py-2 text-xs text-magic-ink/70">
+          {importMsg}
+        </p>
+      )}
       <div className="grid grid-cols-3 gap-3">
         <StatCard label="Users" value={stats.total} />
         <StatCard label="Admins" value={stats.admins} />

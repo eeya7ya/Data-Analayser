@@ -1,4 +1,5 @@
 import { sql, rawBinder } from "@/lib/db";
+import { calculateRow, type Constants } from "@/lib/pricing/calculations";
 
 /**
  * Pricing backup / restore — one place that serialises EVERY pricing parameter
@@ -23,6 +24,7 @@ export interface BackupLine {
   shippingRateOverride: string | null;
   customsRateOverride: string | null;
   profitRateOverride: string | null;
+  description: string | null;
 }
 
 export interface BackupConstants {
@@ -141,7 +143,8 @@ export async function buildManufacturerBackup(
   const lines = (await q`
     select project_id, position, item_model, price_usd, quantity,
            shipping_override, customs_override,
-           shipping_rate_override, customs_rate_override, profit_rate_override
+           shipping_rate_override, customs_rate_override, profit_rate_override,
+           description
     from pricing_product_lines
     where project_id = any(${projectIds}::int[])
     order by project_id asc, position asc
@@ -160,6 +163,7 @@ export async function buildManufacturerBackup(
       shippingRateOverride: l.shipping_rate_override != null ? String(l.shipping_rate_override) : null,
       customsRateOverride: l.customs_rate_override != null ? String(l.customs_rate_override) : null,
       profitRateOverride: l.profit_rate_override != null ? String(l.profit_rate_override) : null,
+      description: l.description != null ? String(l.description) : null,
     });
     lineMap.set(pid, bucket);
   }
@@ -271,6 +275,11 @@ export async function restoreProjects(
               P(l.shippingRateOverride != null ? String(l.shippingRateOverride) : null),
               P(l.customsRateOverride != null ? String(l.customsRateOverride) : null),
               P(l.profitRateOverride != null ? String(l.profitRateOverride) : null),
+              P(
+                typeof l.description === "string" && l.description.trim()
+                  ? l.description
+                  : null,
+              ),
             ];
             return `(${cells.join(", ")})`;
           })
@@ -279,7 +288,8 @@ export async function restoreProjects(
           `insert into pricing_product_lines
              (project_id, position, item_model, price_usd, quantity,
               shipping_override, customs_override,
-              shipping_rate_override, customs_rate_override, profit_rate_override)
+              shipping_rate_override, customs_rate_override, profit_rate_override,
+              description)
            values ${tuples}`,
           params,
         );
@@ -316,8 +326,30 @@ const CSV_COLUMNS = [
   "target_currency", "source_currency",
   "line_position", "item_model", "price_usd", "quantity",
   "shipping_override", "customs_override", "shipping_rate_override",
-  "customs_rate_override", "profit_rate_override",
+  "customs_rate_override", "profit_rate_override", "description",
+  // Computed snapshot columns (read-only — ignored on restore, which recomputes
+  // from the inputs above). Present so a CSV backup opened in Excel shows the
+  // real per-line values, not just the raw USD inputs.
+  "jod_unit", "jod_total", "shipping_unit", "shipping_total",
+  "customs_unit", "customs_total", "landed_unit", "landed_total",
+  "profit_unit", "profit_total", "pretax_unit", "pretax_total",
+  "tax_unit", "tax_total", "final_unit", "final_total",
 ] as const;
+
+/** BackupConstants (string cells) → numeric Constants for calculateRow. */
+function toNumericConstants(c: BackupConstants): Constants {
+  const n = (v: string, d: number) => {
+    const x = Number(v);
+    return Number.isFinite(x) ? x : d;
+  };
+  return {
+    currencyRate: n(c.currencyRate, 0.71),
+    shippingRate: n(c.shippingRate, 0.15),
+    customsRate: n(c.customsRate, 0.12),
+    profitMargin: n(c.profitMargin, 0.25),
+    taxRate: n(c.taxRate, 0.16),
+  };
+}
 
 function csvCell(v: unknown): string {
   const s = v == null ? "" : String(v);
@@ -335,15 +367,48 @@ export function payloadToCsv(payload: BackupPayload): string {
         c.currencyRate, c.shippingRate, c.customsRate, c.profitMargin, c.taxRate,
         c.targetCurrency, c.sourceCurrency,
       ];
+      const nc = toNumericConstants(c);
+      // Count of computed columns appended after the input columns.
+      const COMPUTED_BLANKS = new Array(16).fill("");
       if (p.productLines.length === 0) {
-        rows.push([...base, "", "", "", "", "", "", "", "", ""].map(csvCell).join(","));
+        rows.push(
+          [...base, "", "", "", "", "", "", "", "", "", "", ...COMPUTED_BLANKS]
+            .map(csvCell)
+            .join(","),
+        );
       } else {
         for (const l of p.productLines) {
+          const calc = calculateRow(
+            {
+              itemModel: l.itemModel,
+              priceUsd: Number(l.priceUsd) || 0,
+              quantity: l.quantity,
+              shippingOverride: l.shippingOverride != null ? Number(l.shippingOverride) : null,
+              customsOverride: l.customsOverride != null ? Number(l.customsOverride) : null,
+              shippingRateOverride:
+                l.shippingRateOverride != null ? Number(l.shippingRateOverride) : null,
+              customsRateOverride:
+                l.customsRateOverride != null ? Number(l.customsRateOverride) : null,
+              profitRateOverride:
+                l.profitRateOverride != null ? Number(l.profitRateOverride) : null,
+            },
+            nc,
+          );
+          const f = (v: number) => (Number.isFinite(v) ? v.toFixed(3) : "");
           rows.push(
             [
               ...base, l.position, l.itemModel, l.priceUsd, l.quantity,
               l.shippingOverride ?? "", l.customsOverride ?? "",
               l.shippingRateOverride ?? "", l.customsRateOverride ?? "", l.profitRateOverride ?? "",
+              l.description ?? "",
+              f(calc.jodPrice), f(calc.jodPriceTotal),
+              f(calc.shipping), f(calc.shippingTotal),
+              f(calc.customs), f(calc.customsTotal),
+              f(calc.landedCost), f(calc.landedCostTotal),
+              f(calc.profit), f(calc.profitTotal),
+              f(calc.preTaxPrice), f(calc.preTaxPriceTotal),
+              f(calc.tax), f(calc.taxTotal),
+              f(calc.finalPrice), f(calc.finalPriceTotal),
             ].map(csvCell).join(","),
           );
         }
@@ -444,6 +509,7 @@ export function csvToPayload(text: string): BackupPayload {
         shippingRateOverride: col(row, "shipping_rate_override") || null,
         customsRateOverride: col(row, "customs_rate_override") || null,
         profitRateOverride: col(row, "profit_rate_override") || null,
+        description: col(row, "description") || null,
       });
     }
   }

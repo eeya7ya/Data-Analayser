@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canAuthorQuotation } from "@/lib/modules";
-import { userOwnsProjectOrLinked } from "@/lib/projectAccess";
+import {
+  userOwnsProjectOrLinked,
+  userIsAssignedToProject,
+} from "@/lib/projectAccess";
 import {
   buildStoragePath,
   maxBytesForMime,
@@ -99,11 +102,16 @@ export async function POST(req: NextRequest) {
     // The project owner uploads to their own project; either side of a
     // lead-linked deal (sales ↔ presales) may also contribute to the shared
     // workspace — so a salesperson can attach the client's PO / a DWG to the
-    // deal even though the quotation lives under the presales project.
+    // deal even though the quotation lives under the presales project. An
+    // ASSIGNED member (engineer / technician on this project) may also upload:
+    // they can already download the project's shared files into their sync
+    // folder, so a site DWG / photo they drop in must be able to push back —
+    // otherwise the sync reports a confusing "forbidden" on their own project.
     if (
       user.role !== "admin" &&
       projectRows[0].owner_id !== user.id &&
-      !(await userOwnsProjectOrLinked(projectId, user.id))
+      !(await userOwnsProjectOrLinked(projectId, user.id)) &&
+      !(await userIsAssignedToProject(projectId, user.id))
     ) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }

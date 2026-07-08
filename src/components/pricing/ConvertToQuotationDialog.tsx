@@ -78,6 +78,10 @@ export function ConvertToQuotationDialog({
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  // Existing-client path: instead of being forced onto one of the client's
+  // current projects, the user can spin up a NEW project inline.
+  const [creatingNewProject, setCreatingNewProject] = useState(false);
+  const [newProjectForExisting, setNewProjectForExisting] = useState("");
 
   // New-client state
   const [companyName, setCompanyName] = useState("");
@@ -125,6 +129,9 @@ export function ConvertToQuotationDialog({
 
   // Load the selected folder's projects.
   useEffect(() => {
+    // Reset the inline new-project state whenever the client changes.
+    setCreatingNewProject(false);
+    setNewProjectForExisting("");
     if (selectedFolderId == null) {
       setProjects([]);
       setSelectedProjectId(null);
@@ -164,11 +171,46 @@ export function ConvertToQuotationDialog({
         return;
       }
       const selectedFolder = folders.find((f) => f.id === selectedFolderId);
+      const companyId =
+        kind === "company" ? selectedFolder?.company_id ?? null : null;
+
+      // Create a brand-new project under this client when asked, instead of
+      // forcing the quotation onto an existing one.
+      if (creatingNewProject) {
+        const wantProject = newProjectForExisting.trim();
+        if (!wantProject) {
+          setError("Enter a name for the new project.");
+          return;
+        }
+        setSubmitting(true);
+        try {
+          const pRes = await fetch("/api/projects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              folder_id: selectedFolderId,
+              name: wantProject,
+            }),
+          });
+          if (!pRes.ok) {
+            const e = await pRes.json().catch(() => ({}));
+            throw new Error(e.error || "Failed to create the project");
+          }
+          const projectId = (await pRes.json()).project.id as number;
+          onConfirm({ folderId: selectedFolderId, projectId, kind, companyId });
+        } catch (e) {
+          setError((e as Error).message);
+        } finally {
+          setSubmitting(false);
+        }
+        return;
+      }
+
       onConfirm({
         folderId: selectedFolderId,
         projectId: selectedProjectId,
         kind,
-        companyId: kind === "company" ? selectedFolder?.company_id ?? null : null,
+        companyId,
       });
       return;
     }
@@ -249,6 +291,8 @@ export function ConvertToQuotationDialog({
     kind,
     selectedFolderId,
     selectedProjectId,
+    creatingNewProject,
+    newProjectForExisting,
     clientName,
     companyName,
     newProjectName,
@@ -371,21 +415,38 @@ export function ConvertToQuotationDialog({
                       Loading…
                     </div>
                   ) : (
-                    <select
-                      value={selectedProjectId ?? ""}
-                      onChange={(e) =>
-                        setSelectedProjectId(
-                          e.target.value ? Number(e.target.value) : null,
-                        )
-                      }
-                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                    >
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
+                    <>
+                      <select
+                        value={creatingNewProject ? "__new__" : selectedProjectId ?? ""}
+                        onChange={(e) => {
+                          if (e.target.value === "__new__") {
+                            setCreatingNewProject(true);
+                          } else {
+                            setCreatingNewProject(false);
+                            setSelectedProjectId(
+                              e.target.value ? Number(e.target.value) : null,
+                            );
+                          }
+                        }}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                      >
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                        <option value="__new__">＋ New project…</option>
+                      </select>
+                      {creatingNewProject && (
+                        <input
+                          type="text"
+                          value={newProjectForExisting}
+                          onChange={(e) => setNewProjectForExisting(e.target.value)}
+                          placeholder="New project name"
+                          className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                        />
+                      )}
+                    </>
                   )}
                 </div>
               )}
