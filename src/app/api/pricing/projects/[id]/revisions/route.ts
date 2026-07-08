@@ -157,36 +157,45 @@ export async function POST(req: Request, { params }: Ctx) {
       ? body.productLines
       : null;
     if (overrideLines && overrideLines.length > 0) {
-      // One multi-row INSERT via backend-aware placeholders — the postgres.js
+      // Multi-row INSERT via backend-aware placeholders — the postgres.js
       // `sql(rows)` bulk-insert helper is unsupported by the D1 client (it
-      // can't compose fragments), which broke Save-as-Revision on D1 with
-      // `near "?": syntax error`.
-      const { P, params } = rawBinder();
-      const tuples = overrideLines
-        .map((l, idx) => {
-          const cells = [
-            P(createdId),
-            P(idx + 1),
-            P(l.itemModel ?? ""),
-            P(String(l.priceUsd ?? 0)),
-            P(l.quantity ?? 1),
-            P(l.shippingOverride != null ? String(l.shippingOverride) : null),
-            P(l.customsOverride != null ? String(l.customsOverride) : null),
-            P(l.shippingRateOverride != null ? String(l.shippingRateOverride) : null),
-            P(l.customsRateOverride != null ? String(l.customsRateOverride) : null),
-            P(l.profitRateOverride != null ? String(l.profitRateOverride) : null),
-          ];
-          return `(${cells.join(", ")})`;
-        })
-        .join(", ");
-      await q.unsafe(
-        `insert into pricing_product_lines
-           (project_id, position, item_model, price_usd, quantity,
-            shipping_override, customs_override,
-            shipping_rate_override, customs_rate_override, profit_rate_override)
-         values ${tuples}`,
-        params,
-      );
+      // can't compose fragments). Each line binds 10 values and D1/SQLite caps
+      // bound parameters per statement at ~100, so chunk to stay under it —
+      // otherwise a revision of a sheet with more than ~10 lines 500s. 9 × 10 = 90.
+      const MAX_LINES_PER_INSERT = 9;
+      for (
+        let start = 0;
+        start < overrideLines.length;
+        start += MAX_LINES_PER_INSERT
+      ) {
+        const batch = overrideLines.slice(start, start + MAX_LINES_PER_INSERT);
+        const { P, params } = rawBinder();
+        const tuples = batch
+          .map((l, i) => {
+            const cells = [
+              P(createdId),
+              P(start + i + 1),
+              P(l.itemModel ?? ""),
+              P(String(l.priceUsd ?? 0)),
+              P(l.quantity ?? 1),
+              P(l.shippingOverride != null ? String(l.shippingOverride) : null),
+              P(l.customsOverride != null ? String(l.customsOverride) : null),
+              P(l.shippingRateOverride != null ? String(l.shippingRateOverride) : null),
+              P(l.customsRateOverride != null ? String(l.customsRateOverride) : null),
+              P(l.profitRateOverride != null ? String(l.profitRateOverride) : null),
+            ];
+            return `(${cells.join(", ")})`;
+          })
+          .join(", ");
+        await q.unsafe(
+          `insert into pricing_product_lines
+             (project_id, position, item_model, price_usd, quantity,
+              shipping_override, customs_override,
+              shipping_rate_override, customs_rate_override, profit_rate_override)
+           values ${tuples}`,
+          params,
+        );
+      }
     } else {
       // copy from persisted source lines
       await q`

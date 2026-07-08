@@ -232,16 +232,23 @@ export async function PUT(req: Request, { params }: Ctx) {
       await q`
         delete from pricing_product_lines where project_id = ${projectId}
       `;
-      if (body.productLines.length > 0) {
-        // One multi-row INSERT built with backend-aware placeholders. The
-        // postgres.js `sql(rows)` bulk-insert helper is NOT supported by the
-        // D1 client, so we assemble the VALUES tuples ourselves via rawBinder.
+      const lines = body.productLines;
+      // Multi-row INSERT built with backend-aware placeholders (the postgres.js
+      // `sql(rows)` bulk-insert helper isn't supported by the D1 client). Each
+      // line binds 10 values, and D1/SQLite caps bound parameters per statement
+      // at ~100 — so anything past ~10 lines overflowed a single INSERT and
+      // 500'd. Because the delete above already ran (D1 has no interactive
+      // transaction), that wiped the sheet. Insert in chunks that stay under
+      // the cap so every save succeeds. 9 lines × 10 params = 90 < 100.
+      const MAX_LINES_PER_INSERT = 9;
+      for (let start = 0; start < lines.length; start += MAX_LINES_PER_INSERT) {
+        const batch = lines.slice(start, start + MAX_LINES_PER_INSERT);
         const { P, params } = rawBinder();
-        const tuples = body.productLines
-          .map((line, idx) => {
+        const tuples = batch
+          .map((line, i) => {
             const cells = [
               P(projectId),
-              P(idx + 1),
+              P(start + i + 1), // 1-based global position, stable across chunks
               P(line.itemModel ?? ""),
               P(numStr(line.priceUsd, 0)),
               P(Number.isFinite(Number(line.quantity)) ? Number(line.quantity) : 1),
