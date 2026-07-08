@@ -267,13 +267,20 @@ export async function PATCH(req: NextRequest) {
 }
 
 /**
- * DELETE /api/projects?id=X — soft-delete. Cascades to project_files
- * (the bucket files are kept for now; a separate cleanup job can sweep
- * objects whose project row is gone). Quotations / POs are preserved
- * with their FK set to NULL via the `on delete set null` clause. Any
- * presales lead opened against this project is DETACHED (its project link
+ * DELETE /api/projects?id=X — remove a project AND the sales artifacts filed
+ * under it. The quotations and purchase orders belonging to the project are
+ * SOFT-deleted (stamped with `deleted_at`, recoverable from Trash) so they
+ * stop showing on the pipeline board and every other `deleted_at is null`
+ * list the moment the project is removed. Deleting a project used to leave
+ * its quotations behind as live "legacy" rows — worse, heal-on-read then
+ * re-attached them to a fresh Default Project — so they never went away.
+ * They share one timestamp with the delete so they can be restored together.
+ *
+ * Any presales lead opened against this project is DETACHED (its project link
  * cleared) but kept live in the presales queue — removing the sales-side
- * project must never silently delete presales' work item.
+ * project must never silently delete presales' work item. Project child rows
+ * (tasks, assignments, files, reports, handoffs) and the project row itself
+ * are hard-deleted, matching the previous behaviour.
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -295,6 +302,24 @@ export async function DELETE(req: NextRequest) {
     if (user.role !== "admin" && owned[0].owner_id !== user.id) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
+    // Trash the sales artifacts filed under this project FIRST, so they leave
+    // the pipeline board (and every `deleted_at is null` list) the moment the
+    // project is removed instead of lingering as live "legacy" rows. Soft, not
+    // hard: a shared timestamp keeps them recoverable from Trash as a group.
+    // Only rows still live are stamped, so a quotation trashed earlier keeps
+    // its own timestamp. This runs before the project row is deleted because
+    // the FK `on delete set null` would otherwise null their project_id first,
+    // making them loose rows that heal-on-read re-attaches to a new Default
+    // Project — exactly the resurrection we're fixing.
+    const ts = new Date().toISOString();
+    await q`
+      update quotations set deleted_at = ${ts}
+      where project_id = ${id} and deleted_at is null
+    `;
+    await q`
+      update purchase_orders set deleted_at = ${ts}
+      where project_id = ${id} and deleted_at is null
+    `;
     // Remove any presales lead opened against this project (junked, so it's
     // recoverable) — deleting a project takes its lead with it instead of
     // leaving it orphaned in the queue. This also severs the lead's project

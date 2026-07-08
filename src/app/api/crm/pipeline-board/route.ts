@@ -180,8 +180,10 @@ export async function GET() {
     await requireModuleAllowLegacy(user, "crm");
 
     // Admin does NOT see the pipeline. The gate is a CRM sales grant, or the
-    // read-only `viewer` role. A sales_manager and a viewer both see the whole
-    // team's deals; a plain salesperson is scoped to their own.
+    // read-only `viewer` role. Every sales user — plain salesperson OR
+    // sales_manager — is scoped to the deals they OWN; a sales_manager does not
+    // get to see other people's jobs. Cross-team oversight of the whole tenant
+    // is the `viewer` role's job, not the manager's.
     const isViewer = user.role === "viewer";
     const isManager = await hasModuleRole(user.id, "crm", "sales_manager");
     const isSales = isManager || (await hasModuleRole(user.id, "crm", "sales"));
@@ -194,12 +196,12 @@ export async function GET() {
     // simple pipeline page — so Held deals don't linger past their schedule.
     await sweepDueHolds(q);
 
-    // Tenant isolation: a manager/viewer sees every deal owned by a user in
-    // THEIR tenant — never globally — while a plain salesperson sees only their
-    // own. `ownerIds` is the allow-list of owners; it always contains at least
-    // the requester, so an empty result fails closed (sees nothing) rather than
-    // leaking across tenants.
-    const tenantWide = isManager || isViewer;
+    // Tenant isolation: only the read-only `viewer` role sees every deal owned
+    // by a user in THEIR tenant — never globally. Every sales user, manager
+    // included, is scoped to their own deals. `ownerIds` is the allow-list of
+    // owners; it always contains at least the requester, so an empty result
+    // fails closed (sees nothing) rather than leaking across tenants.
+    const tenantWide = isViewer;
     const ownerIds = tenantWide
       ? (
           (await q`
