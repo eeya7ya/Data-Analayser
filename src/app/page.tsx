@@ -460,7 +460,7 @@ export default async function DashboardPage() {
           greetingName={user.display_name || user.username}
           showApprovals={isSalesManager}
           showOutcomes={isSales}
-          canCreateLead={isCrm || isAdmin}
+          canCreateLead={isSales}
           primaryKpiLabel={salesLens ? "Deals won" : "Quotations"}
           chartTitle={salesLens ? "Deals won" : "Quotations created"}
           chartNoun={salesLens ? "Deals won" : "Quotations"}

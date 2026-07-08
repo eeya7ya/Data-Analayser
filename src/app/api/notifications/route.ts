@@ -44,10 +44,13 @@ export async function GET() {
   await ensureSchema();
 
   const isAdmin = canReadAll(user);
-  const isSales =
-    isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
-  const isPresales =
-    isAdmin || (await hasModuleRole(user.id, "crm", "presales_manager"));
+  // Role alarms are scoped to the role the user ACTUALLY holds — admin is NOT
+  // folded in here. Admin holds isolated roles (entry panel, backups, users,
+  // folder quarantine); it must not receive sales/presales lead alarms, which
+  // was the "admin receives notification for leads" legacy-wiring bug. Alarms
+  // that genuinely concern admin (folder quarantine, handoffs) gate on
+  // `isAdmin` directly further down.
+  const isPresales = await hasModuleRole(user.id, "crm", "presales_manager");
   // Any presales role (member or manager) — drives the shared lead queue.
   const isAnyPresales =
     isPresales || (await hasModuleRole(user.id, "crm", "presales"));
@@ -55,27 +58,10 @@ export async function GET() {
   const q = sql();
   const raw: NotificationItem[] = [];
 
-  // 1.4A — sales-only approval. Only sales managers get the approval alarm;
-  // presales never sign off on quotations.
-  if (isSales) {
-    const approvalRows = (await q`
-      select count(*)::int as n from quotations
-      where deleted_at is null
-        and approved_at is null
-        and rejected_at is null
-    `) as Array<{ n: number }>;
-    const pending = approvalRows[0]?.n ?? 0;
-    if (pending > 0) {
-      raw.push({
-        id: "approvals.pending",
-        kind: "alarm",
-        severity: "critical",
-        title: `${pending} quotation${pending === 1 ? "" : "s"} need your approval`,
-        body: "Open the inbox to review and sign off.",
-        action: { label: "Open inbox", href: "/inbox/approvals" },
-      });
-    }
-  }
+  // The old "quotations need your approval" alarm was retired with the sign-off
+  // step (v1.70): it counted every un-approved quotation — i.e. the whole live
+  // Quoting pipeline — so it was permanent dead noise. The pipeline board owns
+  // open deals now.
 
   // Unclaimed leads in the shared presales queue. sendLeadMessage already
   // drops a row in the `notifications` table on create, but the bell feed is
