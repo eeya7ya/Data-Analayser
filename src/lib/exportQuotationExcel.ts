@@ -33,26 +33,28 @@ export interface QuotationExcelInput {
 }
 
 /**
- * Build a brand-matched .xlsx from a quotation and trigger a download.
+ * Build a brand-matched .xlsx from a quotation and return it as a Blob.
  *
  * Uses ExcelJS (dynamically imported so it stays out of the main bundle) to
  * embed the MagicTech logo and mirror the PDF styling — header fills, gold
  * subtotals, a highlighted grand total, borders, per-system tables, terms,
  * and a frozen logo/info band. Currency is JOD throughout.
  *
- * No-ops on the server or when there are no items.
+ * Returns null on the server or when there are no items. Used both by the
+ * "Export as Excel" download button (via {@link exportQuotationExcel}) and by
+ * the folder-sync engine, which writes the Blob straight into the sync folder.
  */
-export async function exportQuotationExcel(
+export async function buildQuotationWorkbookBlob(
   input: QuotationExcelInput,
-): Promise<void> {
-  if (typeof window === "undefined" || input.items.length === 0) return;
+): Promise<Blob | null> {
+  if (typeof window === "undefined" || input.items.length === 0) return null;
 
   const ExcelJSmod = (await import("exceljs")) as unknown as {
     Workbook?: new () => import("exceljs").Workbook;
     default?: { Workbook: new () => import("exceljs").Workbook };
   };
   const Workbook = ExcelJSmod.Workbook ?? ExcelJSmod.default?.Workbook;
-  if (!Workbook) return;
+  if (!Workbook) return null;
 
   const { items, extraColumns: extraCols } = input;
   const itemColumnTitles = [
@@ -324,11 +326,22 @@ export async function exportQuotationExcel(
 
   ws.views = [{ state: "frozen", ySplit: freezeAt, showGridLines: false }];
 
-  // ── Download ───────────────────────────────────────────────────────
+  // ── Serialise to a Blob ────────────────────────────────────────────
   const out = await wb.xlsx.writeBuffer();
-  const blob = new Blob([out], {
+  return new Blob([out], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
+}
+
+/**
+ * Build the workbook and trigger a browser download (the "Export as Excel"
+ * button). No-ops on the server or when there are no items.
+ */
+export async function exportQuotationExcel(
+  input: QuotationExcelInput,
+): Promise<void> {
+  const blob = await buildQuotationWorkbookBlob(input);
+  if (!blob) return;
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -337,4 +350,78 @@ export async function exportQuotationExcel(
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Map a raw saved quotation row (`items_json` + `config_json` + columns) to the
+ * Excel input. Mirrors QuotationViewer's derivation so the workbook produced
+ * during folder-sync is byte-for-byte what the "Export as Excel" button makes.
+ * Tolerant of jsonb decoded to an object OR surfaced as a JSON string.
+ */
+export function quotationExcelInputFromRow(row: {
+  ref?: unknown;
+  project_name?: unknown;
+  client_name?: unknown;
+  client_email?: unknown;
+  client_phone?: unknown;
+  sales_engineer?: unknown;
+  prepared_by?: unknown;
+  tax_percent?: unknown;
+  items_json?: unknown;
+  config_json?: unknown;
+}): QuotationExcelInput {
+  const parseJson = (v: unknown): unknown => {
+    if (typeof v === "string") {
+      try {
+        return JSON.parse(v);
+      } catch {
+        return null;
+      }
+    }
+    return v;
+  };
+  const parsedItems = parseJson(row.items_json);
+  const rawItems: QuotationItem[] = Array.isArray(parsedItems)
+    ? (parsedItems as QuotationItem[])
+    : [];
+  const items: QuotationItem[] = rawItems.map((it) => ({
+    ...it,
+    system: it.system || it.brand || "General",
+  }));
+  const parsedConfig = parseJson(row.config_json);
+  const config = (
+    parsedConfig && typeof parsedConfig === "object" && !Array.isArray(parsedConfig)
+      ? parsedConfig
+      : {}
+  ) as {
+    terms?: string[];
+    extraColumns?: QuotationExtraColumn[];
+    designEng?: string;
+    salesPhone?: string;
+    includeTax?: boolean;
+    taxInclusive?: boolean;
+    discountMode?: "percent" | "amount";
+    discountPercent?: number;
+    discountAmount?: number;
+  };
+  return {
+    items,
+    extraColumns: Array.isArray(config.extraColumns) ? config.extraColumns : [],
+    refCode: String(row.ref ?? ""),
+    projectName: String(row.project_name ?? ""),
+    clientName: String(row.client_name ?? ""),
+    clientEmail: String(row.client_email ?? ""),
+    clientPhone: String(row.client_phone ?? ""),
+    designEng: config.designEng || "",
+    salesEng: String(row.sales_engineer ?? ""),
+    salesPhone: config.salesPhone || "",
+    preparedBy: String(row.prepared_by ?? ""),
+    terms: Array.isArray(config.terms) ? config.terms : [],
+    includeTax: config.includeTax !== false,
+    taxPercent: Number(row.tax_percent) || 0,
+    taxInclusive: Boolean(config.taxInclusive),
+    discountMode: config.discountMode === "amount" ? "amount" : "percent",
+    discountPercent: Number(config.discountPercent) || 0,
+    discountAmount: Number(config.discountAmount) || 0,
+  };
 }

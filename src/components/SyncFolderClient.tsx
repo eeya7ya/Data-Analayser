@@ -246,6 +246,7 @@ export default function SyncFolderClient() {
             </div>
             <div className="mt-1 text-magic-ink/70">
               {report.downloaded} downloaded · {report.uploaded} uploaded ·{" "}
+              {report.quotations} quotation{report.quotations === 1 ? "" : "s"} ·{" "}
               {report.skipped} already in sync
               {report.errors.length > 0 && (
                 <> · {report.errors.length} problem(s)</>
@@ -280,9 +281,17 @@ export default function SyncFolderClient() {
             project folders and it uploads to that project on the next sync.
           </li>
           <li>
-            • Nothing is ever deleted on either side, and edits to a file the
-            app already has aren&rsquo;t re-uploaded (add a differently-named
-            file for a new version).
+            • Your quotations are exported as brand-matched Excel files into a{" "}
+            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">
+              _Quotations
+            </code>{" "}
+            subfolder, and re-exported automatically when you edit them in the
+            app.
+          </li>
+          <li>
+            • Nothing is ever deleted on either side, and edits to an uploaded
+            file the app already has aren&rsquo;t re-uploaded (add a
+            differently-named file for a new version).
           </li>
           <li>
             • Sync only runs while this tab is open. Chrome/Edge asks you to
