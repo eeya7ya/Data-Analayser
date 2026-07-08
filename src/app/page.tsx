@@ -334,17 +334,11 @@ export default async function DashboardPage() {
   `) as Array<{ quotations: number; clients: number; companies: number; projects: number }>;
   const kpi = kpiRows[0];
 
-  let pendingApprovals = 0;
-  if (isSalesManager) {
-    // Quotations awaiting the sales manager's sign-off (sales-only model).
-    const rows = (await q`
-      select count(*)::int as n from quotations
-      where deleted_at is null
-        and approved_at is null
-        and rejected_at is null
-    `) as Array<{ n: number }>;
-    pendingApprovals = Number(rows[0].n);
-  }
+  // The "Awaiting approval" KPI was retired in V1.8 — the sign-off step was
+  // removed in v1.70, so this count only tallied every un-approved quotation
+  // (the whole live Quoting pipeline) under a misleading label. Kept at 0 so
+  // the DashboardData shape is unchanged; the pipeline board owns open deals.
+  const pendingApprovals = 0;
 
   // ── Trend chart (monthly / weekly / daily) ───────────────────────────────
   // Computed in JS so it works on D1/SQLite (which has no generate_series /

@@ -19,7 +19,6 @@ import {
   Users,
   Building2,
   FolderKanban,
-  Clock,
   type LucideIcon,
 } from "lucide-react";
 import MessagesPanel from "@/components/MessagesPanel";
@@ -115,25 +114,16 @@ export default function DashboardClient({
           existing or brand-new client without leaving the dashboard. */}
       {canCreateLead && <QuickLeadCreate />}
 
-      {/* KPI strip — the "Awaiting approval" card is a sales-manager action
-          item, so it's hidden for everyone else (presales, plain sales). */}
-      <div
-        className={`grid grid-cols-2 gap-3 md:grid-cols-3 ${
-          showApprovals ? "xl:grid-cols-5" : "xl:grid-cols-4"
-        }`}
-      >
+      {/* KPI strip. The old "Awaiting approval" card was retired in V1.8: the
+          sign-off step was removed back in v1.70, so that counter just tallied
+          every un-approved quotation (i.e. the whole live Quoting pipeline)
+          under a misleading label — legacy dead data with no action behind it.
+          The pipeline board is the source of truth for open deals now. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi label={primaryKpiLabel} value={kpis.quotations} icon={FileText} tone="red" />
         <Kpi label="Clients" value={kpis.clients} icon={Users} tone="indigo" />
         <Kpi label="Companies" value={kpis.companies} icon={Building2} tone="cyan" />
         <Kpi label="Projects" value={kpis.projects} icon={FolderKanban} tone="violet" />
-        {showApprovals && (
-          <Kpi
-            label="Awaiting approval"
-            value={kpis.pendingApprovals}
-            icon={Clock}
-            tone="amber"
-          />
-        )}
       </div>
 
       {/* Charts + inbox */}
