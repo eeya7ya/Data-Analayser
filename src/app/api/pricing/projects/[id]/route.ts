@@ -77,15 +77,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       target_currency: string;
       source_currency: string;
     }>;
-    const lines = (await q`
-      select id, position, item_model, price_usd, quantity,
-             shipping_override, customs_override,
-             shipping_rate_override, customs_rate_override,
-             profit_rate_override, description
-      from pricing_product_lines
-      where project_id = ${projectId}
-      order by position asc
-    `) as Array<{
+    type LineRow = {
       id: number;
       position: number;
       item_model: string;
@@ -97,7 +89,34 @@ export async function GET(_req: Request, { params }: Ctx) {
       customs_rate_override: string | null;
       profit_rate_override: string | null;
       description: string | null;
-    }>;
+    };
+    let lines: LineRow[];
+    try {
+      lines = (await q`
+        select id, position, item_model, price_usd, quantity,
+               shipping_override, customs_override,
+               shipping_rate_override, customs_rate_override,
+               profit_rate_override, description
+        from pricing_product_lines
+        where project_id = ${projectId}
+        order by position asc
+      `) as LineRow[];
+    } catch {
+      // Resilience: a DB where the V1.8 `description` column hasn't been added
+      // yet must still load its product lines — otherwise the sheet shows "no
+      // products" and the user thinks their data vanished. Read without it and
+      // default description to null.
+      const legacy = (await q`
+        select id, position, item_model, price_usd, quantity,
+               shipping_override, customs_override,
+               shipping_rate_override, customs_rate_override,
+               profit_rate_override
+        from pricing_product_lines
+        where project_id = ${projectId}
+        order by position asc
+      `) as Array<Omit<LineRow, "description">>;
+      lines = legacy.map((l) => ({ ...l, description: null }));
+    }
 
     return NextResponse.json({
       project: result,
@@ -245,53 +264,84 @@ export async function PUT(req: Request, { params }: Ctx) {
       // the cap so every save succeeds. 9 lines × 10 params = 90 < 100.
       // Each line now binds 11 values (description added). D1/SQLite caps
       // bound parameters per statement at ~100, so 8 lines × 11 = 88 < 100.
-      const MAX_LINES_PER_INSERT = 8;
-      for (let start = 0; start < lines.length; start += MAX_LINES_PER_INSERT) {
-        const batch = lines.slice(start, start + MAX_LINES_PER_INSERT);
-        const { P, params } = rawBinder();
-        const tuples = batch
-          .map((line, i) => {
-            const cells = [
-              P(projectId),
-              P(start + i + 1), // 1-based global position, stable across chunks
-              P(line.itemModel ?? ""),
-              P(numStr(line.priceUsd, 0)),
-              P(Number.isFinite(Number(line.quantity)) ? Number(line.quantity) : 1),
-              P(numStrOrNull(line.shippingOverride)),
-              P(numStrOrNull(line.customsOverride)),
-              P(numStrOrNull(line.shippingRateOverride)),
-              P(numStrOrNull(line.customsRateOverride)),
-              P(numStrOrNull(line.profitRateOverride)),
-              P(
-                typeof line.description === "string" && line.description.trim()
-                  ? line.description
-                  : null,
-              ),
-            ];
-            return `(${cells.join(", ")})`;
-          })
-          .join(", ");
-        await q.unsafe(
-          `insert into pricing_product_lines
-             (project_id, position, item_model, price_usd, quantity,
-              shipping_override, customs_override,
-              shipping_rate_override, customs_rate_override, profit_rate_override,
-              description)
-           values ${tuples}`,
-          params,
-        );
+      // Insert with `description`; if that column is missing on this DB (V1.8
+      // migration not applied yet), retry WITHOUT it so a save never fails and
+      // wipes the sheet (the delete above already ran). withDesc=false binds
+      // 10 values/line (9/chunk), withDesc=true binds 11 (8/chunk).
+      const insertAll = async (withDesc: boolean) => {
+        const perChunk = withDesc ? 8 : 9;
+        for (let start = 0; start < lines.length; start += perChunk) {
+          const batch = lines.slice(start, start + perChunk);
+          const { P, params } = rawBinder();
+          const tuples = batch
+            .map((line, i) => {
+              const cells = [
+                P(projectId),
+                P(start + i + 1), // 1-based global position, stable across chunks
+                P(line.itemModel ?? ""),
+                P(numStr(line.priceUsd, 0)),
+                P(Number.isFinite(Number(line.quantity)) ? Number(line.quantity) : 1),
+                P(numStrOrNull(line.shippingOverride)),
+                P(numStrOrNull(line.customsOverride)),
+                P(numStrOrNull(line.shippingRateOverride)),
+                P(numStrOrNull(line.customsRateOverride)),
+                P(numStrOrNull(line.profitRateOverride)),
+              ];
+              if (withDesc) {
+                cells.push(
+                  P(
+                    typeof line.description === "string" && line.description.trim()
+                      ? line.description
+                      : null,
+                  ),
+                );
+              }
+              return `(${cells.join(", ")})`;
+            })
+            .join(", ");
+          const cols = withDesc
+            ? `(project_id, position, item_model, price_usd, quantity,
+                shipping_override, customs_override,
+                shipping_rate_override, customs_rate_override, profit_rate_override,
+                description)`
+            : `(project_id, position, item_model, price_usd, quantity,
+                shipping_override, customs_override,
+                shipping_rate_override, customs_rate_override, profit_rate_override)`;
+          await q.unsafe(
+            `insert into pricing_product_lines ${cols} values ${tuples}`,
+            params,
+          );
+        }
+      };
+      try {
+        await insertAll(true);
+      } catch {
+        await insertAll(false);
       }
     }
 
-    const freshLines = (await q`
-      select id, position, item_model, price_usd, quantity,
-             shipping_override, customs_override,
-             shipping_rate_override, customs_rate_override,
-             profit_rate_override, description
-      from pricing_product_lines
-      where project_id = ${projectId}
-      order by position asc
-    `) as Array<Record<string, unknown>>;
+    let freshLines: Array<Record<string, unknown>>;
+    try {
+      freshLines = (await q`
+        select id, position, item_model, price_usd, quantity,
+               shipping_override, customs_override,
+               shipping_rate_override, customs_rate_override,
+               profit_rate_override, description
+        from pricing_product_lines
+        where project_id = ${projectId}
+        order by position asc
+      `) as Array<Record<string, unknown>>;
+    } catch {
+      freshLines = (await q`
+        select id, position, item_model, price_usd, quantity,
+               shipping_override, customs_override,
+               shipping_rate_override, customs_rate_override,
+               profit_rate_override
+        from pricing_product_lines
+        where project_id = ${projectId}
+        order by position asc
+      `) as Array<Record<string, unknown>>;
+    }
 
     return NextResponse.json({ success: true, productLines: freshLines });
   } catch (err) {

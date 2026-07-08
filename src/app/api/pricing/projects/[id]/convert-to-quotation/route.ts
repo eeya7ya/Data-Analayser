@@ -118,15 +118,7 @@ export async function POST(
         }
       : DEFAULT_CONSTANTS;
 
-    const lineRows = (await q`
-      select position, item_model, price_usd, quantity,
-             shipping_override, customs_override,
-             shipping_rate_override, customs_rate_override,
-             profit_rate_override, description
-      from pricing_product_lines
-      where project_id = ${projectId}
-      order by position asc
-    `) as Array<{
+    type ConvLine = {
       position: number;
       item_model: string;
       price_usd: string;
@@ -137,7 +129,31 @@ export async function POST(
       customs_rate_override: string | null;
       profit_rate_override: string | null;
       description: string | null;
-    }>;
+    };
+    let lineRows: ConvLine[];
+    try {
+      lineRows = (await q`
+        select position, item_model, price_usd, quantity,
+               shipping_override, customs_override,
+               shipping_rate_override, customs_rate_override,
+               profit_rate_override, description
+        from pricing_product_lines
+        where project_id = ${projectId}
+        order by position asc
+      `) as ConvLine[];
+    } catch {
+      // DB without the V1.8 description column — convert still works.
+      const legacy = (await q`
+        select position, item_model, price_usd, quantity,
+               shipping_override, customs_override,
+               shipping_rate_override, customs_rate_override,
+               profit_rate_override
+        from pricing_product_lines
+        where project_id = ${projectId}
+        order by position asc
+      `) as Array<Omit<ConvLine, "description">>;
+      lineRows = legacy.map((l) => ({ ...l, description: null }));
+    }
 
     const calculated = lineRows
       .filter((l) => l.item_model.trim() || Number(l.price_usd) > 0)
