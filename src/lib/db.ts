@@ -550,6 +550,15 @@ const V18_MODULES_FLAG = "v18_modules_v1_2026_07";
  */
 const V18_FILE_SHARE_FLAG = "v18_file_share_v1_2026_07";
 
+/**
+ * V1.8 — Delivery module. `delivery_requests` is the queue the delivery team
+ * works: sales and projects raise a request (against a project / quotation /
+ * lead) and the delivery driver/manager schedules it, marks it out for
+ * delivery, then delivered. New standalone table, so the flag simply carries a
+ * `create table if not exists` that runs on fresh and existing databases alike.
+ */
+const DELIVERY_REQUESTS_FLAG = "delivery_requests_v1_2026_07";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -878,6 +887,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let pricingMfgDefaultsApplied = false;
   let v18ModulesApplied = false;
   let v18FileShareApplied = false;
+  let deliveryRequestsApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -899,7 +909,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${SEQUENCE_REALIGN_FLAG}, ${EXEC_CONFIRMATION_FLAG},
         ${PROJECT_DISTRIBUTION_FLAG}, ${PRICING_MFG_DEFAULTS_FLAG},
         ${PROJECT_DISTRIBUTION_PHONE_FLAG}, ${CHECKLIST_TEMPLATES_FLAG},
-        ${V18_MODULES_FLAG}, ${V18_FILE_SHARE_FLAG}
+        ${V18_MODULES_FLAG}, ${V18_FILE_SHARE_FLAG},
+        ${DELIVERY_REQUESTS_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -947,6 +958,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     pricingMfgDefaultsApplied = keys.has(PRICING_MFG_DEFAULTS_FLAG);
     v18ModulesApplied = keys.has(V18_MODULES_FLAG);
     v18FileShareApplied = keys.has(V18_FILE_SHARE_FLAG);
+    deliveryRequestsApplied = keys.has(DELIVERY_REQUESTS_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -996,7 +1008,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     checklistTemplatesApplied &&
     pricingMfgDefaultsApplied &&
     v18ModulesApplied &&
-    v18FileShareApplied
+    v18FileShareApplied &&
+    deliveryRequestsApplied
   )
     return;
 
@@ -3490,6 +3503,48 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${V18_FILE_SHARE_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!deliveryRequestsApplied) {
+    // V1.8 — the delivery team's work queue. Sales / projects raise a request
+    // (optionally linked to a project / quotation / lead); the delivery
+    // driver/manager progresses it requested → scheduled → out_for_delivery →
+    // delivered (or cancelled). FKs are ON DELETE SET NULL so removing the
+    // origin project/quotation/lead never deletes the delivery record.
+    await q`
+      create table if not exists delivery_requests (
+        id                 serial primary key,
+        source             text not null default 'sales',
+        status             text not null default 'requested',
+        priority           text not null default 'normal',
+        project_id         integer references projects(id) on delete set null,
+        quotation_id       integer references quotations(id) on delete set null,
+        lead_id            integer references leads(id) on delete set null,
+        client_name        text,
+        destination        text,
+        contact_phone      text,
+        notes              text,
+        requested_by       integer references users(id) on delete set null,
+        assigned_driver_id integer references users(id) on delete set null,
+        scheduled_at       timestamptz,
+        delivered_at       timestamptz,
+        created_at         timestamptz not null default now(),
+        updated_at         timestamptz not null default now(),
+        deleted_at         timestamptz
+      )
+    `;
+    await q`
+      create index if not exists delivery_requests_status_idx
+        on delivery_requests(status, deleted_at)
+    `;
+    await q`
+      create index if not exists delivery_requests_requested_by_idx
+        on delivery_requests(requested_by, deleted_at)
+    `;
+    await q`
+      insert into migration_flags (key) values (${DELIVERY_REQUESTS_FLAG})
       on conflict (key) do nothing
     `;
   }

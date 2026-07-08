@@ -532,6 +532,28 @@ CREATE TABLE IF NOT EXISTS "project_files" (
   PRIMARY KEY ("id")
 );
 
+CREATE TABLE IF NOT EXISTS "delivery_requests" (
+  "id" INTEGER,
+  "source" TEXT NOT NULL DEFAULT 'sales',
+  "status" TEXT NOT NULL DEFAULT 'requested',
+  "priority" TEXT NOT NULL DEFAULT 'normal',
+  "project_id" INTEGER,
+  "quotation_id" INTEGER,
+  "lead_id" INTEGER,
+  "client_name" TEXT,
+  "destination" TEXT,
+  "contact_phone" TEXT,
+  "notes" TEXT,
+  "requested_by" INTEGER,
+  "assigned_driver_id" INTEGER,
+  "scheduled_at" TEXT,
+  "delivered_at" TEXT,
+  "created_at" TEXT NOT NULL,
+  "updated_at" TEXT NOT NULL,
+  "deleted_at" TEXT,
+  PRIMARY KEY ("id")
+);
+
 CREATE TABLE IF NOT EXISTS "project_handoffs" (
   "id" INTEGER,
   "quotation_id" INTEGER,

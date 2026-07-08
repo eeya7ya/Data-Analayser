@@ -14,6 +14,7 @@ import {
   Library,
   Mail,
   FolderSync,
+  Truck,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -99,6 +100,12 @@ export default function SideNav({
       label: "Day schedule",
       icon: CalendarClock,
       show: !isAdmin && has("projects"),
+    },
+    {
+      href: "/delivery",
+      label: "Delivery",
+      icon: Truck,
+      show: !isAdmin && has("delivery"),
     },
     {
       href: "/catalog",
