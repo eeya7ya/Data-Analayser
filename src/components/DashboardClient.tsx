@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import MessagesPanel from "@/components/MessagesPanel";
+import QuickLeadCreate from "@/components/QuickLeadCreate";
 
 interface TrendPoint {
   label: string;
@@ -63,12 +64,15 @@ export default function DashboardClient({
   greetingName,
   showApprovals,
   showOutcomes,
+  canCreateLead = false,
   primaryKpiLabel = "Quotations",
   chartTitle = "Quotations created",
   chartNoun = "Quotations",
 }: {
   data: DashboardData;
   greetingName: string;
+  /** Sales / presales / admin: show the one-screen quick-create lead widget. */
+  canCreateLead?: boolean;
   /**
    * Approvals are sales-only (1.4A). True only for sales managers / admin —
    * gates the "Awaiting approval" action card so presales never see it.
@@ -106,6 +110,10 @@ export default function DashboardClient({
           Your activity at a glance. Open the menu (top-left) to jump into any module.
         </p>
       </div>
+
+      {/* One-screen lead intake for sales — create a lead and file it under an
+          existing or brand-new client without leaving the dashboard. */}
+      {canCreateLead && <QuickLeadCreate />}
 
       {/* KPI strip — the "Awaiting approval" card is a sales-manager action
           item, so it's hidden for everyone else (presales, plain sales). */}
