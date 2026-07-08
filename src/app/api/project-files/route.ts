@@ -149,7 +149,15 @@ async function linkedProjectFileAccess(
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
-    await ensureSchema();
+    // Never let a stuck/slow incremental migration 500 a plain read: the core
+    // tables exist on any live DB, and the queries below already fall back when
+    // a V1.8 column is missing. Swallowing an ensureSchema hiccup here is what
+    // keeps a user from being locked out of their own project's files.
+    try {
+      await ensureSchema();
+    } catch {
+      /* schema bootstrap will retry on a later request */
+    }
     const { searchParams } = new URL(req.url);
     const projectId = Number(searchParams.get("project_id"));
     if (!Number.isFinite(projectId) || projectId <= 0) {

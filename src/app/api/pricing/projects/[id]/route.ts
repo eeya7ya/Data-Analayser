@@ -48,7 +48,14 @@ export async function GET(_req: Request, { params }: Ctx) {
   try {
     const user = await requireUser();
     await requireModuleAllowLegacy(user, "pricing");
-    await ensureSchema();
+    // A stuck incremental migration must not 500 a read of an existing pricing
+    // project (the "where is my data" panic) — the query below already falls
+    // back when the V1.8 `description` column is absent.
+    try {
+      await ensureSchema();
+    } catch {
+      /* schema bootstrap will retry on a later request */
+    }
     const { id } = await params;
     const projectId = parseInt(id, 10);
 
