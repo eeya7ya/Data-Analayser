@@ -70,6 +70,15 @@ export interface QuotationItem {
    */
   marked?: boolean;
   /**
+   * Internal, editor-only note attached to this row. Shown only in the
+   * Designer (behind `no-print`) so the team can leave reminders / context on
+   * a line, and it is DELIBERATELY excluded from every client-facing output —
+   * the print sheet (no-print), the PDF, and the Excel export all render from
+   * explicit columns that never include this field. Persisted with the row in
+   * items_json so it survives save / reload.
+   */
+  note?: string;
+  /**
    * Row type. Default ("item") is a normal product row with the usual
    * brand / model / quantity / price columns. "section" rows render as a
    * full-width banner inside the system table whose only payload is
@@ -2522,95 +2531,118 @@ function SystemTable({
               })()}
               {editable && (
                 <div className="no-print mt-1 flex items-center justify-center gap-1">
-                  <select
-                    value=""
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (!v) return;
-                      if (v === "__new__") {
-                        const name = prompt("Move to which page?", "");
-                        if (name && name.trim())
-                          onUpdate(globalIndex, { system: name.trim() });
-                      } else {
-                        onUpdate(globalIndex, { system: v });
-                      }
-                    }}
-                    className="text-[9px] border border-magic-border rounded px-1 py-0.5 bg-white"
-                    title="Move this row to another page"
-                  >
-                    <option value="">Move to…</option>
-                    {allPages
-                      .filter((p) => p !== group.system)
-                      .map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                    <option value="__new__">+ New page…</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => onToggleOptional(globalIndex)}
-                    title={
-                      item.optional
-                        ? "Include this row in the total"
-                        : "Mark as optional (show unit price but exclude from total)"
-                    }
-                    className={`w-auto px-1 h-4 text-[9px] leading-none rounded ${
-                      item.optional
-                        ? "bg-magic-red text-white"
-                        : "bg-white/80 text-magic-ink/50 border border-magic-border hover:bg-magic-soft"
-                    }`}
-                  >
-                    Opt
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onToggleMark(globalIndex)}
-                    title={
-                      item.marked
-                        ? "Remove the highlight from this row"
-                        : "Mark / highlight this row in green to make it stand out"
-                    }
-                    className={`w-auto px-1 h-4 text-[9px] leading-none rounded ${
-                      item.marked
-                        ? "bg-emerald-500 text-white"
-                        : "bg-white/80 text-magic-ink/50 border border-magic-border hover:bg-magic-soft"
-                    }`}
-                  >
-                    Mark
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDuplicate(globalIndex)}
-                    className="w-auto px-1 h-4 text-[9px] leading-none rounded bg-white/80 text-magic-ink/50 border border-magic-border hover:bg-magic-soft"
-                    title="Duplicate this row"
-                  >
-                    Dup
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onCopy(globalIndex)}
-                    className="w-auto px-1 h-4 text-[9px] leading-none rounded bg-white/80 text-magic-ink/50 border border-magic-border hover:bg-magic-soft"
-                    title="Copy this row"
-                  >
-                    Copy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onPaste(globalIndex)}
-                    className="w-auto px-1 h-4 text-[9px] leading-none rounded bg-white/80 text-magic-ink/50 border border-magic-border hover:bg-magic-soft"
-                    title="Paste copied row after this one"
-                  >
-                    Paste
-                  </button>
-                  <button
-                    onClick={() => onRemove(globalIndex)}
-                    className="text-red-500 text-[11px]"
-                    title="Remove row"
-                  >
-                    ×
-                  </button>
+                  {item.note ? (
+                    <span
+                      title={`Internal note (never printed): ${item.note}`}
+                      aria-label="This row has an internal note"
+                      className="text-[11px] leading-none cursor-help"
+                    >
+                      📝
+                    </span>
+                  ) : null}
+                  <details className="group relative inline-block text-left">
+                    <summary
+                      className="list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none inline-flex items-center justify-center w-auto px-1.5 h-4 text-[10px] leading-none rounded bg-white/80 text-magic-ink/60 border border-magic-border hover:bg-magic-soft"
+                      title="Row actions"
+                      aria-label="Row actions"
+                    >
+                      ⋯
+                    </summary>
+                    <div className="absolute right-0 z-30 mt-1 w-44 rounded-md border border-magic-border bg-white py-1 text-left shadow-lg">
+                      <div className="px-2 pb-1">
+                        <div className="mb-0.5 text-[9px] uppercase tracking-wide text-magic-ink/40">
+                          Move to page
+                        </div>
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (!v) return;
+                            if (v === "__new__") {
+                              const name = prompt("Move to which page?", "");
+                              if (name && name.trim())
+                                onUpdate(globalIndex, { system: name.trim() });
+                            } else {
+                              onUpdate(globalIndex, { system: v });
+                            }
+                          }}
+                          className="w-full text-[10px] border border-magic-border rounded px-1 py-0.5 bg-white"
+                          title="Move this row to another page"
+                        >
+                          <option value="">Move to…</option>
+                          {allPages
+                            .filter((p) => p !== group.system)
+                            .map((p) => (
+                              <option key={p} value={p}>
+                                {p}
+                              </option>
+                            ))}
+                          <option value="__new__">+ New page…</option>
+                        </select>
+                      </div>
+                      <div className="my-1 border-t border-magic-border/60" />
+                      <button
+                        type="button"
+                        onClick={() => onToggleOptional(globalIndex)}
+                        title="Show unit price but exclude this row from the total"
+                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
+                      >
+                        {item.optional ? "✓ Optional" : "Mark as optional"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onToggleMark(globalIndex)}
+                        title="Highlight this row in green"
+                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
+                      >
+                        {item.marked ? "✓ Highlighted" : "Highlight row"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDuplicate(globalIndex)}
+                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
+                      >
+                        Duplicate row
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onCopy(globalIndex)}
+                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
+                      >
+                        Copy row
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onPaste(globalIndex)}
+                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
+                      >
+                        Paste row after
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const n = prompt(
+                            "Internal note for this row.\nThis is for your team only — it never appears on the printed sheet, PDF, or Excel export.",
+                            item.note ?? "",
+                          );
+                          if (n !== null)
+                            onUpdate(globalIndex, { note: n.trim() });
+                        }}
+                        title="Attach an internal note that never prints"
+                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
+                      >
+                        {item.note ? "Edit note…" : "Add note…"}
+                      </button>
+                      <div className="my-1 border-t border-magic-border/60" />
+                      <button
+                        type="button"
+                        onClick={() => onRemove(globalIndex)}
+                        className="block w-full px-2 py-1 text-left text-[11px] text-red-600 hover:bg-red-50"
+                      >
+                        Remove row
+                      </button>
+                    </div>
+                  </details>
                 </div>
               )}
             </td>
