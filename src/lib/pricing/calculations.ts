@@ -17,6 +17,13 @@ export interface ProductInput {
   shippingRateOverride?: number | null;
   customsRateOverride?: number | null;
   profitRateOverride?: number | null;
+  /**
+   * V1.8 — internal, per-line description. Free large text the user fills to
+   * pre-write the item's quotation description. Never affects any calculation
+   * and never prints on the pricing sheet; it is carried into the quotation
+   * item's description on convert-to-quotation.
+   */
+  description?: string | null;
 }
 
 export interface CalculatedRow extends ProductInput {

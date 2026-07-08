@@ -418,6 +418,7 @@ CREATE TABLE IF NOT EXISTS "pricing_product_lines" (
   "shipping_rate_override" REAL,
   "customs_rate_override" REAL,
   "profit_rate_override" REAL,
+  "description" TEXT,
   PRIMARY KEY ("id")
 );
 

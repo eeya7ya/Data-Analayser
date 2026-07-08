@@ -32,6 +32,8 @@ interface ProductRow {
   shippingRateOverride?: number | null;
   customsRateOverride?: number | null;
   profitRateOverride?: number | null;
+  /** V1.8 — internal per-line description; never prints, carries to quotation. */
+  description?: string | null;
 }
 
 interface Props {
@@ -230,6 +232,7 @@ export function PricingSheet({
                 shippingRateOverride: l.shippingRateOverride != null ? parseFloat(l.shippingRateOverride) : null,
                 customsRateOverride: l.customsRateOverride != null ? parseFloat(l.customsRateOverride) : null,
                 profitRateOverride: l.profitRateOverride != null ? parseFloat(l.profitRateOverride) : null,
+                description: l.description ?? null,
               };
             })
           );

@@ -3543,6 +3543,15 @@ async function _ensureSchemaOnce(): Promise<void> {
       create index if not exists delivery_requests_requested_by_idx
         on delivery_requests(requested_by, deleted_at)
     `;
+    // V1.8 — per-line description on pricing sheets. A large free-text note the
+    // user fills per product line; it never prints on the pricing sheet but is
+    // carried into the item's description when the project is converted to a
+    // quotation (a ready-to-use description). Ships in the same not-yet-applied
+    // V1.8 flag as the delivery table.
+    await q`
+      alter table pricing_product_lines
+        add column if not exists description text
+    `;
     await q`
       insert into migration_flags (key) values (${DELIVERY_REQUESTS_FLAG})
       on conflict (key) do nothing

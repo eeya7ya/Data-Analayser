@@ -81,7 +81,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       select id, position, item_model, price_usd, quantity,
              shipping_override, customs_override,
              shipping_rate_override, customs_rate_override,
-             profit_rate_override
+             profit_rate_override, description
       from pricing_product_lines
       where project_id = ${projectId}
       order by position asc
@@ -96,6 +96,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       shipping_rate_override: string | null;
       customs_rate_override: string | null;
       profit_rate_override: string | null;
+      description: string | null;
     }>;
 
     return NextResponse.json({
@@ -127,6 +128,7 @@ export async function GET(_req: Request, { params }: Ctx) {
         shippingRateOverride: l.shipping_rate_override,
         customsRateOverride: l.customs_rate_override,
         profitRateOverride: l.profit_rate_override,
+        description: l.description,
       })),
     });
   } catch (err) {
@@ -145,6 +147,7 @@ interface ProductLineInput {
   shippingRateOverride?: number | string | null;
   customsRateOverride?: number | string | null;
   profitRateOverride?: number | string | null;
+  description?: string | null;
 }
 
 interface PutBody {
@@ -240,7 +243,9 @@ export async function PUT(req: Request, { params }: Ctx) {
       // 500'd. Because the delete above already ran (D1 has no interactive
       // transaction), that wiped the sheet. Insert in chunks that stay under
       // the cap so every save succeeds. 9 lines × 10 params = 90 < 100.
-      const MAX_LINES_PER_INSERT = 9;
+      // Each line now binds 11 values (description added). D1/SQLite caps
+      // bound parameters per statement at ~100, so 8 lines × 11 = 88 < 100.
+      const MAX_LINES_PER_INSERT = 8;
       for (let start = 0; start < lines.length; start += MAX_LINES_PER_INSERT) {
         const batch = lines.slice(start, start + MAX_LINES_PER_INSERT);
         const { P, params } = rawBinder();
@@ -257,6 +262,11 @@ export async function PUT(req: Request, { params }: Ctx) {
               P(numStrOrNull(line.shippingRateOverride)),
               P(numStrOrNull(line.customsRateOverride)),
               P(numStrOrNull(line.profitRateOverride)),
+              P(
+                typeof line.description === "string" && line.description.trim()
+                  ? line.description
+                  : null,
+              ),
             ];
             return `(${cells.join(", ")})`;
           })
@@ -265,7 +275,8 @@ export async function PUT(req: Request, { params }: Ctx) {
           `insert into pricing_product_lines
              (project_id, position, item_model, price_usd, quantity,
               shipping_override, customs_override,
-              shipping_rate_override, customs_rate_override, profit_rate_override)
+              shipping_rate_override, customs_rate_override, profit_rate_override,
+              description)
            values ${tuples}`,
           params,
         );
@@ -276,7 +287,7 @@ export async function PUT(req: Request, { params }: Ctx) {
       select id, position, item_model, price_usd, quantity,
              shipping_override, customs_override,
              shipping_rate_override, customs_rate_override,
-             profit_rate_override
+             profit_rate_override, description
       from pricing_product_lines
       where project_id = ${projectId}
       order by position asc
