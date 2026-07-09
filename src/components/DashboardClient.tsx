@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AreaChart,
   Area,
@@ -24,10 +24,11 @@ import {
   CalendarDays,
   ClipboardList,
   Mail,
-  ArrowUpRight,
   Trophy,
   Layers,
   ClipboardCheck,
+  LayoutGrid,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import MessagesPanel from "@/components/MessagesPanel";
@@ -126,64 +127,14 @@ export default function DashboardClient({
         </p>
       </div>
 
-      {/* Fast navigation + one-screen lead intake for sales, so a salesperson
-          jumps straight into their day without hunting through the menu. */}
+      {/* One-screen lead intake for sales. Fast navigation lives in the
+          floating radial dial (QuickAccessDial) pinned to the bottom of the
+          page, so it never competes with the dashboard content. */}
       {canCreateLead && (
-        <div className="space-y-4">
-          <section>
-            <div className="mb-2.5 flex items-center gap-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-magic-ink/45">
-                Quick access
-              </span>
-              <span className="h-px flex-1 bg-magic-border/70" />
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <QuickNav
-                href="/crm/pipeline"
-                label="Pipeline"
-                hint="Live deals & forecast"
-                icon={TrendingUp}
-                tone="red"
-              />
-              <QuickNav
-                href="/crm/received"
-                label="Received"
-                hint="Quotations sent to you"
-                icon={Inbox}
-                tone="cyan"
-              />
-              <QuickNav
-                href="/leads"
-                label="Leads"
-                hint="Requests & status"
-                icon={ClipboardList}
-                tone="indigo"
-              />
-              <QuickNav
-                href="/crm?tool=sales"
-                label="Clients"
-                hint="Companies & folders"
-                icon={Building2}
-                tone="violet"
-              />
-              <QuickNav
-                href="/calendar"
-                label="Calendar"
-                hint="Follow-ups"
-                icon={CalendarDays}
-                tone="amber"
-              />
-              <QuickNav
-                href="/email"
-                label="Email"
-                hint="Client mail"
-                icon={Mail}
-                tone="sky"
-              />
-            </div>
-          </section>
+        <>
           <QuickLeadCreate />
-        </div>
+          <QuickAccessDial />
+        </>
       )}
 
       {/* KPI strip. The old "Awaiting approval" card was retired in V1.8: the
@@ -497,45 +448,104 @@ function FunnelBar({
   );
 }
 
-function QuickNav({
-  href,
-  label,
-  hint,
-  icon: Icon,
-  tone,
-}: {
+const DIAL_ITEMS: Array<{
   href: string;
   label: string;
-  hint: string;
   icon: LucideIcon;
   tone: keyof typeof NAV_TONES;
-}) {
-  const t = NAV_TONES[tone];
+}> = [
+  { href: "/crm/pipeline", label: "Pipeline", icon: TrendingUp, tone: "red" },
+  { href: "/crm/received", label: "Received", icon: Inbox, tone: "cyan" },
+  { href: "/leads", label: "Leads", icon: ClipboardList, tone: "indigo" },
+  { href: "/crm?tool=sales", label: "Clients", icon: Building2, tone: "violet" },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays, tone: "amber" },
+  { href: "/email", label: "Email", icon: Mail, tone: "sky" },
+];
+
+/**
+ * Floating quick-access dial — a single circular button pinned to the bottom
+ * of the page that fans its child circles out in a semicircle on click
+ * (a radial speed-dial), instead of a row of tiles competing with the
+ * dashboard content.
+ */
+function QuickAccessDial() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const R = 118; // fan radius
+  const n = DIAL_ITEMS.length;
   return (
-    <a
-      href={href}
-      className="group relative flex flex-col justify-between gap-4 overflow-hidden rounded-2xl border border-magic-border bg-white p-3.5 shadow-mt-soft transition-all duration-200 hover:-translate-y-0.5 hover:border-magic-red/30 hover:shadow-mt-lift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-magic-red/40"
-    >
-      {/* Soft tone wash that fades in on hover for a bit of depth. */}
-      <span
+    <div className="no-print">
+      {/* Dim backdrop so the fanned menu reads as a focused overlay. */}
+      <div
+        onClick={() => setOpen(false)}
         aria-hidden
-        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${t.wash} opacity-0 transition-opacity duration-200 group-hover:opacity-100`}
+        className={`fixed inset-0 z-40 bg-magic-ink/20 backdrop-blur-[1px] transition-opacity duration-200 ${
+          open ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
       />
-      <span className="relative flex items-center justify-between">
-        <span
-          className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${t.chip}`}
+      <div className="fixed bottom-7 left-1/2 z-50 -translate-x-1/2">
+        {DIAL_ITEMS.map((it, i) => {
+          // Fan across a 150° arc (165°→15°, left to right) above the button.
+          const angle = 165 - (i * 150) / (n - 1);
+          const rad = (angle * Math.PI) / 180;
+          const dx = Math.cos(rad) * R;
+          const dy = -Math.sin(rad) * R;
+          const t = NAV_TONES[it.tone];
+          const Icon = it.icon;
+          return (
+            <a
+              key={it.href}
+              href={it.href}
+              title={it.label}
+              className="absolute bottom-0 left-1/2"
+              style={{
+                transform: open
+                  ? `translate(calc(-50% + ${dx}px), ${dy}px) scale(1)`
+                  : "translate(-50%, 0) scale(0.4)",
+                opacity: open ? 1 : 0,
+                transition:
+                  "transform .34s cubic-bezier(.34,1.56,.64,1), opacity .2s",
+                transitionDelay: open ? `${i * 30}ms` : `${(n - i) * 16}ms`,
+                pointerEvents: open ? "auto" : "none",
+              }}
+            >
+              <span
+                className={`relative flex h-12 w-12 items-center justify-center rounded-full ring-2 ring-white shadow-mt-lift transition-transform hover:scale-110 ${t.chip}`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-full bg-magic-ink px-2 py-0.5 text-[10px] font-semibold text-white shadow">
+                  {it.label}
+                </span>
+              </span>
+            </a>
+          );
+        })}
+        {/* The dial button itself. */}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-label="Quick access"
+          aria-expanded={open}
+          className="relative flex h-14 w-14 items-center justify-center rounded-full bg-magic-red text-white shadow-mt-lift transition-transform duration-200 hover:scale-105"
         >
-          <Icon className="h-5 w-5" />
-        </span>
-        <ArrowUpRight
-          className={`h-4 w-4 text-magic-ink/25 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${t.arrow}`}
-        />
-      </span>
-      <span className="relative min-w-0">
-        <span className="block text-sm font-bold text-magic-ink">{label}</span>
-        <span className="block truncate text-xs text-magic-ink/50">{hint}</span>
-      </span>
-    </a>
+          <span
+            className={`transition-transform duration-300 ${
+              open ? "rotate-90" : ""
+            }`}
+          >
+            {open ? <X className="h-6 w-6" /> : <LayoutGrid className="h-6 w-6" />}
+          </span>
+        </button>
+      </div>
+    </div>
   );
 }
 
