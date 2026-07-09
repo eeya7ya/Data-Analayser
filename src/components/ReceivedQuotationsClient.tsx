@@ -19,8 +19,6 @@ interface ReceivedItem {
   sent_to_sales_at: string | null;
   sent_by: string | null;
   filed: boolean;
-  junked: boolean;
-  junk_reason: string | null;
   folder_id: number | null;
   project_id: number | null;
   folder_name: string | null;
@@ -91,7 +89,8 @@ export default function ReceivedQuotationsClient() {
   const junk = useCallback(
     async (item: ReceivedItem) => {
       const reason = window.prompt(
-        `Junk ${item.ref}? It leaves your queue. Add a reason (optional):`,
+        `Junk ${item.ref}? It's removed from your queue for good — presales has ` +
+          `to re-send it to bring it back. Add a reason (optional):`,
         "",
       );
       if (reason === null) return; // cancelled
@@ -138,9 +137,8 @@ export default function ReceivedQuotationsClient() {
     );
   }
 
-  const toFile = items.filter((i) => !i.filed && !i.junked);
-  const filed = items.filter((i) => i.filed && !i.junked);
-  const junked = items.filter((i) => i.junked);
+  const toFile = items.filter((i) => !i.filed);
+  const filed = items.filter((i) => i.filed);
 
   return (
     <div className="space-y-6">
@@ -170,21 +168,6 @@ export default function ReceivedQuotationsClient() {
       {filed.length > 0 && (
         <Group title="Filed" count={filed.length} empty="">
           {filed.map((it) => (
-            <ReceivedRow
-              key={it.id}
-              item={it}
-              busy={busyId === it.id}
-              onFile={() => setFiling(it)}
-              onRequestMod={() => void requestModification(it)}
-              onJunk={() => void junk(it)}
-            />
-          ))}
-        </Group>
-      )}
-
-      {junked.length > 0 && (
-        <Group title="Junked" count={junked.length} empty="">
-          {junked.map((it) => (
             <ReceivedRow
               key={it.id}
               item={it}
@@ -270,11 +253,6 @@ function ReceivedRow({
           <span className="truncate text-sm font-semibold text-magic-ink">
             {item.project_name || "Untitled"}
           </span>
-          {item.junked && (
-            <span className="rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-800">
-              Junked
-            </span>
-          )}
         </div>
         <p className="mt-0.5 text-[11px] text-magic-ink/55">
           {item.client_name ? `${item.client_name} · ` : ""}
@@ -292,7 +270,7 @@ function ReceivedRow({
       >
         Open
       </button>
-      {!item.filed && !item.junked && (
+      {!item.filed && (
         <>
           <button
             type="button"
@@ -307,7 +285,7 @@ function ReceivedRow({
             type="button"
             onClick={onJunk}
             disabled={busy}
-            title="Dismiss this quotation — it isn't a real deal"
+            title="Remove this quotation from your queue for good (presales must re-send to bring it back)"
             className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/60 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800 disabled:opacity-50"
           >
             Junk
@@ -319,12 +297,12 @@ function ReceivedRow({
         onClick={onFile}
         disabled={busy}
         className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-50 ${
-          item.filed || item.junked
+          item.filed
             ? "bg-magic-ink/60 hover:bg-magic-ink/70"
             : "bg-magic-red hover:bg-magic-red/90"
         }`}
       >
-        {item.filed ? "Re-file" : item.junked ? "File anyway" : "File / assign →"}
+        {item.filed ? "Re-file" : "File / assign →"}
       </button>
     </div>
   );

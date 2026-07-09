@@ -31,8 +31,6 @@ export async function GET() {
         qt.sent_to_sales_at,
         qt.sent_to_sales_by,
         qt.sales_accepted_at,
-        qt.rejected_at,
-        qt.rejected_reason,
         qt.company_id,
         qt.folder_id,
         qt.project_id,
@@ -46,6 +44,9 @@ export async function GET() {
       left join projects pr on pr.id = qt.project_id
       where qt.deleted_at is null
         and qt.sent_to_sales_at is not null
+        -- Junking drops a quotation out of the sales queue for good; only a
+        -- fresh re-send from presales (which clears rejected_at) brings it back.
+        and qt.rejected_at is null
         and (${isAdmin}::boolean = true or qt.sent_to_sales_to = ${user.id})
       order by qt.sent_to_sales_at desc
       limit 200
@@ -57,8 +58,6 @@ export async function GET() {
       sent_to_sales_at: string | null;
       sent_to_sales_by: number | null;
       sales_accepted_at: string | null;
-      rejected_at: string | null;
-      rejected_reason: string | null;
       company_id: number | null;
       folder_id: number | null;
       project_id: number | null;
@@ -78,10 +77,6 @@ export async function GET() {
       // Filed once the salesperson has run the Company → Client → Project
       // filing on it (which stamps sales_accepted_at).
       filed: !!r.sales_accepted_at,
-      // Junked (dismissed) by the salesperson — kept visible in its own group
-      // rather than silently hidden.
-      junked: !!r.rejected_at,
-      junk_reason: r.rejected_reason,
       folder_id: r.folder_id,
       project_id: r.project_id,
       folder_name: r.folder_name,

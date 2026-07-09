@@ -155,7 +155,13 @@ export async function POST(req: Request) {
           sent_to_sales_by  = ${user.id},
           sent_to_sales_to  = ${recipientId},
           sales_accepted_at = null,
-          sales_accepted_by = null
+          sales_accepted_by = null,
+          -- A fresh hand-over supersedes any prior outcome: clear a previous
+          -- junk/reject so a re-sent quotation reappears in the salesperson's
+          -- received queue (junking otherwise removes it for good).
+          rejected_at       = null,
+          rejected_by       = null,
+          rejected_reason   = null
       where id = ${id}
     `;
 
