@@ -149,7 +149,15 @@ async function linkedProjectFileAccess(
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
-    await ensureSchema();
+    // Never let a stuck/slow incremental migration 500 a plain read: the core
+    // tables exist on any live DB, and the queries below already fall back when
+    // a V1.8 column is missing. Swallowing an ensureSchema hiccup here is what
+    // keeps a user from being locked out of their own project's files.
+    try {
+      await ensureSchema();
+    } catch {
+      /* schema bootstrap will retry on a later request */
+    }
     const { searchParams } = new URL(req.url);
     const projectId = Number(searchParams.get("project_id"));
     if (!Number.isFinite(projectId) || projectId <= 0) {
@@ -175,48 +183,87 @@ export async function GET(req: NextRequest) {
     //     project(s), plus only the counterpart's files the uploader opted in
     //     via shared_with_counterpart. This makes counterpart sharing selective
     //     per file instead of all-or-nothing.
-    const rows = kindParam
-      ? ((await q`
-          select pf.id, pf.project_id, pf.owner_id, u.username as owner_name,
-                 pf.kind, pf.filename, pf.mime, pf.size_bytes,
-                 pf.storage_path, pf.shared_to_projects,
-                 pf.shared_with_counterpart, pf.created_at
-          from project_files pf
-          left join users u on u.id = pf.owner_id
-          where pf.project_id = any(${projectIds}::int[])
-            and pf.kind = ${kindParam}
-            and pf.deleted_at is null
-            and (
-              (${sharedOnly}::boolean = true and pf.shared_to_projects = true)
-              or
-              (${sharedOnly}::boolean = false and (
-                pf.project_id = any(${ownedProjectIds}::int[])
-                or pf.shared_with_counterpart = true
-              ))
-            )
-          order by pf.created_at desc, pf.id desc
-          limit 500
-        `) as FileRow[])
-      : ((await q`
-          select pf.id, pf.project_id, pf.owner_id, u.username as owner_name,
-                 pf.kind, pf.filename, pf.mime, pf.size_bytes,
-                 pf.storage_path, pf.shared_to_projects,
-                 pf.shared_with_counterpart, pf.created_at
-          from project_files pf
-          left join users u on u.id = pf.owner_id
-          where pf.project_id = any(${projectIds}::int[])
-            and pf.deleted_at is null
-            and (
-              (${sharedOnly}::boolean = true and pf.shared_to_projects = true)
-              or
-              (${sharedOnly}::boolean = false and (
-                pf.project_id = any(${ownedProjectIds}::int[])
-                or pf.shared_with_counterpart = true
-              ))
-            )
-          order by pf.created_at desc, pf.id desc
-          limit 500
-        `) as FileRow[]);
+    // Ensure the array cast never sees an empty literal (postgres.js edge case)
+    // and that ownedProjectIds is safe to interpolate.
+    const owned = ownedProjectIds.length > 0 ? ownedProjectIds : [-1];
+    let rows: FileRow[];
+    try {
+      rows = kindParam
+        ? ((await q`
+            select pf.id, pf.project_id, pf.owner_id, u.username as owner_name,
+                   pf.kind, pf.filename, pf.mime, pf.size_bytes,
+                   pf.storage_path, pf.shared_to_projects,
+                   pf.shared_with_counterpart, pf.created_at
+            from project_files pf
+            left join users u on u.id = pf.owner_id
+            where pf.project_id = any(${projectIds}::int[])
+              and pf.kind = ${kindParam}
+              and pf.deleted_at is null
+              and (
+                (${sharedOnly}::boolean = true and pf.shared_to_projects = true)
+                or
+                (${sharedOnly}::boolean = false and (
+                  pf.project_id = any(${owned}::int[])
+                  or pf.shared_with_counterpart = true
+                ))
+              )
+            order by pf.created_at desc, pf.id desc
+            limit 500
+          `) as FileRow[])
+        : ((await q`
+            select pf.id, pf.project_id, pf.owner_id, u.username as owner_name,
+                   pf.kind, pf.filename, pf.mime, pf.size_bytes,
+                   pf.storage_path, pf.shared_to_projects,
+                   pf.shared_with_counterpart, pf.created_at
+            from project_files pf
+            left join users u on u.id = pf.owner_id
+            where pf.project_id = any(${projectIds}::int[])
+              and pf.deleted_at is null
+              and (
+                (${sharedOnly}::boolean = true and pf.shared_to_projects = true)
+                or
+                (${sharedOnly}::boolean = false and (
+                  pf.project_id = any(${owned}::int[])
+                  or pf.shared_with_counterpart = true
+                ))
+              )
+            order by pf.created_at desc, pf.id desc
+            limit 500
+          `) as FileRow[]);
+    } catch {
+      // Resilience: if `shared_with_counterpart` is missing (a DB where the
+      // V1.8 migration hasn't applied yet), never lock the user out of their
+      // own project's files — fall back to the pre-V1.8 visibility (owner /
+      // linked see all; "shared" tier sees shared_to_projects) and mark the
+      // counterpart flag false so the UI still renders.
+      const legacy = kindParam
+        ? ((await q`
+            select pf.id, pf.project_id, pf.owner_id, u.username as owner_name,
+                   pf.kind, pf.filename, pf.mime, pf.size_bytes,
+                   pf.storage_path, pf.shared_to_projects, pf.created_at
+            from project_files pf
+            left join users u on u.id = pf.owner_id
+            where pf.project_id = any(${projectIds}::int[])
+              and pf.kind = ${kindParam}
+              and pf.deleted_at is null
+              and (${sharedOnly}::boolean = false or pf.shared_to_projects = true)
+            order by pf.created_at desc, pf.id desc
+            limit 500
+          `) as Array<Omit<FileRow, "shared_with_counterpart">>)
+        : ((await q`
+            select pf.id, pf.project_id, pf.owner_id, u.username as owner_name,
+                   pf.kind, pf.filename, pf.mime, pf.size_bytes,
+                   pf.storage_path, pf.shared_to_projects, pf.created_at
+            from project_files pf
+            left join users u on u.id = pf.owner_id
+            where pf.project_id = any(${projectIds}::int[])
+              and pf.deleted_at is null
+              and (${sharedOnly}::boolean = false or pf.shared_to_projects = true)
+            order by pf.created_at desc, pf.id desc
+            limit 500
+          `) as Array<Omit<FileRow, "shared_with_counterpart">>);
+      rows = legacy.map((r) => ({ ...r, shared_with_counterpart: false }));
+    }
     return NextResponse.json({ files: rows, access: tier });
   } catch (err) {
     return NextResponse.json(

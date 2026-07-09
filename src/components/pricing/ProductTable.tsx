@@ -573,6 +573,15 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
               Item Model
               <ColActions field="itemModel" />
             </th>
+            {showDescriptions && (
+              <th
+                className="px-3 py-3 text-center font-semibold text-sky-600 whitespace-nowrap min-w-[180px] border-l border-gray-100"
+                rowSpan={2}
+                title="Internal description — never prints; fills the item description on convert to quotation"
+              >
+                Description
+              </th>
+            )}
             <th className="px-3 py-3 text-center font-semibold text-gray-500 whitespace-nowrap min-w-[180px] border-l border-gray-100" colSpan={2}>
               USD Price
             </th>
@@ -722,16 +731,20 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
                   }}
                   className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-center text-gray-800 placeholder-gray-300 transition-colors focus:border-gray-300 focus:bg-gray-50 focus:outline-none"
                 />
-                {showDescriptions && (
+              </td>
+              {/* Description — its own column, shown only when toggled on.
+                  Never prints; carried into the quotation item on convert. */}
+              {showDescriptions && (
+                <td className="border-l border-gray-100 px-2 py-1.5 align-top">
                   <textarea
                     value={row.description ?? ""}
-                    placeholder="Internal description — never prints; fills the item description on convert"
+                    placeholder="Internal description…"
                     onChange={(e) => updateRow(i, "description", e.target.value)}
                     rows={2}
-                    className="no-print mt-1 w-full resize-y rounded border border-dashed border-sky-300 bg-sky-50/40 px-1.5 py-1 text-left text-[11px] text-gray-700 placeholder-gray-400 focus:border-sky-400 focus:bg-white focus:outline-none"
+                    className="no-print w-full min-w-[180px] resize-y rounded border border-dashed border-sky-300 bg-sky-50/40 px-1.5 py-1 text-left text-[11px] text-gray-700 placeholder-gray-400 focus:border-sky-400 focus:bg-white focus:outline-none"
                   />
-                )}
-              </td>
+                </td>
+              )}
               {/* USD Price (input) */}
               <td className="border-l border-gray-100 px-2 py-1.5">
                 <input
@@ -897,6 +910,7 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
             <td className="sticky left-10 z-10 bg-gray-100 px-3 py-3 text-center text-sm font-bold text-gray-700">
               TOTALS
             </td>
+            {showDescriptions && <td className="border-l border-gray-100 px-3 py-3" />}
             {/* USD /unit */}
             <td className="border-l border-gray-100 px-3 py-3" />
             {/* USD total */}

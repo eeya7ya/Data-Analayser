@@ -61,14 +61,28 @@ async function loadFileRow(
   q: ReturnType<typeof sql>,
   id: number,
 ): Promise<FileRecord | null> {
-  const rows = (await q`
-    select id, owner_id, project_id, filename, mime, storage_path,
-           shared_to_projects, shared_with_counterpart
-    from project_files
-    where id = ${id} and deleted_at is null
-    limit 1
-  `) as FileRecord[];
-  return rows[0] ?? null;
+  try {
+    const rows = (await q`
+      select id, owner_id, project_id, filename, mime, storage_path,
+             shared_to_projects, shared_with_counterpart
+      from project_files
+      where id = ${id} and deleted_at is null
+      limit 1
+    `) as FileRecord[];
+    return rows[0] ?? null;
+  } catch {
+    // Resilience: DB without the V1.8 shared_with_counterpart column yet —
+    // read the row without it and default the flag to false so file view /
+    // download keeps working instead of 500-ing.
+    const rows = (await q`
+      select id, owner_id, project_id, filename, mime, storage_path,
+             shared_to_projects
+      from project_files
+      where id = ${id} and deleted_at is null
+      limit 1
+    `) as Array<Omit<FileRecord, "shared_with_counterpart">>;
+    return rows[0] ? { ...rows[0], shared_with_counterpart: false } : null;
+  }
 }
 
 /**

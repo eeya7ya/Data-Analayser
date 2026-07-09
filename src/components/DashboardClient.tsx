@@ -19,6 +19,10 @@ import {
   Users,
   Building2,
   FolderKanban,
+  TrendingUp,
+  Inbox,
+  Building,
+  CalendarDays,
   type LucideIcon,
 } from "lucide-react";
 import MessagesPanel from "@/components/MessagesPanel";
@@ -112,7 +116,39 @@ export default function DashboardClient({
 
       {/* One-screen lead intake for sales — create a lead and file it under an
           existing or brand-new client without leaving the dashboard. */}
-      {canCreateLead && <QuickLeadCreate />}
+      {canCreateLead && (
+        <div className="space-y-3">
+          <QuickLeadCreate />
+          {/* Interactive easy-access tiles so a salesperson jumps straight into
+              their day without hunting through the menu. */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <QuickAction
+              href="/crm/pipeline"
+              label="Pipeline"
+              hint="Track every deal"
+              icon={TrendingUp}
+            />
+            <QuickAction
+              href="/leads"
+              label="My leads"
+              hint="Requests & status"
+              icon={Inbox}
+            />
+            <QuickAction
+              href="/crm?tool=sales"
+              label="Clients"
+              hint="Companies & folders"
+              icon={Building}
+            />
+            <QuickAction
+              href="/calendar"
+              label="Calendar"
+              hint="Follow-ups"
+              icon={CalendarDays}
+            />
+          </div>
+        </div>
+      )}
 
       {/* KPI strip. The old "Awaiting approval" card was retired in V1.8: the
           sign-off step was removed back in v1.70, so that counter just tallied
@@ -275,6 +311,35 @@ const TONES: Record<string, { ring: string; icon: string; text: string }> = {
   violet: { ring: "from-violet-100 to-white", icon: "bg-violet-100 text-violet-600", text: "text-violet-600" },
   amber: { ring: "from-amber-100 to-white", icon: "bg-amber-100 text-amber-600", text: "text-amber-600" },
 };
+
+function QuickAction({
+  href,
+  label,
+  hint,
+  icon: Icon,
+}: {
+  href: string;
+  label: string;
+  hint: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <a
+      href={href}
+      className="group flex items-center gap-3 rounded-2xl border border-magic-border bg-white p-3 shadow-mt-soft transition-all hover:border-magic-red/40 hover:shadow-mt-lift"
+    >
+      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-magic-soft text-magic-red">
+        <Icon className="h-[18px] w-[18px]" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-magic-ink group-hover:text-magic-red">
+          {label}
+        </span>
+        <span className="block truncate text-xs text-magic-ink/50">{hint}</span>
+      </span>
+    </a>
+  );
+}
 
 function Kpi({
   label,

@@ -2537,13 +2537,18 @@ function SystemTable({
               {editable && (
                 <div className="no-print mt-1 flex items-center justify-center gap-1">
                   {item.note ? (
-                    <span
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNoteDraft(item.note ?? "");
+                        setNoteEditIndex(globalIndex);
+                      }}
                       title={`Internal note (never printed): ${item.note}`}
-                      aria-label="This row has an internal note"
-                      className="text-[11px] leading-none cursor-help"
+                      aria-label="Open this row's internal note"
+                      className="text-[11px] leading-none cursor-pointer"
                     >
                       📝
-                    </span>
+                    </button>
                   ) : null}
                   <details className="group relative inline-block text-left">
                     <summary

@@ -40,6 +40,7 @@ export default function QuickLeadCreate() {
   const [companyName, setCompanyName] = useState("");
   const [clientName, setClientName] = useState("");
   const [individualName, setIndividualName] = useState("");
+  const [projectName, setProjectName] = useState("");
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +77,7 @@ export default function QuickLeadCreate() {
     setCompanyName("");
     setClientName("");
     setIndividualName("");
+    setProjectName("");
     setError(null);
   }, []);
 
@@ -101,17 +103,20 @@ export default function QuickLeadCreate() {
     if (mode === "company") {
       const cName = companyName.trim();
       if (!cName) throw new Error("Company name is required.");
+      const client = clientName.trim();
+      if (!client) throw new Error("Client name is required.");
       const c = (await postJson("/api/companies", { name: cName })) as {
         company?: { id?: number };
       };
       const companyId = Number(c.company?.id);
       if (!Number.isFinite(companyId)) throw new Error("Could not create the company.");
-      const site = clientName.trim() || cName;
+      // company → client folder → project. The folder POST names its first
+      // project from `project_name`, so the whole subfolder tree is created.
       const f = (await postJson("/api/folders", {
-        name: site,
+        name: client,
         kind: "company",
         company_id: companyId,
-        project_name: site,
+        project_name: projectName.trim() || client,
       })) as { folder?: { id?: number } };
       const fid = Number(f.folder?.id);
       return Number.isFinite(fid) ? fid : null;
@@ -122,7 +127,7 @@ export default function QuickLeadCreate() {
       const f = (await postJson("/api/folders", {
         name,
         kind: "individual",
-        project_name: name,
+        project_name: projectName.trim() || name,
       })) as { folder?: { id?: number } };
       const fid = Number(f.folder?.id);
       return Number.isFinite(fid) ? fid : null;
@@ -276,11 +281,20 @@ export default function QuickLeadCreate() {
               />
             </label>
             <label className="block text-xs font-semibold text-magic-ink/60">
-              Site / client name (optional)
+              Client name
               <input
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
-                placeholder="defaults to the company name"
+                placeholder="e.g. Al-Hashimiah School"
+                className="mt-1 w-full rounded-lg border border-magic-border px-3 py-2 text-sm font-normal text-magic-ink"
+              />
+            </label>
+            <label className="sm:col-span-2 block text-xs font-semibold text-magic-ink/60">
+              Project name
+              <input
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="e.g. CCTV & access control (defaults to the client name)"
                 className="mt-1 w-full rounded-lg border border-magic-border px-3 py-2 text-sm font-normal text-magic-ink"
               />
             </label>
@@ -288,15 +302,26 @@ export default function QuickLeadCreate() {
         )}
 
         {mode === "individual" && (
-          <label className="sm:col-span-2 block text-xs font-semibold text-magic-ink/60">
-            Customer name
-            <input
-              value={individualName}
-              onChange={(e) => setIndividualName(e.target.value)}
-              placeholder="e.g. Laith Talib"
-              className="mt-1 w-full rounded-lg border border-magic-border px-3 py-2 text-sm font-normal text-magic-ink"
-            />
-          </label>
+          <>
+            <label className="block text-xs font-semibold text-magic-ink/60">
+              Customer name
+              <input
+                value={individualName}
+                onChange={(e) => setIndividualName(e.target.value)}
+                placeholder="e.g. Laith Talib"
+                className="mt-1 w-full rounded-lg border border-magic-border px-3 py-2 text-sm font-normal text-magic-ink"
+              />
+            </label>
+            <label className="block text-xs font-semibold text-magic-ink/60">
+              Project name
+              <input
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="defaults to the customer name"
+                className="mt-1 w-full rounded-lg border border-magic-border px-3 py-2 text-sm font-normal text-magic-ink"
+              />
+            </label>
+          </>
         )}
 
         <label className="sm:col-span-2 block text-xs font-semibold text-magic-ink/60">
