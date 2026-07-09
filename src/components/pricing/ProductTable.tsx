@@ -58,6 +58,56 @@ type RateOverrideField =
   | "customsRateOverride"
   | "profitRateOverride";
 
+// Parse clipboard text into a 2D grid, honouring Excel/Sheets double-quote
+// escaping. Crucially, a single cell that itself contains line breaks (or
+// tabs) is wrapped in quotes on copy, so it stays in ONE cell instead of
+// being split into extra rows — which is what lets a multi-line description
+// paste as one row while a copied *column* of descriptions fills down.
+function parseClipboardGrid(raw: string): string[][] {
+  const text = raw.replace(/\r\n?/g, "\n");
+  const grid: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        // Doubled quote inside a quoted cell → a literal quote character.
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === "\t") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n") {
+      row.push(cell);
+      grid.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += ch;
+    }
+  }
+  row.push(cell);
+  grid.push(row);
+  // Drop the single trailing empty row spreadsheets append when copying.
+  while (grid.length > 1) {
+    const last = grid[grid.length - 1];
+    if (last.length === 1 && last[0].trim() === "") grid.pop();
+    else break;
+  }
+  return grid;
+}
+
 export function ProductTable({ rows, constants, onChange, targetCurrency }: Props) {
   const [copiedCol, setCopiedCol] = useState<InputField | "usdTotal" | null>(null);
   const [copiedCalcCol, setCopiedCalcCol] = useState<string | null>(null);
@@ -161,6 +211,39 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
     });
 
     onChange(updated.map((r, i) => ({ ...r, position: i + 1 })));
+  };
+
+  // Fill-down paste for the internal description column. The model / price /
+  // qty inputs already do this, but the description field is a multi-line
+  // textarea, so a naive newline split would break a legitimately multi-line
+  // description into extra rows. We instead parse the clipboard as quoted TSV:
+  // a single (possibly multi-line) cell pastes normally into just this row,
+  // while a copied *column* of descriptions fills down one per row —
+  // appending rows when the block is taller than the table. Returns true when
+  // it handled the paste, false to let the textarea paste normally.
+  const pasteDescriptions = (startIndex: number, raw: string): boolean => {
+    const grid = parseClipboardGrid(raw);
+    if (grid.length <= 1) return false; // single cell → normal paste
+    const updated = [...rows];
+    let idSeed = Date.now();
+    grid.forEach((cells, r) => {
+      const rowIndex = startIndex + r;
+      if (rowIndex >= updated.length) {
+        updated.push({
+          id: idSeed++,
+          position: updated.length + 1,
+          itemModel: "",
+          priceUsd: 0,
+          quantity: 1,
+        });
+      }
+      updated[rowIndex] = {
+        ...updated[rowIndex],
+        description: (cells[0] ?? "").trim(),
+      };
+    });
+    onChange(updated.map((r, i) => ({ ...r, position: i + 1 })));
+    return true;
   };
 
   const toggleOverride = (index: number, field: OverrideField, currentCalculatedValue: number) => {
@@ -740,6 +823,14 @@ export function ProductTable({ rows, constants, onChange, targetCurrency }: Prop
                     value={row.description ?? ""}
                     placeholder="Internal description…"
                     onChange={(e) => updateRow(i, "description", e.target.value)}
+                    onPaste={(e) => {
+                      // Paste a whole column of descriptions at once (fills
+                      // down across rows), matching the model / price / qty
+                      // columns. A single cell still pastes normally here.
+                      if (pasteDescriptions(i, e.clipboardData.getData("text"))) {
+                        e.preventDefault();
+                      }
+                    }}
                     rows={2}
                     className="no-print w-full min-w-[180px] resize-y rounded border border-dashed border-sky-300 bg-sky-50/40 px-1.5 py-1 text-left text-[11px] text-gray-700 placeholder-gray-400 focus:border-sky-400 focus:bg-white focus:outline-none"
                   />
