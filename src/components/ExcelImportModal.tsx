@@ -61,6 +61,24 @@ const HEADER_ALIASES: Record<FieldKey, string[]> = {
 interface DetectedRow {
   /** One string per original column, aligned with `headers`. */
   values: string[];
+  /** Name of the workbook sheet this row was pulled from. Legacy exports
+   *  spread one quotation across several sheets ("Table 1", "Table 2", …),
+   *  so we track origin to show it in the preview. */
+  sheet?: string;
+}
+
+/** A single worksheet reduced to its header row and padded data rows. */
+interface ParsedSheet {
+  name: string;
+  headers: string[];
+  rows: string[][];
+}
+
+/** Which sheets contributed rows and which were left out, for the note we
+ *  show the user after parsing a multi-sheet workbook. */
+interface SheetSummary {
+  imported: Array<{ name: string; rows: number }>;
+  skipped: string[];
 }
 
 interface Props {
@@ -146,6 +164,93 @@ function findHeaderRow(rows: string[][]): number {
   return bestScore >= 2 ? bestIdx : -1;
 }
 
+/**
+ * Reduce one sheet (already stringified into an array-of-arrays) to its
+ * header row plus padded data rows. Returns null when the sheet has no
+ * plausible header — e.g. a cover page or a totals/terms footer sheet —
+ * so callers can skip it instead of importing garbage rows.
+ */
+function parseSheet(name: string, stringified: string[][]): ParsedSheet | null {
+  if (stringified.length === 0) return null;
+  const headerIdx = findHeaderRow(stringified);
+  if (headerIdx < 0) return null;
+  const rawHeaders = stringified[headerIdx];
+  const colCount = rawHeaders.length;
+  // Pad every data row to the header length so missing trailing cells
+  // don't offset the mapping.
+  const rows = stringified
+    .slice(headerIdx + 1)
+    .filter((r) => r.some((c) => c && c.trim().length > 0))
+    .map((r) => {
+      const padded = r.slice(0, colCount);
+      while (padded.length < colCount) padded.push("");
+      return padded;
+    });
+  return { name, headers: rawHeaders, rows };
+}
+
+/**
+ * Merge several parsed sheets into a single header + row set. Columns are
+ * aligned across sheets by matching normalised header text, so a table that
+ * was split across "Table 1", "Table 2", … lines up into one list even when
+ * a later sheet's columns are in a slightly different order. Unmatched
+ * columns are appended, and each row remembers which sheet it came from.
+ */
+function mergeSheets(sheets: ParsedSheet[]): {
+  headers: string[];
+  rows: DetectedRow[];
+} {
+  // Seed the canonical column order from the richest header layout (most
+  // recognisable fields, then most columns) so the best-detected sheet
+  // drives the mapping the user reviews.
+  const ranked = [...sheets].sort((a, b) => {
+    const sa = a.headers.filter((h) => detectField(h)).length;
+    const sb = b.headers.filter((h) => detectField(h)).length;
+    if (sb !== sa) return sb - sa;
+    return b.headers.length - a.headers.length;
+  });
+
+  const canonical: string[] = [];
+  const keyToIndex = new Map<string, number>();
+  // Per-sheet map from that sheet's column index -> canonical column index.
+  const columnMap = new Map<ParsedSheet, number[]>();
+
+  for (const sheet of ranked) {
+    const map: number[] = [];
+    sheet.headers.forEach((h, i) => {
+      const key = normalizeHeader(h);
+      // Blank headers are never merged — two unrelated empty columns must
+      // not collapse into one, so each becomes its own canonical column.
+      if (key && keyToIndex.has(key)) {
+        map[i] = keyToIndex.get(key)!;
+      } else {
+        const idx = canonical.length;
+        canonical.push(h);
+        if (key) keyToIndex.set(key, idx);
+        map[i] = idx;
+      }
+    });
+    columnMap.set(sheet, map);
+  }
+
+  // Build rows in the original sheet order (Table 1 before Table 2, …) now
+  // that the canonical column count is final.
+  const rows: DetectedRow[] = [];
+  for (const sheet of sheets) {
+    const map = columnMap.get(sheet)!;
+    for (const raw of sheet.rows) {
+      const values = new Array<string>(canonical.length).fill("");
+      raw.forEach((cell, i) => {
+        const ci = map[i];
+        if (ci != null) values[ci] = cell;
+      });
+      rows.push({ values, sheet: sheet.name });
+    }
+  }
+
+  return { headers: canonical, rows };
+}
+
 export default function ExcelImportModal({
   defaultPage,
   existingPages,
@@ -157,6 +262,7 @@ export default function ExcelImportModal({
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<DetectedRow[]>([]);
   const [mapping, setMapping] = useState<Record<number, FieldKey | "">>({});
+  const [sheetSummary, setSheetSummary] = useState<SheetSummary | null>(null);
   const [pageName, setPageName] = useState(defaultPage || "");
   const [mode, setMode] = useState<"append" | "replace">("append");
   const [parsing, setParsing] = useState(false);
@@ -172,10 +278,20 @@ export default function ExcelImportModal({
 
   const canImport = rows.length > 0 && mappedFields.has("model");
 
+  // More than one sheet fed the import — surface the origin sheet in the
+  // preview so mixed-sheet rows are traceable.
+  const multiSheet = (sheetSummary?.imported.length ?? 0) > 1;
+
   const parseFile = useCallback((file: File) => {
     setError(null);
     setFileName(file.name);
     setParsing(true);
+    // Clear any previously parsed file so a failed re-parse doesn't leave
+    // stale headers/rows on screen.
+    setHeaders([]);
+    setRows([]);
+    setMapping({});
+    setSheetSummary(null);
     const xlsxReady = loadXlsx();
 
     const reader = new FileReader();
@@ -184,59 +300,65 @@ export default function ExcelImportModal({
         const XLSX = await xlsxReady;
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: "array" });
-        const sheetName = wb.SheetNames[0];
-        const sheet = sheetName ? wb.Sheets[sheetName] : undefined;
-        if (!sheet) {
+        if (wb.SheetNames.length === 0) {
           setError("No sheets found in the file.");
           setParsing(false);
           return;
         }
-        const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-          header: 1,
-          defval: "",
-          blankrows: false,
-        }) as unknown[][];
-        const stringified: string[][] = aoa.map((row) =>
-          row.map((cell) =>
-            cell === null || cell === undefined ? "" : String(cell).trim(),
-          ),
-        );
-        if (stringified.length === 0) {
-          setError("The sheet is empty.");
-          setParsing(false);
-          return;
+
+        // Walk EVERY sheet — legacy quotations were exported across several
+        // sheets ("Table 1", "Table 2", …) and previously only the first was
+        // read. Sheets without a recognisable header (cover pages, totals /
+        // terms footers) are collected as "skipped" rather than imported as
+        // junk rows.
+        const parsed: ParsedSheet[] = [];
+        const skipped: string[] = [];
+        for (const name of wb.SheetNames) {
+          const sheet = wb.Sheets[name];
+          if (!sheet) {
+            skipped.push(name);
+            continue;
+          }
+          const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+            header: 1,
+            defval: "",
+            blankrows: false,
+          }) as unknown[][];
+          const stringified: string[][] = aoa.map((row) =>
+            row.map((cell) =>
+              cell === null || cell === undefined ? "" : String(cell).trim(),
+            ),
+          );
+          const ps = parseSheet(name, stringified);
+          if (ps && ps.rows.length > 0) parsed.push(ps);
+          else skipped.push(name);
         }
 
-        const headerIdx = findHeaderRow(stringified);
-        if (headerIdx < 0) {
+        if (parsed.length === 0) {
           setError(
-            "Couldn't find a header row with recognisable column names. Expected headers like Brand, Model, Description, Quantity, Unit Price.",
+            "Couldn't find a header row with recognisable column names in any sheet. Expected headers like Brand, Model, Description, Quantity, Unit Price.",
           );
           setParsing(false);
           return;
         }
-        const rawHeaders = stringified[headerIdx];
-        // Pad every data row to the header length so missing trailing
-        // cells don't offset the mapping.
-        const colCount = rawHeaders.length;
-        const dataRows = stringified
-          .slice(headerIdx + 1)
-          .filter((r) => r.some((c) => c && c.trim().length > 0))
-          .map((r) => {
-            const padded = r.slice(0, colCount);
-            while (padded.length < colCount) padded.push("");
-            return { values: padded };
-          });
+
+        // Align the sheets into one header + row set and auto-detect the
+        // field mapping from the merged headers.
+        const { headers: canonicalHeaders, rows: combinedRows } =
+          mergeSheets(parsed);
 
         const autoMap: Record<number, FieldKey | ""> = {};
-        rawHeaders.forEach((h, i) => {
-          const detected = detectField(h);
-          autoMap[i] = detected ?? "";
+        canonicalHeaders.forEach((h, i) => {
+          autoMap[i] = detectField(h) ?? "";
         });
 
-        setHeaders(rawHeaders);
-        setRows(dataRows);
+        setHeaders(canonicalHeaders);
+        setRows(combinedRows);
         setMapping(autoMap);
+        setSheetSummary({
+          imported: parsed.map((p) => ({ name: p.name, rows: p.rows.length })),
+          skipped,
+        });
         setParsing(false);
       } catch (err) {
         setError(`Failed to parse file: ${(err as Error).message}`);
@@ -400,6 +522,28 @@ export default function ExcelImportModal({
           </p>
         )}
 
+        {sheetSummary &&
+          (sheetSummary.imported.length > 1 ||
+            sheetSummary.skipped.length > 0) && (
+            <div className="mt-3 rounded-lg bg-magic-soft/60 border border-magic-border px-3 py-2 text-[11px] text-magic-ink/70">
+              <span className="font-semibold text-magic-ink/80">Sheets:</span>{" "}
+              {sheetSummary.imported
+                .map(
+                  (s) => `${s.name} (${s.rows} row${s.rows === 1 ? "" : "s"})`,
+                )
+                .join(", ")}
+              {sheetSummary.skipped.length > 0 && (
+                <>
+                  {" · "}
+                  <span className="text-magic-ink/50">
+                    skipped {sheetSummary.skipped.join(", ")} — no recognisable
+                    header row
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
         {headers.length > 0 && (
           <div className="mt-6 space-y-4">
             <div>
@@ -519,6 +663,11 @@ export default function ExcelImportModal({
                   <table className="w-full text-xs">
                     <thead className="bg-magic-soft/60">
                       <tr>
+                        {multiSheet && (
+                          <th className="px-2 py-1 text-left font-semibold text-magic-ink/70 whitespace-nowrap">
+                            Sheet
+                          </th>
+                        )}
                         {headers.map((h, i) => (
                           <th
                             key={i}
@@ -537,6 +686,11 @@ export default function ExcelImportModal({
                     <tbody>
                       {preview.map((r, ri) => (
                         <tr key={ri} className="border-t border-magic-border/50">
+                          {multiSheet && (
+                            <td className="px-2 py-1 text-magic-ink/50 whitespace-nowrap">
+                              {r.sheet || ""}
+                            </td>
+                          )}
                           {r.values.map((c, ci) => (
                             <td
                               key={ci}
