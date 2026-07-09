@@ -30,22 +30,17 @@ export async function GET() {
         qt.client_name,
         qt.sent_to_sales_at,
         qt.sent_to_sales_by,
-        qt.sales_accepted_at,
-        qt.company_id,
-        qt.folder_id,
-        qt.project_id,
         su.display_name as sent_by_name,
-        su.username     as sent_by_username,
-        fo.name         as folder_name,
-        pr.name         as project_filed_name
+        su.username     as sent_by_username
       from quotations qt
       left join users su on su.id = qt.sent_to_sales_by
-      left join client_folders fo on fo.id = qt.folder_id
-      left join projects pr on pr.id = qt.project_id
       where qt.deleted_at is null
         and qt.sent_to_sales_at is not null
-        -- Junking drops a quotation out of the sales queue for good; only a
-        -- fresh re-send from presales (which clears rejected_at) brings it back.
+        -- Only quotations still awaiting action live in this inbox. Filing one
+        -- (sales_accepted_at) moves it to its project's Quotations tab; junking
+        -- one (rejected_at) removes it for good. Either way it leaves here, and
+        -- a fresh re-send from presales (which clears both) brings it back.
+        and qt.sales_accepted_at is null
         and qt.rejected_at is null
         and (${isAdmin}::boolean = true or qt.sent_to_sales_to = ${user.id})
       order by qt.sent_to_sales_at desc
@@ -57,14 +52,8 @@ export async function GET() {
       client_name: string | null;
       sent_to_sales_at: string | null;
       sent_to_sales_by: number | null;
-      sales_accepted_at: string | null;
-      company_id: number | null;
-      folder_id: number | null;
-      project_id: number | null;
       sent_by_name: string | null;
       sent_by_username: string | null;
-      folder_name: string | null;
-      project_filed_name: string | null;
     }>;
 
     const quotations = rows.map((r) => ({
@@ -74,13 +63,6 @@ export async function GET() {
       client_name: r.client_name,
       sent_to_sales_at: r.sent_to_sales_at,
       sent_by: r.sent_by_name || r.sent_by_username || null,
-      // Filed once the salesperson has run the Company → Client → Project
-      // filing on it (which stamps sales_accepted_at).
-      filed: !!r.sales_accepted_at,
-      folder_id: r.folder_id,
-      project_id: r.project_id,
-      folder_name: r.folder_name,
-      project_filed_name: r.project_filed_name,
     }));
 
     return NextResponse.json({ quotations });

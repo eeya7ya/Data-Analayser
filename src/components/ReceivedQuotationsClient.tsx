@@ -18,11 +18,6 @@ interface ReceivedItem {
   client_name: string | null;
   sent_to_sales_at: string | null;
   sent_by: string | null;
-  filed: boolean;
-  folder_id: number | null;
-  project_id: number | null;
-  folder_name: string | null;
-  project_filed_name: string | null;
 }
 
 export default function ReceivedQuotationsClient() {
@@ -137,9 +132,6 @@ export default function ReceivedQuotationsClient() {
     );
   }
 
-  const toFile = items.filter((i) => !i.filed);
-  const filed = items.filter((i) => i.filed);
-
   return (
     <div className="space-y-6">
       {flash && (
@@ -150,10 +142,10 @@ export default function ReceivedQuotationsClient() {
 
       <Group
         title="To file"
-        count={toFile.length}
+        count={items.length}
         empty="No quotations waiting to be filed."
       >
-        {toFile.map((it) => (
+        {items.map((it) => (
           <ReceivedRow
             key={it.id}
             item={it}
@@ -164,21 +156,6 @@ export default function ReceivedQuotationsClient() {
           />
         ))}
       </Group>
-
-      {filed.length > 0 && (
-        <Group title="Filed" count={filed.length} empty="">
-          {filed.map((it) => (
-            <ReceivedRow
-              key={it.id}
-              item={it}
-              busy={busyId === it.id}
-              onFile={() => setFiling(it)}
-              onRequestMod={() => void requestModification(it)}
-              onJunk={() => void junk(it)}
-            />
-          ))}
-        </Group>
-      )}
 
       {filing && (
         <FileModal
@@ -258,9 +235,6 @@ function ReceivedRow({
           {item.client_name ? `${item.client_name} · ` : ""}
           {item.sent_by ? `sent by ${item.sent_by}` : "sent to sales"}
           {sentAt ? ` · ${sentAt}` : ""}
-          {item.filed && item.project_filed_name
-            ? ` · filed under ${item.project_filed_name}`
-            : ""}
         </p>
       </div>
       <button
@@ -270,39 +244,31 @@ function ReceivedRow({
       >
         Open
       </button>
-      {!item.filed && (
-        <>
-          <button
-            type="button"
-            onClick={onRequestMod}
-            disabled={busy}
-            title="Send it back to presales with a note describing the change"
-            className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50"
-          >
-            Request modification
-          </button>
-          <button
-            type="button"
-            onClick={onJunk}
-            disabled={busy}
-            title="Remove this quotation from your queue for good (presales must re-send to bring it back)"
-            className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/60 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800 disabled:opacity-50"
-          >
-            Junk
-          </button>
-        </>
-      )}
+      <button
+        type="button"
+        onClick={onRequestMod}
+        disabled={busy}
+        title="Send it back to presales with a note describing the change"
+        className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50"
+      >
+        Request modification
+      </button>
+      <button
+        type="button"
+        onClick={onJunk}
+        disabled={busy}
+        title="Remove this quotation from your queue for good (presales must re-send to bring it back)"
+        className="rounded-lg border border-magic-border px-3 py-1.5 text-xs font-semibold text-magic-ink/60 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800 disabled:opacity-50"
+      >
+        Junk
+      </button>
       <button
         type="button"
         onClick={onFile}
         disabled={busy}
-        className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-50 ${
-          item.filed
-            ? "bg-magic-ink/60 hover:bg-magic-ink/70"
-            : "bg-magic-red hover:bg-magic-red/90"
-        }`}
+        className="rounded-lg bg-magic-red px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-magic-red/90 disabled:opacity-50"
       >
-        {item.filed ? "Re-file" : "File / assign →"}
+        File / assign →
       </button>
     </div>
   );
