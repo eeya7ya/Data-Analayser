@@ -269,7 +269,7 @@ export async function GET() {
   // distributed to you". Surfacing the unread ones fixes that; opening
   // the lead inbox marks them read, which self-clears the alarm.
   const leadMsgRows = (await q`
-    select m.id, m.subject, m.body, m.lead_id, m.created_at
+    select m.id, m.subject, m.body, m.lead_id, m.kind, m.created_at
     from lead_messages m
     where m.recipient_id = ${user.id}
       and m.read_at is null
@@ -280,9 +280,19 @@ export async function GET() {
     subject: string;
     body: string;
     lead_id: number | null;
+    kind: string;
     created_at: string;
   }>;
   for (const m of leadMsgRows) {
+    // A quotation handed to sales isn't a lead — it lives in the salesperson's
+    // received-quotations queue, so point the notification there rather than at
+    // a (possibly non-existent) lead page.
+    const action =
+      m.kind === "quotation_sent_to_sales"
+        ? { label: "Open received quotations", href: "/crm/received" }
+        : m.lead_id
+        ? { label: "Open lead", href: `/leads/${m.lead_id}` }
+        : undefined;
     raw.push({
       id: `lead_msg:${m.id}`,
       kind: "message",
@@ -290,9 +300,7 @@ export async function GET() {
       title: m.subject,
       body: m.body,
       created_at: m.created_at,
-      action: m.lead_id
-        ? { label: "Open lead", href: `/leads/${m.lead_id}` }
-        : undefined,
+      action,
     });
   }
 

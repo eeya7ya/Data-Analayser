@@ -231,6 +231,11 @@ export default function CrmModuleHub({
         title: "Pipeline",
         desc: "Quote-to-delivery board: value, margin, forecast and outcomes.",
       },
+      {
+        href: "/crm/received",
+        title: "Received quotations",
+        desc: "Quotations presales sent to you — file each under a client and project.",
+      },
     ],
     presales: [
       {

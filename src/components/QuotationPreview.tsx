@@ -2017,6 +2017,32 @@ function SystemTable({
   // annotated and the working text.
   const [noteEditIndex, setNoteEditIndex] = useState<number | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  // Controlled per-row actions menu (was a native <details>, which never
+  // closed on an outside click and — worse — kept its DOM-managed open state
+  // on the row that slid into place after a "Remove row", so a deleted row's
+  // menu appeared stuck open). `openRowMenu` is the live items[] index whose
+  // menu is showing (only one at a time); the ref wraps the open trigger+menu
+  // so an outside click / Escape can dismiss it.
+  const [openRowMenu, setOpenRowMenu] = useState<number | null>(null);
+  const rowMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (openRowMenu === null) return;
+    const onDown = (e: MouseEvent) => {
+      // Clicks on the trigger or inside the menu are handled by their own
+      // onClick; only a click outside closes.
+      if (rowMenuRef.current?.contains(e.target as Node)) return;
+      setOpenRowMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenRowMenu(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [openRowMenu]);
   // Base = No, Brand, Model, Description, [Picture], Quantity, Delivery,
   // Unit Price, Total Price — plus one cell per manual column. In BoQ
   // mode the two pricing columns (Unit Price, Total Price) drop out, so
@@ -2550,105 +2576,138 @@ function SystemTable({
                       📝
                     </button>
                   ) : null}
-                  <details className="group relative inline-block text-left">
-                    <summary
-                      className="list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none inline-flex items-center justify-center w-auto px-1.5 h-4 text-[10px] leading-none rounded bg-white/80 text-magic-ink/60 border border-magic-border hover:bg-magic-soft"
+                  <div
+                    ref={openRowMenu === globalIndex ? rowMenuRef : undefined}
+                    className="relative inline-block text-left"
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenRowMenu((cur) =>
+                          cur === globalIndex ? null : globalIndex,
+                        )
+                      }
+                      className="cursor-pointer select-none inline-flex items-center justify-center w-auto px-1.5 h-4 text-[10px] leading-none rounded bg-white/80 text-magic-ink/60 border border-magic-border hover:bg-magic-soft"
                       title="Row actions"
                       aria-label="Row actions"
+                      aria-haspopup="menu"
+                      aria-expanded={openRowMenu === globalIndex}
                     >
                       ⋯
-                    </summary>
-                    <div className="absolute right-0 z-30 mt-1 w-44 rounded-md border border-magic-border bg-white py-1 text-left shadow-lg">
-                      <div className="px-2 pb-1">
-                        <div className="mb-0.5 text-[9px] uppercase tracking-wide text-magic-ink/40">
-                          Move to page
+                    </button>
+                    {openRowMenu === globalIndex && (
+                      <div className="absolute right-0 z-30 mt-1 w-44 rounded-md border border-magic-border bg-white py-1 text-left shadow-lg">
+                        <div className="px-2 pb-1">
+                          <div className="mb-0.5 text-[9px] uppercase tracking-wide text-magic-ink/40">
+                            Move to page
+                          </div>
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setOpenRowMenu(null);
+                              if (!v) return;
+                              if (v === "__new__") {
+                                const name = prompt("Move to which page?", "");
+                                if (name && name.trim())
+                                  onUpdate(globalIndex, { system: name.trim() });
+                              } else {
+                                onUpdate(globalIndex, { system: v });
+                              }
+                            }}
+                            className="w-full text-[10px] border border-magic-border rounded px-1 py-0.5 bg-white"
+                            title="Move this row to another page"
+                          >
+                            <option value="">Move to…</option>
+                            {allPages
+                              .filter((p) => p !== group.system)
+                              .map((p) => (
+                                <option key={p} value={p}>
+                                  {p}
+                                </option>
+                              ))}
+                            <option value="__new__">+ New page…</option>
+                          </select>
                         </div>
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (!v) return;
-                            if (v === "__new__") {
-                              const name = prompt("Move to which page?", "");
-                              if (name && name.trim())
-                                onUpdate(globalIndex, { system: name.trim() });
-                            } else {
-                              onUpdate(globalIndex, { system: v });
-                            }
+                        <div className="my-1 border-t border-magic-border/60" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onToggleOptional(globalIndex);
+                            setOpenRowMenu(null);
                           }}
-                          className="w-full text-[10px] border border-magic-border rounded px-1 py-0.5 bg-white"
-                          title="Move this row to another page"
+                          title="Show unit price but exclude this row from the total"
+                          className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
                         >
-                          <option value="">Move to…</option>
-                          {allPages
-                            .filter((p) => p !== group.system)
-                            .map((p) => (
-                              <option key={p} value={p}>
-                                {p}
-                              </option>
-                            ))}
-                          <option value="__new__">+ New page…</option>
-                        </select>
+                          {item.optional ? "✓ Optional" : "Mark as optional"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onToggleMark(globalIndex);
+                            setOpenRowMenu(null);
+                          }}
+                          title="Highlight this row in green"
+                          className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
+                        >
+                          {item.marked ? "✓ Highlighted" : "Highlight row"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onDuplicate(globalIndex);
+                            setOpenRowMenu(null);
+                          }}
+                          className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
+                        >
+                          Duplicate row
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onCopy(globalIndex);
+                            setOpenRowMenu(null);
+                          }}
+                          className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
+                        >
+                          Copy row
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onPaste(globalIndex);
+                            setOpenRowMenu(null);
+                          }}
+                          className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
+                        >
+                          Paste row after
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNoteDraft(item.note ?? "");
+                            setNoteEditIndex(globalIndex);
+                            setOpenRowMenu(null);
+                          }}
+                          title="Attach an internal note that never prints"
+                          className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
+                        >
+                          {item.note ? "Edit note…" : "Add note…"}
+                        </button>
+                        <div className="my-1 border-t border-magic-border/60" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onRemove(globalIndex);
+                            setOpenRowMenu(null);
+                          }}
+                          className="block w-full px-2 py-1 text-left text-[11px] text-red-600 hover:bg-red-50"
+                        >
+                          Remove row
+                        </button>
                       </div>
-                      <div className="my-1 border-t border-magic-border/60" />
-                      <button
-                        type="button"
-                        onClick={() => onToggleOptional(globalIndex)}
-                        title="Show unit price but exclude this row from the total"
-                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
-                      >
-                        {item.optional ? "✓ Optional" : "Mark as optional"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onToggleMark(globalIndex)}
-                        title="Highlight this row in green"
-                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
-                      >
-                        {item.marked ? "✓ Highlighted" : "Highlight row"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDuplicate(globalIndex)}
-                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
-                      >
-                        Duplicate row
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onCopy(globalIndex)}
-                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
-                      >
-                        Copy row
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onPaste(globalIndex)}
-                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
-                      >
-                        Paste row after
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNoteDraft(item.note ?? "");
-                          setNoteEditIndex(globalIndex);
-                        }}
-                        title="Attach an internal note that never prints"
-                        className="block w-full px-2 py-1 text-left text-[11px] hover:bg-magic-soft"
-                      >
-                        {item.note ? "Edit note…" : "Add note…"}
-                      </button>
-                      <div className="my-1 border-t border-magic-border/60" />
-                      <button
-                        type="button"
-                        onClick={() => onRemove(globalIndex)}
-                        className="block w-full px-2 py-1 text-left text-[11px] text-red-600 hover:bg-red-50"
-                      >
-                        Remove row
-                      </button>
-                    </div>
-                  </details>
+                    )}
+                  </div>
                 </div>
               )}
             </td>
