@@ -9,12 +9,18 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/quotations/send-to-sales — body { id: number }
+ * POST /api/quotations/send-to-sales — body { id: number, sales_user_id?: number }
  *
- * 1.4C — presales completes a quotation and hands it back to the sales
- * person who raised the RFQ. We stamp `sent_to_sales_at` /
- * `sent_to_sales_by` and ping the lead's creator so they get a TopBar
- * notification + Web Push pointing straight at the quotation viewer.
+ * 1.4C — presales completes a quotation and hands it to a salesperson. We
+ * stamp `sent_to_sales_at` / `sent_to_sales_by`, record the chosen recipient
+ * in `sent_to_sales_to`, and ping that person with a TopBar notification +
+ * Web Push pointing straight at the quotation viewer.
+ *
+ * The recipient is resolved as: the explicitly picked `sales_user_id` when
+ * provided (validated to be a real salesperson), otherwise the creator of the
+ * lead that raised the RFQ. A quotation that never came from a lead has no
+ * default, so presales MUST pick someone — previously such a quotation was
+ * stamped "sent" but reached nobody.
  *
  * Caller must be able to author quotations (admin / presales /
  * presales_manager) AND own the quotation (or be admin). Re-sends are
@@ -28,7 +34,10 @@ export async function POST(req: Request) {
     const user = await requireUser();
     await ensureSchema();
 
-    const body = (await req.json().catch(() => ({}))) as { id?: number };
+    const body = (await req.json().catch(() => ({}))) as {
+      id?: number;
+      sales_user_id?: number;
+    };
     const id = Number(body.id);
     if (!Number.isInteger(id) || id <= 0) {
       return NextResponse.json({ error: "invalid id" }, { status: 400 });
@@ -97,10 +106,54 @@ export async function POST(req: Request) {
       }
     }
 
+    // Resolve WHO on the sales side should receive this. Presales can pick a
+    // salesperson explicitly — required for a quotation that never came from a
+    // received lead (no RFQ raiser to fall back to). When one isn't picked we
+    // default to the lead's creator, preserving the original RFQ handoff.
+    let recipientId: number | null = null;
+    const chosenSalesId = Number(body.sales_user_id);
+    if (Number.isInteger(chosenSalesId) && chosenSalesId > 0) {
+      // Only a real salesperson / sales manager (or an admin) may be chosen —
+      // mirrors the list the picker is populated from (/api/leads/users).
+      const okRows = (await q`
+        select u.id
+        from users u
+        left join user_module_roles r
+          on r.user_id = u.id and r.revoked_at is null
+        where u.id = ${chosenSalesId}
+          and (u.role = 'admin'
+               or (r.module = 'crm' and r.role in ('sales', 'sales_manager')))
+        limit 1
+      `) as Array<{ id: number }>;
+      if (okRows.length === 0) {
+        return NextResponse.json(
+          { error: "the selected recipient is not a salesperson" },
+          { status: 400 },
+        );
+      }
+      recipientId = chosenSalesId;
+    } else {
+      recipientId = leadCreatorId;
+    }
+
+    // No explicit pick and no lead to inherit from → there is nobody to hand
+    // it to. Ask the sender to choose rather than silently stamping it "sent"
+    // with no recipient (the bug this whole flow fixes).
+    if (!recipientId) {
+      return NextResponse.json(
+        {
+          error:
+            "Select a salesperson to receive this quotation — it isn't linked to a lead, so there's no default recipient.",
+        },
+        { status: 400 },
+      );
+    }
+
     await q`
       update quotations
       set sent_to_sales_at  = now(),
           sent_to_sales_by  = ${user.id},
+          sent_to_sales_to  = ${recipientId},
           sales_accepted_at = null,
           sales_accepted_by = null
       where id = ${id}
@@ -126,11 +179,12 @@ export async function POST(req: Request) {
       values (${user.id}, 'quotation', ${id}, 'send_to_sales',
               ${JSON.stringify({
                 lead_id: leadId,
+                recipient_id: recipientId,
                 resent: Boolean(quotation.sent_to_sales_at),
               })}::jsonb)
     `;
 
-    if (leadCreatorId && leadCreatorId !== user.id) {
+    if (recipientId && recipientId !== user.id) {
       const sender = user.display_name || user.username;
       const subject = `[${quotation.ref}] Quotation ready — please review`;
       const projectLabel = quotation.project_name || "your request";
@@ -141,13 +195,13 @@ export async function POST(req: Request) {
       await sendLeadMessage({
         leadId,
         senderId: user.id,
-        recipientId: leadCreatorId,
+        recipientId,
         kind: "quotation_sent_to_sales",
         subject,
         body: bodyText,
         link: `/quotation?id=${id}`,
       });
-      void sendPushToUsers([leadCreatorId], {
+      void sendPushToUsers([recipientId], {
         title: subject,
         body: `${sender} ${verb} ${quotation.ref}${leadRef ? ` · RFQ ${leadRef}` : ""}.`,
         url: `/quotation?id=${id}`,
@@ -164,7 +218,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, lead_id: leadId });
+    return NextResponse.json({ ok: true, lead_id: leadId, recipient_id: recipientId });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "UNKNOWN";
     const status =

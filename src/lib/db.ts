@@ -559,6 +559,15 @@ const V18_FILE_SHARE_FLAG = "v18_file_share_v1_2026_07";
  */
 const DELIVERY_REQUESTS_FLAG = "delivery_requests_v1_2026_07";
 
+/**
+ * Incremental migration: presales picks WHICH salesperson receives a
+ * quotation on "Send to sales". `sent_to_sales_to` records the chosen
+ * recipient (distinct from `sent_to_sales_by`, the presales sender), so a
+ * quotation that never came from a received lead can still be routed to a
+ * specific salesperson, and re-sends default back to the same person.
+ */
+const SENT_TO_SALES_RECIPIENT_FLAG = "quotation_sent_to_sales_to_v1_2026_07";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -679,7 +688,7 @@ async function ensureD1UniqueIndexes(): Promise<void> {
 // early-returned and never added them, and every pricing read/save that touched
 // pricing_projects threw "no such column". Bumping the flag forces existing D1
 // databases to re-diff and ADD the missing columns exactly once.
-const D1_COLUMN_SYNC_FLAG = "d1_column_sync_v3_2026_07";
+const D1_COLUMN_SYNC_FLAG = "d1_column_sync_v4_2026_07";
 
 type D1ColDef = { name: string; ddl: string };
 let d1SchemaColsCache: Map<string, D1ColDef[]> | null = null;
@@ -888,6 +897,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let v18ModulesApplied = false;
   let v18FileShareApplied = false;
   let deliveryRequestsApplied = false;
+  let sentToSalesRecipientApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -910,7 +920,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${PROJECT_DISTRIBUTION_FLAG}, ${PRICING_MFG_DEFAULTS_FLAG},
         ${PROJECT_DISTRIBUTION_PHONE_FLAG}, ${CHECKLIST_TEMPLATES_FLAG},
         ${V18_MODULES_FLAG}, ${V18_FILE_SHARE_FLAG},
-        ${DELIVERY_REQUESTS_FLAG}
+        ${DELIVERY_REQUESTS_FLAG}, ${SENT_TO_SALES_RECIPIENT_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -959,6 +969,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     v18ModulesApplied = keys.has(V18_MODULES_FLAG);
     v18FileShareApplied = keys.has(V18_FILE_SHARE_FLAG);
     deliveryRequestsApplied = keys.has(DELIVERY_REQUESTS_FLAG);
+    sentToSalesRecipientApplied = keys.has(SENT_TO_SALES_RECIPIENT_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -1009,7 +1020,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     pricingMfgDefaultsApplied &&
     v18ModulesApplied &&
     v18FileShareApplied &&
-    deliveryRequestsApplied
+    deliveryRequestsApplied &&
+    sentToSalesRecipientApplied
   )
     return;
 
@@ -3375,6 +3387,25 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${EXEC_CONFIRMATION_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // Presales picks the recipient salesperson on "Send to sales". Distinct from
+  // `sent_to_sales_by` (the presales sender): `sent_to_sales_to` is who should
+  // review it, so quotations with no originating lead can still be routed and
+  // re-sends default back to the same person.
+  if (!sentToSalesRecipientApplied) {
+    await q`
+      alter table quotations
+        add column if not exists sent_to_sales_to integer references users(id) on delete set null
+    `;
+    await q`
+      create index if not exists quotations_sent_to_sales_to_idx
+        on quotations(sent_to_sales_to) where sent_to_sales_to is not null
+    `;
+    await q`
+      insert into migration_flags (key) values (${SENT_TO_SALES_RECIPIENT_FLAG})
       on conflict (key) do nothing
     `;
   }

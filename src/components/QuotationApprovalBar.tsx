@@ -36,6 +36,8 @@ interface ApprovalState {
   // 1.4C — RFQ handoff between presales and sales.
   sent_to_sales_at: string | null;
   sent_to_sales_by: number | null;
+  // Which salesperson presales routed the quotation to (chosen at send time).
+  sent_to_sales_to: number | null;
   sales_accepted_at: string | null;
   sales_accepted_by: number | null;
   owner_id: number | null;
@@ -79,6 +81,14 @@ export default function QuotationApprovalBar({
   const [outcomeBusy, setOutcomeBusy] = useState(false);
   const [holdOpen, setHoldOpen] = useState(false);
   const [holdAt, setHoldAt] = useState("");
+  // Recipient picker for "Send to sales". Presales chooses which salesperson
+  // receives the quotation — required when it didn't come from a received lead
+  // (no RFQ raiser to default to). Defaults back to the last recipient on a
+  // re-send.
+  const [salesUsers, setSalesUsers] = useState<
+    Array<{ id: number; username: string; display_name: string }>
+  >([]);
+  const [selectedSalesId, setSelectedSalesId] = useState<number | "">("");
 
   useEffect(() => {
     void fetch("/api/auth/me", { cache: "no-store" })
@@ -106,6 +116,43 @@ export default function QuotationApprovalBar({
     void refetch();
   }, [refetch]);
 
+  // Load the salespeople the quotation can be routed to, but only for users
+  // who can actually hand it off (presales / owner / admin) — everyone else
+  // never sees the picker.
+  useEffect(() => {
+    if (!me?.user) return;
+    const admin = me.user.role === "admin";
+    const presales =
+      admin ||
+      me.module_roles.some(
+        (r) =>
+          r.module === "crm" &&
+          (r.role === "presales" || r.role === "presales_manager"),
+      );
+    const owner = state.owner_id !== null && me.user.id === state.owner_id;
+    if (!presales && !owner) return;
+    let alive = true;
+    void fetch("/api/leads/users?role=sales", { cache: "no-store" })
+      .then((r) => r.json())
+      .then(
+        (data: {
+          users?: Array<{ id: number; username: string; display_name: string }>;
+        }) => {
+          if (alive && Array.isArray(data.users)) setSalesUsers(data.users);
+        },
+      )
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [me, state.owner_id]);
+
+  // Pre-select whoever the quotation was last sent to, so a re-send targets the
+  // same salesperson unless presales picks someone else.
+  useEffect(() => {
+    if (state.sent_to_sales_to != null) setSelectedSalesId(state.sent_to_sales_to);
+  }, [state.sent_to_sales_to]);
+
   const isAdmin = me?.user?.role === "admin";
   const hasRole = (module: string, role: string) =>
     isAdmin ||
@@ -131,6 +178,14 @@ export default function QuotationApprovalBar({
   const canSendToSales = isPresalesAuthor;
   const sentToSales = !!state.sent_to_sales_at;
   const salesAccepted = !!state.sales_accepted_at;
+  // Human label for whoever the quotation was routed to, resolved from the
+  // loaded sales list (null until it loads, or for legacy sends with no
+  // recorded recipient).
+  const recipientName = (() => {
+    if (state.sent_to_sales_to == null) return null;
+    const u = salesUsers.find((x) => x.id === state.sent_to_sales_to);
+    return u ? u.display_name || u.username : null;
+  })();
 
   // Executive-manager confirmation: a quotation is submitted to the executive
   // by SALES / sales managers only — they own the deal (presales just prepare
@@ -180,7 +235,10 @@ export default function QuotationApprovalBar({
       const res = await fetch("/api/quotations/send-to-sales", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: quotationId }),
+        body: JSON.stringify({
+          id: quotationId,
+          ...(selectedSalesId ? { sales_user_id: selectedSalesId } : {}),
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -302,7 +360,8 @@ export default function QuotationApprovalBar({
           <span className="font-semibold text-magic-ink/70">Approval:</span>
           {sentToSales ? (
             <Pill tone={salesAccepted ? "ok" : "muted"}>
-              Sent to sales{salesAccepted ? "" : " · awaiting review"}
+              Sent to sales{recipientName ? ` · ${recipientName}` : ""}
+              {salesAccepted ? "" : " · awaiting review"}
             </Pill>
           ) : (
             isPresalesAuthor && <Pill tone="muted">Not yet sent to sales</Pill>
@@ -319,18 +378,36 @@ export default function QuotationApprovalBar({
 
         <div className="flex flex-wrap items-center gap-2">
           {canSendToSales && (
-            <button
-              onClick={() => void sendToSales()}
-              disabled={busy}
-              title={
-                sentToSales
-                  ? "Re-send the latest version to the salesperson who raised the RFQ"
-                  : "Hand the quotation back to the salesperson who raised the RFQ"
-              }
-              className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
-            >
-              {sentToSales ? "Re-send to sales" : "Send to sales"}
-            </button>
+            <>
+              <select
+                value={selectedSalesId}
+                onChange={(e) =>
+                  setSelectedSalesId(e.target.value ? Number(e.target.value) : "")
+                }
+                disabled={busy}
+                title="Choose which salesperson receives this quotation"
+                className="rounded border border-magic-border bg-white px-2 py-1 text-xs text-magic-ink/80 focus:outline-none focus:ring-1 focus:ring-magic-red disabled:opacity-50"
+              >
+                <option value="">Select salesperson…</option>
+                {salesUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.display_name || u.username}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => void sendToSales()}
+                disabled={busy}
+                title={
+                  sentToSales
+                    ? "Re-send the latest version to the selected salesperson"
+                    : "Hand the quotation to the selected salesperson"
+                }
+                className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
+              >
+                {sentToSales ? "Re-send to sales" : "Send to sales"}
+              </button>
+            </>
           )}
           {canReject && !rejected && !readOnly && (
             <button

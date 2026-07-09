@@ -397,6 +397,7 @@ export default function QuotationViewer({
     rejected_reason: (row.rejected_reason as string | null) ?? null,
     sent_to_sales_at: (row.sent_to_sales_at as string | null) ?? null,
     sent_to_sales_by: (row.sent_to_sales_by as number | null) ?? null,
+    sent_to_sales_to: (row.sent_to_sales_to as number | null) ?? null,
     sales_accepted_at: (row.sales_accepted_at as string | null) ?? null,
     sales_accepted_by: (row.sales_accepted_by as number | null) ?? null,
     owner_id: (row.owner_id as number | null) ?? null,
