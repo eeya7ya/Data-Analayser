@@ -236,22 +236,32 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ quotation: null });
       }
       if (!canReadAll(user) && Number(row.owner_id) !== user.id) {
-        // The salesperson who raised the RFQ may VIEW (read-only) the
-        // quotation presales built against it — matched via a lead they
-        // created on the quotation's project. Editing stays owner/admin-only
-        // (the PATCH path is unchanged), so this is genuinely view-only.
+        // A non-owner may VIEW (read-only) this quotation in three cases;
+        // editing stays owner/admin-only (the PATCH path is unchanged), so
+        // this is genuinely view-only:
+        //   1. The salesperson it was SENT to via "Send to sales"
+        //      (sent_to_sales_to) — sending hands over read access to THIS
+        //      quotation, so once they file it under their own client/project
+        //      they can still open it, and whoever actually filed it
+        //      (sales_accepted_by) keeps access too.
+        //   2. The salesperson who raised the RFQ — matched via a lead they
+        //      created on the quotation's project.
+        const recipientId =
+          row.sent_to_sales_to != null ? Number(row.sent_to_sales_to) : null;
+        const filerId =
+          row.sales_accepted_by != null ? Number(row.sales_accepted_by) : null;
+        let allowed = recipientId === user.id || filerId === user.id;
         const projId = row.project_id != null ? Number(row.project_id) : null;
-        let isRequester = false;
-        if (projId && q) {
+        if (!allowed && projId && q) {
           const r = (await q`
             select 1 from leads
             where created_by = ${user.id} and project_id = ${projId}
               and deleted_at is null
             limit 1
           `) as Array<{ "?column?": number }>;
-          isRequester = r.length > 0;
+          allowed = r.length > 0;
         }
-        if (!isRequester) {
+        if (!allowed) {
           return NextResponse.json({ error: "forbidden" }, { status: 403 });
         }
       }
