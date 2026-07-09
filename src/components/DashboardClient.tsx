@@ -25,6 +25,10 @@ import {
   ClipboardList,
   Mail,
   ArrowUpRight,
+  ChevronDown,
+  Trophy,
+  Layers,
+  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 import MessagesPanel from "@/components/MessagesPanel";
@@ -104,6 +108,10 @@ export default function DashboardClient({
     { name: "Pending", value: approvals.pending },
     { name: "Rejected", value: approvals.rejected },
   ].filter((d) => d.value > 0);
+  // Headline numbers shown on each collapsed chart card so the board still
+  // conveys the figures at a glance without a wall of always-open charts.
+  const trendTotal = trend.reduce((s, p) => s + p.count, 0);
+  const statusTotal = status.reduce((s, r) => s + r.value, 0);
 
   return (
     <div className="space-y-6">
@@ -188,19 +196,19 @@ export default function DashboardClient({
         <Kpi label="Projects" value={kpis.projects} icon={FolderKanban} tone="violet" />
       </div>
 
-      {/* Charts + inbox */}
+      {/* Analytics + inbox. Charts are click-to-open: each card shows its
+          headline numbers when collapsed and reveals the chart on click, so the
+          board stays clean instead of a wall of (often empty) charts. */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
-          <div className="rounded-2xl border border-magic-border bg-white/80 p-4 shadow-mt-soft backdrop-blur-sm">
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-magic-ink">
-                  {chartTitle}
-                </h3>
-                <p className="text-xs text-magic-ink/50">
-                  {GRANULARITY_META[granularity].subtitle}
-                </p>
-              </div>
+        <div className="lg:col-span-2 space-y-3">
+          <CollapsibleChart
+            title={chartTitle}
+            icon={TrendingUp}
+            tone="red"
+            openSubtitle={GRANULARITY_META[granularity].subtitle}
+            summary={`${trendTotal} in the last 6 months · tap to open`}
+          >
+            <div className="mb-3 flex justify-end">
               <div className="inline-flex items-center gap-0.5 rounded-lg border border-magic-border bg-magic-soft/40 p-0.5">
                 {(["daily", "weekly", "monthly"] as Granularity[]).map((g) => (
                   <button
@@ -247,76 +255,91 @@ export default function DashboardClient({
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </CollapsibleChart>
 
           {showOutcomes && (
-            <Panel title="Sales outcomes" subtitle="Won · Lost · Held for execution">
+            <CollapsibleChart
+              title="Sales outcomes"
+              icon={Trophy}
+              tone="emerald"
+              openSubtitle="Won · Lost · Held for execution"
+              summary={`${outcomes.won} won · ${outcomes.lost} lost · ${outcomes.held} held`}
+            >
               <div className="grid grid-cols-3 gap-3">
                 <OutcomeStat label="Won" value={outcomes.won} tone="emerald" />
                 <OutcomeStat label="Lost" value={outcomes.lost} tone="amber" />
                 <OutcomeStat label="Held" value={outcomes.held} tone="red" />
               </div>
-            </Panel>
+            </CollapsibleChart>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Panel title="By status" subtitle="Active quotations">
-              {status.length === 0 ? (
-                <EmptyChart />
-              ) : (
-                <div className="h-52 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={status}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={45}
-                        outerRadius={75}
-                        paddingAngle={3}
-                      >
-                        {status.map((_, i) => (
-                          <Cell key={i} fill={STATUS_COLORS[i % STATUS_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #E4E7F1", fontSize: 12 }} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </Panel>
+          <CollapsibleChart
+            title="By status"
+            icon={Layers}
+            tone="cyan"
+            openSubtitle="Active quotations"
+            summary={
+              statusTotal === 0 ? "No data yet" : `${statusTotal} active quotations`
+            }
+          >
+            {status.length === 0 ? (
+              <EmptyChart />
+            ) : (
+              <div className="h-52 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={status}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={45}
+                      outerRadius={75}
+                      paddingAngle={3}
+                    >
+                      {status.map((_, i) => (
+                        <Cell key={i} fill={STATUS_COLORS[i % STATUS_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #E4E7F1", fontSize: 12 }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CollapsibleChart>
 
-            <Panel
-              title="Approval funnel"
-              subtitle={showApprovals ? "Across your team" : "Your quotations"}
-            >
-              {approvalData.length === 0 ? (
-                <EmptyChart />
-              ) : (
-                <div className="h-52 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={approvalData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={45}
-                        outerRadius={75}
-                        paddingAngle={3}
-                      >
-                        <Cell fill="#22c55e" />
-                        <Cell fill="#f59e0b" />
-                        <Cell fill="#ef4444" />
-                      </Pie>
-                      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #E4E7F1", fontSize: 12 }} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </Panel>
-          </div>
+          <CollapsibleChart
+            title="Approval funnel"
+            icon={ClipboardCheck}
+            tone="violet"
+            openSubtitle={showApprovals ? "Across your team" : "Your quotations"}
+            summary={`${approvals.approved} approved · ${approvals.pending} pending · ${approvals.rejected} rejected`}
+          >
+            {approvalData.length === 0 ? (
+              <EmptyChart />
+            ) : (
+              <div className="h-52 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={approvalData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={45}
+                      outerRadius={75}
+                      paddingAngle={3}
+                    >
+                      <Cell fill="#22c55e" />
+                      <Cell fill="#f59e0b" />
+                      <Cell fill="#ef4444" />
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #E4E7F1", fontSize: 12 }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CollapsibleChart>
         </div>
 
         {/* Inbox — alarms + messages */}
@@ -372,7 +395,69 @@ const NAV_TONES: Record<
     wash: "from-sky-50 to-transparent",
     arrow: "group-hover:text-sky-600",
   },
+  emerald: {
+    chip: "bg-emerald-100 text-emerald-600",
+    wash: "from-emerald-50 to-transparent",
+    arrow: "group-hover:text-emerald-600",
+  },
 };
+
+/**
+ * A chart card that stays collapsed by default — the header carries the
+ * headline numbers so the board reads at a glance, and clicking it reveals
+ * the full chart. Keeps the dashboard from being a wall of always-open
+ * (often empty) charts.
+ */
+function CollapsibleChart({
+  title,
+  icon: Icon,
+  tone,
+  openSubtitle,
+  summary,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  tone: keyof typeof NAV_TONES;
+  /** Shown under the title when expanded (chart context). */
+  openSubtitle: string;
+  /** Shown under the title when collapsed (headline figures). */
+  summary: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const t = NAV_TONES[tone];
+  return (
+    <div className="overflow-hidden rounded-2xl border border-magic-border bg-white/80 shadow-mt-soft backdrop-blur-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-magic-soft/40"
+      >
+        <span
+          className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${t.chip}`}
+        >
+          <Icon className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-magic-ink">{title}</span>
+          <span className="block truncate text-xs text-magic-ink/50">
+            {open ? openSubtitle : summary}
+          </span>
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-magic-ink/40 transition-transform duration-200 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      {open && (
+        <div className="border-t border-magic-border/60 p-4">{children}</div>
+      )}
+    </div>
+  );
+}
 
 function QuickNav({
   href,
@@ -439,26 +524,6 @@ function Kpi({
       </div>
       <p className="mt-3 text-3xl font-bold tracking-tight text-magic-ink">{value}</p>
       <p className="mt-0.5 text-xs font-medium text-magic-ink/55">{label}</p>
-    </div>
-  );
-}
-
-function Panel({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-magic-border bg-white/80 p-4 shadow-mt-soft backdrop-blur-sm">
-      <div className="mb-3">
-        <h3 className="text-sm font-bold text-magic-ink">{title}</h3>
-        {subtitle && <p className="text-xs text-magic-ink/50">{subtitle}</p>}
-      </div>
-      {children}
     </div>
   );
 }
