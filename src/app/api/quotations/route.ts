@@ -351,18 +351,27 @@ export async function GET(req: NextRequest) {
                        created_at, updated_at
                 from quotations
                 where project_id = ${projectId}
-                  and owner_id = ${user.id}
                   and deleted_at is null
+                  -- The salesperson a quotation was sent to (and who filed it
+                  -- into this project) sees it here even though presales still
+                  -- owns it — otherwise a just-filed quotation shows "0
+                  -- quotations" in the path they created for it.
+                  and (owner_id = ${user.id}
+                       or sent_to_sales_to = ${user.id}
+                       or sales_accepted_by = ${user.id})
                 order by id desc
                 limit 500
               `) as Array<Record<string, unknown>>);
       }
-      // Flag rows that belong to the LINKED counterpart project (not the one
-      // being viewed) so the UI can render them read-only — the salesperson
-      // views the presales quotation, they don't edit / move / delete it.
+      // Render read-only in the UI when the row belongs to a LINKED
+      // counterpart project OR the caller doesn't own it (a salesperson views
+      // the presales-owned quotation filed into their project; editing / moving
+      // / deleting stays owner-admin-only, matching the server-side gate).
       const annotatedRows = projectRows.map((r) => ({
         ...r,
-        read_only: Number(r.project_id) !== projectId,
+        read_only:
+          Number(r.project_id) !== projectId ||
+          (!canReadAll(user) && Number(r.owner_id) !== user.id),
       }));
       return NextResponse.json({ quotations: annotatedRows });
     }
