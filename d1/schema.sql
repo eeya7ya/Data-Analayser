@@ -671,6 +671,7 @@ CREATE TABLE IF NOT EXISTS "quotations" (
   "transferred_at" TEXT,
   "sent_to_sales_at" TEXT,
   "sent_to_sales_by" INTEGER,
+  "sent_to_sales_to" INTEGER,
   "sales_accepted_at" TEXT,
   "sales_accepted_by" INTEGER,
   "exec_status" TEXT NOT NULL DEFAULT 'none',
@@ -890,6 +891,7 @@ ALTER TABLE "users" ADD COLUMN "department_code" TEXT NOT NULL DEFAULT '';
 ALTER TABLE "leads" ADD COLUMN "sales_project_id" INTEGER;
 ALTER TABLE "products" ADD COLUMN "barcode" TEXT;
 -- Executive-manager confirmation workflow (quotations + pricing_projects).
+ALTER TABLE "quotations" ADD COLUMN "sent_to_sales_to" INTEGER;
 ALTER TABLE "quotations" ADD COLUMN "exec_status" TEXT NOT NULL DEFAULT 'none';
 ALTER TABLE "quotations" ADD COLUMN "exec_submitted_at" TEXT;
 ALTER TABLE "quotations" ADD COLUMN "exec_submitted_by" INTEGER;
