@@ -21,8 +21,10 @@ import {
   FolderKanban,
   TrendingUp,
   Inbox,
-  Building,
   CalendarDays,
+  ClipboardList,
+  Mail,
+  ArrowUpRight,
   type LucideIcon,
 } from "lucide-react";
 import MessagesPanel from "@/components/MessagesPanel";
@@ -114,39 +116,63 @@ export default function DashboardClient({
         </p>
       </div>
 
-      {/* One-screen lead intake for sales — create a lead and file it under an
-          existing or brand-new client without leaving the dashboard. */}
+      {/* Fast navigation + one-screen lead intake for sales, so a salesperson
+          jumps straight into their day without hunting through the menu. */}
       {canCreateLead && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          <section>
+            <div className="mb-2.5 flex items-center gap-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-magic-ink/45">
+                Quick access
+              </span>
+              <span className="h-px flex-1 bg-magic-border/70" />
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <QuickNav
+                href="/crm/pipeline"
+                label="Pipeline"
+                hint="Live deals & forecast"
+                icon={TrendingUp}
+                tone="red"
+              />
+              <QuickNav
+                href="/crm/received"
+                label="Received"
+                hint="Quotations sent to you"
+                icon={Inbox}
+                tone="cyan"
+              />
+              <QuickNav
+                href="/leads"
+                label="Leads"
+                hint="Requests & status"
+                icon={ClipboardList}
+                tone="indigo"
+              />
+              <QuickNav
+                href="/crm?tool=sales"
+                label="Clients"
+                hint="Companies & folders"
+                icon={Building2}
+                tone="violet"
+              />
+              <QuickNav
+                href="/calendar"
+                label="Calendar"
+                hint="Follow-ups"
+                icon={CalendarDays}
+                tone="amber"
+              />
+              <QuickNav
+                href="/email"
+                label="Email"
+                hint="Client mail"
+                icon={Mail}
+                tone="sky"
+              />
+            </div>
+          </section>
           <QuickLeadCreate />
-          {/* Interactive easy-access tiles so a salesperson jumps straight into
-              their day without hunting through the menu. */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <QuickAction
-              href="/crm/pipeline"
-              label="Pipeline"
-              hint="Track every deal"
-              icon={TrendingUp}
-            />
-            <QuickAction
-              href="/leads"
-              label="My leads"
-              hint="Requests & status"
-              icon={Inbox}
-            />
-            <QuickAction
-              href="/crm?tool=sales"
-              label="Clients"
-              hint="Companies & folders"
-              icon={Building}
-            />
-            <QuickAction
-              href="/calendar"
-              label="Calendar"
-              hint="Follow-ups"
-              icon={CalendarDays}
-            />
-          </div>
         </div>
       )}
 
@@ -312,29 +338,78 @@ const TONES: Record<string, { ring: string; icon: string; text: string }> = {
   amber: { ring: "from-amber-100 to-white", icon: "bg-amber-100 text-amber-600", text: "text-amber-600" },
 };
 
-function QuickAction({
+const NAV_TONES: Record<
+  string,
+  { chip: string; wash: string; arrow: string }
+> = {
+  red: {
+    chip: "bg-magic-red/10 text-magic-red",
+    wash: "from-magic-red/[0.07] to-transparent",
+    arrow: "group-hover:text-magic-red",
+  },
+  cyan: {
+    chip: "bg-cyan-100 text-cyan-600",
+    wash: "from-cyan-50 to-transparent",
+    arrow: "group-hover:text-cyan-600",
+  },
+  indigo: {
+    chip: "bg-indigo-100 text-indigo-600",
+    wash: "from-indigo-50 to-transparent",
+    arrow: "group-hover:text-indigo-600",
+  },
+  violet: {
+    chip: "bg-violet-100 text-violet-600",
+    wash: "from-violet-50 to-transparent",
+    arrow: "group-hover:text-violet-600",
+  },
+  amber: {
+    chip: "bg-amber-100 text-amber-600",
+    wash: "from-amber-50 to-transparent",
+    arrow: "group-hover:text-amber-600",
+  },
+  sky: {
+    chip: "bg-sky-100 text-sky-600",
+    wash: "from-sky-50 to-transparent",
+    arrow: "group-hover:text-sky-600",
+  },
+};
+
+function QuickNav({
   href,
   label,
   hint,
   icon: Icon,
+  tone,
 }: {
   href: string;
   label: string;
   hint: string;
   icon: LucideIcon;
+  tone: keyof typeof NAV_TONES;
 }) {
+  const t = NAV_TONES[tone];
   return (
     <a
       href={href}
-      className="group flex items-center gap-3 rounded-2xl border border-magic-border bg-white p-3 shadow-mt-soft transition-all hover:border-magic-red/40 hover:shadow-mt-lift"
+      className="group relative flex flex-col justify-between gap-4 overflow-hidden rounded-2xl border border-magic-border bg-white p-3.5 shadow-mt-soft transition-all duration-200 hover:-translate-y-0.5 hover:border-magic-red/30 hover:shadow-mt-lift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-magic-red/40"
     >
-      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-magic-soft text-magic-red">
-        <Icon className="h-[18px] w-[18px]" />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-semibold text-magic-ink group-hover:text-magic-red">
-          {label}
+      {/* Soft tone wash that fades in on hover for a bit of depth. */}
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${t.wash} opacity-0 transition-opacity duration-200 group-hover:opacity-100`}
+      />
+      <span className="relative flex items-center justify-between">
+        <span
+          className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${t.chip}`}
+        >
+          <Icon className="h-5 w-5" />
         </span>
+        <ArrowUpRight
+          className={`h-4 w-4 text-magic-ink/25 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${t.arrow}`}
+        />
+      </span>
+      <span className="relative min-w-0">
+        <span className="block text-sm font-bold text-magic-ink">{label}</span>
         <span className="block truncate text-xs text-magic-ink/50">{hint}</span>
       </span>
     </a>
