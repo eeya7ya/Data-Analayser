@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Paperclip, FileText, Trash2 } from "lucide-react";
 
 /**
  * Sales quick-create lead (V1.8).
@@ -21,6 +21,12 @@ interface FolderOption {
   id: number;
   name: string;
   company_name: string | null;
+}
+
+interface ExistingFile {
+  id: number;
+  filename: string;
+  kind: string;
 }
 
 const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
@@ -42,7 +48,16 @@ export default function QuickLeadCreate() {
   const [individualName, setIndividualName] = useState("");
   const [projectName, setProjectName] = useState("");
 
+  // Files to attach with the lead. `files` are new uploads picked here;
+  // `existingFiles` are what's already in the selected client's folder (shown
+  // for reference). Both land in / read from the folder's project BOQ tab.
+  const [files, setFiles] = useState<File[]>([]);
+  const [existingFiles, setExistingFiles] = useState<ExistingFile[]>([]);
+  const [existingLoading, setExistingLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const [busy, setBusy] = useState(false);
+  const [busyNote, setBusyNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ ref: string; id: number } | null>(null);
 
@@ -68,6 +83,42 @@ export default function QuickLeadCreate() {
     };
   }, [mode, foldersLoaded]);
 
+  // When an existing client is selected, show the files already in its folder
+  // (its default project's BOQ tab) for reference.
+  useEffect(() => {
+    if (mode !== "existing" || !existingFolderId) {
+      setExistingFiles([]);
+      return;
+    }
+    let cancelled = false;
+    setExistingLoading(true);
+    (async () => {
+      try {
+        const pid = await resolveProjectId(Number(existingFolderId));
+        if (!pid) {
+          if (!cancelled) setExistingFiles([]);
+          return;
+        }
+        const res = await fetch(`/api/project-files?project_id=${pid}`, {
+          cache: "no-store",
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          files?: ExistingFile[];
+        };
+        if (!cancelled)
+          setExistingFiles(Array.isArray(data.files) ? data.files : []);
+      } catch {
+        if (!cancelled) setExistingFiles([]);
+      } finally {
+        if (!cancelled) setExistingLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, existingFolderId]);
+
   const reset = useCallback(() => {
     setTitle("");
     setPriority("normal");
@@ -78,8 +129,77 @@ export default function QuickLeadCreate() {
     setClientName("");
     setIndividualName("");
     setProjectName("");
+    setFiles([]);
+    setExistingFiles([]);
     setError(null);
   }, []);
+
+  /** The default project under a folder — files attach to a project, not a
+   *  folder, and every folder is created with a default project. */
+  async function resolveProjectId(folderId: number): Promise<number | null> {
+    try {
+      const res = await fetch(`/api/projects?folder_id=${folderId}`, {
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        projects?: Array<{ id: number }>;
+      };
+      const list = Array.isArray(data.projects) ? data.projects : [];
+      return list.length > 0 ? Number(list[0].id) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Direct-to-R2 three-phase upload (sign → PUT → register), same as the
+   *  project Files panel, filed as a BOQ so presales sees it in the BOQ tab. */
+  async function uploadFile(projectId: number, file: File): Promise<void> {
+    const mime = file.type || "application/octet-stream";
+    const signRes = await fetch("/api/project-files/sign-upload", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project_id: projectId,
+        kind: "boq",
+        filename: file.name,
+        mime,
+        size_bytes: file.size,
+      }),
+    });
+    const signData = (await signRes.json().catch(() => ({}))) as {
+      signedUrl?: string;
+      storage_path?: string;
+      error?: string;
+    };
+    if (!signRes.ok || !signData.signedUrl || !signData.storage_path) {
+      throw new Error(signData.error || `Could not start upload for ${file.name}`);
+    }
+    const putRes = await fetch(signData.signedUrl, {
+      method: "PUT",
+      headers: { "Content-Type": mime },
+      body: file,
+    });
+    if (!putRes.ok) throw new Error(`Upload failed for ${file.name}`);
+    const regRes = await fetch("/api/project-files", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project_id: projectId,
+        kind: "boq",
+        filename: file.name,
+        mime,
+        size_bytes: file.size,
+        storage_path: signData.storage_path,
+      }),
+    });
+    const regData = (await regRes.json().catch(() => ({}))) as {
+      file?: unknown;
+      error?: string;
+    };
+    if (!regRes.ok || !regData.file) {
+      throw new Error(regData.error || `Could not save ${file.name}`);
+    }
+  }
 
   async function postJson(url: string, body: unknown): Promise<Record<string, unknown>> {
     const res = await fetch(url, {
@@ -140,7 +260,13 @@ export default function QuickLeadCreate() {
       setError("A short title for the request is required.");
       return;
     }
+    // Files must land in a folder, so a client is required to attach them.
+    if (files.length > 0 && mode === "none") {
+      setError("Pick or create a client before attaching files.");
+      return;
+    }
     setBusy(true);
+    setBusyNote(null);
     setError(null);
     try {
       const folderId = await resolveFolderId();
@@ -150,14 +276,41 @@ export default function QuickLeadCreate() {
         priority,
         folder_id: folderId,
       })) as { id?: number; ref?: string };
+
+      // Attach files to the folder's project so they show in its BOQ tab. A
+      // single file that fails doesn't lose the lead — we surface the error but
+      // keep the created lead.
+      if (files.length > 0 && folderId) {
+        const pid = await resolveProjectId(folderId);
+        if (!pid) {
+          throw new Error(
+            "Lead created, but couldn't find a project on that client to store the files.",
+          );
+        }
+        for (let i = 0; i < files.length; i++) {
+          setBusyNote(`Uploading files… (${i + 1}/${files.length})`);
+          await uploadFile(pid, files[i]);
+        }
+      }
+
+      setBusyNote(null);
       setDone({ ref: String(lead.ref ?? ""), id: Number(lead.id) });
       reset();
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setBusy(false);
+      setBusyNote(null);
     }
   }
+
+  const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? []);
+    if (picked.length) setFiles((prev) => [...prev, ...picked]);
+    e.target.value = "";
+  };
+  const removeFile = (idx: number) =>
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
 
   if (!open) {
     return (
@@ -238,7 +391,13 @@ export default function QuickLeadCreate() {
           Client
           <select
             value={mode}
-            onChange={(e) => setMode(e.target.value as ClientMode)}
+            onChange={(e) => {
+              const v = e.target.value as ClientMode;
+              setMode(v);
+              // Files need a folder to live in, so drop them if the lead is
+              // switched back to "decide later".
+              if (v === "none") setFiles([]);
+            }}
             className="mt-1 w-full rounded-lg border border-magic-border px-3 py-2 text-sm font-normal text-magic-ink bg-white"
           >
             <option value="none">Decide later (presales files it)</option>
@@ -324,6 +483,94 @@ export default function QuickLeadCreate() {
           </>
         )}
 
+        {mode !== "none" && (
+          <div className="sm:col-span-2 space-y-2">
+            <div>
+              <span className="block text-xs font-semibold text-magic-ink/60">
+                Files
+              </span>
+              <p className="text-[11px] text-magic-ink/45">
+                Attach the RFQ, BOQ, drawings or photos — they&apos;re saved in
+                the client&apos;s folder (BOQs / Files) for presales.
+              </p>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={onPickFiles}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-lg border border-dashed border-magic-border bg-magic-soft/40 px-3 py-2 text-xs font-semibold text-magic-ink/70 hover:border-magic-red/40 hover:text-magic-red"
+            >
+              <Paperclip className="h-4 w-4" />
+              Attach files
+            </button>
+
+            {files.length > 0 && (
+              <ul className="space-y-1">
+                {files.map((f, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center gap-2 rounded-lg border border-magic-border bg-white px-2.5 py-1.5 text-xs"
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-magic-ink/40" />
+                    <span className="min-w-0 flex-1 truncate text-magic-ink/80">
+                      {f.name}
+                    </span>
+                    <span className="shrink-0 text-magic-ink/40">
+                      {(f.size / 1024 / 1024).toFixed(1)} MB
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="shrink-0 text-magic-ink/40 hover:text-magic-red"
+                      aria-label={`Remove ${f.name}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {mode === "existing" && existingFolderId && (
+              <div className="rounded-lg border border-magic-border/70 bg-magic-soft/30 px-2.5 py-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-magic-ink/45">
+                  Already in this client
+                </span>
+                {existingLoading ? (
+                  <p className="mt-1 text-[11px] text-magic-ink/45">Loading…</p>
+                ) : existingFiles.length === 0 ? (
+                  <p className="mt-1 text-[11px] text-magic-ink/40">
+                    No files yet.
+                  </p>
+                ) : (
+                  <ul className="mt-1 space-y-0.5">
+                    {existingFiles.map((f) => (
+                      <li
+                        key={f.id}
+                        className="flex items-center gap-2 text-[11px] text-magic-ink/70"
+                      >
+                        <FileText className="h-3 w-3 shrink-0 text-magic-ink/35" />
+                        <span className="min-w-0 flex-1 truncate">
+                          {f.filename}
+                        </span>
+                        <span className="shrink-0 uppercase text-magic-ink/35">
+                          {f.kind}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <label className="sm:col-span-2 block text-xs font-semibold text-magic-ink/60">
           Notes (optional)
           <textarea
@@ -348,7 +595,7 @@ export default function QuickLeadCreate() {
           disabled={busy}
           className="inline-flex items-center gap-2 rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white hover:bg-magic-red/90 disabled:opacity-50"
         >
-          {busy ? "Creating…" : "Create lead"}
+          {busy ? busyNote ?? "Creating…" : "Create lead"}
         </button>
         <button
           type="button"
