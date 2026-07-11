@@ -51,6 +51,7 @@ interface LeadRow {
   updated_at: string;
   // Lifecycle timestamps (from leads.*) — drive the lifecycle map.
   quotation_sent_at: string | null;
+  quotation_id: number | null;
   quotation_ref: string | null;
   outcome: string | null;
   outcome_at: string | null;
@@ -348,6 +349,28 @@ export default function LeadDetailClient({ leadId }: { leadId: number }) {
             )}
           </div>
         </div>
+
+        {/* ── Deal actions — once presales sent the quotation, the decision
+            (Mark as Win / Lost / Hold, and the post-win follow-ups) lives on
+            the quotation itself. Give sales a one-click path there. */}
+        {lead.quotation_id && lead.quotation_sent_at && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-magic-red/30 bg-magic-red/5 px-5 py-4">
+            <div className="min-w-0 text-sm text-magic-ink/80">
+              <span className="font-semibold text-magic-ink">
+                Quotation {lead.quotation_ref || `#${lead.quotation_id}`} is ready.
+              </span>{" "}
+              Open it to mark the deal as <b>Win</b>, <b>Lost</b> or <b>Hold</b>{" "}
+              — and after a win, send it to Delivery or Execution, or mark it
+              Completed.
+            </div>
+            <a
+              href={`/quotation?id=${lead.quotation_id}`}
+              className="shrink-0 rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white hover:bg-magic-red/90"
+            >
+              Open quotation →
+            </a>
+          </div>
+        )}
 
         {/* ── Lifecycle map ────────────────────────────────────────────── */}
         <LeadLifecycleMap lead={lead} />

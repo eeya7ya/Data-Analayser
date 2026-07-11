@@ -674,6 +674,8 @@ CREATE TABLE IF NOT EXISTS "quotations" (
   "sent_to_sales_to" INTEGER,
   "sales_accepted_at" TEXT,
   "sales_accepted_by" INTEGER,
+  "completed_at" TEXT,
+  "completed_by" INTEGER,
   "exec_status" TEXT NOT NULL DEFAULT 'none',
   "exec_submitted_at" TEXT,
   "exec_submitted_by" INTEGER,

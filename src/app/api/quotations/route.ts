@@ -619,7 +619,22 @@ export async function PATCH(req: NextRequest) {
     }
     const existing = existingRows[0];
     if (user.role !== "admin" && existing.owner_id !== user.id) {
-      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      // A non-owner may edit in exactly one case: the quotation was SENT to
+      // them via "Send to sales" (or they filed it) AND they also hold an
+      // authoring role (presales / presales_manager). This is the
+      // sales+presales double-role user — they receive quotations like any
+      // salesperson but are trusted to edit like presales. A plain-sales
+      // recipient still can't edit (they use "Request changes"), and a
+      // presales user who was never sent the quotation still can't touch a
+      // colleague's row.
+      const isRecipient =
+        (existing.sent_to_sales_to != null &&
+          Number(existing.sent_to_sales_to) === user.id) ||
+        (existing.sales_accepted_by != null &&
+          Number(existing.sales_accepted_by) === user.id);
+      if (!isRecipient || !(await canAuthorQuotation(user))) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
     }
 
     // V1.3b — a plain salesperson can't edit quotation content in the
@@ -650,12 +665,17 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Verify project ownership when the caller is reassigning the quotation
-    // to a different project. Mirrors the folder-ownership guard below so a
-    // user can never plant a quotation under another user's project.
+    // to a DIFFERENT project. Mirrors the folder-ownership guard below so a
+    // user can never plant a quotation under another user's project. An
+    // unchanged value is not a move — the Designer re-sends the current
+    // folder/project/contact on every content save, and a double-role
+    // recipient editing a received quotation must not be blocked just
+    // because the row lives under the presales author's project.
     if (
       user.role !== "admin" &&
       body.project_id !== undefined &&
-      body.project_id !== null
+      body.project_id !== null &&
+      Number(body.project_id) !== Number(existing.project_id ?? NaN)
     ) {
       const projectRows = (await q!`
         select owner_id, folder_id from projects
@@ -673,12 +693,14 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // If the caller is moving the quotation into a folder, make sure the
-    // target folder belongs to the quotation's owner (admins are exempt).
+    // If the caller is moving the quotation into a DIFFERENT folder, make
+    // sure the target folder belongs to them (admins are exempt). Re-sending
+    // the current folder_id unchanged is not a move.
     if (
       user.role !== "admin" &&
       body.folder_id !== undefined &&
-      body.folder_id !== null
+      body.folder_id !== null &&
+      Number(body.folder_id) !== Number(existing.folder_id ?? NaN)
     ) {
       const folderRows = (await q!`
         select owner_id from client_folders
@@ -694,11 +716,13 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Same owner check for the contact link, so a user can't attribute their
-    // quotation to a person they don't own. Admins skip the check.
+    // quotation to a person they don't own. Admins skip the check; an
+    // unchanged contact_id (Designer re-send) is not a re-attribution.
     if (
       user.role !== "admin" &&
       body.contact_id !== undefined &&
-      body.contact_id !== null
+      body.contact_id !== null &&
+      Number(body.contact_id) !== Number(existing.contact_id ?? NaN)
     ) {
       const contactRows = (await q!`
         select owner_id from contacts

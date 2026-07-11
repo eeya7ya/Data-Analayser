@@ -39,7 +39,8 @@ export async function POST(req: NextRequest) {
 
     const q = sql();
     const rows = (await q`
-      select owner_id, sales_outcome, transferred_at, approved_at
+      select owner_id, sales_outcome, transferred_at, approved_at,
+             sent_to_sales_to, sales_accepted_by
       from quotations
       where id = ${id} and deleted_at is null
       limit 1
@@ -48,6 +49,8 @@ export async function POST(req: NextRequest) {
       sales_outcome: string | null;
       transferred_at: string | null;
       approved_at: string | null;
+      sent_to_sales_to: number | null;
+      sales_accepted_by: number | null;
     }>;
     if (rows.length === 0) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -56,9 +59,14 @@ export async function POST(req: NextRequest) {
 
     const isSalesManager =
       isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
-    if (!isAdmin && !isSalesManager && quotation.owner_id !== user.id) {
+    // The recipient salesperson (sent_to_sales_to / whoever filed it) drives
+    // the deal to execution just like the owner — mirrors /api/quotations/outcome.
+    const isRecipient =
+      quotation.sent_to_sales_to === user.id ||
+      quotation.sales_accepted_by === user.id;
+    if (!isAdmin && !isSalesManager && !isRecipient && quotation.owner_id !== user.id) {
       return NextResponse.json(
-        { error: "you can only transfer your own quotations" },
+        { error: "you can only transfer quotations sent to you or owned by you" },
         { status: 403 },
       );
     }

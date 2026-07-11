@@ -24,12 +24,12 @@ export const STAGES: Stage[] = [
 ];
 
 export const STAGE_LABEL: Record<Stage, string> = {
-  quoting: "Quoting & Approval",
-  approved: "Approved · with client",
+  quoting: "Quoting",
+  approved: "With client",
   won: "Won",
-  held: "Held → Handoff",
+  held: "On hold",
   execution: "In Execution",
-  delivered: "Delivered",
+  delivered: "Completed",
   lost: "Lost",
 };
 
@@ -127,6 +127,14 @@ export interface StageInputs {
   sales_outcome: string | null;
   rejected_at: string | null;
   approved_at: string | null;
+  /** Presales → sales handoff. Once sent, the deal is with the client side
+   *  and the salesperson can act on it — same standing as `approved_at`
+   *  (which no current flow stamps on its own). Optional so legacy callers
+   *  that don't select the column keep working. */
+  sent_to_sales_at?: string | null;
+  /** Sales "Mark as Completed" — terminal close without (or after) the
+   *  projects handoff. Optional for legacy callers. */
+  completed_at?: string | null;
 }
 
 /**
@@ -134,6 +142,7 @@ export interface StageInputs {
  * stored "stage" field, so the board can never drift out of sync with reality.
  */
 export function deriveStage(r: StageInputs): Stage {
+  if (r.completed_at) return "delivered";
   if (r.transferred_at) {
     return r.project_status === "completed" ? "delivered" : "execution";
   }
@@ -141,7 +150,7 @@ export function deriveStage(r: StageInputs): Stage {
   if (r.sales_outcome === "held") return "held";
   if (r.sales_outcome === "rejected") return "lost";
   if (r.rejected_at) return "lost";
-  if (r.approved_at) return "approved";
+  if (r.approved_at || r.sent_to_sales_at) return "approved";
   return "quoting";
 }
 

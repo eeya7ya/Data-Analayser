@@ -49,6 +49,8 @@ interface DealRow {
   rejected_at: string | null;
   sales_outcome: string | null;
   transferred_at: string | null;
+  sent_to_sales_at: string | null;
+  completed_at: string | null;
   project_status: string | null;
   totals_json: string | Record<string, unknown> | null;
   age_anchor: string | null;
@@ -163,6 +165,10 @@ interface DealCard {
   grossProfit: number;
   /** Gross margin % over the cost-covered portion of the deal, or null. */
   marginPct: number | null;
+  /** Markup % over the SI base (Σ(sale−SI)/ΣSI), or null. The SI base
+   *  already includes margin, so 0% markup ≠ break-even — the UI shows this
+   *  as "priced above SI base", never as profit-or-loss. */
+  markupPct: number | null;
   /** Fraction (0–1) of the deal's line value that has cost data. */
   coverage: number;
 }
@@ -198,9 +204,12 @@ export async function GET() {
 
     // Tenant isolation: only the read-only `viewer` role sees every deal owned
     // by a user in THEIR tenant — never globally. Every sales user, manager
-    // included, is scoped to their own deals. `ownerIds` is the allow-list of
-    // owners; it always contains at least the requester, so an empty result
-    // fails closed (sees nothing) rather than leaking across tenants.
+    // included, is scoped to THEIR deals. Crucially, "their deals" is not just
+    // rows they own: quotations are owned by the presales author, and a
+    // salesperson's whole book is what presales SENT them (sent_to_sales_to /
+    // sales_accepted_by) plus quotations on projects whose RFQ they raised.
+    // The previous owner-only filter made a plain salesperson's board
+    // permanently empty — every KPI read 0.
     const tenantWide = isViewer;
     const ownerIds = tenantWide
       ? (
@@ -217,6 +226,7 @@ export async function GET() {
              q.project_id, q.owner_id,
              coalesce(nullif(u.display_name, ''), u.username) as owner_name,
              q.approved_at, q.rejected_at, q.sales_outcome, q.transferred_at,
+             q.sent_to_sales_at, q.completed_at,
              p.status as project_status,
              q.totals_json as totals_json,
              coalesce(
@@ -227,7 +237,22 @@ export async function GET() {
       left join users u on u.id = q.owner_id
       where q.deleted_at is null
         and q.parent_ref is null
-        and q.owner_id = any(${ownerIds}::int[])
+        and (
+          q.owner_id = any(${ownerIds}::int[])
+          or (${!tenantWide}::boolean and (
+            q.sent_to_sales_to = ${user.id}
+            or q.sales_accepted_by = ${user.id}
+            or exists (
+              select 1 from leads l
+              where l.deleted_at is null
+                and l.created_by = ${user.id}
+                and (l.quotation_id = q.id
+                     or (q.project_id is not null
+                         and (l.project_id = q.project_id
+                              or l.sales_project_id = q.project_id)))
+            )
+          ))
+        )
       order by coalesce(q.sales_outcome_at, q.approved_at, q.updated_at, q.created_at) desc
       limit 1000
     `) as DealRow[];
@@ -268,13 +293,23 @@ export async function GET() {
                count(*)::int as decided,
                count(*) filter (where won)::int as won
         from (
-          select client_name,
-                 (sales_outcome in ('accepted', 'held') or transferred_at is not null) as won
-          from quotations
-          where deleted_at is null
-            and parent_ref is null
-            and (sales_outcome in ('accepted', 'rejected', 'held') or transferred_at is not null)
-            and owner_id = any(${ownerIds}::int[])
+          select q.client_name,
+                 (q.sales_outcome in ('accepted', 'held')
+                  or q.transferred_at is not null
+                  or q.completed_at is not null) as won
+          from quotations q
+          where q.deleted_at is null
+            and q.parent_ref is null
+            and (q.sales_outcome in ('accepted', 'rejected', 'held')
+                 or q.transferred_at is not null
+                 or q.completed_at is not null)
+            and (
+              q.owner_id = any(${ownerIds}::int[])
+              or (${!tenantWide}::boolean and (
+                q.sent_to_sales_to = ${user.id}
+                or q.sales_accepted_by = ${user.id}
+              ))
+            )
         ) t
         group by 1
       `) as Array<{ client: string; decided: number; won: number }>;
@@ -303,6 +338,7 @@ export async function GET() {
     // Running totals for the blended-margin and coverage headline numbers.
     let sumSaleBase = 0;
     let sumSaleCovered = 0;
+    let sumCostCovered = 0;
     let sumGrossProfit = 0;
 
     for (const r of rows) {
@@ -318,9 +354,12 @@ export async function GET() {
       const grossProfit = saleCovered - costCovered;
       const marginPct =
         saleCovered > 0 ? (grossProfit / saleCovered) * 100 : null;
+      const dealMarkupPct =
+        costCovered > 0 ? (grossProfit / costCovered) * 100 : null;
       const coverage = saleBase > 0 ? saleCovered / saleBase : 0;
       sumSaleBase += saleBase;
       sumSaleCovered += saleCovered;
+      sumCostCovered += costCovered;
       sumGrossProfit += grossProfit;
 
       // Dynamic win probability from stall decay + this client's track record.
@@ -350,6 +389,7 @@ export async function GET() {
         attention,
         grossProfit,
         marginPct: marginPct === null ? null : Math.round(marginPct),
+        markupPct: dealMarkupPct === null ? null : Math.round(dealMarkupPct),
         coverage,
       });
     }
@@ -390,6 +430,14 @@ export async function GET() {
       sumSaleCovered > 0
         ? Math.round((sumGrossProfit / sumSaleCovered) * 100)
         : null;
+    // Markup over the SI base — how far above the System-Installer price the
+    // pipeline is sold. The SI base itself already carries a healthy margin,
+    // so selling AT SI base (0% markup) is NOT a loss; the UI presents this
+    // as "priced X% above SI base", never as profit-or-loss vs cost.
+    const markupPct =
+      sumCostCovered > 0
+        ? Math.round((sumGrossProfit / sumCostCovered) * 100)
+        : null;
     const marginCoverage =
       sumSaleBase > 0 ? Math.round((sumSaleCovered / sumSaleBase) * 100) : null;
 
@@ -410,12 +458,16 @@ export async function GET() {
 
     // Open leads aren't priced (no BoQ yet) — surface them as a count chip so
     // the board still shows the top of the funnel without faking a value.
+    // "Open" = presales hasn't finished them yet (completed_at gets stamped
+    // when the quotation is sent to sales); counting every lead ever created
+    // made the chip permanently overstate the funnel.
     let leadsOpen = 0;
     try {
       const leadRows = (await q`
         select count(*)::int as n from leads
         where deleted_at is null
-          and created_by = any(${ownerIds}::int[])
+          and completed_at is null
+          and created_by = any(${tenantWide ? ownerIds : [user.id]}::int[])
       `) as Array<{ n: number }>;
       leadsOpen = Number(leadRows[0]?.n ?? 0);
     } catch {
@@ -429,9 +481,11 @@ export async function GET() {
         openValue: sumValue(["quoting", "approved"]),
         committedValue: sumValue(["won", "held"]),
         deliveryValue: sumValue(["execution", "delivered"]),
+        wonValue: sumValue(["won", "held", "execution", "delivered"]),
         weightedForecast: Math.round(weightedForecast),
         weightedGrossProfit: Math.round(weightedGrossProfit),
         blendedMarginPct,
+        markupPct,
         marginCoverage,
         winRate,
         leadsOpen,

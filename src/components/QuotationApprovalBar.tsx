@@ -33,6 +33,8 @@ interface ApprovalState {
   sales_outcome_reason: string | null;
   hold_transfer_at: string | null;
   transferred_at: string | null;
+  // Sales "Mark as Completed" — terminal close of a won deal.
+  completed_at?: string | null;
   // 1.4C — RFQ handoff between presales and sales.
   sent_to_sales_at: string | null;
   sent_to_sales_by: number | null;
@@ -55,6 +57,9 @@ export default function QuotationApprovalBar({
   quotationId,
   initial,
   projectId,
+  clientName,
+  projectName,
+  clientPhone,
   readOnly = false,
 }: {
   quotationId: number;
@@ -62,12 +67,15 @@ export default function QuotationApprovalBar({
   /** The quotation's project, so an Accepted deal can attach the client's
    * signed PO straight into the Purchase Orders tab. */
   projectId?: number | null;
+  /** Client / project context for the post-win "Send to Delivery" request. */
+  clientName?: string | null;
+  projectName?: string | null;
+  clientPhone?: string | null;
   /**
-   * Read-only mode (default for this view now): the sales-outcome controls
-   * (Reject, Accepted / Rejected / Hold, Proceed to Execution) are redundant —
-   * sales drive those from the Quote-to-Delivery pipeline — so they are hidden
-   * and the bar shows STATUS only. The presales "Send to sales" handoff and the
-   * post-win PO upload (which have no pipeline equivalent) remain.
+   * Read-only mode: every action is hidden and only status pills render.
+   * The default view now SHOWS the sales deal actions (Mark as Win / Lost /
+   * Hold and the post-win follow-ups) — the pipeline board mirrors them, but
+   * the received quotation itself is where salespeople actually decide.
    */
   readOnly?: boolean;
 }) {
@@ -77,10 +85,14 @@ export default function QuotationApprovalBar({
   const [error, setError] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const [converted, setConverted] = useState(false);
-  // V1.3D — sales outcome (Accept / Reject / Hold for Execution).
+  // V1.3D — sales outcome (Mark as Win / Lost / Hold + post-win follow-ups).
   const [outcomeBusy, setOutcomeBusy] = useState(false);
   const [holdOpen, setHoldOpen] = useState(false);
   const [holdAt, setHoldAt] = useState("");
+  // Post-win "Send to Delivery": inline destination box → delivery request.
+  const [deliveryOpen, setDeliveryOpen] = useState(false);
+  const [deliveryDest, setDeliveryDest] = useState("");
+  const [deliveryDone, setDeliveryDone] = useState(false);
   // Recipient picker for "Send to sales". Presales chooses which salesperson
   // receives the quotation — required when it didn't come from a received lead
   // (no RFQ raiser to default to). Defaults back to the last recipient on a
@@ -315,6 +327,68 @@ export default function QuotationApprovalBar({
     await markOutcome("rejected", { reason: reason.trim() });
   }
 
+  // Post-win: close the deal for good — no projects handoff needed.
+  async function completeDeal() {
+    if (
+      !window.confirm(
+        "Mark this deal as Completed? This closes it as done — delivered and finished.",
+      )
+    ) {
+      return;
+    }
+    setOutcomeBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/quotations/complete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: quotationId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      await refetch();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setOutcomeBusy(false);
+    }
+  }
+
+  // Post-win: raise a delivery request so the delivery team runs the goods
+  // out — the supply-only alternative to a projects-team execution handoff.
+  async function sendToDelivery() {
+    setOutcomeBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/delivery/requests", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          source: "sales",
+          quotation_id: quotationId,
+          project_id: projectId ?? null,
+          client_name: clientName || projectName || null,
+          contact_phone: clientPhone || null,
+          destination: deliveryDest.trim() || null,
+          notes: `Delivery for won quotation #${quotationId}`,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      setDeliveryOpen(false);
+      setDeliveryDest("");
+      setDeliveryDone(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setOutcomeBusy(false);
+    }
+  }
+
   async function transferNow() {
     setOutcomeBusy(true);
     setError(null);
@@ -340,7 +414,11 @@ export default function QuotationApprovalBar({
   const rejected = !!state.rejected_at;
   const outcome = state.sales_outcome;
   const transferred = !!state.transferred_at;
-  const heldPending = outcome === "held" && !transferred;
+  const completed = !!state.completed_at;
+  const heldPending = outcome === "held" && !transferred && !completed;
+  const won = outcome === "accepted" && !transferred && !completed;
+  // Actions close once the deal leaves sales' hands (execution) or is done.
+  const decisionOpen = !transferred && !completed;
 
   // In read-only mode the only thing this bar carries that the Quote-to-Delivery
   // pipeline has no equivalent for is the presales "Send to sales" handoff. The
@@ -459,17 +537,19 @@ export default function QuotationApprovalBar({
         </div>
       )}
 
-      {/* V1.3D — sales records the client outcome. Accept / Reject can be
-          marked any time; Hold for Execution stages the deal and (with a
-          time set) auto-transfers it to the projects team. In read-only mode
-          (e.g. the presales view) only the status pills render — sales drive
-          the outcome from the Quote-to-Delivery pipeline now. */}
-      {(canConvert || outcome || transferred) && (
+      {/* Deal status — the salesperson's verdict on the received quotation.
+          Step 1: Mark as Win / Mark as Lost (justified) / Hold Lead.
+          Step 2 (after a win): Hold Delivery/Execution, Send to Delivery,
+          Send to Execution, or Mark as Completed. */}
+      {(canConvert || outcome || transferred || completed) && (
         <div className="mt-3 border-t border-magic-border/60 pt-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-semibold text-magic-ink/70">Outcome:</span>
-              {outcome === "accepted" && <Pill tone="ok">Won — client accepted</Pill>}
+              <span className="font-semibold text-magic-ink/70">Deal status:</span>
+              {completed && <Pill tone="ok">Completed ✓</Pill>}
+              {outcome === "accepted" && !completed && (
+                <Pill tone="ok">Won — client accepted</Pill>
+              )}
               {outcome === "rejected" && (
                 <Pill tone="warn">
                   Lost
@@ -479,56 +559,83 @@ export default function QuotationApprovalBar({
               )}
               {heldPending && (
                 <Pill tone="strong">
-                  Held for execution
+                  On hold
                   {state.hold_transfer_at
                     ? ` · auto-transfers ${new Date(state.hold_transfer_at).toLocaleString()}`
-                    : " · manual transfer"}
+                    : ""}
                 </Pill>
               )}
-              {transferred && <Pill tone="ok">Sent to projects ✓</Pill>}
-              {!outcome && !transferred && (
-                <span className="text-magic-ink/45">Not set yet</span>
+              {transferred && !completed && <Pill tone="ok">In execution ✓</Pill>}
+              {deliveryDone && <Pill tone="ok">Delivery requested ✓</Pill>}
+              {!outcome && !transferred && !completed && (
+                <span className="text-magic-ink/45">Not decided yet</span>
               )}
             </div>
-            {!readOnly && (
+            {!readOnly && canConvert && (
             <div className="flex flex-wrap items-center gap-2">
-              {!transferred && (
+              {decisionOpen && !won && (
                 <>
                   <button
                     onClick={() => void markOutcome("accepted")}
                     disabled={outcomeBusy}
-                    title="Client accepted the quotation"
-                    className="px-3 py-1 text-xs font-semibold rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
+                    title="The client accepted — mark this deal Won"
+                    className="px-3 py-1 text-xs font-semibold rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                   >
-                    Accepted
+                    Mark as Win ✓
                   </button>
                   <button
                     onClick={() => void rejectOutcome()}
                     disabled={outcomeBusy}
-                    title="The client passed — record why and mark the lead lost"
-                    className="px-3 py-1 text-xs font-semibold rounded border border-magic-border text-magic-ink/70 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 disabled:opacity-50 transition-colors"
+                    title="The client passed — record why and mark the deal Lost"
+                    className="px-3 py-1 text-xs font-semibold rounded border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 transition-colors"
                   >
-                    Rejected · Lead Lost
+                    Mark as Lost
                   </button>
+                  {!heldPending && (
+                    <button
+                      onClick={() => void markOutcome("held", { hold_transfer_at: null })}
+                      disabled={outcomeBusy}
+                      title="Park this lead — no decision yet, keep it on hold"
+                      className="px-3 py-1 text-xs font-semibold rounded border border-magic-border text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50 transition-colors"
+                    >
+                      Hold Lead
+                    </button>
+                  )}
+                </>
+              )}
+              {won && (
+                <>
                   <button
                     onClick={() => setHoldOpen((v) => !v)}
                     disabled={outcomeBusy}
-                    title="Park the won deal — stage it (optionally on a schedule) before it goes to the projects team"
-                    className="px-3 py-1 text-xs font-semibold rounded border border-magic-red text-magic-red hover:bg-magic-red hover:text-white disabled:opacity-50 transition-colors"
+                    title="Won, but delivery/execution waits — park it, optionally on a schedule"
+                    className="px-3 py-1 text-xs font-semibold rounded border border-magic-border text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50 transition-colors"
                   >
-                    Hold for execution
+                    Hold Delivery / Execution
+                  </button>
+                  <button
+                    onClick={() => setDeliveryOpen((v) => !v)}
+                    disabled={outcomeBusy}
+                    title="Raise a delivery request — the delivery team runs the goods to the client"
+                    className="px-3 py-1 text-xs font-semibold rounded border border-sky-300 text-sky-700 hover:bg-sky-50 disabled:opacity-50 transition-colors"
+                  >
+                    Send to Delivery
                   </button>
                   <button
                     onClick={() => setConverting(true)}
-                    disabled={outcomeBusy || rejected || (!accepted && !heldPending)}
-                    title={
-                      accepted || heldPending
-                        ? "Forward the deal to the project manager now — capture site / contact details and hand it off"
-                        : "Mark the quotation Accepted or Held first"
-                    }
+                    disabled={outcomeBusy}
+                    title="Hand the deal to the projects team — capture site / contact details for execution"
                     className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
                   >
-                    {converted ? "Proceed to Execution ✓" : "Proceed to Execution"}
+                    {converted ? "Send to Execution ✓" : "Send to Execution"}
+                  </button>
+                  <button
+                    onClick={() => void completeDeal()}
+                    disabled={outcomeBusy}
+                    title="Everything is delivered and done — close the deal as Completed"
+                    className="px-3 py-1 text-xs font-semibold rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
+                  >
+                    Mark as Completed
                   </button>
                 </>
               )}
@@ -536,9 +643,20 @@ export default function QuotationApprovalBar({
                 <button
                   onClick={() => void transferNow()}
                   disabled={outcomeBusy}
+                  title="Send the held deal to the projects team now"
                   className="px-3 py-1 text-xs font-semibold rounded bg-magic-red text-white hover:bg-magic-red/90 disabled:opacity-50 transition-colors"
                 >
-                  Transfer now
+                  Send to Execution now
+                </button>
+              )}
+              {transferred && !completed && (
+                <button
+                  onClick={() => void completeDeal()}
+                  disabled={outcomeBusy}
+                  title="Execution finished — close the deal as Completed"
+                  className="px-3 py-1 text-xs font-semibold rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
+                >
+                  Mark as Completed
                 </button>
               )}
             </div>
@@ -547,11 +665,11 @@ export default function QuotationApprovalBar({
           {accepted && projectId ? (
             <PoUploadInline projectId={projectId} />
           ) : null}
-          {!readOnly && holdOpen && !transferred && (
+          {!readOnly && holdOpen && won && (
             <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg border border-magic-border bg-magic-soft/40 p-3">
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wide text-magic-ink/60">
-                  Auto-transfer at (optional)
+                  Auto-send to execution at (optional)
                 </label>
                 <input
                   type="datetime-local"
@@ -567,7 +685,7 @@ export default function QuotationApprovalBar({
                 disabled={outcomeBusy}
                 className="rounded-md bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-magic-red/90 disabled:opacity-50"
               >
-                {holdAt ? "Hold & schedule" : "Hold (manual transfer)"}
+                {holdAt ? "Hold & schedule" : "Hold (send manually later)"}
               </button>
               <button
                 onClick={() => setHoldOpen(false)}
@@ -577,10 +695,40 @@ export default function QuotationApprovalBar({
                 Cancel
               </button>
               <p className="w-full text-[11px] text-magic-ink/50">
-                Leave the time empty to transfer manually whenever you&apos;re
-                ready. With a time set, the deal moves to the projects team
+                Leave the time empty to send it to the projects team manually
+                whenever you&apos;re ready. With a time set, the deal moves
                 automatically once it passes.
               </p>
+            </div>
+          )}
+          {!readOnly && deliveryOpen && won && (
+            <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg border border-magic-border bg-magic-soft/40 p-3">
+              <div className="min-w-[220px] flex-1">
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-magic-ink/60">
+                  Delivery destination (optional)
+                </label>
+                <input
+                  type="text"
+                  value={deliveryDest}
+                  onChange={(e) => setDeliveryDest(e.target.value)}
+                  placeholder="Site address / drop-off location"
+                  className="mt-1 w-full rounded-md border border-magic-border px-2 py-1 text-sm"
+                />
+              </div>
+              <button
+                onClick={() => void sendToDelivery()}
+                disabled={outcomeBusy}
+                className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
+              >
+                Raise delivery request
+              </button>
+              <button
+                onClick={() => setDeliveryOpen(false)}
+                disabled={outcomeBusy}
+                className="rounded-md border border-magic-border px-3 py-1.5 text-xs font-semibold hover:bg-magic-soft disabled:opacity-50"
+              >
+                Cancel
+              </button>
             </div>
           )}
         </div>
