@@ -13,7 +13,6 @@ import {
   TrendingUp,
   Layers,
   Wallet,
-  Truck,
   Coins,
   AlertTriangle,
   Sparkles,
@@ -50,6 +49,7 @@ interface DealCard {
   attention: boolean;
   grossProfit: number;
   marginPct: number | null;
+  markupPct: number | null;
   coverage: number;
 }
 
@@ -60,9 +60,11 @@ interface BoardData {
     openValue: number;
     committedValue: number;
     deliveryValue: number;
+    wonValue: number;
     weightedForecast: number;
     weightedGrossProfit: number;
     blendedMarginPct: number | null;
+    markupPct: number | null;
     marginCoverage: number | null;
     winRate: number | null;
     leadsOpen: number;
@@ -77,12 +79,12 @@ const COLUMNS: {
   icon: typeof FileText;
   accent: string;
 }[] = [
-  { key: "quoting", label: "Quoting & Approval", icon: FileText, accent: "text-slate-500" },
-  { key: "approved", label: "Approved · with client", icon: Send, accent: "text-sky-600" },
+  { key: "quoting", label: "Quoting", icon: FileText, accent: "text-slate-500" },
+  { key: "approved", label: "With client", icon: Send, accent: "text-sky-600" },
   { key: "won", label: "Won", icon: Trophy, accent: "text-emerald-600" },
-  { key: "held", label: "Held → Handoff", icon: PauseCircle, accent: "text-magic-red" },
+  { key: "held", label: "On hold", icon: PauseCircle, accent: "text-magic-red" },
   { key: "execution", label: "In Execution", icon: HardHat, accent: "text-violet-600" },
-  { key: "delivered", label: "Delivered", icon: CheckCircle2, accent: "text-emerald-700" },
+  { key: "delivered", label: "Completed", icon: CheckCircle2, accent: "text-emerald-700" },
   { key: "lost", label: "Lost", icon: XCircle, accent: "text-amber-600" },
 ];
 
@@ -110,10 +112,12 @@ function avgProbability(cards: DealCard[], stage: Stage): number {
   return cards.reduce((a, c) => a + c.probability, 0) / cards.length;
 }
 
-// Colour the per-deal gross-margin badge: red below cost, amber thin, green healthy.
-function marginTone(pct: number): string {
+// Colour the per-deal SI-markup badge. The SI base price already carries a
+// healthy margin, so selling AT SI base (0% markup) is normal business — only
+// pricing BELOW the SI base is flagged red. Everything else is neutral/green.
+function markupTone(pct: number): string {
   if (pct < 0) return "bg-red-100 text-red-700";
-  if (pct < 15) return "bg-amber-100 text-amber-700";
+  if (pct === 0) return "bg-slate-100 text-slate-600";
   return "bg-emerald-100 text-emerald-700";
 }
 
@@ -152,8 +156,15 @@ export default function PipelineBoardClient({
     async (id: number, outcome: "accepted" | "held" | "rejected") => {
       let reason: string | null = null;
       if (outcome === "rejected") {
-        reason = window.prompt("Reason for marking this deal Lost? (optional)");
+        reason = window.prompt(
+          "Mark this deal LOST — a reason is required (client passed, lost to a competitor, budget, …):",
+        );
         if (reason === null) return; // cancelled
+        if (!reason.trim()) {
+          window.alert("A reason is required to mark the deal as lost.");
+          return;
+        }
+        reason = reason.trim();
       }
       setBusyId(id);
       try {
@@ -212,37 +223,40 @@ export default function PipelineBoardClient({
 
   return (
     <div className="space-y-5">
-      {/* Forecast header — the numbers a generic CRM can't compute. The
-          weighted gross-profit forecast is the headline differentiator. */}
+      {/* Headline numbers — four plain-language KPIs that answer, in order:
+          what's in play, what will it likely bring in, what have I won, and
+          what's already delivered. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi
-          icon={Coins}
-          label="Weighted gross profit"
-          value={fmtMoney(m.weightedGrossProfit)}
-          hint={
-            m.blendedMarginPct !== null
-              ? `≈ ${m.blendedMarginPct}% blended margin`
-              : "cost data unavailable"
-          }
+          icon={Layers}
+          label="Open deals"
+          value={fmtMoney(m.openValue)}
+          hint={`${data.counts.quoting + data.counts.approved} deal${
+            data.counts.quoting + data.counts.approved === 1 ? "" : "s"
+          } awaiting a decision`}
           highlight
         />
         <Kpi
           icon={TrendingUp}
-          label="Weighted revenue"
+          label="Expected to close"
           value={fmtMoney(m.weightedForecast)}
-          hint="Σ value × AI win probability"
+          hint="each deal's value × its win chance"
         />
         <Kpi
-          icon={Layers}
-          label="Open pipeline"
-          value={fmtMoney(m.openValue)}
-          hint={`${data.counts.quoting + data.counts.approved} deals quoting / approved`}
+          icon={Trophy}
+          label="Won & on hold"
+          value={fmtMoney(m.committedValue)}
+          hint={`${data.counts.won + data.counts.held} deal${
+            data.counts.won + data.counts.held === 1 ? "" : "s"
+          } ready for delivery / execution`}
         />
         <Kpi
           icon={Wallet}
-          label="Committed (Won + Held)"
-          value={fmtMoney(m.committedValue)}
-          hint={`${data.counts.won + data.counts.held} deals`}
+          label="In execution & completed"
+          value={fmtMoney(m.deliveryValue)}
+          hint={`${data.counts.execution + data.counts.delivered} deal${
+            data.counts.execution + data.counts.delivered === 1 ? "" : "s"
+          } being delivered or done`}
         />
       </div>
 
@@ -264,20 +278,22 @@ export default function PipelineBoardClient({
             {m.attentionCount} need attention
           </span>
         )}
-        <span className="inline-flex items-center gap-1 rounded-full border border-magic-border bg-white px-3 py-1">
-          <Truck className="h-3.5 w-3.5" />
-          {fmtMoney(m.deliveryValue)} in delivery
-        </span>
-        {m.marginCoverage !== null && (
+        {m.markupPct !== null && (
           <span
-            className={`rounded-full border px-3 py-1 ${
-              m.marginCoverage >= 60
-                ? "border-magic-border bg-white"
-                : "border-amber-300 bg-amber-50 font-semibold text-amber-700"
+            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold ${
+              m.markupPct < 0
+                ? "border-red-300 bg-red-50 text-red-700"
+                : "border-magic-border bg-white"
             }`}
-            title="Gross margin is estimated from System-Installer cost (price_si) on the lines that carry it."
+            title={`How far above the System-Installer base price the pipeline is sold${
+              m.marginCoverage !== null && m.marginCoverage < 100
+                ? ` (based on the ${m.marginCoverage}% of value that carries an SI price)`
+                : ""
+            }. The SI base already includes a healthy margin, so 0% is not a loss.`}
           >
-            Cost data on {m.marginCoverage}% of value
+            <Coins className="h-3.5 w-3.5" />
+            {m.markupPct >= 0 ? "+" : ""}
+            {m.markupPct}% over SI base
           </span>
         )}
         <span className="rounded-full border border-magic-border bg-white px-3 py-1">
@@ -362,7 +378,7 @@ export default function PipelineBoardClient({
                   ? "—"
                   : `${fmtMoney(columnValue(cards))} · ${Math.round(
                       avgProbability(cards, col.key) * 100,
-                    )}% avg`}
+                    )}% win chance`}
               </div>
 
               <div className="flex flex-1 flex-col gap-2 px-0.5 pt-1">
@@ -372,7 +388,11 @@ export default function PipelineBoardClient({
                   </div>
                 ) : (
                   cards.map((card) => {
-                    const draggable = !readOnly && card.stage === "approved";
+                    // Approved deals get the full Won / Hold / Lost call; a
+                    // held deal can still be decided later (Won / Lost).
+                    const decidable =
+                      card.stage === "approved" || card.stage === "held";
+                    const draggable = !readOnly && decidable;
                     return (
                       <div
                         key={card.id}
@@ -399,21 +419,26 @@ export default function PipelineBoardClient({
                             {card.clientName || card.ownerName || card.ref}
                           </span>
                           <span className="flex shrink-0 items-center gap-1.5">
-                            {card.marginPct !== null && (
+                            {card.markupPct !== null && (
                               <span
-                                className={`rounded px-1 py-0.5 text-[9px] font-bold ${marginTone(
-                                  card.marginPct,
+                                className={`rounded px-1 py-0.5 text-[9px] font-bold ${markupTone(
+                                  card.markupPct,
                                 )}`}
-                                title={`Estimated gross margin${
+                                title={`Priced ${
+                                  card.markupPct >= 0
+                                    ? `${card.markupPct}% above`
+                                    : `${Math.abs(card.markupPct)}% BELOW`
+                                } the SI base price${
                                   card.coverage < 0.8
-                                    ? ` — cost data on ${Math.round(
+                                    ? ` (SI price on ${Math.round(
                                         card.coverage * 100,
-                                      )}% of lines`
+                                      )}% of lines)`
                                     : ""
-                                }`}
+                                }. The SI base already includes margin.`}
                               >
                                 {card.coverage < 0.8 ? "~" : ""}
-                                {card.marginPct}% GM
+                                {card.markupPct >= 0 ? "+" : ""}
+                                {card.markupPct}% SI
                               </span>
                             )}
                             <span className="font-semibold text-magic-ink/80">
@@ -466,25 +491,30 @@ export default function PipelineBoardClient({
                           </div>
                         )}
 
-                        {card.stage === "approved" && !readOnly && (
+                        {decidable && !readOnly && (
                           <div className="mt-2 flex gap-1">
                             <button
                               disabled={busyId === card.id}
                               onClick={() => markOutcome(card.id, "accepted")}
+                              title="The client accepted — mark this deal Won"
                               className="flex-1 rounded-lg bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                             >
-                              Won
+                              Win ✓
                             </button>
-                            <button
-                              disabled={busyId === card.id}
-                              onClick={() => markOutcome(card.id, "held")}
-                              className="flex-1 rounded-lg bg-magic-red px-2 py-1 text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
-                            >
-                              Held
-                            </button>
+                            {card.stage === "approved" && (
+                              <button
+                                disabled={busyId === card.id}
+                                onClick={() => markOutcome(card.id, "held")}
+                                title="No decision yet — put this lead on hold"
+                                className="flex-1 rounded-lg bg-magic-red px-2 py-1 text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                              >
+                                Hold
+                              </button>
+                            )}
                             <button
                               disabled={busyId === card.id}
                               onClick={() => markOutcome(card.id, "rejected")}
+                              title="The client passed — record why and mark it Lost"
                               className="flex-1 rounded-lg border border-magic-border bg-white px-2 py-1 text-[11px] font-semibold text-magic-ink/70 hover:bg-magic-soft disabled:opacity-50"
                             >
                               Lost

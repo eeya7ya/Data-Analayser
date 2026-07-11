@@ -149,7 +149,8 @@ export async function POST(req: NextRequest) {
     const q = sql();
     const rows = (await q`
       select id, owner_id, ref, project_name, client_name, client_phone,
-             client_email, items_json, folder_id, project_id, approved_at
+             client_email, items_json, folder_id, project_id, approved_at,
+             sent_to_sales_at, sent_to_sales_to, sales_accepted_by
       from quotations
       where id = ${quotationId} and deleted_at is null
       limit 1
@@ -165,6 +166,9 @@ export async function POST(req: NextRequest) {
       folder_id: number | null;
       project_id: number | null;
       approved_at: string | null;
+      sent_to_sales_at: string | null;
+      sent_to_sales_to: number | null;
+      sales_accepted_by: number | null;
     }>;
     if (rows.length === 0) {
       return NextResponse.json({ error: "quotation not found" }, { status: 404 });
@@ -174,17 +178,25 @@ export async function POST(req: NextRequest) {
     const isAdmin = canReadAll(user);
     const isSalesManager =
       isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
-    if (!isAdmin && !isSalesManager && quotation.owner_id !== user.id) {
+    // The recipient salesperson (sent_to_sales_to / whoever filed it) can
+    // send THEIR received deal to execution — mirrors /api/quotations/outcome.
+    const isRecipient =
+      quotation.sent_to_sales_to === user.id ||
+      quotation.sales_accepted_by === user.id;
+    if (!isAdmin && !isSalesManager && !isRecipient && quotation.owner_id !== user.id) {
       return NextResponse.json(
-        { error: "you can only convert your own quotations" },
+        { error: "you can only convert quotations sent to you or owned by you" },
         { status: 403 },
       );
     }
 
-    // Approved / won gate — only signed-off quotations become projects.
-    if (!quotation.approved_at) {
+    // Approved / won gate — a quotation reaches execution once it carries the
+    // legacy sign-off (`approved_at`) OR presales handed it to sales
+    // (`sent_to_sales_at`). Nothing in the current flow stamps `approved_at`
+    // by itself anymore, so requiring it alone made conversion unreachable.
+    if (!quotation.approved_at && !quotation.sent_to_sales_at) {
       return NextResponse.json(
-        { error: "quotation must be fully approved before it can be converted" },
+        { error: "quotation must be sent to sales (or approved) before it can be converted" },
         { status: 409 },
       );
     }

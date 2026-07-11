@@ -568,6 +568,15 @@ const DELIVERY_REQUESTS_FLAG = "delivery_requests_v1_2026_07";
  */
 const SENT_TO_SALES_RECIPIENT_FLAG = "quotation_sent_to_sales_to_v1_2026_07";
 
+/**
+ * Incremental migration: sales closes a won deal directly. "Mark as
+ * Completed" stamps `completed_at` / `completed_by` on the quotation so a
+ * won deal that never needs a projects-team handoff (supply-only, done on
+ * the spot) can still reach a terminal Delivered/Completed stage on the
+ * pipeline instead of sitting in Won forever.
+ */
+const QUOTATION_COMPLETED_FLAG = "quotation_completed_v1_2026_07";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -898,6 +907,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let v18FileShareApplied = false;
   let deliveryRequestsApplied = false;
   let sentToSalesRecipientApplied = false;
+  let quotationCompletedApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -920,7 +930,8 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${PROJECT_DISTRIBUTION_FLAG}, ${PRICING_MFG_DEFAULTS_FLAG},
         ${PROJECT_DISTRIBUTION_PHONE_FLAG}, ${CHECKLIST_TEMPLATES_FLAG},
         ${V18_MODULES_FLAG}, ${V18_FILE_SHARE_FLAG},
-        ${DELIVERY_REQUESTS_FLAG}, ${SENT_TO_SALES_RECIPIENT_FLAG}
+        ${DELIVERY_REQUESTS_FLAG}, ${SENT_TO_SALES_RECIPIENT_FLAG},
+        ${QUOTATION_COMPLETED_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -970,6 +981,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     v18FileShareApplied = keys.has(V18_FILE_SHARE_FLAG);
     deliveryRequestsApplied = keys.has(DELIVERY_REQUESTS_FLAG);
     sentToSalesRecipientApplied = keys.has(SENT_TO_SALES_RECIPIENT_FLAG);
+    quotationCompletedApplied = keys.has(QUOTATION_COMPLETED_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -1021,7 +1033,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     v18ModulesApplied &&
     v18FileShareApplied &&
     deliveryRequestsApplied &&
-    sentToSalesRecipientApplied
+    sentToSalesRecipientApplied &&
+    quotationCompletedApplied
   )
     return;
 
@@ -3406,6 +3419,23 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${SENT_TO_SALES_RECIPIENT_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  // Sales "Mark as Completed" — terminal close for a won deal that doesn't go
+  // through the projects handoff (supply-only / delivered on the spot).
+  if (!quotationCompletedApplied) {
+    await q`
+      alter table quotations
+        add column if not exists completed_at timestamptz
+    `;
+    await q`
+      alter table quotations
+        add column if not exists completed_by integer references users(id) on delete set null
+    `;
+    await q`
+      insert into migration_flags (key) values (${QUOTATION_COMPLETED_FLAG})
       on conflict (key) do nothing
     `;
   }

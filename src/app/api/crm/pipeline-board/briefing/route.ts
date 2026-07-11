@@ -33,6 +33,8 @@ interface Row {
   rejected_at: string | null;
   sales_outcome: string | null;
   transferred_at: string | null;
+  sent_to_sales_at: string | null;
+  completed_at: string | null;
   project_status: string | null;
   totals_json: string | Record<string, unknown> | null;
   age_anchor: string | null;
@@ -108,6 +110,7 @@ export async function POST() {
     const rows = (await q`
       select q.id, q.ref, q.client_name,
              q.approved_at, q.rejected_at, q.sales_outcome, q.transferred_at,
+             q.sent_to_sales_at, q.completed_at,
              p.status as project_status,
              q.totals_json as totals_json,
              coalesce(
@@ -117,7 +120,22 @@ export async function POST() {
       left join projects p on p.id = q.project_id
       where q.deleted_at is null
         and q.parent_ref is null
-        and q.owner_id = any(${ownerIds}::int[])
+        and (
+          q.owner_id = any(${ownerIds}::int[])
+          or (${!tenantWide}::boolean and (
+            q.sent_to_sales_to = ${user.id}
+            or q.sales_accepted_by = ${user.id}
+            or exists (
+              select 1 from leads l
+              where l.deleted_at is null
+                and l.created_by = ${user.id}
+                and (l.quotation_id = q.id
+                     or (q.project_id is not null
+                         and (l.project_id = q.project_id
+                              or l.sales_project_id = q.project_id)))
+            )
+          ))
+        )
       order by coalesce(q.sales_outcome_at, q.approved_at, q.updated_at, q.created_at) desc
       limit 1000
     `) as Row[];

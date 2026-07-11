@@ -406,6 +406,7 @@ export default function QuotationViewer({
     sales_outcome_reason: (row.sales_outcome_reason as string | null) ?? null,
     hold_transfer_at: (row.hold_transfer_at as string | null) ?? null,
     transferred_at: (row.transferred_at as string | null) ?? null,
+    completed_at: (row.completed_at as string | null) ?? null,
   };
 
   return (
@@ -414,7 +415,9 @@ export default function QuotationViewer({
         quotationId={id}
         initial={approvalState}
         projectId={(row.project_id as number | null) ?? null}
-        readOnly
+        clientName={header.client_name || null}
+        projectName={header.project_name || null}
+        clientPhone={header.client_phone || null}
       />
       <div className="no-print flex flex-wrap justify-end mb-3 gap-2">
         {salesLocked ? (

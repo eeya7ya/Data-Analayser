@@ -68,7 +68,9 @@ export async function POST(req: NextRequest) {
 
     const q = sql();
     const rows = (await q`
-      select id, ref, owner_id, project_id, approved_at, transferred_at
+      select id, ref, owner_id, project_id, approved_at, transferred_at,
+             sent_to_sales_to, sales_accepted_by, sent_to_sales_at,
+             completed_at
       from quotations
       where id = ${id} and deleted_at is null
       limit 1
@@ -79,6 +81,10 @@ export async function POST(req: NextRequest) {
       project_id: number | null;
       approved_at: string | null;
       transferred_at: string | null;
+      sent_to_sales_to: number | null;
+      sales_accepted_by: number | null;
+      sent_to_sales_at: string | null;
+      completed_at: string | null;
     }>;
     if (rows.length === 0) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -89,11 +95,16 @@ export async function POST(req: NextRequest) {
     const isSalesManager =
       isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
     // The presales author owns the quotation row, but the deal verdict is the
-    // salesperson's call — so the salesperson who raised the RFQ for this
-    // quotation's project may mark the outcome too, not just the owner. This
-    // is what makes Accept → upload PO / Lead Lost reachable for plain sales.
+    // salesperson's call. Besides the owner, the salesperson the quotation was
+    // SENT to (sent_to_sales_to / whoever filed it) may mark the outcome — it
+    // is literally their deal to close — as may the salesperson who raised the
+    // RFQ for this quotation's project. This is what makes Win / Lost / Hold
+    // reachable for plain sales.
+    const isRecipient =
+      quotation.sent_to_sales_to === user.id ||
+      quotation.sales_accepted_by === user.id;
     let raisedRfq = false;
-    if (!isAdmin && !isSalesManager && quotation.owner_id !== user.id) {
+    if (!isAdmin && !isSalesManager && !isRecipient && quotation.owner_id !== user.id) {
       const leadRows = (await q`
         select 1 from leads
         where deleted_at is null and created_by = ${user.id}
@@ -111,13 +122,15 @@ export async function POST(req: NextRequest) {
     if (
       !isAdmin &&
       !isSalesManager &&
+      !isRecipient &&
       quotation.owner_id !== user.id &&
       !raisedRfq
     ) {
-      // Plain salespeople may mark outcomes on quotations they own OR raised
-      // the RFQ for. Managers / admins can mark any.
+      // Plain salespeople may mark outcomes on quotations they own, received
+      // via "Send to sales", OR raised the RFQ for. Managers / admins can
+      // mark any.
       return NextResponse.json(
-        { error: "you can only mark outcomes on your own quotations" },
+        { error: "you can only mark outcomes on quotations sent to you or raised by you" },
         { status: 403 },
       );
     }
@@ -128,10 +141,24 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
-
-    if ((outcome === "accepted" || outcome === "held") && !quotation.approved_at) {
+    if (quotation.completed_at) {
       return NextResponse.json(
-        { error: "the quotation must be approved before it can be accepted or held" },
+        { error: "this deal was already marked completed" },
+        { status: 409 },
+      );
+    }
+
+    // A deal is decidable once it reached sales: either the legacy manager
+    // sign-off (`approved_at`) or the presales "Send to sales" handoff
+    // (`sent_to_sales_at`). Nothing in the current flow stamps `approved_at`
+    // anymore, so requiring it alone made Win/Hold permanently unreachable.
+    if (
+      (outcome === "accepted" || outcome === "held") &&
+      !quotation.approved_at &&
+      !quotation.sent_to_sales_at
+    ) {
+      return NextResponse.json(
+        { error: "the quotation must be sent to sales (or approved) before it can be won or held" },
         { status: 409 },
       );
     }
@@ -140,6 +167,14 @@ export async function POST(req: NextRequest) {
       outcome === "rejected"
         ? String(body.reason || "").trim().slice(0, 2000) || null
         : null;
+    // Losing a deal always carries a justification — the whole point of
+    // recording the loss is knowing why.
+    if (outcome === "rejected" && !reason) {
+      return NextResponse.json(
+        { error: "a reason is required to mark the deal as lost" },
+        { status: 400 },
+      );
+    }
 
     // Only a held quotation carries a transfer schedule. Anything
     // unparseable becomes null = manual-only.
@@ -152,6 +187,11 @@ export async function POST(req: NextRequest) {
     // "Client accepted" pill keeps working without a second source of truth.
     const acceptedAt = outcome === "accepted" ? new Date().toISOString() : null;
 
+    // Winning / holding a sent-to-sales deal also stamps `approved_at` (when
+    // missing) so the downstream execution gates — transfer-hold, the hold
+    // sweep and the project-handoff convert — all of which still require an
+    // approved quotation, accept it without a separate sign-off step.
+    const stampApproval = outcome === "accepted" || outcome === "held";
     await q`
       update quotations
       set sales_outcome = ${outcome},
@@ -160,6 +200,9 @@ export async function POST(req: NextRequest) {
           sales_outcome_reason = ${reason},
           hold_transfer_at = ${holdTransferAt},
           accepted_at = ${acceptedAt},
+          approved_at = case when ${stampApproval}::boolean
+                             then coalesce(approved_at, now())
+                             else approved_at end,
           updated_at = now()
       where id = ${id}
     `;
