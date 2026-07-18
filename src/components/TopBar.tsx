@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, LogOut, ArrowLeft } from "lucide-react";
+import { Menu, LogOut, ArrowLeft, LifeBuoy } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import NotificationsBell, {
   clearNotificationsCache,
 } from "@/components/NotificationsBell";
 import SideNav from "@/components/SideNav";
+import HelpCenter from "@/components/HelpCenter";
 import AppFooter from "@/components/AppFooter";
 
 interface ModuleRole {
@@ -38,6 +39,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
     moduleRolesCache
   );
   const [navOpen, setNavOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // The dashboard ("/") is the top of the hierarchy — nothing to go back to —
   // so the global Back control is hidden there and shown on every other page.
@@ -127,6 +129,16 @@ export default function TopBar({ user }: { user: SessionUser }) {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setHelpOpen(true)}
+              aria-label="Open help center"
+              title="Help"
+              className="inline-flex h-9 items-center gap-2 rounded-xl border border-magic-border/70 bg-white/70 px-3 text-magic-ink/80 shadow-sm hover:border-magic-red/40 hover:text-magic-red transition-colors"
+            >
+              <LifeBuoy className="h-4 w-4" />
+              <span className="hidden text-xs font-semibold sm:inline">Help</span>
+            </button>
             <NotificationsBell />
             <span className="ml-1 hidden items-center gap-1.5 rounded-full border border-magic-border/60 bg-white/60 px-3 py-1 text-[11px] font-medium text-magic-ink/70 sm:inline-flex">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -148,6 +160,12 @@ export default function TopBar({ user }: { user: SessionUser }) {
       <SideNav
         open={navOpen}
         onClose={() => setNavOpen(false)}
+        user={user}
+        moduleRoles={moduleRoles}
+      />
+      <HelpCenter
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
         user={user}
         moduleRoles={moduleRoles}
       />
