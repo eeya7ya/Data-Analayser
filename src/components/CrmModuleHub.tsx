@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import CrmSearch from "@/components/CrmSearch";
+import HelpTip from "@/components/HelpTip";
 
 /**
  * The CRM hub. Tools are the role lifecycles (Sales / Presales /
@@ -317,8 +318,9 @@ export default function CrmModuleHub({
   if (tab === null) {
     return (
       <div>
-        <p className="mb-3 text-sm font-semibold text-magic-ink/70">
+        <p className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-magic-ink/70">
           Pick a tool to get started
+          <HelpTip id="crm.tools" />
         </p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {tools.map((id) => {
@@ -401,6 +403,7 @@ export default function CrmModuleHub({
             <h2 className="text-sm font-bold uppercase tracking-wide text-magic-ink/55">
               Clients
             </h2>
+            <HelpTip id="crm.clients" />
             <span className="h-px flex-1 bg-magic-border/70" />
           </div>
           <CrmSearch />

@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import MessagesPanel from "@/components/MessagesPanel";
 import QuickLeadCreate from "@/components/QuickLeadCreate";
+import HelpTip from "@/components/HelpTip";
 
 interface TrendPoint {
   label: string;
@@ -142,6 +143,12 @@ export default function DashboardClient({
           every un-approved quotation (i.e. the whole live Quoting pipeline)
           under a misleading label — legacy dead data with no action behind it.
           The pipeline board is the source of truth for open deals now. */}
+      <div className="mb-2 flex items-center gap-1.5">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-magic-ink/55">
+          At a glance
+        </h2>
+        <HelpTip id="dashboard.kpis" />
+      </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <Kpi label={primaryKpiLabel} value={kpis.quotations} icon={FileText} tone="red" />
         <Kpi
@@ -165,6 +172,7 @@ export default function DashboardClient({
           subtitle={`${GRANULARITY_META[granularity].subtitle} · ${trendTotal} total`}
           icon={TrendingUp}
           tone="red"
+          helpId="dashboard.trend"
           right={
             <div className="inline-flex items-center gap-0.5 rounded-lg border border-magic-border bg-magic-soft/40 p-0.5">
               {(["daily", "weekly", "monthly"] as Granularity[]).map((g) => (
@@ -220,6 +228,7 @@ export default function DashboardClient({
           subtitle="Won · Lost · Held"
           icon={Trophy}
           tone="emerald"
+          helpId="dashboard.outcomes"
         >
           {outcomeTotal === 0 ? (
             <EmptyChart label="No decided deals yet." />
@@ -264,7 +273,7 @@ export default function DashboardClient({
 
       {/* Secondary analytics + inbox, all on one row. */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <ChartCard title="By status" subtitle="Active quotations" icon={Layers} tone="cyan">
+        <ChartCard title="By status" subtitle="Active quotations" icon={Layers} tone="cyan" helpId="dashboard.status">
           {status.length === 0 ? (
             <EmptyChart label="No active quotations yet." />
           ) : (
@@ -381,6 +390,7 @@ function ChartCard({
   tone,
   right,
   className = "",
+  helpId,
   children,
 }: {
   title: string;
@@ -389,6 +399,8 @@ function ChartCard({
   tone: keyof typeof NAV_TONES;
   right?: React.ReactNode;
   className?: string;
+  /** Optional HELP_TIPS id — renders a ⍰ marker next to the title. */
+  helpId?: string;
   children: React.ReactNode;
 }) {
   const t = NAV_TONES[tone];
@@ -404,7 +416,10 @@ function ChartCard({
             <Icon className="h-[18px] w-[18px]" />
           </span>
           <div className="min-w-0">
-            <h3 className="truncate text-sm font-bold text-magic-ink">{title}</h3>
+            <h3 className="flex items-center gap-1.5 text-sm font-bold text-magic-ink">
+              <span className="truncate">{title}</span>
+              {helpId && <HelpTip id={helpId} />}
+            </h3>
             {subtitle && (
               <p className="truncate text-xs text-magic-ink/50">{subtitle}</p>
             )}
