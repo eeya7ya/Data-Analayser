@@ -8,7 +8,7 @@ import {
   FolderOpen,
   Plus,
   Check,
-} from "lucide-react";
+} from "@/lib/icons";
 import { cn } from "@/lib/pricing/utils";
 import Spinner from "@/components/Spinner";
 

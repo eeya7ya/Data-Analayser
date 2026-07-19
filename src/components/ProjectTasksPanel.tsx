@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, ListChecks } from "lucide-react";
+import { Plus, Trash2, ListChecks } from "@/lib/icons";
 import { confirmDelete } from "@/lib/confirmDelete";
 
 /**

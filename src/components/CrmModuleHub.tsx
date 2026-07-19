@@ -13,7 +13,7 @@ import {
   User,
   BadgeCheck,
   type LucideIcon,
-} from "lucide-react";
+} from "@/lib/icons";
 import CrmSearch from "@/components/CrmSearch";
 import HelpTip from "@/components/HelpTip";
 

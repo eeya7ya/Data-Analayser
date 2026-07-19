@@ -9,7 +9,7 @@ import {
   Trash2,
   Tag,
   AlertTriangle,
-} from "lucide-react";
+} from "@/lib/icons";
 import { cn } from "@/lib/pricing/utils";
 import { getManufacturerColor } from "@/lib/pricing/manufacturerColors";
 

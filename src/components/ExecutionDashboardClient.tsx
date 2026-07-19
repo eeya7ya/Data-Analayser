@@ -8,7 +8,7 @@ import {
   MessageSquareText,
   Inbox,
   type LucideIcon,
-} from "lucide-react";
+} from "@/lib/icons";
 import MessagesPanel from "@/components/MessagesPanel";
 import ExecutionReportsSummary from "@/components/ExecutionReportsSummary";
 

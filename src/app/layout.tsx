@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import ClickTracker from "@/components/ClickTracker";
+import IconProvider from "@/components/IconProvider";
 
 export const metadata: Metadata = {
   title: "MagicTech — Data Analytics & Quotation Platform",
@@ -31,7 +32,7 @@ export default function RootLayout({
       <body className="min-h-screen text-magic-ink antialiased selection:bg-magic-red/20 selection:text-magic-ink">
         <ServiceWorkerRegister />
         <ClickTracker />
-        {children}
+        <IconProvider>{children}</IconProvider>
       </body>
     </html>
   );

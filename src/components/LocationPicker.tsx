@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
 import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
-import { Crosshair } from "lucide-react";
+import { Crosshair } from "@/lib/icons";
 
 /**
  * OpenStreetMap location picker built directly on Leaflet (no API key,

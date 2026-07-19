@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera } from "lucide-react";
+import { Camera } from "@/lib/icons";
 
 /**
  * StockManagement — the V1.5A stock module surface (Storage workspace).

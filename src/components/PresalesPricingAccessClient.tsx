@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Tags, ShieldCheck } from "lucide-react";
+import { Tags, ShieldCheck } from "@/lib/icons";
 
 export interface PresalesMember {
   id: number;

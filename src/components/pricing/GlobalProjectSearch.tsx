@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Globe, X, Factory } from "lucide-react";
+import { Search, Globe, X, Factory } from "@/lib/icons";
 import Spinner from "@/components/Spinner";
 import { cn } from "@/lib/pricing/utils";
 

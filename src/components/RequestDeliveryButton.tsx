@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Truck } from "lucide-react";
+import { Truck } from "@/lib/icons";
 
 /**
  * Raise a delivery request from a project (V1.8). Sales and projects use this

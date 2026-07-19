@@ -9,7 +9,7 @@ import {
   AlertTriangle,
   Play,
   Unplug,
-} from "lucide-react";
+} from "@/lib/icons";
 import {
   isSyncSupported,
   loadDirHandle,

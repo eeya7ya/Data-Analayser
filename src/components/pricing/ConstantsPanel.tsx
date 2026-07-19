@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { type Constants } from "@/lib/pricing/calculations";
 import { cn } from "@/lib/pricing/utils";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw } from "@/lib/icons";
 import Spinner from "@/components/Spinner";
 
 export interface Currency {

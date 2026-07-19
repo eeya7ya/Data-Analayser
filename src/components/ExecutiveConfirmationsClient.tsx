@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, XCircle, Clock, FileText, Tags } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, FileText, Tags } from "@/lib/icons";
 
 export interface ExecItem {
   id: number;

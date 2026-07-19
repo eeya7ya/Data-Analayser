@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, LogOut, ArrowLeft, LifeBuoy } from "lucide-react";
+import { Menu, LogOut, ArrowLeft, LifeBuoy } from "@/lib/icons";
 import type { SessionUser } from "@/lib/auth";
 import NotificationsBell, {
   clearNotificationsCache,

@@ -16,7 +16,7 @@ import {
   Coins,
   AlertTriangle,
   Sparkles,
-} from "lucide-react";
+} from "@/lib/icons";
 import Spinner from "@/components/Spinner";
 import PageLoader from "@/components/PageLoader";
 import { type Stage, STAGE_PROBABILITY } from "@/lib/pipeline";

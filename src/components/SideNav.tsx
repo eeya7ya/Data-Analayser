@@ -17,7 +17,7 @@ import {
   Truck,
   X,
   type LucideIcon,
-} from "lucide-react";
+} from "@/lib/icons";
 import type { SessionUser } from "@/lib/auth";
 import { canReadAll } from "@/lib/authShared";
 

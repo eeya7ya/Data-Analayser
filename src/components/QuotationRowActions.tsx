@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, Copy, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, Trash2 } from "@/lib/icons";
 import Spinner from "@/components/Spinner";
 import { confirmDelete } from "@/lib/confirmDelete";
 

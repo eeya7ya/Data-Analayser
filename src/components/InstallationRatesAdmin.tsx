@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "@/lib/icons";
 
 /**
  * Admin editor for the installation-calculator rate book. One flat list of

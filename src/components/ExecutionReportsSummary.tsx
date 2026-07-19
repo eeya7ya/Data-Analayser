@@ -8,7 +8,7 @@ import {
   CheckCircle2,
   Gauge,
   type LucideIcon,
-} from "lucide-react";
+} from "@/lib/icons";
 
 /**
  * Project-manager execution roll-up for the dashboard. Two things the PM

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { MapPin, Phone, User, ClipboardList, ChevronDown, CheckCircle2 } from "lucide-react";
+import { MapPin, Phone, User, ClipboardList, ChevronDown, CheckCircle2 } from "@/lib/icons";
 import Spinner from "@/components/Spinner";
 
 interface BoqLine {

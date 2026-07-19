@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { HelpCircle, X } from "lucide-react";
+import { HelpCircle, X } from "@/lib/icons";
 import { HELP_TIPS, type HelpTipContent } from "@/lib/help/content";
 
 /**

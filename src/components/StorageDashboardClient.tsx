@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ClipboardCheck, CheckCircle2, type LucideIcon } from "lucide-react";
+import { ClipboardCheck, CheckCircle2, type LucideIcon } from "@/lib/icons";
 import MessagesPanel from "@/components/MessagesPanel";
 
 /**

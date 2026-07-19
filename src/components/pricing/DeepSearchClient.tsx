@@ -11,7 +11,7 @@ import {
   Factory,
   Package,
   X,
-} from "lucide-react";
+} from "@/lib/icons";
 import Spinner from "@/components/Spinner";
 import { cn } from "@/lib/pricing/utils";
 

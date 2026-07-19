@@ -8,7 +8,7 @@ import {
   Trash2,
   Download,
   Check,
-} from "lucide-react";
+} from "@/lib/icons";
 import Spinner from "@/components/Spinner";
 
 /**
