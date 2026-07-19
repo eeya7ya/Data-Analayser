@@ -9,7 +9,7 @@ import {
   MapPin,
   CalendarDays,
   Flag,
-} from "lucide-react";
+} from "@/lib/icons";
 import { confirmDelete } from "@/lib/confirmDelete";
 import Spinner from "@/components/Spinner";
 

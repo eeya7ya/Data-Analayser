@@ -8,7 +8,7 @@ import {
   Plus,
   Trash2,
   X,
-} from "lucide-react";
+} from "@/lib/icons";
 
 /**
  * Calendar Marker — a per-user week calendar designed to feel soft and

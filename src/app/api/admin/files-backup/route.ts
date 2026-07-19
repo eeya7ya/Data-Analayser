@@ -212,13 +212,17 @@ async function collectPricing(
     created_at: string;
   }>;
 
-  const projectIds = projects.map((p) => p.id);
-
+  // Read constants + lines by JOINing to the (non-deleted) projects rather than
+  // an `= any(<projectIds>)` list. On D1 that list expands to one bound
+  // parameter per project id and overflows SQLite's ~100-parameter cap once the
+  // workspace has enough pricing sheets — which failed the whole files-backup
+  // (and with it the R2 backup and the Complete archive). A JOIN binds nothing.
   const constants = (await q`
-    select project_id, currency_rate, shipping_rate, customs_rate,
-           profit_margin, tax_rate, target_currency, source_currency
-    from pricing_project_constants
-    where project_id = any(${projectIds}::bigint[])
+    select c.project_id, c.currency_rate, c.shipping_rate, c.customs_rate,
+           c.profit_margin, c.tax_rate, c.target_currency, c.source_currency
+    from pricing_project_constants c
+    join pricing_projects p on p.id = c.project_id
+    where p.deleted_at is null
   `) as Array<Record<string, unknown>>;
   const constByProject = new Map<number, PricingConstants>();
   for (const c of constants) {
@@ -234,12 +238,13 @@ async function collectPricing(
   }
 
   const lines = (await q`
-    select project_id, position, item_model, price_usd, quantity,
-           shipping_override, customs_override,
-           shipping_rate_override, customs_rate_override, profit_rate_override
-    from pricing_product_lines
-    where project_id = any(${projectIds}::bigint[])
-    order by project_id asc, position asc
+    select l.project_id, l.position, l.item_model, l.price_usd, l.quantity,
+           l.shipping_override, l.customs_override,
+           l.shipping_rate_override, l.customs_rate_override, l.profit_rate_override
+    from pricing_product_lines l
+    join pricing_projects p on p.id = l.project_id
+    where p.deleted_at is null
+    order by l.project_id asc, l.position asc
   `) as Array<Record<string, unknown>>;
   const linesByProject = new Map<number, PricingLine[]>();
   for (const l of lines) {

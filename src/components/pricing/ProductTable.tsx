@@ -9,7 +9,7 @@ import {
   type ProductInput,
 } from "@/lib/pricing/calculations";
 import { cn } from "@/lib/pricing/utils";
-import { Copy, ClipboardPaste, Lock, Unlock, Trash2, Settings2, RotateCcw, Info, X } from "lucide-react";
+import { Copy, ClipboardPaste, Lock, Unlock, Trash2, Settings2, RotateCcw, Info, X } from "@/lib/icons";
 
 interface Row extends ProductInput {
   id: number;

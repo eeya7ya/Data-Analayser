@@ -19,7 +19,7 @@ import {
 } from "@/lib/pricing/calculations";
 import { cn } from "@/lib/pricing/utils";
 import PageLoader from "@/components/PageLoader";
-import { GitCompare, Factory, ArrowRight } from "lucide-react";
+import { GitCompare, Factory, ArrowRight } from "@/lib/icons";
 
 interface ProductLine {
   id: number;

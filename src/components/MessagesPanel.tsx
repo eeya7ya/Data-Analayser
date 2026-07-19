@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell, MessageSquare, Check, X, CheckCheck } from "lucide-react";
+import { Bell, MessageSquare, Check, X, CheckCheck } from "@/lib/icons";
 import Spinner from "@/components/Spinner";
 import type { NotificationItem } from "@/app/api/notifications/route";
 

@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   Check,
   type LucideIcon,
-} from "lucide-react";
+} from "@/lib/icons";
 import UsersAndRolesPanel from "./UsersAndRolesPanel";
 import AdminSettings from "./AdminSettings";
 import BrandingAdmin from "./BrandingAdmin";

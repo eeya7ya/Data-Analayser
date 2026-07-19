@@ -30,7 +30,7 @@ import {
   LayoutGrid,
   X,
   type LucideIcon,
-} from "lucide-react";
+} from "@/lib/icons";
 import MessagesPanel from "@/components/MessagesPanel";
 import QuickLeadCreate from "@/components/QuickLeadCreate";
 import HelpTip from "@/components/HelpTip";

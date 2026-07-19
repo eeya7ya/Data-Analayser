@@ -5,6 +5,7 @@ import {
   X,
   Search,
   ChevronDown,
+  HelpCircle,
   LifeBuoy,
   Compass,
   NotebookPen,
@@ -18,7 +19,7 @@ import {
   ShieldCheck,
   BookOpen,
   type LucideIcon,
-} from "lucide-react";
+} from "@/lib/icons";
 import type { SessionUser } from "@/lib/auth";
 import { canReadAll } from "@/lib/authShared";
 import { docsForUser, type Grant, type HelpDoc } from "@/lib/help/content";
@@ -265,8 +266,9 @@ export default function HelpCenter({
 
         {/* Footer hint */}
         <div className="border-t border-magic-border/60 bg-magic-soft/40 px-4 py-3">
-          <p className="text-[11px] leading-relaxed text-magic-ink/50">
-            Look for the <span className="font-semibold text-magic-ink/70">⍰</span>{" "}
+          <p className="inline-flex flex-wrap items-center gap-1 text-[11px] leading-relaxed text-magic-ink/50">
+            Look for the
+            <HelpCircle className="h-3.5 w-3.5 text-magic-ink/70" />
             markers around the app for a quick explanation of any area.
           </p>
         </div>

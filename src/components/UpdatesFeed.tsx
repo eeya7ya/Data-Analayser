@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Megaphone, Sparkles, Clock } from "lucide-react";
+import { Megaphone, Sparkles, Clock } from "@/lib/icons";
 import { APP_VERSION_LABEL } from "@/lib/version";
 
 /**

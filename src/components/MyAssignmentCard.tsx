@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapPin, CalendarDays, StickyNote, UserCheck } from "lucide-react";
+import { MapPin, CalendarDays, StickyNote, UserCheck } from "@/lib/icons";
 
 /**
  * A prominent "Your assignment" callout for the person executing a

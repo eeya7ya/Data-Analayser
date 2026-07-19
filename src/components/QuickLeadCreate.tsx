@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, Paperclip, FileText, Trash2 } from "lucide-react";
+import { Plus, X, Paperclip, FileText, Trash2 } from "@/lib/icons";
 
 /**
  * Sales quick-create lead (V1.8).

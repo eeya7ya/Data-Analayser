@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Factory, BarChart3, AlertCircle, ScanSearch } from "lucide-react";
+import { Plus, Factory, BarChart3, AlertCircle, ScanSearch } from "@/lib/icons";
 import PageLoader from "@/components/PageLoader";
 import { ManufacturerCard } from "@/components/pricing/ManufacturerCard";
 import { PricingBackupToolbar } from "@/components/pricing/ManufacturerBackup";

@@ -11,7 +11,7 @@ import {
   FolderOpen,
   ChevronLeft,
   AlertTriangle,
-} from "lucide-react";
+} from "@/lib/icons";
 import { cn } from "@/lib/pricing/utils";
 import PageLoader from "@/components/PageLoader";
 

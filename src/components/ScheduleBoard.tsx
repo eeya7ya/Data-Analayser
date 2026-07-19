@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, AlertTriangle, Inbox } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertTriangle, Inbox } from "@/lib/icons";
 
 /**
  * Project-manager day scheduler. A week grid of technicians (rows) × days

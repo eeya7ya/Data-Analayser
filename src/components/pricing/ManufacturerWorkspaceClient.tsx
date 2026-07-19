@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Factory, Pencil, Check, X } from "lucide-react";
+import { ChevronLeft, Factory, Pencil, Check, X } from "@/lib/icons";
 import { PricingSheet } from "@/components/pricing/PricingSheet";
 import { GlobalProjectSearch } from "@/components/pricing/GlobalProjectSearch";
 import { ManufacturerBackup } from "@/components/pricing/ManufacturerBackup";

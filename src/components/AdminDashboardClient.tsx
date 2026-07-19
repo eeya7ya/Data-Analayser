@@ -16,7 +16,7 @@ import {
   KeyRound,
   Building2,
   type LucideIcon,
-} from "lucide-react";
+} from "@/lib/icons";
 import MessagesPanel from "@/components/MessagesPanel";
 
 export interface DepartmentRow {

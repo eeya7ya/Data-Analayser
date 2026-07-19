@@ -121,12 +121,23 @@ export async function buildManufacturerBackup(
   const idToIndex = new Map<number, number>();
   projectRows.forEach((p, i) => idToIndex.set(p.id as number, i));
 
-  const constants = (await q`
-    select project_id, currency_rate, shipping_rate, customs_rate,
-           profit_margin, tax_rate, target_currency, source_currency
-    from pricing_project_constants
-    where project_id = any(${projectIds}::int[])
-  `) as Array<Record<string, unknown>>;
+  // Read children in batches that stay under D1/SQLite's ~100 bound-parameter
+  // cap. `= any(<ids>)` expands to one placeholder per id on D1, so a
+  // manufacturer with enough sheets would overflow the cap and 500 the whole
+  // backup export. Each project id lands in exactly one batch, so per-project
+  // grouping/ordering below is unaffected.
+  const ID_CHUNK = 90;
+  const constants: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < projectIds.length; i += ID_CHUNK) {
+    const batch = projectIds.slice(i, i + ID_CHUNK);
+    const rows = (await q`
+      select project_id, currency_rate, shipping_rate, customs_rate,
+             profit_margin, tax_rate, target_currency, source_currency
+      from pricing_project_constants
+      where project_id = any(${batch}::int[])
+    `) as Array<Record<string, unknown>>;
+    constants.push(...rows);
+  }
   const constMap = new Map<number, BackupConstants>();
   for (const c of constants) {
     constMap.set(c.project_id as number, {
@@ -140,15 +151,20 @@ export async function buildManufacturerBackup(
     });
   }
 
-  const lines = (await q`
-    select project_id, position, item_model, price_usd, quantity,
-           shipping_override, customs_override,
-           shipping_rate_override, customs_rate_override, profit_rate_override,
-           description
-    from pricing_product_lines
-    where project_id = any(${projectIds}::int[])
-    order by project_id asc, position asc
-  `) as Array<Record<string, unknown>>;
+  const lines: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < projectIds.length; i += ID_CHUNK) {
+    const batch = projectIds.slice(i, i + ID_CHUNK);
+    const rows = (await q`
+      select project_id, position, item_model, price_usd, quantity,
+             shipping_override, customs_override,
+             shipping_rate_override, customs_rate_override, profit_rate_override,
+             description
+      from pricing_product_lines
+      where project_id = any(${batch}::int[])
+      order by project_id asc, position asc
+    `) as Array<Record<string, unknown>>;
+    lines.push(...rows);
+  }
   const lineMap = new Map<number, BackupLine[]>();
   for (const l of lines) {
     const pid = l.project_id as number;
@@ -254,45 +270,80 @@ export async function restoreProjects(
         )
       `;
 
-      // Product lines — one multi-row insert via rawBinder (D1-safe).
-      const lines = Array.isArray(bp.productLines) ? bp.productLines : [];
-      if (lines.length > 0) {
+      // Product lines. These MUST be inserted in chunks that stay under
+      // D1/SQLite's ~100 bound-parameter cap. A single all-rows INSERT binds 11
+      // params per line, so a sheet with 10+ lines overflowed the cap, D1
+      // rejected the whole statement, and — because the project row was already
+      // committed (D1 has no interactive transaction) — the restored sheet came
+      // back with the header and constants but ZERO product lines. That is the
+      // "restored items have no cells" bug. Mirror the Save path
+      // (src/app/api/pricing/projects/[id]/route.ts): chunk under the cap, and
+      // if the V1.8 `description` column is missing on this DB, retry without it.
+      const rawLines = Array.isArray(bp.productLines) ? bp.productLines : [];
+      if (rawLines.length > 0) {
+        // Resolve each line's final position once (dedup collisions) so the
+        // numbering is stable no matter how the rows are split across chunks.
         const seen = new Set<number>();
-        const { P, params } = rawBinder();
-        const tuples = lines
-          .map((l, i) => {
-            let position = typeof l.position === "number" ? l.position : i + 1;
-            while (seen.has(position)) position++;
-            seen.add(position);
-            const cells = [
-              P(newId),
-              P(position),
-              P(typeof l.itemModel === "string" ? l.itemModel : ""),
-              P(l.priceUsd != null ? String(l.priceUsd) : "0"),
-              P(typeof l.quantity === "number" && l.quantity > 0 ? l.quantity : 1),
-              P(l.shippingOverride != null ? String(l.shippingOverride) : null),
-              P(l.customsOverride != null ? String(l.customsOverride) : null),
-              P(l.shippingRateOverride != null ? String(l.shippingRateOverride) : null),
-              P(l.customsRateOverride != null ? String(l.customsRateOverride) : null),
-              P(l.profitRateOverride != null ? String(l.profitRateOverride) : null),
-              P(
-                typeof l.description === "string" && l.description.trim()
-                  ? l.description
-                  : null,
-              ),
-            ];
-            return `(${cells.join(", ")})`;
-          })
-          .join(", ");
-        await q.unsafe(
-          `insert into pricing_product_lines
-             (project_id, position, item_model, price_usd, quantity,
-              shipping_override, customs_override,
-              shipping_rate_override, customs_rate_override, profit_rate_override,
-              description)
-           values ${tuples}`,
-          params,
-        );
+        const resolved = rawLines.map((l, i) => {
+          let position = typeof l.position === "number" ? l.position : i + 1;
+          while (seen.has(position)) position++;
+          seen.add(position);
+          return { l, position };
+        });
+        const insertLines = async (withDesc: boolean) => {
+          const perChunk = withDesc ? 8 : 9; // ≤ ~100 bound params per statement
+          for (let start = 0; start < resolved.length; start += perChunk) {
+            const batch = resolved.slice(start, start + perChunk);
+            const { P, params } = rawBinder();
+            const tuples = batch
+              .map(({ l, position }) => {
+                const cells = [
+                  P(newId),
+                  P(position),
+                  P(typeof l.itemModel === "string" ? l.itemModel : ""),
+                  P(l.priceUsd != null ? String(l.priceUsd) : "0"),
+                  P(typeof l.quantity === "number" && l.quantity > 0 ? l.quantity : 1),
+                  P(l.shippingOverride != null ? String(l.shippingOverride) : null),
+                  P(l.customsOverride != null ? String(l.customsOverride) : null),
+                  P(l.shippingRateOverride != null ? String(l.shippingRateOverride) : null),
+                  P(l.customsRateOverride != null ? String(l.customsRateOverride) : null),
+                  P(l.profitRateOverride != null ? String(l.profitRateOverride) : null),
+                ];
+                if (withDesc) {
+                  cells.push(
+                    P(
+                      typeof l.description === "string" && l.description.trim()
+                        ? l.description
+                        : null,
+                    ),
+                  );
+                }
+                return `(${cells.join(", ")})`;
+              })
+              .join(", ");
+            const cols = withDesc
+              ? `(project_id, position, item_model, price_usd, quantity,
+                  shipping_override, customs_override,
+                  shipping_rate_override, customs_rate_override, profit_rate_override,
+                  description)`
+              : `(project_id, position, item_model, price_usd, quantity,
+                  shipping_override, customs_override,
+                  shipping_rate_override, customs_rate_override, profit_rate_override)`;
+            await q.unsafe(
+              `insert into pricing_product_lines ${cols} values ${tuples}`,
+              params,
+            );
+          }
+        };
+        try {
+          await insertLines(true);
+        } catch {
+          // The `description` column is likely absent on this DB. Clear any
+          // rows the first pass managed to insert (fresh project, so this is
+          // safe) and re-insert without it so a restore never drops its lines.
+          await q`delete from pricing_product_lines where project_id = ${newId}`;
+          await insertLines(false);
+        }
       }
       restored++;
     } catch (projErr) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Download, Upload, Check, AlertTriangle } from "lucide-react";
+import { Download, Upload, Check, AlertTriangle } from "@/lib/icons";
 import { cn } from "@/lib/pricing/utils";
 import Spinner from "@/components/Spinner";
 

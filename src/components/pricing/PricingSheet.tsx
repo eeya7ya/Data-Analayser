@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Save, Plus, Trash2, Download, FileSpreadsheet, Printer, FolderMinus, GitBranch, FileSignature, ClipboardPaste, BadgeCheck } from "lucide-react";
+import { Save, Plus, Trash2, Download, FileSpreadsheet, Printer, FolderMinus, GitBranch, FileSignature, ClipboardPaste, BadgeCheck } from "@/lib/icons";
 import PageLoader from "@/components/PageLoader";
 import { ProjectSelector } from "./ProjectSelector";
 import { ConstantsPanel } from "./ConstantsPanel";

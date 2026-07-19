@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ChevronDown, Plus, Folder, Search, X } from "lucide-react";
+import { ChevronDown, Plus, Folder, Search, X } from "@/lib/icons";
 import { cn } from "@/lib/pricing/utils";
 
 interface Project {

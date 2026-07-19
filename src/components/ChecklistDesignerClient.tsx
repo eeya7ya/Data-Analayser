@@ -9,7 +9,7 @@ import {
   Save,
   X,
   Pencil,
-} from "lucide-react";
+} from "@/lib/icons";
 import { confirmDelete } from "@/lib/confirmDelete";
 
 interface Template {
