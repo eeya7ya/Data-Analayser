@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Spinner from "@/components/Spinner";
 import { confirmDelete } from "@/lib/confirmDelete";
 import QuotationRowActions from "@/components/QuotationRowActions";
@@ -1825,10 +1826,11 @@ function ProposalsListTab({
 }) {
   const caps = useCrmCaps();
   const canAuthor = caps.canAuthorQuotation;
+  const router = useRouter();
   const [items, setItems] = useState<QuotationRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [reloadToken, setReloadToken] = useState(0);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [creating, setCreating] = useState(false);
   const [status, setStatus] = useState<
     { kind: "success" | "error"; text: string } | null
   >(null);
@@ -1854,7 +1856,7 @@ function ProposalsListTab({
     return () => {
       cancelled = true;
     };
-  }, [project.id, reloadToken]);
+  }, [project.id]);
 
   // Strip a trailing " (Rev N)" / " (copy)" so successive revisions of the
   // same proposal count off a stable base name.
@@ -1930,12 +1932,49 @@ function ProposalsListTab({
       if (!res.ok || !data.quotation) {
         throw new Error(data.error || "Failed to create revision.");
       }
-      setStatus({ kind: "success", text: `Created revision ${data.quotation.ref}` });
-      setReloadToken((t) => t + 1);
+      // Open the new revision's proposal editor straight away.
+      router.push(openHref(data.quotation.id));
     } catch (err) {
       setStatus({ kind: "error", text: (err as Error).message });
-    } finally {
       setBusyId(null);
+    }
+  }
+
+  // "+ New": create the backing record for a fresh proposal, then open the
+  // PROPOSAL editor for it (never the quotation designer — that was the wrong
+  // destination). The proposal document (cover, T&C, technical descriptions /
+  // diagrams) is authored right here; its priced line items come from the
+  // linked quotation on the Quotations tab.
+  async function createBlank() {
+    if (creating) return;
+    setCreating(true);
+    setStatus(null);
+    try {
+      const res = await fetch("/api/quotations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_name: project.name,
+          site_name: "SITE",
+          tax_percent: 16,
+          folder_id: project.folder_id,
+          project_id: project.id,
+          items: [],
+          totals: {},
+          config: {},
+        }),
+      });
+      const data = (await res.json()) as {
+        quotation?: { id: number; ref: string };
+        error?: string;
+      };
+      if (!res.ok || !data.quotation) {
+        throw new Error(data.error || "Failed to create.");
+      }
+      router.push(openHref(data.quotation.id));
+    } catch (err) {
+      setStatus({ kind: "error", text: (err as Error).message });
+      setCreating(false);
     }
   }
 
@@ -1947,12 +1986,15 @@ function ProposalsListTab({
           <p className="text-xs text-magic-ink/60">{subtitle}</p>
         </div>
         {canAuthor && (
-          <Link
-            href={`/designer?folder=${project.folder_id}&project=${project.id}`}
-            className="shrink-0 rounded-md bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+          <button
+            type="button"
+            onClick={() => void createBlank()}
+            disabled={creating}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
           >
+            {creating && <Spinner size={12} className="text-white" />}
             + {newLabel}
-          </Link>
+          </button>
         )}
       </div>
       {status && (
