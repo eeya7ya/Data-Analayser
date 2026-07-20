@@ -65,12 +65,13 @@ export async function POST(req: NextRequest) {
     // New users join the creating admin's tenant (falling back to the default
     // tenant) so every account is attributed to a company from day one.
     const rows = (await q`
-      insert into users (username, password_hash, role, display_name, phone, email, department_code, tenant_id)
+      insert into users (username, password_hash, role, display_name, phone, email, department_code, tenant_id, must_change_password)
       values (${body.username}, ${hash}, ${role}, ${displayName}, ${phone}, ${email}, ${departmentCode},
               coalesce(
                 (select tenant_id from users where id = ${admin.id}),
                 (select id from tenants where slug = 'magictech')
-              ))
+              ),
+              true)
       on conflict (username) do nothing
       returning id, username, display_name, role, phone,
                 coalesce(email, '') as email,
@@ -131,8 +132,15 @@ export async function PATCH(req: NextRequest) {
       await q`update users set role = ${body.role} where id = ${id}`;
     }
     if (body.password) {
+      // An admin-set password is temporary by definition: force the user to
+      // replace it with their own on next login (the flag is cleared only when
+      // the user changes it themselves via /api/auth/change-password).
       const hash = await hashPassword(body.password);
-      await q`update users set password_hash = ${hash} where id = ${id}`;
+      await q`
+        update users
+        set password_hash = ${hash}, must_change_password = true
+        where id = ${id}
+      `;
     }
     if (body.phone !== undefined) {
       await q`update users set phone = ${body.phone.trim()} where id = ${id}`;

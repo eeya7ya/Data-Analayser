@@ -857,6 +857,7 @@ CREATE TABLE IF NOT EXISTS "users" (
   "email" TEXT,
   "tenant_id" INTEGER,
   "department_code" TEXT NOT NULL DEFAULT '',
+  "must_change_password" INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY ("id")
 );
 
@@ -890,6 +891,10 @@ CREATE TABLE IF NOT EXISTS "workflows" (
 -- Re-running is safe: the apply-schema route ignores "duplicate column name".
 ALTER TABLE "users" ADD COLUMN "tenant_id" INTEGER;
 ALTER TABLE "users" ADD COLUMN "department_code" TEXT NOT NULL DEFAULT '';
+-- Forced password change: users created/reset by an admin (and all pre-existing
+-- users at upgrade time) must set their own password on next login. 1 = must
+-- change, 0 = cleared (the user has set their own).
+ALTER TABLE "users" ADD COLUMN "must_change_password" INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE "leads" ADD COLUMN "sales_project_id" INTEGER;
 ALTER TABLE "products" ADD COLUMN "barcode" TEXT;
 -- Executive-manager confirmation workflow (quotations + pricing_projects).

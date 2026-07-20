@@ -73,7 +73,8 @@ export async function POST(req: NextRequest) {
 
     const q = sql();
     const rows = (await q`
-      select id, username, password_hash, role, display_name, phone
+      select id, username, password_hash, role, display_name, phone,
+             must_change_password
       from users
       where username = ${username}
       limit 1
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
       role: "admin" | "user";
       display_name: string;
       phone: string | null;
+      must_change_password: boolean | number | null;
     }>;
     if (rows.length === 0) {
       recordFailure(key);
@@ -102,12 +104,14 @@ export async function POST(req: NextRequest) {
       );
     }
     clearAttempts(key);
+    const mustChangePassword = Boolean(row.must_change_password);
     await createSessionCookie({
       id: row.id,
       username: row.username,
       role: row.role,
       display_name: row.display_name || "",
       phone: row.phone || "",
+      mustChangePassword,
     });
     return NextResponse.json({
       ok: true,
@@ -117,6 +121,7 @@ export async function POST(req: NextRequest) {
         role: row.role,
         display_name: row.display_name || "",
         phone: row.phone || "",
+        must_change_password: mustChangePassword,
       },
     });
   } catch (err) {

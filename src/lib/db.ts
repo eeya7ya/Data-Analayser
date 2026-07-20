@@ -595,6 +595,7 @@ export async function ensureSchema(): Promise<void> {
   globalForSchema.__mtSchemaPromise = (async () => {
     await _ensureSchemaOnce();
     await _seedReleaseNotes();
+    await _ensureMustChangePasswordColumn();
   })();
   return globalForSchema.__mtSchemaPromise;
 }
@@ -697,7 +698,17 @@ async function ensureD1UniqueIndexes(): Promise<void> {
 // early-returned and never added them, and every pricing read/save that touched
 // pricing_projects threw "no such column". Bumping the flag forces existing D1
 // databases to re-diff and ADD the missing columns exactly once.
-const D1_COLUMN_SYNC_FLAG = "d1_column_sync_v4_2026_07";
+const D1_COLUMN_SYNC_FLAG = "d1_column_sync_v5_2026_07";
+
+/**
+ * Forced first-login password change. `users.must_change_password` is 1 for any
+ * account whose password was set by an admin (creation or reset) and 0 once the
+ * user has chosen their own. This one-time migration flips EVERY existing user
+ * to 1 at upgrade time so the whole team is prompted once; it must run exactly
+ * once (guarded by this flag) or it would keep re-forcing people who already
+ * changed. Shared key across both backends.
+ */
+const FORCE_PW_CHANGE_FLAG = "user_must_change_password_v1_2026_07";
 
 type D1ColDef = { name: string; ddl: string };
 let d1SchemaColsCache: Map<string, D1ColDef[]> | null = null;
@@ -772,6 +783,37 @@ async function ensureD1Columns(): Promise<void> {
   }
 }
 
+/**
+ * One-time D1 migration: force every EXISTING user to change their password on
+ * next login. Runs after ensureD1Columns has added the `must_change_password`
+ * column. Guarded by FORCE_PW_CHANGE_FLAG so it never re-forces users who have
+ * since set their own password. Best-effort: if the column isn't there yet the
+ * UPDATE throws, the flag isn't written, and it retries on the next boot.
+ */
+async function ensureD1ForcePasswordChange(): Promise<void> {
+  try {
+    const r = await d1Query<{ one: number }>(
+      `select 1 as one from migration_flags where key = ? limit 1`,
+      [FORCE_PW_CHANGE_FLAG],
+    );
+    if (r.results.length > 0) return;
+  } catch {
+    // migration_flags may not exist yet — the base schema apply creates it.
+  }
+  try {
+    await d1Query(`update users set must_change_password = 1`);
+    await d1Query(`insert into migration_flags (key, ran_at) values (?, ?)`, [
+      FORCE_PW_CHANGE_FLAG,
+      new Date().toISOString(),
+    ]).catch(() => {});
+  } catch (err) {
+    console.warn(
+      `[d1] force-password-change migration deferred: ` +
+        (err instanceof Error ? err.message : String(err)),
+    );
+  }
+}
+
 async function ensureD1SchemaOnce(): Promise<void> {
   try {
     let baseApplied = false;
@@ -799,6 +841,9 @@ async function ensureD1SchemaOnce(): Promise<void> {
     // Backfill any columns an older database is missing (schema grew its
     // CREATE TABLE defs but existing DBs don't get them). Own flag.
     await ensureD1Columns();
+    // Force every pre-existing user to change their admin-set password once the
+    // must_change_password column is in place (added by ensureD1Columns above).
+    await ensureD1ForcePasswordChange();
     // Full-text search lives outside the schema-split loader (it can't create
     // virtual tables/triggers), so apply it here. Has its own flag + in-memory
     // ready guard, so this is cheap on warm processes and never blocks the base
@@ -850,6 +895,36 @@ export async function resetSchemaCache(): Promise<void> {
   // Bust the in-process promise cache so the next ensureSchema() call
   // actually hits the database instead of returning the cached void.
   globalForSchema.__mtSchemaPromise = undefined;
+}
+
+/**
+ * Postgres companion to ensureD1ForcePasswordChange. Adds the
+ * `must_change_password` column to `users` (idempotent) and, exactly once,
+ * forces every existing user to change their admin-set password on next login.
+ * Runs outside _ensureSchemaOnce's "all applied" early-return (like the
+ * release-notes seed) so it still applies on warm, already-bootstrapped DBs.
+ * Postgres is dormant (the app runs on D1), so this is best-effort.
+ */
+async function _ensureMustChangePasswordColumn(): Promise<void> {
+  const q = sql();
+  try {
+    await q`
+      alter table users
+        add column if not exists must_change_password boolean not null default false
+    `;
+    const done = (await q`
+      select 1 as ok from migration_flags where key = ${FORCE_PW_CHANGE_FLAG} limit 1
+    `) as Array<{ ok: number }>;
+    if (done.length === 0) {
+      await q`update users set must_change_password = true`;
+      await q`
+        insert into migration_flags (key) values (${FORCE_PW_CHANGE_FLAG})
+        on conflict (key) do nothing
+      `;
+    }
+  } catch {
+    // Best-effort — the next request retries (flag stays unset on failure).
+  }
 }
 
 async function _ensureSchemaOnce(): Promise<void> {

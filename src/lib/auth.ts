@@ -33,6 +33,13 @@ export interface SessionUser {
    * whatever hardcoded number the previous implementation was carrying.
    */
   phone: string;
+  /**
+   * True when this account's password was last set by an admin (on creation or
+   * reset) and the user hasn't chosen their own yet. While true the app forces
+   * the user onto /change-password (enforced in middleware). Cleared to false
+   * the moment the user sets their own password.
+   */
+  mustChangePassword: boolean;
 }
 
 /**
@@ -107,9 +114,11 @@ export async function ensureDefaultAdmin(): Promise<void> {
   `) as Array<{ id: number }>;
   if (existing.length === 0) {
     const hash = await hashPassword(pass);
+    // Force the very first admin to replace the default/bootstrap password on
+    // first login — a known default credential must never survive untouched.
     await q`
-      insert into users (username, password_hash, role)
-      values (${user}, ${hash}, 'admin')
+      insert into users (username, password_hash, role, must_change_password)
+      values (${user}, ${hash}, 'admin', true)
     `;
   }
 }
@@ -121,6 +130,7 @@ export async function createSessionCookie(user: SessionUser): Promise<void> {
     role: user.role,
     display_name: user.display_name,
     phone: user.phone,
+    mustChange: user.mustChangePassword,
   })
     .setProtectedHeader({ alg: ALG })
     .setIssuedAt()
@@ -153,6 +163,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       role: (payload.role as "admin" | "viewer" | "user") || "user",
       display_name: String(payload.display_name || ""),
       phone: String(payload.phone || ""),
+      mustChangePassword: payload.mustChange === true,
     };
   } catch {
     return null;
