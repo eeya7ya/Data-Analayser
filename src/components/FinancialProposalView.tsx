@@ -490,7 +490,7 @@ export default function FinancialProposalView({
 
   return (
     <div>
-      <div className="no-print mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="no-print sticky top-[60px] z-30 -mx-6 mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-magic-border/60 bg-white/85 px-6 py-2.5 backdrop-blur-md">
         <div className="text-xs text-magic-ink/60">
           Sales-editable fields underlined; values default to the template /
           quotation data. Edits are remembered for this proposal only.
