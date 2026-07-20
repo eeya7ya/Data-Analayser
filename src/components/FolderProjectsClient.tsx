@@ -1771,7 +1771,8 @@ function FinancialOfferTab({ project }: { project: Project }) {
       subtitle={`Deal economics for ${project.name} — visible to sales and presales.`}
       openHref={(id) => `/financial-proposal?id=${id}`}
       ctaLabel="Open Financial Proposal"
-      emptyHint="No quotations on this project yet. Create one from the Quotations tab — the Financial Proposal will pick up its data automatically."
+      newLabel="New financial offer"
+      emptyHint="No financial offers on this project yet. Create one here — the Financial Proposal picks up its data automatically."
     />
   );
 }
@@ -1792,7 +1793,8 @@ function TechnicalProposalTab({ project }: { project: Project }) {
       subtitle={`Presales engineering deliverable for ${project.name}.`}
       openHref={(id) => `/technical-proposal?id=${id}`}
       ctaLabel="Open Technical Proposal"
-      emptyHint="No quotations on this project yet. Create one from the Quotations tab — the Technical Proposal will auto-pull descriptions from the catalogue."
+      newLabel="New technical proposal"
+      emptyHint="No technical proposals on this project yet. Create one here — descriptions auto-pull from the catalogue."
     />
   );
 }
@@ -1810,6 +1812,7 @@ function ProposalsListTab({
   subtitle,
   openHref,
   ctaLabel,
+  newLabel,
   emptyHint,
 }: {
   project: Project;
@@ -1817,10 +1820,18 @@ function ProposalsListTab({
   subtitle: string;
   openHref: (quotationId: number) => string;
   ctaLabel: string;
+  newLabel: string;
   emptyHint: string;
 }) {
+  const caps = useCrmCaps();
+  const canAuthor = caps.canAuthorQuotation;
   const [items, setItems] = useState<QuotationRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [status, setStatus] = useState<
+    { kind: "success" | "error"; text: string } | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1843,14 +1854,118 @@ function ProposalsListTab({
     return () => {
       cancelled = true;
     };
-  }, [project.id]);
+  }, [project.id, reloadToken]);
+
+  // Strip a trailing " (Rev N)" / " (copy)" so successive revisions of the
+  // same proposal count off a stable base name.
+  const stripRev = (name: string) =>
+    name.replace(/\s*\((?:rev\s*\d+|copy)\)\s*$/i, "").trim();
+
+  // "New revision": duplicate this proposal's quotation back into the SAME
+  // project with an incremented "(Rev N)" name, so a project can carry several
+  // revisions side by side. Reuses the quotation create endpoint (fresh ref),
+  // exactly like the Copy action, so the source is never touched.
+  async function createRevision(source: QuotationRow) {
+    if (busyId != null) return;
+    setBusyId(source.id);
+    setStatus(null);
+    try {
+      const srcRes = await fetch(`/api/quotations?id=${source.id}`, {
+        cache: "no-store",
+      });
+      if (!srcRes.ok) throw new Error(`Failed to load proposal (${srcRes.status})`);
+      const srcData = (await srcRes.json()) as {
+        quotation: Record<string, unknown> | null;
+      };
+      const src = srcData.quotation;
+      if (!src) throw new Error("Proposal not found.");
+      const parseJson = (v: unknown, fallback: unknown) => {
+        if (typeof v === "string") {
+          try {
+            return JSON.parse(v);
+          } catch {
+            return fallback;
+          }
+        }
+        return v ?? fallback;
+      };
+      const base = stripRev(String(src.project_name || "Untitled")) || "Untitled";
+      const existing = (items ?? []).filter(
+        (q) => stripRev(String(q.project_name || "")) === base,
+      ).length;
+      const revName = `${base} (Rev ${existing + 1})`;
+      const itemsJson = parseJson(src.items_json, []);
+      const configJson = parseJson(src.config_json, {});
+      const totalsJson = parseJson(src.totals_json, {});
+      const payload = {
+        project_name: revName,
+        client_name: (src.client_name as string) || undefined,
+        client_email: (src.client_email as string) || undefined,
+        client_phone: (src.client_phone as string) || undefined,
+        sales_engineer: (src.sales_engineer as string) || undefined,
+        prepared_by: (src.prepared_by as string) || undefined,
+        site_name: (src.site_name as string) || "SITE",
+        tax_percent: Number(src.tax_percent ?? 16),
+        folder_id: project.folder_id,
+        project_id: project.id,
+        items: Array.isArray(itemsJson) ? itemsJson : [],
+        totals:
+          totalsJson && typeof totalsJson === "object" && !Array.isArray(totalsJson)
+            ? totalsJson
+            : {},
+        config:
+          configJson && typeof configJson === "object" && !Array.isArray(configJson)
+            ? configJson
+            : {},
+      };
+      const res = await fetch("/api/quotations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json()) as {
+        quotation?: { id: number; ref: string };
+        error?: string;
+      };
+      if (!res.ok || !data.quotation) {
+        throw new Error(data.error || "Failed to create revision.");
+      }
+      setStatus({ kind: "success", text: `Created revision ${data.quotation.ref}` });
+      setReloadToken((t) => t + 1);
+    } catch (err) {
+      setStatus({ kind: "error", text: (err as Error).message });
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <div className="space-y-3">
-      <div>
-        <h3 className="text-sm font-semibold text-magic-ink">{title}</h3>
-        <p className="text-xs text-magic-ink/60">{subtitle}</p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-magic-ink">{title}</h3>
+          <p className="text-xs text-magic-ink/60">{subtitle}</p>
+        </div>
+        {canAuthor && (
+          <Link
+            href={`/designer?folder=${project.folder_id}&project=${project.id}`}
+            className="shrink-0 rounded-md bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+          >
+            + {newLabel}
+          </Link>
+        )}
       </div>
+      {status && (
+        <div
+          className={`rounded-md px-3 py-2 text-xs ${
+            status.kind === "success"
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-red-50 text-red-700"
+          }`}
+        >
+          {status.text}
+        </div>
+      )}
       {error && (
         <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
           {error}
@@ -1858,7 +1973,7 @@ function ProposalsListTab({
       )}
       {items === null && !error && (
         <div className="rounded-md border border-magic-border bg-white px-3 py-3 text-xs text-magic-ink/60">
-          Loading quotations…
+          Loading…
         </div>
       )}
       {items !== null && items.length === 0 && (
@@ -1896,14 +2011,28 @@ function ProposalsListTab({
                   })}
                 </div>
               </div>
-              <a
-                href={openHref(q.id)}
-                target="_blank"
-                rel="noopener"
-                className="rounded-md bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
-              >
-                {ctaLabel}
-              </a>
+              <div className="flex shrink-0 items-center gap-2">
+                {canAuthor && (
+                  <button
+                    type="button"
+                    onClick={() => void createRevision(q)}
+                    disabled={busyId != null}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-magic-border px-2.5 py-1.5 text-xs font-medium text-magic-ink/70 transition-colors hover:border-magic-red hover:text-magic-red disabled:opacity-50"
+                    title="Create a new revision of this proposal in this project"
+                  >
+                    {busyId === q.id && <Spinner size={12} />}
+                    New revision
+                  </button>
+                )}
+                <a
+                  href={openHref(q.id)}
+                  target="_blank"
+                  rel="noopener"
+                  className="rounded-md bg-magic-red px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                >
+                  {ctaLabel}
+                </a>
+              </div>
             </li>
           ))}
         </ul>
