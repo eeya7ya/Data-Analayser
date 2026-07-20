@@ -38,6 +38,12 @@ export default async function CompanyClientFolderPage({
   if (!user) redirect("/login");
   await ensureSchema();
 
+  // Resolve the user's CRM caps concurrently with the folder lookup below —
+  // they're independent, so overlapping the two D1 round-trips shaves latency
+  // off opening a client. (If the folder check short-circuits to notFound /
+  // redirect, this resolved promise is simply discarded.)
+  const capsPromise = getCrmCaps(user);
+
   const q = sql();
   const rows = (await q`
     select cf.id, cf.name, cf.owner_id, cf.company_id, cf.kind,
@@ -157,7 +163,7 @@ export default async function CompanyClientFolderPage({
           folderName={folder.name}
           initialProjectId={validInitialProjectId}
           initialTab={tab}
-          initialCaps={await getCrmCaps(user)}
+          initialCaps={await capsPromise}
           initialRfq={initialRfq}
           initialRfqProjectId={validInitialProjectId}
         />

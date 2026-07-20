@@ -217,6 +217,13 @@ export default function DashboardClient({
                   stroke="#E2231A"
                   strokeWidth={2.5}
                   fill="url(#qGrad)"
+                  // `monotone` already can't overshoot the data range, so the
+                  // "curve springs past then settles" the user saw was Recharts
+                  // interpolating the path's control points during the entry
+                  // animation — which transiently bulges the spline regardless
+                  // of easing. Turning the entry animation off renders the final
+                  // (smooth, non-overshooting) curve directly.
+                  isAnimationActive={false}
                 />
               </AreaChart>
             </ResponsiveContainer>

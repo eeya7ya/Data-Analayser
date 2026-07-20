@@ -101,12 +101,34 @@ export async function ensurePersonFolder(args: {
   return null;
 }
 
+/**
+ * Per-instance throttle for the reconciliation sync below. The sync only heals
+ * LEGACY data — orphan contacts/folders and old duplicate "X (N)" folders — so
+ * it doesn't need to run on every navigation: new contacts are inserted
+ * directly by the create flow, and the People list's project/quotation counts
+ * are always read fresh on each page load. Re-running the full ~5-7 sequential
+ * D1 round-trips on every click between a company and its clients was the
+ * "takes a while to respond" lag the user reported; skipping repeats inside a
+ * short window makes that navigation snappy while still healing periodically
+ * (and on every cold start). Keyed per company + viewer scope.
+ */
+const SYNC_TTL_MS = 5 * 60_000;
+const lastSyncAt = new Map<string, number>();
+
 export async function syncCompanyPeopleAndFolders(args: {
   companyId: number;
   userId: number;
   isAdmin: boolean;
 }): Promise<void> {
   const { companyId, userId, isAdmin } = args;
+  const throttleKey = `${companyId}:${isAdmin ? "admin" : userId}`;
+  const now = Date.now();
+  const last = lastSyncAt.get(throttleKey);
+  if (last !== undefined && now - last < SYNC_TTL_MS) return;
+  // Stamp before running so a burst of concurrent navigations doesn't all
+  // fire the reconciliation at once.
+  lastSyncAt.set(throttleKey, now);
+
   const q = sql();
   const ownerFilter = isAdmin ? null : userId;
 
