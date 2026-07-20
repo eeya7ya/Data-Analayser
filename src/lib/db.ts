@@ -649,16 +649,8 @@ const D1_UNIQUE_INDEXES: ReadonlyArray<{ name: string; sql: string }> = [
  * is in place, so a dup-blocked table simply retries next boot (7 cheap
  * `IF NOT EXISTS` statements) instead of wedging the schema bootstrap.
  */
-async function ensureD1UniqueIndexes(): Promise<void> {
-  try {
-    const r = await d1Query<{ one: number }>(
-      `select 1 as one from migration_flags where key = ? limit 1`,
-      [D1_UNIQUE_INDEXES_FLAG],
-    );
-    if (r.results.length > 0) return;
-  } catch {
-    // migration_flags may not exist yet — the base schema apply creates it.
-  }
+async function ensureD1UniqueIndexes(alreadyApplied: boolean): Promise<void> {
+  if (alreadyApplied) return;
   let allOk = true;
   for (const idx of D1_UNIQUE_INDEXES) {
     try {
@@ -740,16 +732,8 @@ function parseD1SchemaColumns(): Map<string, D1ColDef[]> {
   return out;
 }
 
-async function ensureD1Columns(): Promise<void> {
-  try {
-    const r = await d1Query<{ one: number }>(
-      `select 1 as one from migration_flags where key = ? limit 1`,
-      [D1_COLUMN_SYNC_FLAG],
-    );
-    if (r.results.length > 0) return;
-  } catch {
-    // migration_flags may not exist yet — the base schema apply creates it.
-  }
+async function ensureD1Columns(alreadyApplied: boolean): Promise<void> {
+  if (alreadyApplied) return;
   let allOk = true;
   for (const [table, cols] of parseD1SchemaColumns()) {
     if (cols.length === 0) continue;
@@ -790,16 +774,8 @@ async function ensureD1Columns(): Promise<void> {
  * since set their own password. Best-effort: if the column isn't there yet the
  * UPDATE throws, the flag isn't written, and it retries on the next boot.
  */
-async function ensureD1ForcePasswordChange(): Promise<void> {
-  try {
-    const r = await d1Query<{ one: number }>(
-      `select 1 as one from migration_flags where key = ? limit 1`,
-      [FORCE_PW_CHANGE_FLAG],
-    );
-    if (r.results.length > 0) return;
-  } catch {
-    // migration_flags may not exist yet — the base schema apply creates it.
-  }
+async function ensureD1ForcePasswordChange(alreadyApplied: boolean): Promise<void> {
+  if (alreadyApplied) return;
   try {
     await d1Query(`update users set must_change_password = 1`);
     await d1Query(`insert into migration_flags (key, ran_at) values (?, ?)`, [
@@ -816,17 +792,30 @@ async function ensureD1ForcePasswordChange(): Promise<void> {
 
 async function ensureD1SchemaOnce(): Promise<void> {
   try {
-    let baseApplied = false;
+    // Read EVERY schema-bootstrap flag in one round-trip. This function runs on
+    // every cold serverless start (the promise is only cached per warm
+    // process), so the previous one-SELECT-per-sub-step pattern cost ~4
+    // sequential D1 REST round-trips before the first page could render. One
+    // batched read collapses that to a single hop — the Postgres path already
+    // reads its flags this way. Sub-steps receive their applied-state instead
+    // of re-querying it.
+    let applied = new Set<string>();
     try {
-      const r = await d1Query<{ one: number }>(
-        `select 1 as one from migration_flags where key = ? limit 1`,
-        [D1_SCHEMA_FLAG],
+      const r = await d1Query<{ key: string }>(
+        `select key from migration_flags where key in (?, ?, ?, ?)`,
+        [
+          D1_SCHEMA_FLAG,
+          D1_UNIQUE_INDEXES_FLAG,
+          D1_COLUMN_SYNC_FLAG,
+          FORCE_PW_CHANGE_FLAG,
+        ],
       );
-      baseApplied = r.results.length > 0;
+      applied = new Set(r.results.map((row) => String(row.key)));
     } catch {
-      // migration_flags may not exist yet — fall through and apply the schema.
+      // migration_flags may not exist yet — treat everything as unapplied and
+      // let applyD1Schema below create the table.
     }
-    if (!baseApplied) {
+    if (!applied.has(D1_SCHEMA_FLAG)) {
       const { errors } = await applyD1Schema();
       if (errors.length === 0) {
         await d1Query(
@@ -837,13 +826,13 @@ async function ensureD1SchemaOnce(): Promise<void> {
     }
     // Add the ON CONFLICT unique indexes to existing databases (fresh ones get
     // them from the base schema above). Own flag; best-effort per index.
-    await ensureD1UniqueIndexes();
+    await ensureD1UniqueIndexes(applied.has(D1_UNIQUE_INDEXES_FLAG));
     // Backfill any columns an older database is missing (schema grew its
     // CREATE TABLE defs but existing DBs don't get them). Own flag.
-    await ensureD1Columns();
+    await ensureD1Columns(applied.has(D1_COLUMN_SYNC_FLAG));
     // Force every pre-existing user to change their admin-set password once the
     // must_change_password column is in place (added by ensureD1Columns above).
-    await ensureD1ForcePasswordChange();
+    await ensureD1ForcePasswordChange(applied.has(FORCE_PW_CHANGE_FLAG));
     // Full-text search lives outside the schema-split loader (it can't create
     // virtual tables/triggers), so apply it here. Has its own flag + in-memory
     // ready guard, so this is cheap on warm processes and never blocks the base

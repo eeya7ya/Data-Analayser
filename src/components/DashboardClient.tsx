@@ -211,19 +211,21 @@ export default function DashboardClient({
                   }}
                 />
                 <Area
-                  type="monotone"
+                  type="natural"
                   dataKey="count"
                   name={chartNoun}
                   stroke="#E2231A"
                   strokeWidth={2.5}
                   fill="url(#qGrad)"
-                  // `monotone` already can't overshoot the data range, so the
-                  // "curve springs past then settles" the user saw was Recharts
-                  // interpolating the path's control points during the entry
-                  // animation — which transiently bulges the spline regardless
-                  // of easing. Turning the entry animation off renders the final
-                  // (smooth, non-overshooting) curve directly.
-                  isAnimationActive={false}
+                  // A natural cubic spline flows smoothly through the points
+                  // (and reaches the real values at both ends, so the filled
+                  // area meets the corners). The entry animation reveals it with
+                  // a plain ease-out — a monotonic easing that eases in toward
+                  // the final value without the "spring past then settle"
+                  // overshoot the earlier default produced.
+                  isAnimationActive
+                  animationDuration={900}
+                  animationEasing="ease-out"
                 />
               </AreaChart>
             </ResponsiveContainer>
