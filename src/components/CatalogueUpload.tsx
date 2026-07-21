@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { compressDataUrl } from "@/components/QuotationPreview";
 import { extractWorksheetImages } from "@/lib/xlsxImages";
+import { fingerprintRow } from "@/lib/catalogueFingerprint";
 
 /**
  * `xlsx` is ~900 KB gzipped and is only needed if the user actually picks
@@ -81,12 +82,90 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
   const [headerMap, setHeaderMap] = useState<Record<string, string>>({});
   const [pictureCount, setPictureCount] = useState(0);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
+  // Change-detection: fingerprints of the CURRENT catalogue, keyed by model.
+  // `null` = not loaded (or the endpoint is unavailable) → fall back to
+  // uploading every row, the previous behaviour.
+  const [fingerprints, setFingerprints] = useState<Record<
+    string,
+    { t: string; p: 0 | 1 }
+  > | null>(null);
+  const [fpStatus, setFpStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  // When on, also re-upload rows that carry an embedded picture, so edited
+  // images get pushed. Off by default: pictures re-compress on every import, so
+  // they can't be diffed and would otherwise force the whole catalogue up.
+  const [refreshImages, setRefreshImages] = useState(false);
+
+  // Split the parsed rows into "will upload" (new / changed / newly-pictured)
+  // and "unchanged" against the current catalogue. Falls back to all-rows when
+  // fingerprints aren't available so an older backend still works.
+  const { toUpload, newCount, changedCount, unchangedCount } = useMemo(() => {
+    if (!fingerprints) {
+      return {
+        toUpload: rows,
+        newCount: rows.length,
+        changedCount: 0,
+        unchangedCount: 0,
+      };
+    }
+    const upload: ParsedRow[] = [];
+    let nNew = 0;
+    let nChanged = 0;
+    let nUnchanged = 0;
+    for (const r of rows) {
+      const existing = fingerprints[r.model];
+      if (!existing) {
+        nNew += 1;
+        upload.push(r);
+        continue;
+      }
+      const dataChanged = fingerprintRow(r) !== existing.t;
+      const pictureAdded = Boolean(r.picture_url) && existing.p === 0;
+      const forceImage = refreshImages && Boolean(r.picture_url);
+      if (dataChanged || pictureAdded || forceImage) {
+        nChanged += 1;
+        upload.push(r);
+      } else {
+        nUnchanged += 1;
+      }
+    }
+    return {
+      toUpload: upload,
+      newCount: nNew,
+      changedCount: nChanged,
+      unchangedCount: nUnchanged,
+    };
+  }, [rows, fingerprints, refreshImages]);
 
   const parseFile = useCallback((file: File) => {
     setError(null);
     setResult(null);
     setFileName(file.name);
     setPictureCount(0);
+
+    // Fetch the current catalogue's change-detection fingerprints in parallel
+    // with parsing so re-imported rows that haven't changed can be skipped. If
+    // it fails (older backend without the endpoint), fingerprints stay null and
+    // every row is uploaded, exactly as before.
+    setFingerprints(null);
+    setFpStatus("loading");
+    // Time-box the compare so a slow/hung request falls back to uploading all
+    // rows instead of leaving the button stuck on "Comparing…".
+    const fpAbort = new AbortController();
+    const fpTimeout = setTimeout(() => fpAbort.abort(), 20_000);
+    fetch("/api/catalogue/fingerprints", { signal: fpAbort.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as {
+          fingerprints?: Record<string, { t: string; p: 0 | 1 }>;
+        };
+        setFingerprints(data.fingerprints ?? {});
+        setFpStatus("ready");
+      })
+      .catch(() => {
+        setFingerprints(null);
+        setFpStatus("error");
+      })
+      .finally(() => clearTimeout(fpTimeout));
 
     // Kick off the xlsx dynamic import in parallel with the FileReader so
     // the two wait times overlap instead of stacking serially.
@@ -201,9 +280,12 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
   }, []);
 
   const upload = useCallback(async () => {
-    if (rows.length === 0) return;
+    // Only the new/changed rows are uploaded; unchanged existing products are
+    // skipped so a re-import touches just what actually changed.
+    const uploadRows = toUpload;
+    if (uploadRows.length === 0) return;
     setUploading(true);
-    setUploadProgress({ done: 0, total: rows.length });
+    setUploadProgress({ done: 0, total: uploadRows.length });
     setResult(null);
     setError(null);
 
@@ -218,7 +300,7 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
     const batches: ParsedRow[][] = [];
     let current: ParsedRow[] = [];
     let currentBytes = 2; // "[]" framing
-    for (const r of rows) {
+    for (const r of uploadRows) {
       const rowBytes = JSON.stringify(r).length + 1; // +1 for the comma
       // A single row can exceed the cap only if its picture is huge —
       // shouldn't happen post-compress, but if it does, send it alone
@@ -264,18 +346,20 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
         upserted += data.upserted || 0;
         duplicatesRemoved += data.duplicatesRemoved || 0;
         processed += batch.length;
-        setUploadProgress({ done: processed, total: rows.length });
+        setUploadProgress({ done: processed, total: uploadRows.length });
       }
       setResult({ ok: true, upserted, duplicatesRemoved });
       setRows([]);
       setFileName("");
+      setFingerprints(null);
+      setFpStatus("idle");
       onDone?.();
     } catch (err) {
       setResult({ ok: false, error: (err as Error).message });
     } finally {
       setUploading(false);
     }
-  }, [rows, onDone]);
+  }, [toUpload, onDone]);
 
   return (
     <div className="rounded-2xl border border-magic-border bg-white p-6">
@@ -285,7 +369,8 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
         <span className="font-mono text-magic-ink/80">
           vendor, System, Category, sub_category, Fast View, model, description, currency, price_si, Specifications
         </span>
-        . Existing products (same vendor + model) will be updated.
+        . Products are matched by <b>model</b>: only new and changed rows are
+        uploaded — existing products that haven&apos;t changed are skipped.
       </p>
 
       {/* File picker */}
@@ -346,6 +431,41 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
         </div>
       )}
 
+      {/* Change-detection summary */}
+      {rows.length > 0 && (
+        <div className="mb-3 rounded-lg border border-magic-border bg-magic-soft/40 px-4 py-3 text-sm">
+          {fpStatus === "loading" && (
+            <span className="text-magic-ink/60">
+              Comparing against the current catalogue…
+            </span>
+          )}
+          {fpStatus === "error" && (
+            <span className="text-amber-700">
+              Couldn&apos;t compare against the current catalogue — all{" "}
+              {rows.length} rows will be uploaded.
+            </span>
+          )}
+          {fpStatus === "ready" && (
+            <>
+              <span className="text-magic-ink">
+                <b>{newCount}</b> new · <b>{changedCount}</b> changed ·{" "}
+                <b>{unchangedCount}</b> unchanged{" "}
+                <span className="text-magic-ink/50">(skipped)</span>
+              </span>
+              <label className="ml-4 inline-flex items-center gap-1.5 text-xs text-magic-ink/70">
+                <input
+                  type="checkbox"
+                  checked={refreshImages}
+                  onChange={(e) => setRefreshImages(e.target.checked)}
+                  disabled={uploading}
+                />
+                Also re-upload rows with pictures (to push edited images)
+              </label>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Preview table */}
       {rows.length > 0 && (
         <>
@@ -355,14 +475,18 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
             </span>
             <button
               onClick={upload}
-              disabled={uploading}
+              disabled={uploading || fpStatus === "loading" || toUpload.length === 0}
               className="rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
             >
               {uploading
                 ? uploadProgress
                   ? `Uploading… ${uploadProgress.done}/${uploadProgress.total}`
                   : "Uploading…"
-                : `Upload ${rows.length} products`}
+                : fpStatus === "loading"
+                  ? "Comparing…"
+                  : toUpload.length === 0
+                    ? "Nothing to update"
+                    : `Upload ${toUpload.length} changed product${toUpload.length === 1 ? "" : "s"}`}
             </button>
           </div>
           <div className="overflow-x-auto max-h-[40vh] overflow-y-auto rounded-lg border border-magic-border">
