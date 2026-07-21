@@ -95,46 +95,58 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
   // they can't be diffed and would otherwise force the whole catalogue up.
   const [refreshImages, setRefreshImages] = useState(false);
 
-  // Split the parsed rows into "will upload" (new / changed / newly-pictured)
-  // and "unchanged" against the current catalogue. Falls back to all-rows when
-  // fingerprints aren't available so an older backend still works.
-  const { toUpload, newCount, changedCount, unchangedCount } = useMemo(() => {
-    if (!fingerprints) {
-      return {
-        toUpload: rows,
-        newCount: rows.length,
-        changedCount: 0,
-        unchangedCount: 0,
-      };
-    }
-    const upload: ParsedRow[] = [];
-    let nNew = 0;
-    let nChanged = 0;
-    let nUnchanged = 0;
-    for (const r of rows) {
-      const existing = fingerprints[r.model];
-      if (!existing) {
-        nNew += 1;
-        upload.push(r);
-        continue;
+  // Split the parsed rows against the current catalogue into: new (model not in
+  // catalogue), changed (a data field differs, or a picture was added to a row
+  // that had none), imageRefresh (data unchanged but re-sent only because the
+  // "also re-upload pictures" box is ticked), and unchanged (skipped). Falls
+  // back to all-rows when fingerprints aren't available (older backend).
+  const { toUpload, newCount, changedCount, imageRefreshCount, unchangedCount } =
+    useMemo(() => {
+      if (!fingerprints) {
+        return {
+          toUpload: rows,
+          newCount: rows.length,
+          changedCount: 0,
+          imageRefreshCount: 0,
+          unchangedCount: 0,
+        };
       }
-      const dataChanged = fingerprintRow(r) !== existing.t;
-      const pictureAdded = Boolean(r.picture_url) && existing.p === 0;
-      const forceImage = refreshImages && Boolean(r.picture_url);
-      if (dataChanged || pictureAdded || forceImage) {
-        nChanged += 1;
-        upload.push(r);
-      } else {
+      const upload: ParsedRow[] = [];
+      let nNew = 0;
+      let nChanged = 0;
+      let nImage = 0;
+      let nUnchanged = 0;
+      for (const r of rows) {
+        const existing = fingerprints[r.model];
+        if (!existing) {
+          nNew += 1;
+          upload.push(r);
+          continue;
+        }
+        const dataChanged = fingerprintRow(r) !== existing.t;
+        const pictureAdded = Boolean(r.picture_url) && existing.p === 0;
+        if (dataChanged || pictureAdded) {
+          nChanged += 1;
+          upload.push(r);
+          continue;
+        }
+        // Data is identical. Only re-send it if the user opted to refresh
+        // images AND this row actually carries a picture.
+        if (refreshImages && Boolean(r.picture_url)) {
+          nImage += 1;
+          upload.push(r);
+          continue;
+        }
         nUnchanged += 1;
       }
-    }
-    return {
-      toUpload: upload,
-      newCount: nNew,
-      changedCount: nChanged,
-      unchangedCount: nUnchanged,
-    };
-  }, [rows, fingerprints, refreshImages]);
+      return {
+        toUpload: upload,
+        newCount: nNew,
+        changedCount: nChanged,
+        imageRefreshCount: nImage,
+        unchangedCount: nUnchanged,
+      };
+    }, [rows, fingerprints, refreshImages]);
 
   const parseFile = useCallback((file: File) => {
     setError(null);
@@ -446,22 +458,33 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
             </span>
           )}
           {fpStatus === "ready" && (
-            <>
+            <div className="flex flex-col gap-2">
               <span className="text-magic-ink">
                 <b>{newCount}</b> new · <b>{changedCount}</b> changed ·{" "}
+                {imageRefreshCount > 0 && (
+                  <>
+                    <b>{imageRefreshCount}</b> image re-push ·{" "}
+                  </>
+                )}
                 <b>{unchangedCount}</b> unchanged{" "}
                 <span className="text-magic-ink/50">(skipped)</span>
               </span>
-              <label className="ml-4 inline-flex items-center gap-1.5 text-xs text-magic-ink/70">
+              <label className="inline-flex items-center gap-1.5 text-xs text-magic-ink/70">
                 <input
                   type="checkbox"
                   checked={refreshImages}
                   onChange={(e) => setRefreshImages(e.target.checked)}
                   disabled={uploading}
                 />
-                Also re-upload rows with pictures (to push edited images)
+                Also re-upload rows with pictures to push edited images
+                {refreshImages && changedCount + newCount === 0 && (
+                  <span className="text-amber-700">
+                    {" "}— data is unchanged; these {imageRefreshCount} rows are
+                    only re-sent to refresh images.
+                  </span>
+                )}
               </label>
-            </>
+            </div>
           )}
         </div>
       )}
@@ -486,7 +509,7 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
                   ? "Comparing…"
                   : toUpload.length === 0
                     ? "Nothing to update"
-                    : `Upload ${toUpload.length} changed product${toUpload.length === 1 ? "" : "s"}`}
+                    : `Upload ${toUpload.length} product${toUpload.length === 1 ? "" : "s"}`}
             </button>
           </div>
           <div className="overflow-x-auto max-h-[40vh] overflow-y-auto rounded-lg border border-magic-border">
