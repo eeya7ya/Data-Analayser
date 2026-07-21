@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { sql, ensureSchema } from "@/lib/db";
 import { getSessionUser, canReadAll } from "@/lib/auth";
 import { getVisibleProjectIds } from "@/lib/scope";
-import { hasModule } from "@/lib/modules";
+import { getUserModuleRoles } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 import ExecutionReportsSummary from "@/components/ExecutionReportsSummary";
 
@@ -39,8 +39,12 @@ export default async function ProjectsPage() {
   await ensureSchema();
 
   const isAdmin = canReadAll(user);
-  const hasProjectsModule = isAdmin || (await hasModule(user.id, "projects"));
-  const hasCrmModule = isAdmin || (await hasModule(user.id, "crm"));
+  // One grants fetch answers both module checks — this was two sequential
+  // round-trips (hasModule twice) for what is a single-table read.
+  const grants = isAdmin ? [] : await getUserModuleRoles(user.id);
+  const hasProjectsModule =
+    isAdmin || grants.some((g) => g.module === "projects");
+  const hasCrmModule = isAdmin || grants.some((g) => g.module === "crm");
 
   // Compose the visibility set. Projects-module users see their
   // assignments + projects owned by anyone in teams they manage; CRM

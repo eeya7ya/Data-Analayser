@@ -29,7 +29,15 @@ export default async function CompanyProjectLayout({
   if (!user) redirect("/login");
   await ensureSchema();
 
-  const project = await loadAccessibleProject(user, projId, folderId);
+  // The company-name lookup is independent of the access check — dispatch
+  // both at once so the drill-down shell isn't two sequential round-trips.
+  const q = sql();
+  const [project, companyRows] = await Promise.all([
+    loadAccessibleProject(user, projId, folderId),
+    q`
+    select name from companies where id = ${companyId}
+  ` as Promise<Array<{ name: string }>>,
+  ]);
   if (!project) {
     return (
       <NoProjectAccess
@@ -56,10 +64,6 @@ export default async function CompanyProjectLayout({
     redirect(`/folder/${folderId}`);
   }
 
-  const q = sql();
-  const companyRows = (await q`
-    select name from companies where id = ${companyId}
-  `) as Array<{ name: string }>;
   const companyName = companyRows[0]?.name ?? `company #${companyId}`;
 
   const base = `/crm/company/${companyId}/clients/${folderId}/${projId}`;

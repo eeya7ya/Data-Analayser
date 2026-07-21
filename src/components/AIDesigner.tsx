@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import type { SystemEntry } from "@/lib/search";
 import type { SessionUser } from "@/lib/auth";
 import { GROQ_CHAT_MODELS, type GroqChatModelId } from "@/lib/groq";
@@ -355,9 +356,9 @@ export default function AIDesigner({
             {addedCount > 0 && (
               <p className="mt-2 text-[11px] text-green-700 italic">
                 {addedCount} item(s) added to draft. Open the{" "}
-                <a href="/designer" className="underline text-magic-red">
+                <Link href="/designer" className="underline text-magic-red">
                   Designer
-                </a>{" "}
+                </Link>{" "}
                 to see them in the quotation.
               </p>
             )}
