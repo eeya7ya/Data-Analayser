@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { canReadAll, getSessionUser } from "@/lib/auth";
 import { getTenantUserIds } from "@/lib/scope";
 import { sql, ensureSchema } from "@/lib/db";
-import { hasModuleRole, getUserModuleRoles } from "@/lib/modules";
+import { getUserModuleRoles } from "@/lib/modules";
 import TopBar from "@/components/TopBar";
 import RouteRefresher from "@/components/RouteRefresher";
 import DashboardClient, { type DashboardData } from "@/components/DashboardClient";
@@ -80,24 +80,31 @@ function bucketTrend(
  * re-render — `loading.tsx` covers the navigation gap).
  */
 export default async function DashboardPage() {
+  // Stamped into the payload so RouteRefresher can tell a fresh forward
+  // navigation (skip the mount refresh) from a stale back/forward restore.
+  const renderedAt = Date.now();
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
   await ensureSchema();
 
   const isAdmin = canReadAll(user);
-  // 1.4A — approvals are sales-only. Only a sales manager (or admin) signs
-  // off and sees the "Awaiting approval" action card; presales never do.
-  const isSalesManager =
-    isAdmin || (await hasModuleRole(user.id, "crm", "sales_manager"));
 
   // Role-aware dashboard. A "pure" projects person (technician /
   // engineer / project manager with no sales/presales hat and not an
   // admin) cares about execution, not quotation analytics — they get a
   // dedicated board built from their project assignments.
+  //
+  // One round-trip for every role signal. This used to be TWO sequential
+  // queries (hasModuleRole for the sales-manager bit, then the full grants
+  // list) — but the first is just a subset of the second, and on D1 every
+  // query is a full HTTPS round-trip, so the duplicate was pure latency.
   const grants = await getUserModuleRoles(user.id);
   const hasGrant = (m: string, r?: string) =>
     grants.some((g) => g.module === m && (r ? g.role === r : true));
+  // 1.4A — approvals are sales-only. Only a sales manager (or admin) signs
+  // off and sees the "Awaiting approval" action card; presales never do.
+  const isSalesManager = isAdmin || hasGrant("crm", "sales_manager");
   const isCrm = hasGrant("crm");
   const isProjects = hasGrant("projects");
   const isProjectsManager = isAdmin || hasGrant("projects", "manager");
@@ -116,7 +123,10 @@ export default async function DashboardPage() {
   if (!isAdmin && isProjects && !isCrm) {
     const me = user.id;
     const qx = sql();
-    const kpiRows = (await qx`
+    // The three data sets are independent — dispatch them concurrently
+    // instead of paying three sequential database round-trips.
+    const [kpiRows, awaitingRows, projectRowsRaw] = await Promise.all([
+      qx`
       select
         (select count(distinct p.id) from project_assignments pa
            join projects p on p.id = pa.project_id and p.deleted_at is null
@@ -130,23 +140,21 @@ export default async function DashboardPage() {
            where pa.user_id = ${me} and pa.deleted_at is null
              and p.status = 'completed')::int as completed,
         (select count(*) from execution_reports where author_id = ${me})::int as my_reports
-    `) as Array<{
-      my_projects: number;
-      in_execution: number;
-      completed: number;
-      my_reports: number;
-    }>;
-
-    let awaitingAssignment = 0;
-    if (isProjectsManager) {
-      const r = (await qx`
+    ` as Promise<
+        Array<{
+          my_projects: number;
+          in_execution: number;
+          completed: number;
+          my_reports: number;
+        }>
+      >,
+      isProjectsManager
+        ? (qx`
         select count(*)::int as n from project_handoffs
         where status = 'pending_assignment'
-      `) as Array<{ n: number }>;
-      awaitingAssignment = Number(r[0].n);
-    }
-
-    const projectRowsRaw = (await qx`
+      ` as Promise<Array<{ n: number }>>)
+        : Promise.resolve([] as Array<{ n: number }>),
+      qx`
       select p.id, p.name, p.status, pa.role, pa.notes,
              cf.name as client_name, p.updated_at,
              case
@@ -180,7 +188,10 @@ export default async function DashboardPage() {
       join client_folders cf on cf.id = p.folder_id
       where pa.user_id = ${me} and pa.deleted_at is null
       order by p.updated_at desc
-    `) as ExecutionProject[];
+    ` as Promise<ExecutionProject[]>,
+    ]);
+    const awaitingAssignment =
+      awaitingRows.length > 0 ? Number(awaitingRows[0].n) : 0;
     // De-dupe to one row per project (latest first) in JS — replaces Postgres'
     // `distinct on (p.id)`, which SQLite/D1 doesn't support. Cap at 50.
     const seenProjectIds = new Set<number>();
@@ -195,7 +206,7 @@ export default async function DashboardPage() {
     return (
       <div className="min-h-screen bg-magic-soft/40">
         <TopBar user={user} />
-        <RouteRefresher />
+        <RouteRefresher renderedAt={renderedAt} />
         <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
           <ExecutionDashboardClient
             greetingName={user.display_name || user.username}
@@ -220,12 +231,14 @@ export default async function DashboardPage() {
   const isStorage = hasGrant("storage");
   if (!isAdmin && isStorage && !isCrm && !isProjects) {
     const qs = sql();
-    const k = (await qs`
+    // KPI counters + pending list are independent — one concurrent batch.
+    const [k, checks] = await Promise.all([
+      qs`
       select
         (select count(*) from quotation_stock_checks where status = 'pending')::int  as pending_checks,
         (select count(*) from quotation_stock_checks where status = 'answered')::int as answered_checks
-    `) as Array<{ pending_checks: number; answered_checks: number }>;
-    const checks = (await qs`
+    ` as Promise<Array<{ pending_checks: number; answered_checks: number }>>,
+      qs`
       select c.id, c.quotation_id, q.ref as quotation_ref, q.project_name,
              jsonb_array_length(c.items_json) as item_count, c.created_at
       from quotation_stock_checks c
@@ -233,12 +246,13 @@ export default async function DashboardPage() {
       where c.status = 'pending'
       order by c.created_at desc
       limit 20
-    `) as StorageCheckRow[];
+    ` as Promise<StorageCheckRow[]>,
+    ]);
 
     return (
       <div className="min-h-screen bg-magic-soft/40">
         <TopBar user={user} />
-        <RouteRefresher />
+        <RouteRefresher renderedAt={renderedAt} />
         <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
           <StorageDashboardClient
             greetingName={user.display_name || user.username}
@@ -258,7 +272,9 @@ export default async function DashboardPage() {
   // module for the sales view.)
   if (isAdmin) {
     const qa = sql();
-    const adminKpiRows = (await qa`
+    // KPI headline + department table are independent — run them together.
+    const [adminKpiRows, deptRows] = await Promise.all([
+      qa`
       select
         (select count(*) from users)::int as users,
         (select count(*) from users where role = 'admin')::int as admins,
@@ -266,14 +282,15 @@ export default async function DashboardPage() {
           where revoked_at is null)::int as with_role,
         (select count(distinct department_code) from users
           where coalesce(department_code, '') <> '')::int as departments
-    `) as Array<{
-      users: number;
-      admins: number;
-      with_role: number;
-      departments: number;
-    }>;
-
-    const deptRows = (await qa`
+    ` as Promise<
+        Array<{
+          users: number;
+          admins: number;
+          with_role: number;
+          departments: number;
+        }>
+      >,
+      qa`
       select
         coalesce(nullif(u.department_code, ''), 'Unassigned') as code,
         count(distinct u.id)::int as users,
@@ -283,7 +300,8 @@ export default async function DashboardPage() {
         on q.owner_id = u.id and q.deleted_at is null
       group by 1
       order by users desc, code asc
-    `) as Array<{ code: string; users: number; quotations: number }>;
+    ` as Promise<Array<{ code: string; users: number; quotations: number }>>,
+    ]);
 
     const adminData: AdminDashboardData = {
       kpis: {
@@ -302,7 +320,7 @@ export default async function DashboardPage() {
     return (
       <div className="min-h-screen bg-magic-soft/40">
         <TopBar user={user} />
-        <RouteRefresher />
+        <RouteRefresher renderedAt={renderedAt} />
         <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
           <AdminDashboardClient
             data={adminData}
@@ -316,23 +334,6 @@ export default async function DashboardPage() {
   // Non-admins see only their own rows; admins see everything.
   const scope = isAdmin ? await getTenantUserIds(user.id) : [user.id];
   const q = sql();
-
-  const kpiRows = (await q`
-    select
-      (select count(*) from quotations
-        where deleted_at is null
-          and owner_id = any(${scope}::int[]))::int as quotations,
-      (select count(*) from client_folders
-        where deleted_at is null
-          and owner_id = any(${scope}::int[]))::int as clients,
-      (select count(*) from companies
-        where deleted_at is null
-          and owner_id = any(${scope}::int[]))::int as companies,
-      (select count(*) from projects
-        where deleted_at is null
-          and owner_id = any(${scope}::int[]))::int as projects
-  `) as Array<{ quotations: number; clients: number; companies: number; projects: number }>;
-  const kpi = kpiRows[0];
 
   // The "Awaiting approval" KPI was retired in V1.8 — the sign-off step was
   // removed in v1.70, so this count only tallied every un-approved quotation
@@ -352,9 +353,36 @@ export default async function DashboardPage() {
   trendStart.setDate(1);
   const trendCutoff = trendStart.toISOString().slice(0, 10); // YYYY-MM-DD
 
-  const trendDates = (
-    salesLens
-      ? await q`
+  // All five aggregates are independent reads over `quotations` and the
+  // entity tables — dispatch them in ONE concurrent batch. They used to run
+  // sequentially, and on D1 (one HTTPS round-trip per query) that alone made
+  // the dashboard take ~5× the latency of a single query.
+  const [kpiRows, trendDates, outcomeRows, statusRows, approvalRows] =
+    await Promise.all([
+      q`
+    select
+      (select count(*) from quotations
+        where deleted_at is null
+          and owner_id = any(${scope}::int[]))::int as quotations,
+      (select count(*) from client_folders
+        where deleted_at is null
+          and owner_id = any(${scope}::int[]))::int as clients,
+      (select count(*) from companies
+        where deleted_at is null
+          and owner_id = any(${scope}::int[]))::int as companies,
+      (select count(*) from projects
+        where deleted_at is null
+          and owner_id = any(${scope}::int[]))::int as projects
+  ` as Promise<
+        Array<{
+          quotations: number;
+          clients: number;
+          companies: number;
+          projects: number;
+        }>
+      >,
+      (salesLens
+        ? q`
           select coalesce(sales_outcome_at, updated_at) as d
           from quotations
           where deleted_at is null
@@ -362,24 +390,15 @@ export default async function DashboardPage() {
             and (sales_outcome = 'accepted' or transferred_at is not null)
             and coalesce(sales_outcome_at, updated_at) >= ${trendCutoff}
         `
-      : await q`
+        : q`
           select created_at as d
           from quotations
           where deleted_at is null
             and owner_id = any(${scope}::int[])
             and created_at >= ${trendCutoff}
-        `
-  ) as Array<{ d: string | null }>;
-
-  const monthly = bucketTrend(trendDates, "month", 6);
-  const weekly = bucketTrend(trendDates, "week", 12);
-  const daily = bucketTrend(trendDates, "day", 30);
-
-  // Sales outcome breakdown — Won / Lost / Held for the outcome panel. In the
-  // sales lens this counts the deals THIS user decided, not quotations they own.
-  const outcomeRows = (
-    salesLens
-      ? await q`
+        `) as Promise<Array<{ d: string | null }>>,
+      (salesLens
+        ? q`
           select
             count(*) filter (where sales_outcome = 'accepted' or transferred_at is not null) as won,
             count(*) filter (where sales_outcome = 'rejected') as lost,
@@ -387,26 +406,23 @@ export default async function DashboardPage() {
           from quotations
           where deleted_at is null and sales_outcome_by = ${user.id}
         `
-      : await q`
+        : q`
           select
             count(*) filter (where sales_outcome = 'accepted' or transferred_at is not null) as won,
             count(*) filter (where sales_outcome = 'rejected') as lost,
             count(*) filter (where sales_outcome = 'held' and transferred_at is null) as held
           from quotations
           where deleted_at is null and owner_id = any(${scope}::int[])
-        `
-  ) as Array<{ won: number; lost: number; held: number }>;
-
-  const statusRows = (await q`
+        `) as Promise<Array<{ won: number; lost: number; held: number }>>,
+      q`
     select coalesce(nullif(status, ''), 'active') as name, count(*)::int as value
     from quotations
     where deleted_at is null
       and owner_id = any(${scope}::int[])
     group by 1
     order by value desc
-  `) as Array<{ name: string; value: number }>;
-
-  const approvalRows = (await q`
+  ` as Promise<Array<{ name: string; value: number }>>,
+      q`
     select
       count(*) filter (where approved_at is not null)::int as approved,
       count(*) filter (where rejected_at is not null)::int as rejected,
@@ -414,7 +430,13 @@ export default async function DashboardPage() {
     from quotations
     where deleted_at is null
       and owner_id = any(${scope}::int[])
-  `) as Array<{ approved: number; rejected: number; pending: number }>;
+  ` as Promise<Array<{ approved: number; rejected: number; pending: number }>>,
+    ]);
+  const kpi = kpiRows[0];
+
+  const monthly = bucketTrend(trendDates, "month", 6);
+  const weekly = bucketTrend(trendDates, "week", 12);
+  const daily = bucketTrend(trendDates, "day", 30);
 
   const data: DashboardData = {
     kpis: {
@@ -453,7 +475,7 @@ export default async function DashboardPage() {
           navigates back after deleting a quotation/client/company/project, so
           the "removed everything" numbers appeared to linger. Mirrors the
           admin / execution / storage dashboards above. */}
-      <RouteRefresher />
+      <RouteRefresher renderedAt={renderedAt} />
       <main className="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
         <DashboardClient
           data={data}

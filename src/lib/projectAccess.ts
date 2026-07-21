@@ -56,19 +56,21 @@ export async function loadAccessibleProject(
   if (project.owner_id === user.id) return project;
   if (project.folder_owner_id === user.id) return project;
 
-  const hasProjects = (await q`
+  // Both fallback probes grant the same access — run them concurrently
+  // (they were sequential round-trips) and accept either.
+  const [hasProjects, assigned] = await Promise.all([
+    q`
     select 1 from user_module_roles
     where user_id = ${user.id} and module = 'projects' and revoked_at is null
     limit 1
-  `) as Array<{ "?column?": number }>;
-  if (hasProjects.length > 0) return project;
-
-  const assigned = (await q`
+  ` as Promise<Array<{ "?column?": number }>>,
+    q`
     select 1 from project_assignments
     where project_id = ${projectId} and user_id = ${user.id} and deleted_at is null
     limit 1
-  `) as Array<{ "?column?": number }>;
-  if (assigned.length > 0) return project;
+  ` as Promise<Array<{ "?column?": number }>>,
+  ]);
+  if (hasProjects.length > 0 || assigned.length > 0) return project;
 
   return null;
 }

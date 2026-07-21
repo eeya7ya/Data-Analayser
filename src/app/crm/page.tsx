@@ -45,8 +45,38 @@ export default async function CrmLandingPage({
   const scopeSuffix = scopeOwnerId ? `?user=${scopeOwnerId}` : "";
   const q = sql();
 
-  // Role flags drive which module tabs render. Admins see everything.
-  const grants = await getUserModuleRoles(user.id);
+  type CountRow = {
+    company_entities: number;
+    company_clients: number;
+    individual_folders: number;
+    company_quotations: number;
+    individual_quotations: number;
+  };
+  // Role flags and hub counters are independent reads — fetch them
+  // concurrently instead of paying two sequential database round-trips.
+  const [grants, countsRows] = await Promise.all([
+    getUserModuleRoles(user.id),
+    q`
+    select
+      (select count(*) from companies
+         where deleted_at is null
+           and (${scopeOwnerId}::int is null or owner_id = ${scopeOwnerId})) as company_entities,
+      (select count(*) from client_folders
+         where deleted_at is null and kind = 'company'
+           and (${scopeOwnerId}::int is null or owner_id = ${scopeOwnerId})) as company_clients,
+      (select count(*) from client_folders
+         where deleted_at is null and kind = 'individual'
+           and (${scopeOwnerId}::int is null or owner_id = ${scopeOwnerId})) as individual_folders,
+      (select count(*) from quotations qq
+         join client_folders cf on cf.id = qq.folder_id
+         where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'company'
+           and (${scopeOwnerId}::int is null or cf.owner_id = ${scopeOwnerId})) as company_quotations,
+      (select count(*) from quotations qq
+         join client_folders cf on cf.id = qq.folder_id
+         where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'individual'
+           and (${scopeOwnerId}::int is null or cf.owner_id = ${scopeOwnerId})) as individual_quotations
+  ` as Promise<CountRow[]>,
+  ]);
   const hasRole = (module: string, role?: string) =>
     grants.some((g) => g.module === module && (role ? g.role === role : true));
   const flags: CrmHubFlags = {
@@ -66,33 +96,6 @@ export default async function CrmLandingPage({
     executive: isAdmin || hasRole("crm", "executive_manager"),
   };
 
-  type CountRow = {
-    company_entities: number;
-    company_clients: number;
-    individual_folders: number;
-    company_quotations: number;
-    individual_quotations: number;
-  };
-  const countsRows = (await q`
-    select
-      (select count(*) from companies
-         where deleted_at is null
-           and (${scopeOwnerId}::int is null or owner_id = ${scopeOwnerId})) as company_entities,
-      (select count(*) from client_folders
-         where deleted_at is null and kind = 'company'
-           and (${scopeOwnerId}::int is null or owner_id = ${scopeOwnerId})) as company_clients,
-      (select count(*) from client_folders
-         where deleted_at is null and kind = 'individual'
-           and (${scopeOwnerId}::int is null or owner_id = ${scopeOwnerId})) as individual_folders,
-      (select count(*) from quotations qq
-         join client_folders cf on cf.id = qq.folder_id
-         where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'company'
-           and (${scopeOwnerId}::int is null or cf.owner_id = ${scopeOwnerId})) as company_quotations,
-      (select count(*) from quotations qq
-         join client_folders cf on cf.id = qq.folder_id
-         where qq.deleted_at is null and cf.deleted_at is null and cf.kind = 'individual'
-           and (${scopeOwnerId}::int is null or cf.owner_id = ${scopeOwnerId})) as individual_quotations
-  `) as CountRow[];
   const c = countsRows[0];
   const counts: CrmHubCounts = {
     companies: Number(c.company_entities),
