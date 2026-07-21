@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
     }
     if (cur.length > 0) chunks.push(cur);
 
-    for (const batch of chunks) {
+    const upsertBatch = async (batch: typeof valid): Promise<void> => {
       const { P, params } = rawBinder();
       const tuples = batch
         .map(
@@ -219,8 +219,19 @@ export async function POST(req: NextRequest) {
            updated_at     = now()`,
         params,
       );
-      upserted += batch.length;
+    };
+
+    // Fire the small (D1 param-capped) batches in bounded-concurrency waves so
+    // the many network round-trips to D1 overlap instead of stacking serially —
+    // an all-sequential loop over ~240 statements made a full catalogue upload
+    // crawl. Every model in `valid` is unique, so concurrent batches touch
+    // disjoint rows and never conflict. If any batch throws the whole POST
+    // fails (the client reports how far it got), so success means all upserted.
+    const CONCURRENCY = d1 ? 6 : 1;
+    for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+      await Promise.all(chunks.slice(i, i + CONCURRENCY).map(upsertBatch));
     }
+    upserted = valid.length;
 
     // The catalogue changed → drop the cached vendor/system list.
     invalidateSystemsCache();
