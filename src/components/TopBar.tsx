@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, LogOut, ArrowLeft, LifeBuoy } from "@/lib/icons";
+import { Menu, LogOut, ArrowLeft, HelpCircle } from "@/lib/icons";
 import type { SessionUser } from "@/lib/auth";
 import NotificationsBell, {
   clearNotificationsCache,
@@ -136,7 +136,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
               title="Help"
               className="inline-flex h-9 items-center gap-2 rounded-xl border border-magic-border/70 bg-white/70 px-3 text-magic-ink/80 shadow-sm hover:border-magic-red/40 hover:text-magic-red transition-colors"
             >
-              <LifeBuoy className="h-4 w-4" />
+              <HelpCircle className="h-4 w-4" />
               <span className="hidden text-xs font-semibold sm:inline">Help</span>
             </button>
             <NotificationsBell />
