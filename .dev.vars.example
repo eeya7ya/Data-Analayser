@@ -1,0 +1,28 @@
+# Local-only secrets for `wrangler dev` / `npm run cf:preview`.
+#
+# Copy to `.dev.vars` (gitignored) and fill in. In production these are set as
+# Cloudflare secrets instead:  wrangler secret put <NAME>
+#
+# See README → "Deploy to Cloudflare Workers" for which of these must be copied
+# from Vercel and which can simply be regenerated.
+
+AUTH_SECRET=
+CRON_SECRET=
+EMAIL_ENCRYPTION_KEY=
+GROQ_API_KEY=
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=
+
+# Origin used for absolute self-links (e.g. the cron handler's synthetic
+# request). Set to the deployed URL in production.
+APP_ORIGIN=
+
+# Only needed if you drive D1/R2 over the REST API instead of the native
+# bindings (local scripts, or a non-Workers host).
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_D1_DATABASE_ID=
+CLOUDFLARE_R2_ACCESS_KEY_ID=
+CLOUDFLARE_R2_SECRET_ACCESS_KEY=
+CLOUDFLARE_R2_BUCKET=magictech-files

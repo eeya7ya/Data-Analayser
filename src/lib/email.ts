@@ -3,7 +3,7 @@ import { ImapFlow, type ImapFlowOptions } from "imapflow";
 import nodemailer, { type Transporter } from "nodemailer";
 import { simpleParser } from "mailparser";
 import { sql } from "@/lib/db";
-import { decryptSecret } from "@/lib/emailCrypto";
+import { decryptSecret, SecretUndecryptableError } from "@/lib/emailCrypto";
 
 /**
  * Email connection module. Reads the admin-configured mail server settings and
@@ -110,6 +110,11 @@ function smtpTransport(
 // ── Human-readable error mapping ────────────────────────────────────────────
 
 export function describeEmailError(err: unknown): string {
+  // A rotated/lost encryption key is a config problem with a specific fix, and
+  // must not be reported as "authentication failed" — the password was never
+  // sent to the mail server at all.
+  if (err instanceof SecretUndecryptableError) return err.message;
+
   const e = err as {
     code?: string;
     responseCode?: number;

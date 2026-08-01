@@ -1,30 +1,92 @@
 /**
- * Cloudflare D1 client over the public REST API.
+ * Cloudflare D1 client with two interchangeable transports.
  *
- * Why REST and not the native `env.DB` binding?
- * ─────────────────────────────────────────────
- * The app currently runs on Vercel, which doesn't expose Cloudflare
- * bindings. To validate the D1 migration without first having to move the
- * whole app to Cloudflare Pages, we drive D1 from Vercel through its REST
- * API. Once the dual-run period is over and the app is deployed to
- * Cloudflare Pages, this module can be swapped for the native binding
- * with a single import change — the public surface (`d1Query`, `d1Exec`,
- * `d1Batch`) stays the same.
+ * 1. Native binding (preferred) — when the app runs on Cloudflare Workers,
+ *    `env.magictech` (see wrangler.toml) is a real D1 binding. Queries go
+ *    straight to the database with no HTTP round-trip, and `d1Batch` gets
+ *    genuine transactional atomicity.
  *
- * Required env vars (set in Vercel → Project Settings → Environment
- * Variables, marked Sensitive):
+ * 2. REST API (fallback) — used anywhere the binding doesn't exist: local
+ *    `next dev`, one-off admin scripts, or a non-Workers host. This is the
+ *    path the app used while it was still deployed on Vercel, where
+ *    Cloudflare bindings aren't available, and it's kept so those
+ *    environments keep working unchanged.
+ *
+ * `getBinding()` decides per call, so the same code works in both places and
+ * callers never need to know which transport is live. The public surface
+ * (`d1Query`, `d1Exec`, `d1Batch`) is identical either way.
+ *
+ * Env vars — only needed for the REST fallback (on Workers the binding
+ * supplies everything and none of these have to be set):
  *
  *   CLOUDFLARE_ACCOUNT_ID    — your account ID from the dashboard URL
  *   CLOUDFLARE_D1_DATABASE_ID — 385c686f-31a1-46cb-b2ee-a919472ad978
  *                              (from wrangler.toml)
  *   CLOUDFLARE_API_TOKEN     — a custom token with the "D1 Edit" perm
  *                              (dashboard → My Profile → API Tokens)
- *
- * Nothing in this module reads Supabase. It's purely additive — no
- * existing route imports it. Migration callers opt in explicitly.
  */
 
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+
 const ENDPOINT_BASE = "https://api.cloudflare.com/client/v4/accounts";
+
+/** Binding name declared in wrangler.toml → [[d1_databases]]. */
+const D1_BINDING = "magictech";
+
+/**
+ * Minimal structural shape of a D1 binding. Declared locally rather than
+ * pulling in `@cloudflare/workers-types`, which would fight with the Node
+ * types the rest of the app is compiled against.
+ */
+type D1PreparedStatement = {
+  bind(...values: unknown[]): D1PreparedStatement;
+  all<T>(): Promise<{
+    results?: T[];
+    success?: boolean;
+    meta?: D1QueryResult["meta"];
+  }>;
+};
+
+type D1Binding = {
+  prepare(sql: string): D1PreparedStatement;
+  batch(
+    statements: D1PreparedStatement[],
+  ): Promise<
+    Array<{ results?: unknown[]; success?: boolean; meta?: D1QueryResult["meta"] }>
+  >;
+};
+
+/**
+ * The native D1 binding when running on Workers, otherwise null.
+ *
+ * `getCloudflareContext()` throws when there's no Workers context (plain
+ * `next dev`, `next build` prerendering, node scripts), so the throw is the
+ * signal to fall back to REST rather than an error worth surfacing.
+ */
+function getBinding(): D1Binding | null {
+  try {
+    const env = getCloudflareContext().env as unknown as
+      | Record<string, unknown>
+      | undefined;
+    const db = env?.[D1_BINDING];
+    if (db && typeof (db as D1Binding).prepare === "function") {
+      return db as D1Binding;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Bind params only when there are some — `.bind()` with no args is an error. */
+function prepared(
+  binding: D1Binding,
+  sql: string,
+  params: Array<string | number | null>,
+): D1PreparedStatement {
+  const stmt = binding.prepare(sql);
+  return params.length > 0 ? stmt.bind(...params) : stmt;
+}
 
 type D1QueryResult<T = Record<string, unknown>> = {
   results: T[];
@@ -64,11 +126,14 @@ function readConfig(): {
 }
 
 /**
- * Whether D1 is configured for this deployment. Used by feature-flag
- * checks so an unconfigured environment falls back to Supabase silently
+ * Whether D1 is reachable for this deployment — either through the native
+ * Workers binding or through a fully-configured REST fallback. Used by
+ * feature-flag checks so an unconfigured environment degrades silently
  * instead of crashing.
  */
 export function isD1Configured(): boolean {
+  // On Workers the binding is all that's needed; the REST env vars are not.
+  if (getBinding()) return true;
   return Boolean(
     process.env.CLOUDFLARE_ACCOUNT_ID &&
       process.env.CLOUDFLARE_D1_DATABASE_ID &&
@@ -92,6 +157,17 @@ export async function d1Query<T = Record<string, unknown>>(
   sql: string,
   params: Array<string | number | null> = [],
 ): Promise<D1QueryResult<T>> {
+  // Preferred path: native binding, no HTTP hop.
+  const binding = getBinding();
+  if (binding) {
+    const r = await prepared(binding, sql, params).all<T>();
+    return {
+      results: r.results ?? [],
+      success: r.success !== false,
+      meta: r.meta,
+    };
+  }
+
   const { accountId, databaseId, token } = readConfig();
   const url = `${ENDPOINT_BASE}/${accountId}/d1/database/${databaseId}/query`;
   const res = await fetch(url, {
@@ -120,24 +196,41 @@ export async function d1Query<T = Record<string, unknown>>(
 }
 
 /**
- * Run multiple statements as a single atomic batch. D1 applies them in
- * order inside a transaction; if any fails the whole batch rolls back.
- * Use this for bulk INSERTs during data load so partial loads don't
- * leave the destination in an in-between state.
+ * Run multiple statements as a single batch, in order. Use this for bulk
+ * INSERTs during data load so partial loads don't leave the destination in
+ * an in-between state.
  *
- * NOTE: D1 REST API's `/query` endpoint doesn't support true batch mode
- * (array input), so this executes each statement individually in order.
- * To make this feel atomic, all statements should be simple INSERTs.
+ * Atomicity depends on the transport:
+ *
+ *   • Native binding — `batch()` wraps the statements in a real transaction.
+ *     If any statement fails the whole batch rolls back. This is the path
+ *     taken on Workers.
+ *
+ *   • REST fallback — the `/query` endpoint has no batch mode, so statements
+ *     are executed one at a time and a mid-batch failure leaves earlier rows
+ *     committed. Safe enough for the INSERT-only workloads that use it (rows
+ *     stay individually valid and the caller can retry), but it is NOT a
+ *     transaction. Prefer running bulk loads on Workers now that the binding
+ *     is available.
  */
 export async function d1Batch(
   statements: Array<{ sql: string; params?: Array<string | number | null> }>,
 ): Promise<D1QueryResult[]> {
   if (statements.length === 0) return [];
-  const results: D1QueryResult[] = [];
 
-  // Execute each statement individually. This is not truly atomic in D1,
-  // but for INSERT-only workloads it's safe enough (rows stay valid even if
-  // the batch partially fails; the caller can retry).
+  const binding = getBinding();
+  if (binding) {
+    const res = await binding.batch(
+      statements.map((s) => prepared(binding, s.sql, s.params ?? [])),
+    );
+    return res.map((r) => ({
+      results: (r.results ?? []) as Array<Record<string, unknown>>,
+      success: r.success !== false,
+      meta: r.meta,
+    }));
+  }
+
+  const results: D1QueryResult[] = [];
   for (const stmt of statements) {
     const result = await d1Query(stmt.sql, stmt.params);
     results.push(result);

@@ -11,3 +11,9 @@ dist/
 coverage/
 tsconfig.tsbuildinfo
 next-env.d.ts
+
+# Local-only Cloudflare dev secrets
+.dev.vars
+.open-next/
+.wrangler/
+cloudflare-env.d.ts
