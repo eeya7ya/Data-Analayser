@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Select from "@/components/Select";
 
 /**
  * Roster widget for /projects/[id]. Always renders the current assignments;
@@ -274,10 +275,10 @@ function AssignForm({
         Assign someone
       </h3>
       <div className="grid gap-2 md:grid-cols-3">
-        <select
+        <Select
           value={userId}
-          onChange={(e) =>
-            setUserId(e.target.value === "" ? "" : Number(e.target.value))
+          onChange={(next) =>
+            setUserId(next === "" ? "" : Number(next))
           }
           disabled={disabled || users.length === 0}
           className="rounded border border-magic-border bg-white px-2 py-1.5 text-sm"
@@ -294,10 +295,10 @@ function AssignForm({
               </option>
             ))
           )}
-        </select>
-        <select
+        </Select>
+        <Select
           value={role}
-          onChange={(e) => setRole(e.target.value as Assignment["role"])}
+          onChange={(next) => setRole(next as Assignment["role"])}
           disabled={disabled}
           className="rounded border border-magic-border bg-white px-2 py-1.5 text-sm"
         >
@@ -306,7 +307,7 @@ function AssignForm({
               {r}
             </option>
           ))}
-        </select>
+        </Select>
         <input
           type="text"
           placeholder="Location (optional)"

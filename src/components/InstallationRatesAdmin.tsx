@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2 } from "@/lib/icons";
+import Select from "@/components/Select";
 
 /**
  * Admin editor for the installation-calculator rate book. One flat list of
@@ -161,9 +162,9 @@ export default function InstallationRatesAdmin() {
                           />
                         </td>
                         <td className="py-1.5 pr-2">
-                          <select
+                          <Select
                             value={r.unit}
-                            onChange={(e) => patch(r.id, { unit: e.target.value })}
+                            onChange={(next) => patch(r.id, { unit: next })}
                             className="rounded border border-magic-border px-1.5 py-1 text-xs"
                           >
                             {UNITS.map((u) => (
@@ -171,7 +172,7 @@ export default function InstallationRatesAdmin() {
                                 {u}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </td>
                         <td className="py-1.5 pr-2 text-right">
                           <input

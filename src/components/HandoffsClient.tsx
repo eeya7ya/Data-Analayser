@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { MapPin, Phone, User, ClipboardList, ChevronDown, CheckCircle2 } from "@/lib/icons";
 import Spinner from "@/components/Spinner";
+import Select from "@/components/Select";
 
 interface BoqLine {
   system?: string;
@@ -328,9 +329,9 @@ function HandoffCard({
           {canAssign && (
             <div className="w-full space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <select
+                <Select
                   value={assignee}
-                  onChange={(e) => setAssignee(e.target.value)}
+                  onChange={(next) => setAssignee(next)}
                   disabled={busy}
                   className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
                 >
@@ -340,17 +341,17 @@ function HandoffCard({
                       {u.display_name || u.username}
                     </option>
                   ))}
-                </select>
-                <select
+                </Select>
+                <Select
                   value={role}
-                  onChange={(e) => setRole(e.target.value)}
+                  onChange={(next) => setRole(next)}
                   disabled={busy}
                   className="rounded border border-magic-border bg-white px-2 py-1.5 text-xs"
                 >
                   <option value="engineer">Engineer</option>
                   <option value="technical">Technical</option>
                   <option value="manager">Manager</option>
-                </select>
+                </Select>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <input

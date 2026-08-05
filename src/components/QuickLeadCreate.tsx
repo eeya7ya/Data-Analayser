@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Paperclip, FileText, Trash2 } from "@/lib/icons";
+import Select from "@/components/Select";
 
 /**
  * Sales quick-create lead (V1.8).
@@ -372,10 +373,10 @@ export default function QuickLeadCreate() {
 
         <label className="block text-xs font-semibold text-magic-ink/60">
           Priority
-          <select
+          <Select
             value={priority}
-            onChange={(e) =>
-              setPriority(e.target.value as (typeof PRIORITIES)[number])
+            onChange={(next) =>
+              setPriority(next as (typeof PRIORITIES)[number])
             }
             className="mt-1 w-full rounded-lg border border-magic-border px-3 py-2 text-sm font-normal text-magic-ink bg-white"
           >
@@ -384,15 +385,15 @@ export default function QuickLeadCreate() {
                 {p[0].toUpperCase() + p.slice(1)}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="block text-xs font-semibold text-magic-ink/60">
           Client
-          <select
+          <Select
             value={mode}
-            onChange={(e) => {
-              const v = e.target.value as ClientMode;
+            onChange={(next) => {
+              const v = next as ClientMode;
               setMode(v);
               // Files need a folder to live in, so drop them if the lead is
               // switched back to "decide later".
@@ -404,15 +405,15 @@ export default function QuickLeadCreate() {
             <option value="existing">Existing client</option>
             <option value="company">New company</option>
             <option value="individual">New individual customer</option>
-          </select>
+          </Select>
         </label>
 
         {mode === "existing" && (
           <label className="sm:col-span-2 block text-xs font-semibold text-magic-ink/60">
             Pick the client
-            <select
+            <Select
               value={existingFolderId}
-              onChange={(e) => setExistingFolderId(e.target.value)}
+              onChange={(next) => setExistingFolderId(next)}
               className="mt-1 w-full rounded-lg border border-magic-border px-3 py-2 text-sm font-normal text-magic-ink bg-white"
             >
               <option value="">
@@ -424,7 +425,7 @@ export default function QuickLeadCreate() {
                   {f.company_name ? ` · ${f.company_name}` : ""}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
 

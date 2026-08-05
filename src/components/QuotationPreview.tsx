@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import Select from "@/components/Select";
 import {
   computeQuotationTotals,
   effectiveMergedValue,
@@ -1646,19 +1647,19 @@ function QuotationPage({
                 // is a genuine choice (the folder belongs to a company); a
                 // standalone client just renders its locked name below. The
                 // parent swaps the name / email / phone to match the key.
-                <select
+                <Select
                   value={clientIdentity || clientOptions[0].key}
-                  onChange={(e) => onClientIdentityChange?.(e.target.value)}
+                  onChange={(next) => onClientIdentityChange?.(next)}
                   aria-label="Client identity"
                   title="Choose whether the client name or the company name appears here — its email and phone fill in automatically."
-                  className="w-full bg-transparent outline-none border-b border-dotted border-magic-border focus:border-magic-red"
+                  className="w-full min-w-0 rounded-none border-0 border-b border-dotted border-magic-border bg-transparent px-0 py-0 text-inherit shadow-none focus:border-magic-red focus:ring-0"
                 >
                   {clientOptions.map((o) => (
                     <option key={o.key} value={o.key}>
                       {o.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               ) : (
                 <HeaderField
                   value={header.client_name || ""}
@@ -2601,10 +2602,10 @@ function SystemTable({
                           <div className="mb-0.5 text-[9px] uppercase tracking-wide text-magic-ink/40">
                             Move to page
                           </div>
-                          <select
+                          <Select
                             value=""
-                            onChange={(e) => {
-                              const v = e.target.value;
+                            placeholder="Move to…"
+                            onChange={(v) => {
                               setOpenRowMenu(null);
                               if (!v) return;
                               if (v === "__new__") {
@@ -2615,7 +2616,7 @@ function SystemTable({
                                 onUpdate(globalIndex, { system: v });
                               }
                             }}
-                            className="w-full text-[10px] border border-magic-border rounded px-1 py-0.5 bg-white"
+                            className="w-full min-w-0 rounded border border-magic-border bg-white px-1 py-0.5 text-[10px] shadow-none"
                             title="Move this row to another page"
                           >
                             <option value="">Move to…</option>
@@ -2627,7 +2628,7 @@ function SystemTable({
                                 </option>
                               ))}
                             <option value="__new__">+ New page…</option>
-                          </select>
+                          </Select>
                         </div>
                         <div className="my-1 border-t border-magic-border/60" />
                         <button

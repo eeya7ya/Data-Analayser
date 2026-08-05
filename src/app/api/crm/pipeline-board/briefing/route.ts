@@ -6,6 +6,7 @@ import { groqClient, DESIGN_MODEL } from "@/lib/groq";
 import {
   type Stage,
   STAGE_LABEL,
+  collapseVersions,
   deriveStage,
   insight,
 } from "@/lib/pipeline";
@@ -28,6 +29,8 @@ export const dynamic = "force-dynamic";
 interface Row {
   id: number;
   ref: string;
+  /** Root quotation ref for a Draft / Revision; null on the original. */
+  parent_ref: string | null;
   client_name: string | null;
   approved_at: string | null;
   rejected_at: string | null;
@@ -107,8 +110,8 @@ export async function POST() {
     // in JS. (Per-line gross-margin used a Postgres lateral join over
     // jsonb_array_elements with regex casts, which D1/SQLite can't run — margin
     // is simply omitted from the AI snapshot, which the prompt already allows.)
-    const rows = (await q`
-      select q.id, q.ref, q.client_name,
+    const versions = (await q`
+      select q.id, q.ref, q.parent_ref, q.client_name,
              q.approved_at, q.rejected_at, q.sales_outcome, q.transferred_at,
              q.sent_to_sales_at, q.completed_at,
              p.status as project_status,
@@ -119,7 +122,9 @@ export async function POST() {
       from quotations q
       left join projects p on p.id = q.project_id
       where q.deleted_at is null
-        and q.parent_ref is null
+        -- Originals always; a draft / revision only counts once presales sent
+        -- it to sales, at which point it walks the same cycle as the original.
+        and (q.parent_ref is null or q.sent_to_sales_at is not null)
         and (
           q.owner_id = any(${ownerIds}::int[])
           or (${!tenantWide}::boolean and (
@@ -139,6 +144,11 @@ export async function POST() {
       order by coalesce(q.sales_outcome_at, q.approved_at, q.updated_at, q.created_at) desc
       limit 1000
     `) as Row[];
+
+    // Fold every draft / revision back into its original's lineage so the
+    // briefing reasons about one deal per quotation number, represented by the
+    // version the sales side last acted on.
+    const rows = collapseVersions(versions);
 
     // Keep only live, non-terminal deals; rank attention-first then by value so
     // the most urgent/valuable deals make it into the (token-bounded) snapshot.

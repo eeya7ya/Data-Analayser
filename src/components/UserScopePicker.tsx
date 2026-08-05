@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Select from "@/components/Select";
 
 interface UserOption {
   id: number;
@@ -53,9 +54,9 @@ export default function UserScopePicker() {
       <label className="text-xs font-semibold text-magic-ink/60">
         Filter by user
       </label>
-      <select
+      <Select
         value={current}
-        onChange={(e) => update(e.target.value)}
+        onChange={(next) => update(next)}
         className="rounded-md border border-magic-border bg-white px-2 py-1 text-sm"
       >
         <option value="">All users</option>
@@ -64,7 +65,7 @@ export default function UserScopePicker() {
             {u.display_name || u.username}
           </option>
         ))}
-      </select>
+      </Select>
       {current && (
         <button
           onClick={() => update("")}

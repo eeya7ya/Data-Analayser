@@ -15,6 +15,7 @@ import { confirmDelete } from "@/lib/confirmDelete";
 import QuotationRowActions from "@/components/QuotationRowActions";
 import RequestQuotationButton from "@/components/RequestQuotationButton";
 import ProjectDistribution from "@/components/ProjectDistribution";
+import Select from "@/components/Select";
 
 interface Project {
   id: number;
@@ -1445,9 +1446,9 @@ function FilesTab({
         <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] text-magic-ink/60">
           <label className="flex items-center gap-1">
             <span>User:</span>
-            <select
+            <Select
               value={userFilter}
-              onChange={(e) => setUserFilter(e.target.value)}
+              onChange={(next) => setUserFilter(next)}
               className="rounded-md border border-magic-border px-2 py-1 text-[11px] bg-white"
             >
               <option value="all">All users</option>
@@ -1456,7 +1457,7 @@ function FilesTab({
                   {name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <button
             type="button"

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { EditCompanyDialog } from "@/components/EditCompanyDialog";
 import { useNameConflicts } from "@/components/useNameConflicts";
 import { LIST_SORT_OPTIONS, sortList, type ListSortKey } from "@/lib/listSort";
+import Select from "@/components/Select";
 
 /**
  * Companies list with client-side search + "+ New" modal. Server
@@ -112,9 +113,9 @@ export default function CompanyListClient({
         />
         <label className="flex items-center gap-1.5 text-xs text-magic-ink/60">
           <span className="hidden sm:inline">Sort</span>
-          <select
+          <Select
             value={sortKey}
-            onChange={(e) => setSortKey(e.target.value as ListSortKey)}
+            onChange={(next) => setSortKey(next as ListSortKey)}
             aria-label="Sort companies"
             className="rounded-lg border border-magic-border bg-white px-2 py-2 text-sm text-magic-ink"
           >
@@ -123,7 +124,7 @@ export default function CompanyListClient({
                 {o.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <Link
           href="/crm/trash"

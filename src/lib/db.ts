@@ -577,6 +577,15 @@ const SENT_TO_SALES_RECIPIENT_FLAG = "quotation_sent_to_sales_to_v1_2026_07";
  */
 const QUOTATION_COMPLETED_FLAG = "quotation_completed_v1_2026_07";
 
+/**
+ * Incremental migration: the `catalogue` module. Maintaining the product
+ * catalogue used to be hard-wired to "admin or anyone in the storage module",
+ * so an admin couldn't delegate it to one specific person. `catalogue.editor`
+ * is a grantable role like any other, which means the CHECK constraint on
+ * `user_module_roles.module` has to accept the new name on existing databases.
+ */
+const CATALOGUE_MODULE_FLAG = "catalogue_module_v1_2026_08";
+
 /** One-shot schema bootstrap. Idempotent — safe to run on every cold start. */
 export async function ensureSchema(): Promise<void> {
   // In D1 mode (the default) apply the SQLite schema (d1/schema.sql)
@@ -972,6 +981,7 @@ async function _ensureSchemaOnce(): Promise<void> {
   let deliveryRequestsApplied = false;
   let sentToSalesRecipientApplied = false;
   let quotationCompletedApplied = false;
+  let catalogueModuleApplied = false;
   try {
     const rows = (await q`
       select key from migration_flags
@@ -995,7 +1005,7 @@ async function _ensureSchemaOnce(): Promise<void> {
         ${PROJECT_DISTRIBUTION_PHONE_FLAG}, ${CHECKLIST_TEMPLATES_FLAG},
         ${V18_MODULES_FLAG}, ${V18_FILE_SHARE_FLAG},
         ${DELIVERY_REQUESTS_FLAG}, ${SENT_TO_SALES_RECIPIENT_FLAG},
-        ${QUOTATION_COMPLETED_FLAG}
+        ${QUOTATION_COMPLETED_FLAG}, ${CATALOGUE_MODULE_FLAG}
       )
     `) as Array<{ key: string }>;
     const keys = new Set(rows.map((r) => r.key));
@@ -1046,6 +1056,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     deliveryRequestsApplied = keys.has(DELIVERY_REQUESTS_FLAG);
     sentToSalesRecipientApplied = keys.has(SENT_TO_SALES_RECIPIENT_FLAG);
     quotationCompletedApplied = keys.has(QUOTATION_COMPLETED_FLAG);
+    catalogueModuleApplied = keys.has(CATALOGUE_MODULE_FLAG);
   } catch {
     // migration_flags missing or unreadable — run the full DDL below.
   }
@@ -1098,7 +1109,8 @@ async function _ensureSchemaOnce(): Promise<void> {
     v18FileShareApplied &&
     deliveryRequestsApplied &&
     sentToSalesRecipientApplied &&
-    quotationCompletedApplied
+    quotationCompletedApplied &&
+    catalogueModuleApplied
   )
     return;
 
@@ -2110,7 +2122,7 @@ async function _ensureSchemaOnce(): Promise<void> {
     await q`
       create table if not exists user_module_roles (
         user_id    integer not null references users(id) on delete cascade,
-        module     text not null check (module in ('crm','projects','storage','admin','pricing','delivery','showroom','accountant')),
+        module     text not null check (module in ('crm','projects','storage','admin','pricing','delivery','showroom','accountant','catalogue')),
         role       text not null,
         granted_by integer references users(id) on delete set null,
         created_at timestamptz not null default now(),
@@ -3603,6 +3615,25 @@ async function _ensureSchemaOnce(): Promise<void> {
     `;
     await q`
       insert into migration_flags (key) values (${V18_MODULES_FLAG})
+      on conflict (key) do nothing
+    `;
+  }
+
+  if (!catalogueModuleApplied) {
+    // Catalogue Modifier access as its own grantable module. Same DROP-then-ADD
+    // swap the V1.8 widening used — the fresh-DB inline CREATE TABLE already
+    // lists 'catalogue', so this ALTER is a no-op there.
+    await q`
+      alter table user_module_roles
+        drop constraint if exists user_module_roles_module_check
+    `;
+    await q`
+      alter table user_module_roles
+        add constraint user_module_roles_module_check
+        check (module in ('crm','projects','storage','admin','pricing','delivery','showroom','accountant','catalogue'))
+    `;
+    await q`
+      insert into migration_flags (key) values (${CATALOGUE_MODULE_FLAG})
       on conflict (key) do nothing
     `;
   }

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { SessionUser } from "@/lib/auth";
 import { confirmDelete } from "@/lib/confirmDelete";
 import { compressDataUrl } from "@/components/QuotationPreview";
+import Select from "@/components/Select";
 
 // Belt-and-braces upload cap. The compressDataUrl pass usually lands well
 // under this for any normal product photo (canvas re-encode at 800px /
@@ -35,17 +36,6 @@ interface SystemInfo {
   currency: string;
   product_count: number;
 }
-
-// ─── Form-control chrome ────────────────────────────────────────────────────
-// Custom red chevron for <select> controls (replaces the ugly native triangle).
-// Uses the brand red `#E2231A` so the indicator matches the rest of the palette.
-const SELECT_CHEVRON_STYLE = {
-  backgroundImage:
-    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23E2231A'><path fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/></svg>\")",
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: "right 0.75rem center",
-  backgroundSize: "1rem",
-} as const;
 
 // ─── Fixed columns ──────────────────────────────────────────────────────────
 // `width` is used as a table-layout:fixed column width so each column gets a
@@ -240,10 +230,9 @@ export default function CatalogBrowser({
           <label className="block text-[11px] font-semibold uppercase tracking-wider text-magic-ink/60 mb-1">
             Select vendor / system
           </label>
-          <select
+          <Select
             value={selectedVendor ? `${selectedVendor}||${selectedSystem}` : ""}
-            onChange={(e) => {
-              const val = e.target.value;
+            onChange={(val) => {
               if (!val) {
                 setSelectedVendor("");
                 setSelectedSystem("");
@@ -256,8 +245,7 @@ export default function CatalogBrowser({
               setSelectedSubCategory("");
               setProducts([]);
             }}
-            style={SELECT_CHEVRON_STYLE}
-            className="w-full appearance-none rounded-lg border border-magic-border bg-white pl-3 pr-9 py-2.5 text-sm font-medium text-magic-ink shadow-sm cursor-pointer hover:border-magic-red/50 hover:bg-magic-soft/40 focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20 transition-all"
+            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2.5 text-sm font-medium text-magic-ink shadow-sm cursor-pointer hover:border-magic-red/50 hover:bg-magic-soft/40 focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20 transition-all"
           >
             <option value="">— Pick a system —</option>
             {systemsByVendor.map(([vendor, list]) => (
@@ -269,7 +257,7 @@ export default function CatalogBrowser({
                 ))}
               </optgroup>
             ))}
-          </select>
+          </Select>
         </div>
 
         {categories.length > 0 && (
@@ -277,11 +265,10 @@ export default function CatalogBrowser({
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-magic-ink/60 mb-1">
               Sub Category
             </label>
-            <select
+            <Select
               value={selectedSubCategory}
-              onChange={(e) => setSelectedSubCategory(e.target.value)}
-              style={SELECT_CHEVRON_STYLE}
-              className="w-full appearance-none rounded-lg border border-magic-border bg-white pl-3 pr-9 py-2.5 text-sm font-medium text-magic-ink shadow-sm cursor-pointer hover:border-magic-red/50 hover:bg-magic-soft/40 focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20 transition-all"
+              onChange={(next) => setSelectedSubCategory(next)}
+              className="w-full rounded-lg border border-magic-border bg-white px-3 py-2.5 text-sm font-medium text-magic-ink shadow-sm cursor-pointer hover:border-magic-red/50 hover:bg-magic-soft/40 focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20 transition-all"
             >
               <option value="">— All sub categories —</option>
               {categories.map((cat) => (
@@ -289,7 +276,7 @@ export default function CatalogBrowser({
                   {cat}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
 

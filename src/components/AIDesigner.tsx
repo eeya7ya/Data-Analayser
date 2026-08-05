@@ -6,6 +6,7 @@ import type { SystemEntry } from "@/lib/search";
 import type { SessionUser } from "@/lib/auth";
 import { GROQ_CHAT_MODELS, type GroqChatModelId } from "@/lib/groq";
 import type { QuotationItem } from "./QuotationPreview";
+import Select from "@/components/Select";
 import {
   appendItem,
   loadDraft,
@@ -186,9 +187,9 @@ export default function AIDesigner({
       {/* Left — AI controls */}
       <section className="space-y-4">
         <Card title="1 \u00b7 Select a system & AI model">
-          <select
+          <Select
             value={systemId}
-            onChange={(e) => setSystemId(e.target.value)}
+            onChange={(next) => setSystemId(next)}
             className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
           >
             <option value="">\u2014 Auto (cross-vendor) \u2014</option>
@@ -201,14 +202,14 @@ export default function AIDesigner({
                 ))}
               </optgroup>
             ))}
-          </select>
+          </Select>
           <div className="mt-3">
             <label className="block text-[10px] font-semibold uppercase text-magic-ink/60 mb-1">
               Groq design model
             </label>
-            <select
+            <Select
               value={designModel}
-              onChange={(e) => setDesignModel(e.target.value as GroqChatModelId)}
+              onChange={(next) => setDesignModel(next as GroqChatModelId)}
               className="w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm"
             >
               {GROQ_CHAT_MODELS.map((m) => (
@@ -216,7 +217,7 @@ export default function AIDesigner({
                   {m.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <p className="mt-1 text-[11px] text-magic-ink/50">
               {GROQ_CHAT_MODELS.find((m) => m.id === designModel)?.description}
             </p>

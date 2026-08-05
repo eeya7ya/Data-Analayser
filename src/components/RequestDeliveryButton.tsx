@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Truck } from "@/lib/icons";
+import Select from "@/components/Select";
 
 /**
  * Raise a delivery request from a project (V1.8). Sales and projects use this
@@ -93,16 +94,16 @@ export default function RequestDeliveryButton({
             placeholder="Contact phone"
             className="mb-2 w-full rounded-lg border border-magic-border px-2 py-1.5 text-xs"
           />
-          <select
+          <Select
             value={priority}
-            onChange={(e) => setPriority(e.target.value)}
+            onChange={(next) => setPriority(next)}
             className="mb-2 w-full rounded-lg border border-magic-border bg-white px-2 py-1.5 text-xs"
           >
             <option value="low">Low priority</option>
             <option value="normal">Normal priority</option>
             <option value="high">High priority</option>
             <option value="urgent">Urgent</option>
-          </select>
+          </Select>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

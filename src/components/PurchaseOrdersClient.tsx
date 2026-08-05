@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { confirmDelete } from "@/lib/confirmDelete";
+import Select from "@/components/Select";
 
 interface PurchaseOrder {
   id: number;
@@ -391,9 +392,9 @@ export default function PurchaseOrdersClient({
             />
           </svg>
         </div>
-        <select
+        <Select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(next) => setStatusFilter(next)}
           className="px-3 py-2 text-sm border border-magic-border rounded-xl bg-white"
         >
           <option value="all">All statuses</option>
@@ -402,14 +403,14 @@ export default function PurchaseOrdersClient({
               {s.label}
             </option>
           ))}
-        </select>
+        </Select>
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] uppercase tracking-wide text-magic-ink/50 font-semibold">
             Sort
           </span>
-          <select
+          <Select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            onChange={(next) => setSortBy(next as SortBy)}
             className="px-2 py-2 text-xs border border-magic-border rounded-lg bg-white"
           >
             <option value="created">Created</option>
@@ -421,7 +422,7 @@ export default function PurchaseOrdersClient({
             <option value="status">Status</option>
             <option value="issued_at">Issued date</option>
             <option value="expected_at">Expected date</option>
-          </select>
+          </Select>
           <button
             type="button"
             onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
@@ -501,9 +502,9 @@ export default function PurchaseOrdersClient({
           </label>
           <label className="flex flex-col gap-1 text-xs text-magic-ink/60">
             Linked quotation
-            <select
+            <Select
               value={formQuotationId}
-              onChange={(e) => setFormQuotationId(e.target.value)}
+              onChange={(next) => setFormQuotationId(next)}
               className="rounded-md border border-magic-border px-3 py-2 text-sm text-magic-ink bg-white"
             >
               <option value="">— (none)</option>
@@ -512,7 +513,7 @@ export default function PurchaseOrdersClient({
                   {q.ref} · {q.project_name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-magic-ink/60">
             Supplier
@@ -564,9 +565,9 @@ export default function PurchaseOrdersClient({
           </label>
           <label className="flex flex-col gap-1 text-xs text-magic-ink/60">
             Status
-            <select
+            <Select
               value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value)}
+              onChange={(next) => setFormStatus(next)}
               className="rounded-md border border-magic-border px-3 py-2 text-sm text-magic-ink bg-white"
             >
               {STATUS_OPTIONS.map((s) => (
@@ -574,7 +575,7 @@ export default function PurchaseOrdersClient({
                   {s.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-magic-ink/60">
             Issued date
@@ -731,9 +732,9 @@ export default function PurchaseOrdersClient({
                     </td>
                     <td className="p-3">
                       {isEditing ? (
-                        <select
+                        <Select
                           value={editStatus}
-                          onChange={(e) => setEditStatus(e.target.value)}
+                          onChange={(next) => setEditStatus(next)}
                           className="rounded-md border border-magic-border px-2 py-1 text-sm bg-white"
                         >
                           {STATUS_OPTIONS.map((s) => (
@@ -741,7 +742,7 @@ export default function PurchaseOrdersClient({
                               {s.label}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       ) : (
                         <span
                           className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase ${

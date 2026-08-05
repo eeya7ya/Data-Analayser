@@ -14,6 +14,12 @@ export const dynamic = "force-dynamic";
  * quotation. Each row carries who sent it and whether the salesperson has
  * already filed it (`filed` = sales_accepted_at set) into a company / client /
  * project, so the queue can separate "to file" from "filed".
+ *
+ * Drafts / revisions (`status` = 'draft' | 'review', `parent_ref` pointing at
+ * the quotation they branched from) arrive here exactly like the original —
+ * presales can hand any version of a quotation number over. Both columns are
+ * returned so the queue can badge a row as "Revision of QA42226MT5" instead of
+ * looking like a second, unrelated deal.
  */
 export async function GET() {
   try {
@@ -28,6 +34,8 @@ export async function GET() {
         qt.ref,
         qt.project_name,
         qt.client_name,
+        qt.status,
+        qt.parent_ref,
         qt.sent_to_sales_at,
         qt.sent_to_sales_by,
         su.display_name as sent_by_name,
@@ -50,6 +58,8 @@ export async function GET() {
       ref: string;
       project_name: string | null;
       client_name: string | null;
+      status: string | null;
+      parent_ref: string | null;
       sent_to_sales_at: string | null;
       sent_to_sales_by: number | null;
       sent_by_name: string | null;
@@ -61,6 +71,8 @@ export async function GET() {
       ref: r.ref,
       project_name: r.project_name,
       client_name: r.client_name,
+      status: r.status,
+      parent_ref: r.parent_ref,
       sent_to_sales_at: r.sent_to_sales_at,
       sent_by: r.sent_by_name || r.sent_by_username || null,
     }));

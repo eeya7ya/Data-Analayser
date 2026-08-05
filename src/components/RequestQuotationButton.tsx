@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { LEAD_PRIORITIES } from "@/lib/leadConstants";
+import Select from "@/components/Select";
 
 /**
  * Per-project "Request for Quotation" affordance shown in the project
@@ -382,9 +383,9 @@ function RequestQuotationModal({
             <label className="block text-xs font-semibold text-magic-ink/70 mb-1">
               Priority
             </label>
-            <select
+            <Select
               value={priority}
-              onChange={(e) => setPriority(e.target.value)}
+              onChange={(next) => setPriority(next)}
               className="w-full rounded border border-magic-border bg-white px-2 py-1.5 text-sm"
             >
               {LEAD_PRIORITIES.map((p) => (
@@ -392,7 +393,7 @@ function RequestQuotationModal({
                   {p[0].toUpperCase() + p.slice(1)}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>

@@ -5,6 +5,7 @@ import { requireModuleAllowLegacy, hasModuleRole } from "@/lib/modules";
 import { sweepDueHolds } from "@/lib/holds";
 import {
   type Stage,
+  collapseVersions,
   deriveStage,
   insight,
   winProbability,
@@ -32,13 +33,22 @@ export const dynamic = "force-dynamic";
  *
  * Each stage carries a win probability used for the weighted forecast — the
  * headline number a generic CRM can't compute because it has no BoQ value.
- * Snapshots (revision copies, `parent_ref` set) are excluded so every deal is
- * counted once. Non-admins see only their own quotations.
+ *
+ * One card per quotation NUMBER, not per row. A Draft / Revision (`parent_ref`
+ * set) that presales handed to sales walks the same cycle as the original, so
+ * excluding every snapshot outright — as this board used to — left the card
+ * frozen at "Quoting" while the salesperson actually won or lost the revision.
+ * Instead we pull the original plus every snapshot that was sent to sales, then
+ * collapse each lineage (`parent_ref ?? ref`) down to the version carrying the
+ * latest decision — see pickLineageWinner. Never-sent private snapshots stay
+ * out entirely. Non-admins see only their own quotations.
  */
 
 interface DealRow {
   id: number;
   ref: string;
+  /** Root quotation ref for a Draft / Revision; null on the original. */
+  parent_ref: string | null;
   project_name: string | null;
   client_name: string | null;
   folder_id: number | null;
@@ -221,8 +231,8 @@ export async function GET() {
         ).map((r) => r.id)
       : [user.id];
 
-    const rows = (await q`
-      select q.id, q.ref, q.project_name, q.client_name, q.folder_id,
+    const allVersions = (await q`
+      select q.id, q.ref, q.parent_ref, q.project_name, q.client_name, q.folder_id,
              q.project_id, q.owner_id,
              coalesce(nullif(u.display_name, ''), u.username) as owner_name,
              q.approved_at, q.rejected_at, q.sales_outcome, q.transferred_at,
@@ -236,7 +246,9 @@ export async function GET() {
       left join projects p on p.id = q.project_id
       left join users u on u.id = q.owner_id
       where q.deleted_at is null
-        and q.parent_ref is null
+        -- Originals always; drafts / revisions only once presales actually
+        -- handed them to sales (a private snapshot is not a deal).
+        and (q.parent_ref is null or q.sent_to_sales_at is not null)
         and (
           q.owner_id = any(${ownerIds}::int[])
           or (${!tenantWide}::boolean and (
@@ -256,6 +268,11 @@ export async function GET() {
       order by coalesce(q.sales_outcome_at, q.approved_at, q.updated_at, q.created_at) desc
       limit 1000
     `) as DealRow[];
+
+    // One card per quotation number: every draft / revision folds into the
+    // original's lineage so a deal is never counted twice, and the version the
+    // sales side last acted on is the one that represents it.
+    const rows = collapseVersions(allVersions);
 
     // Margin is fault-isolated so the heavier per-line BoQ math can never break
     // the core board. Each line stores `price_si` (the System-Installer / dealer
@@ -293,13 +310,17 @@ export async function GET() {
                count(*)::int as decided,
                count(*) filter (where won)::int as won
         from (
-          select q.client_name,
+          -- One decided row per quotation NUMBER: distinct on keeps the version
+          -- whose decision landed last, so a lineage where the original was
+          -- lost and a later revision won counts as a single win, not as one
+          -- win + one loss.
+          select distinct on (coalesce(q.parent_ref, q.ref))
+                 q.client_name,
                  (q.sales_outcome in ('accepted', 'held')
                   or q.transferred_at is not null
                   or q.completed_at is not null) as won
           from quotations q
           where q.deleted_at is null
-            and q.parent_ref is null
             and (q.sales_outcome in ('accepted', 'rejected', 'held')
                  or q.transferred_at is not null
                  or q.completed_at is not null)
@@ -310,6 +331,8 @@ export async function GET() {
                 or q.sales_accepted_by = ${user.id}
               ))
             )
+          order by coalesce(q.parent_ref, q.ref),
+                   coalesce(q.sales_outcome_at, q.updated_at, q.created_at) desc
         ) t
         group by 1
       `) as Array<{ client: string; decided: number; won: number }>;

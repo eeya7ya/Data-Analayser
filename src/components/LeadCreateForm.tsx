@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LEAD_PRIORITIES } from "@/lib/leadConstants";
+import Select from "@/components/Select";
 
 /**
  * Lead opening form. Captures the bare minimum — title, optional
@@ -133,9 +134,9 @@ export default function LeadCreateForm({
           <label className="block text-xs font-semibold uppercase tracking-wide text-magic-ink/60">
             Priority
           </label>
-          <select
+          <Select
             value={priority}
-            onChange={(e) => setPriority(e.target.value)}
+            onChange={(next) => setPriority(next)}
             className="mt-1 w-full rounded-lg border border-magic-border bg-white px-3 py-2 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
           >
             {LEAD_PRIORITIES.map((p) => (
@@ -143,7 +144,7 @@ export default function LeadCreateForm({
                 {p[0].toUpperCase() + p.slice(1)}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wide text-magic-ink/60">

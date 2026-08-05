@@ -666,10 +666,14 @@ body > * {
     vertical-align: middle;
   }
 
-  /* ---- 8. Inputs print as plain text -------------------------------------- */
+  /* ---- 8. Inputs print as plain text --------------------------------------
+   * `[data-select-trigger]` is the <Select> dropdown's button — it replaced the
+   * native <select> in the sheet, so it needs the same "print as plain text"
+   * treatment or the printed quotation shows a bordered control. */
   .quotation-sheet input,
   .quotation-sheet textarea,
-  .quotation-sheet select {
+  .quotation-sheet select,
+  .quotation-sheet [data-select-trigger] {
     border: none !important;
     outline: none !important;
     background: transparent !important;
@@ -681,6 +685,10 @@ body > * {
     color: inherit;
     font: inherit;
     resize: none;
+  }
+  /* The dropdown's chevron is a UI affordance — never ink on paper. */
+  .quotation-sheet [data-select-chevron] {
+    display: none !important;
   }
 }
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageLoader from "@/components/PageLoader";
+import Select from "@/components/Select";
 
 /**
  * Dedicated assignment-page form. Mirrors the in-place dialog used by
@@ -430,9 +431,9 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
                 ]}
               />
               {companyMode === "existing" ? (
-                <select
+                <Select
                   value={companySel}
-                  onChange={(e) => setCompanySel(e.target.value)}
+                  onChange={(next) => setCompanySel(next)}
                   className={`${fieldCls} mt-2`}
                 >
                   <option value="">Select a company…</option>
@@ -441,7 +442,7 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
                       {c.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               ) : (
                 <input
                   value={newCompanyName}
@@ -470,9 +471,9 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
               ]}
             />
             {folderMode === "existing" ? (
-              <select
+              <Select
                 value={folderSel}
-                onChange={(e) => setFolderSel(e.target.value)}
+                onChange={(next) => setFolderSel(next)}
                 className={`${fieldCls} mt-2`}
                 disabled={
                   kind === "company" &&
@@ -493,7 +494,7 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
                     {f.company_name ? ` · ${f.company_name}` : ""}
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : (
               <div className="mt-2 space-y-2">
                 <input
@@ -537,9 +538,9 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
               ]}
             />
             {projectMode === "existing" ? (
-              <select
+              <Select
                 value={projectSel}
-                onChange={(e) => setProjectSel(e.target.value)}
+                onChange={(next) => setProjectSel(next)}
                 className={`${fieldCls} mt-2`}
                 disabled={folderMode !== "existing" || !folderSel}
               >
@@ -553,7 +554,7 @@ export default function LeadAssignClient({ leadId }: { leadId: number }) {
                     {p.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : (
               <div className="mt-2 space-y-2">
                 <input

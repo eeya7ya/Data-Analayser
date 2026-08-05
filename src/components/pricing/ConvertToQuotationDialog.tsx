@@ -11,6 +11,7 @@ import {
 } from "@/lib/icons";
 import { cn } from "@/lib/pricing/utils";
 import Spinner from "@/components/Spinner";
+import Select from "@/components/Select";
 
 interface Folder {
   id: number;
@@ -385,11 +386,11 @@ export function ConvertToQuotationDialog({
                     switch to “New client”.
                   </p>
                 ) : (
-                  <select
+                  <Select
                     value={selectedFolderId ?? ""}
-                    onChange={(e) =>
+                    onChange={(next) =>
                       setSelectedFolderId(
-                        e.target.value ? Number(e.target.value) : null,
+                        next ? Number(next) : null,
                       )
                     }
                     className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
@@ -400,7 +401,7 @@ export function ConvertToQuotationDialog({
                         {f.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 )}
               </div>
 
@@ -416,15 +417,15 @@ export function ConvertToQuotationDialog({
                     </div>
                   ) : (
                     <>
-                      <select
+                      <Select
                         value={creatingNewProject ? "__new__" : selectedProjectId ?? ""}
-                        onChange={(e) => {
-                          if (e.target.value === "__new__") {
+                        onChange={(next) => {
+                          if (next === "__new__") {
                             setCreatingNewProject(true);
                           } else {
                             setCreatingNewProject(false);
                             setSelectedProjectId(
-                              e.target.value ? Number(e.target.value) : null,
+                              next ? Number(next) : null,
                             );
                           }
                         }}
@@ -436,7 +437,7 @@ export function ConvertToQuotationDialog({
                           </option>
                         ))}
                         <option value="__new__">＋ New project…</option>
-                      </select>
+                      </Select>
                       {creatingNewProject && (
                         <input
                           type="text"

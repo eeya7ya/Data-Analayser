@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Select from "@/components/Select";
 
 /**
  * Execution reports for a project. Assigned technicians / engineers post
@@ -190,17 +191,17 @@ export default function ExecutionReportsPanel({
       {canPost && (
         <div className="mb-4 rounded-lg border border-dashed border-magic-border bg-magic-soft/30 p-3 space-y-2">
           <div className="grid gap-2 sm:grid-cols-2">
-            <select
+            <Select
               value={kind}
-              onChange={(e) =>
-                setKind(e.target.value as "update" | "blocker" | "done")
+              onChange={(next) =>
+                setKind(next as "update" | "blocker" | "done")
               }
               className="rounded border border-magic-border bg-white px-2 py-1.5 text-sm"
             >
               <option value="update">Progress update</option>
               <option value="blocker">Blocker / issue</option>
               <option value="done">Completion note</option>
-            </select>
+            </Select>
             <input
               type="number"
               min={0}
