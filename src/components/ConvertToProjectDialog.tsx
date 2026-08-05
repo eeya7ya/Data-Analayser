@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import LocationPicker from "@/components/LocationPicker";
+import Select from "@/components/Select";
 
 /**
  * Sales-facing "Convert to Project" form. Captures the client contacts,
@@ -104,9 +105,9 @@ export default function ConvertToProjectDialog({
           </label>
           <label className="block">
             <span className="text-xs font-semibold text-magic-ink/70">Priority</span>
-            <select
+            <Select
               value={priority}
-              onChange={(e) => setPriority(e.target.value)}
+              onChange={(next) => setPriority(next)}
               disabled={busy}
               className="mt-1 w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
             >
@@ -115,7 +116,7 @@ export default function ConvertToProjectDialog({
                   {p.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         </div>
 

@@ -111,7 +111,15 @@ export default function SideNav({
       href: "/catalog",
       label: "Catalogue Modifier",
       icon: Library,
-      show: isAdmin,
+      // Admins, whoever holds the per-user `catalogue.editor` grant, and
+      // storage staff — the same set the page and its write endpoints allow.
+      // Deliberately NOT the `has()` helper: its no-grants-yet fallback would
+      // surface catalogue editing to every un-assigned user.
+      show:
+        isAdmin ||
+        (moduleRoles ?? []).some(
+          (r) => r.module === "catalogue" || r.module === "storage",
+        ),
     },
     { href: "/calendar", label: "Calendar", icon: CalendarDays, show: true },
     { href: "/email", label: "Email", icon: Mail, show: true },

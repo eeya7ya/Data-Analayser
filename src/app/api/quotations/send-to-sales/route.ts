@@ -28,7 +28,31 @@ export const dynamic = "force-dynamic";
  * presales author presses Send again and we restamp the timestamp, clear
  * `sales_accepted_at` (the prior acceptance no longer applies to the
  * revised version), and re-notify.
+ *
+ * Drafts (`status = 'draft'`, ref …D<n>) and revisions (`status = 'review'`,
+ * ref …R<n>) of an already-sent quotation are first-class here: presales
+ * branches a snapshot off the original, prices it, and hands THAT to sales,
+ * which then walks the identical cycle (received queue → file → win / lost /
+ * hold → executive confirmation). The old gate refused anything whose status
+ * wasn't 'active' ("only active quotations can be sent to sales"), which dead-
+ * ended every revision of the same quotation number.
  */
+
+/**
+ * Quotation kinds presales may hand to sales. Everything the Designer can
+ * mint is sendable — the original and each Draft / Revision branched off it.
+ * Kept as an explicit allow-list so a future status (e.g. an archived kind)
+ * has to opt in deliberately rather than inherit the handoff by default.
+ */
+const SENDABLE_STATUSES = new Set(["active", "draft", "review"]);
+
+/** Human label for a snapshot kind, used in the handoff notification. */
+function versionLabel(status: string | null): string | null {
+  if (status === "draft") return "Draft";
+  if (status === "review") return "Revision";
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
     const user = await requireUser();
@@ -52,7 +76,7 @@ export async function POST(req: Request) {
 
     const q = sql();
     const quotationRows = (await q`
-      select id, ref, project_name, owner_id, project_id, status,
+      select id, ref, project_name, owner_id, project_id, status, parent_ref,
              deleted_at, sent_to_sales_at
       from quotations
       where id = ${id}
@@ -64,6 +88,7 @@ export async function POST(req: Request) {
       owner_id: number | null;
       project_id: number | null;
       status: string | null;
+      parent_ref: string | null;
       deleted_at: string | null;
       sent_to_sales_at: string | null;
     }>;
@@ -77,12 +102,13 @@ export async function POST(req: Request) {
     // was already checked above, so reaching here means the caller is on the
     // presales side; the owner-only restriction was hiding the button for
     // presales colleagues working the same project.
-    if (quotation.status && quotation.status !== "active") {
+    if (quotation.status && !SENDABLE_STATUSES.has(quotation.status)) {
       return NextResponse.json(
-        { error: "only active quotations can be sent to sales" },
+        { error: `a '${quotation.status}' quotation can't be sent to sales` },
         { status: 409 },
       );
     }
+    const version = versionLabel(quotation.status);
 
     // Find the lead this quotation belongs to. The RFQ is project-scoped, so
     // we pull the newest live lead under the quotation's project. Quotations
@@ -187,16 +213,26 @@ export async function POST(req: Request) {
                 lead_id: leadId,
                 recipient_id: recipientId,
                 resent: Boolean(quotation.sent_to_sales_at),
+                status: quotation.status,
+                parent_ref: quotation.parent_ref,
               })}::jsonb)
     `;
 
     if (recipientId && recipientId !== user.id) {
       const sender = user.display_name || user.username;
-      const subject = `[${quotation.ref}] Quotation ready — please review`;
+      // A Draft / Revision announces itself as one (and names the quotation it
+      // branched from) so the salesperson immediately sees this is a newer take
+      // on a quotation they already have, not an unrelated second deal.
+      const subject = version
+        ? `[${quotation.ref}] ${version} of ${quotation.parent_ref || "the quotation"} — please review`
+        : `[${quotation.ref}] Quotation ready — please review`;
       const projectLabel = quotation.project_name || "your request";
       const verb = quotation.sent_to_sales_at ? "updated and resent" : "sent";
+      const noun = version
+        ? `a ${version.toLowerCase()} of the quotation`
+        : "the quotation";
       const bodyText =
-        `${sender} ${verb} the quotation for ${projectLabel}.\n\n` +
+        `${sender} ${verb} ${noun} for ${projectLabel}.\n\n` +
         `Open it from the link below to approve, or request changes if anything needs tweaking.`;
       await sendLeadMessage({
         leadId,
@@ -218,8 +254,13 @@ export async function POST(req: Request) {
           leadId,
           user.id,
           "quotation_sent_to_sales",
-          `${sender} sent quotation ${quotation.ref} to sales`,
-          { quotation_id: id, resent: Boolean(quotation.sent_to_sales_at) },
+          `${sender} sent ${version ? `${version.toLowerCase()} ` : ""}quotation ${quotation.ref} to sales`,
+          {
+            quotation_id: id,
+            resent: Boolean(quotation.sent_to_sales_at),
+            status: quotation.status,
+            parent_ref: quotation.parent_ref,
+          },
         );
       }
     }

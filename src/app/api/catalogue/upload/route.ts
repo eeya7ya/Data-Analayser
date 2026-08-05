@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Sql } from "postgres";
 import { requireUser } from "@/lib/auth";
-import { requireModule } from "@/lib/modules";
+import { requireCatalogueWrite } from "@/lib/modules";
 import { sql, ensureSchema, usingD1, rawBinder } from "@/lib/db";
 import { invalidateSystemsCache } from "@/lib/search";
 
@@ -93,9 +93,10 @@ async function ensureModelUpsertTarget(q: Sql, d1: boolean): Promise<number> {
  */
 export async function POST(req: NextRequest) {
   try {
-    // Catalogue Modifier write: admins and storage-module users (the page is
-    // gated to the same set).
-    await requireModule(await requireUser(), "storage");
+    // Catalogue Modifier write: admins, holders of the per-user
+    // `catalogue.editor` grant, and storage-module users (the page is gated to
+    // the same set).
+    await requireCatalogueWrite(await requireUser());
     await ensureSchema();
 
     const body = (await req.json()) as { rows?: UploadRow[] };

@@ -155,6 +155,81 @@ export function deriveStage(r: StageInputs): Stage {
 }
 
 /**
+ * A quotation row as far as version lineage is concerned. Drafts (…D<n>) and
+ * revisions (…R<n>) carry `parent_ref` = the ref of the quotation they branched
+ * from; the original carries null.
+ */
+export interface LineageInputs {
+  ref: string;
+  parent_ref?: string | null;
+  sales_outcome?: string | null;
+  rejected_at?: string | null;
+  transferred_at?: string | null;
+  completed_at?: string | null;
+  sent_to_sales_at?: string | null;
+  age_anchor?: string | null;
+}
+
+/**
+ * How far into the sales cycle one row has travelled:
+ *   2 — sales decided on it (won / lost / held / in execution / closed)
+ *   1 — handed to sales, awaiting their decision
+ *   0 — still with presales
+ */
+function decisionDepth(r: LineageInputs): number {
+  if (r.completed_at || r.transferred_at || r.sales_outcome || r.rejected_at) {
+    return 2;
+  }
+  return r.sent_to_sales_at ? 1 : 0;
+}
+
+/** Newest timestamp known for a row — breaks ties at equal depth. */
+function rowRecency(r: LineageInputs): number {
+  let newest = 0;
+  for (const s of [r.age_anchor, r.sent_to_sales_at]) {
+    if (!s) continue;
+    const t = new Date(s).getTime();
+    if (Number.isFinite(t) && t > newest) newest = t;
+  }
+  return newest;
+}
+
+/**
+ * Collapse every version of one quotation number down to a single deal.
+ *
+ * A quotation, its drafts and its revisions are ONE deal — the client signs
+ * exactly one of them. Presales may hand any version to sales, and that version
+ * then walks the full cycle, so the row that represents the deal is the one the
+ * sales side last acted on: deepest into the cycle first (a decided revision
+ * beats an untouched original), newest activity as the tie-break (a freshly
+ * sent revision beats the version it supersedes).
+ *
+ * Callers pass originals plus the snapshots that were actually sent to sales;
+ * with no snapshots in play this is a pass-through, so plain quotations behave
+ * exactly as they did when the boards simply filtered `parent_ref is null`.
+ */
+export function collapseVersions<T extends LineageInputs>(rows: T[]): T[] {
+  const best = new Map<string, T>();
+  for (const row of rows) {
+    const key = row.parent_ref ?? row.ref;
+    const current = best.get(key);
+    if (!current) {
+      best.set(key, row);
+      continue;
+    }
+    const depth = decisionDepth(row);
+    const currentDepth = decisionDepth(current);
+    if (
+      depth > currentDepth ||
+      (depth === currentDepth && rowRecency(row) > rowRecency(current))
+    ) {
+      best.set(key, row);
+    }
+  }
+  return [...best.values()];
+}
+
+/**
  * Deterministic next-best-action + stall risk per deal. No AI cost: the move
  * and the "needs attention" flag fall out of the stage and how long the deal
  * has sat there.

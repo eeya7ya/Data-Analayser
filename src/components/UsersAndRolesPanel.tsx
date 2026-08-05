@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { confirmDelete } from "@/lib/confirmDelete";
 import { redirectIfSessionExpired } from "@/lib/clientAuth";
+import Select from "@/components/Select";
 
 /**
  * Admin → Users & Roles.
@@ -91,6 +92,18 @@ const ROLE_GROUPS: Array<{ group: string; options: RoleOption[] }> = [
     options: [
       { value: "accountant.accountant", label: "Accountant" },
       { value: "accountant.manager", label: "Accounting Manager" },
+    ],
+  },
+  {
+    // A capability rather than a job title: ticking it gives this one person
+    // the Catalogue Modifier (bulk Excel upload / export plus per-row price,
+    // model, spec and picture edits) on top of whatever else they do.
+    group: "Catalogue",
+    options: [
+      {
+        value: "catalogue.editor",
+        label: "Catalogue Editor (can modify the catalogue)",
+      },
     ],
   },
   {
@@ -657,10 +670,10 @@ export default function UsersAndRolesPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-magic-ink">Users &amp; roles</h3>
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <Select
             value={exportFormat}
-            onChange={(e) =>
-              setExportFormat(e.target.value as "csv" | "xlsx" | "json")
+            onChange={(next) =>
+              setExportFormat(next as "csv" | "xlsx" | "json")
             }
             className="rounded-lg border border-magic-border bg-white px-2 py-1.5 text-xs font-semibold text-magic-ink"
             title="Choose the export format"
@@ -668,7 +681,7 @@ export default function UsersAndRolesPanel({
             <option value="xlsx">Excel (.xlsx)</option>
             <option value="csv">CSV</option>
             <option value="json">JSON</option>
-          </select>
+          </Select>
           <button
             type="button"
             onClick={() => void exportUsers(exportFormat)}

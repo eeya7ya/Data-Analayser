@@ -5,6 +5,7 @@ import { type Constants } from "@/lib/pricing/calculations";
 import { cn } from "@/lib/pricing/utils";
 import { RefreshCw } from "@/lib/icons";
 import Spinner from "@/components/Spinner";
+import Select from "@/components/Select";
 
 export interface Currency {
   code: string;
@@ -204,13 +205,13 @@ export function ConstantsPanel({
         {/* From currency */}
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500">From Currency</label>
-          <select
+          <Select
             value={sourceCurrency}
-            onChange={(e) => onSourceCurrencyChange(e.target.value)}
+            onChange={(next) => onSourceCurrencyChange(next)}
             className={cn(
-              "rounded-lg border border-gray-200 bg-gray-50 py-2 pl-3 pr-8 text-sm font-medium text-gray-700",
+              "rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700",
               "focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400/30",
-              "transition-colors appearance-none cursor-pointer min-w-[180px]"
+              "transition-colors cursor-pointer min-w-[180px]"
             )}
           >
             {CURRENCIES.map((c) => (
@@ -218,7 +219,7 @@ export function ConstantsPanel({
                 {c.flag} {c.code} — {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <span className="mb-2 text-sm text-gray-400">→</span>
@@ -226,13 +227,13 @@ export function ConstantsPanel({
         {/* To currency */}
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500">To Currency</label>
-          <select
+          <Select
             value={targetCurrency}
-            onChange={(e) => handleCurrencySelect(e.target.value)}
+            onChange={(next) => handleCurrencySelect(next)}
             className={cn(
-              "rounded-lg border border-gray-200 bg-gray-50 py-2 pl-3 pr-8 text-sm font-medium text-gray-700",
+              "rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700",
               "focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400/30",
-              "transition-colors appearance-none cursor-pointer min-w-[180px]"
+              "transition-colors cursor-pointer min-w-[180px]"
             )}
           >
             {CURRENCIES.map((c) => (
@@ -240,7 +241,7 @@ export function ConstantsPanel({
                 {c.flag} {c.code} — {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
 
         {sourceCurrency !== targetCurrency && (

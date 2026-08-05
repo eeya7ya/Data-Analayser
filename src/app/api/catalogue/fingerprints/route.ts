@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { requireModule } from "@/lib/modules";
+import { requireCatalogueWrite } from "@/lib/modules";
 import { sql, ensureSchema } from "@/lib/db";
 import { fingerprintRow } from "@/lib/catalogueFingerprint";
 
@@ -20,11 +20,12 @@ export const runtime = "nodejs";
  * `p` only tells the client whether a picture already exists, so it can treat a
  * newly-added picture as a change.
  *
- * Same auth as the upload it pairs with (Catalogue Modifier = storage module).
+ * Same auth as the upload it pairs with (anyone who may modify the catalogue:
+ * admins, `catalogue.editor` grant holders, storage-module users).
  */
 export async function GET() {
   try {
-    await requireModule(await requireUser(), "storage");
+    await requireCatalogueWrite(await requireUser());
     await ensureSchema();
 
     const q = sql();

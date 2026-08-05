@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Select from "@/components/Select";
 
 /**
  * The salesperson's received-quotations queue (rendered by /crm/received).
@@ -16,8 +17,28 @@ interface ReceivedItem {
   ref: string;
   project_name: string | null;
   client_name: string | null;
+  /** 'active' for the original, 'draft' / 'review' for a branched version. */
+  status?: string | null;
+  /** The quotation ref a draft / revision was branched from. */
+  parent_ref?: string | null;
   sent_to_sales_at: string | null;
   sent_by: string | null;
+}
+
+/**
+ * Label for a version branched off an existing quotation number. Presales can
+ * send the original AND any Draft (…D<n>) / Revision (…R<n>) of it, so the row
+ * says which one this is instead of looking like a second, unrelated deal.
+ */
+function versionBadge(item: ReceivedItem): string | null {
+  const kind =
+    item.status === "draft"
+      ? "Draft"
+      : item.status === "review"
+        ? "Revision"
+        : null;
+  if (!kind) return null;
+  return item.parent_ref ? `${kind} of ${item.parent_ref}` : kind;
 }
 
 export default function ReceivedQuotationsClient() {
@@ -220,6 +241,7 @@ function ReceivedRow({
   const sentAt = item.sent_to_sales_at
     ? new Date(item.sent_to_sales_at).toLocaleDateString()
     : "";
+  const version = versionBadge(item);
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-magic-border bg-white px-4 py-3 shadow-sm">
       <div className="min-w-0 flex-1">
@@ -230,6 +252,14 @@ function ReceivedRow({
           <span className="truncate text-sm font-semibold text-magic-ink">
             {item.project_name || "Untitled"}
           </span>
+          {version && (
+            <span
+              title="A newer version of a quotation you already have — it walks the same cycle as the original"
+              className="rounded-full border border-magic-accent/40 bg-magic-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-magic-accent"
+            >
+              {version}
+            </span>
+          )}
         </div>
         <p className="mt-0.5 text-[11px] text-magic-ink/55">
           {item.client_name ? `${item.client_name} · ` : ""}
@@ -490,9 +520,9 @@ function FileModal({
                   ]}
                 />
                 {companyMode === "existing" ? (
-                  <select
+                  <Select
                     value={companySel}
-                    onChange={(e) => setCompanySel(e.target.value)}
+                    onChange={(next) => setCompanySel(next)}
                     className={`${fieldCls} mt-2`}
                   >
                     <option value="">Select a company…</option>
@@ -501,7 +531,7 @@ function FileModal({
                         {c.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 ) : (
                   <input
                     value={newCompanyName}
@@ -530,9 +560,9 @@ function FileModal({
                 ]}
               />
               {folderMode === "existing" ? (
-                <select
+                <Select
                   value={folderSel}
-                  onChange={(e) => setFolderSel(e.target.value)}
+                  onChange={(next) => setFolderSel(next)}
                   className={`${fieldCls} mt-2`}
                   disabled={
                     kind === "company" && companyMode === "existing" && !companySel
@@ -551,7 +581,7 @@ function FileModal({
                       {f.company_name ? ` · ${f.company_name}` : ""}
                     </option>
                   ))}
-                </select>
+                </Select>
               ) : (
                 <div className="mt-2 space-y-2">
                   <input
@@ -593,9 +623,9 @@ function FileModal({
                 ]}
               />
               {projectMode === "existing" ? (
-                <select
+                <Select
                   value={projectSel}
-                  onChange={(e) => setProjectSel(e.target.value)}
+                  onChange={(next) => setProjectSel(next)}
                   className={`${fieldCls} mt-2`}
                   disabled={folderMode !== "existing" || !folderSel}
                 >
@@ -609,7 +639,7 @@ function FileModal({
                       {p.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               ) : (
                 <div className="mt-2 space-y-2">
                   <input

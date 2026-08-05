@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { canReadAll, getSessionUser } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
+import { canModifyCatalogue } from "@/lib/modules";
 import CatalogBrowser from "@/components/CatalogBrowser";
 import TopBar from "@/components/TopBar";
 import CatalogUploadSection from "./CatalogUploadSection";
@@ -93,10 +94,11 @@ async function loadSystems(): Promise<SystemInfo[]> {
 export default async function CatalogPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  // Catalogue Modifier is an admin-only surface for editing the catalogue
-  // (upload / export / per-row edits). Everyone else uses the read-only
-  // in-designer picker overlay instead.
-  if (!canReadAll(user)) redirect("/");
+  // Catalogue Modifier — upload / export / per-row edits. Open to admins, to
+  // whoever an admin gave the `catalogue.editor` grant (Admin → Users & Roles),
+  // and to storage-module staff who have always maintained it. Everyone else
+  // uses the read-only in-designer picker overlay instead.
+  if (!(await canModifyCatalogue(user))) redirect("/");
   const initialSystems = await loadSystems();
   return (
     <div className="min-h-screen bg-magic-soft/40">
@@ -112,8 +114,9 @@ export default async function CatalogPage() {
             builders add products from the in-designer catalogue picker.)
           </p>
         </header>
-        {/* Page is gated to storage + admin, both of whom may modify the
-            catalogue, so the upload / export tools show for everyone here. */}
+        {/* Everyone who reaches this page may modify the catalogue (the gate
+            above is the same rule the write endpoints enforce), so the upload /
+            export tools show for everyone here. */}
         <CatalogUploadSection />
         <CatalogBrowser user={user} initialSystems={initialSystems} />
       </main>

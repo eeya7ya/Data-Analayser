@@ -31,6 +31,12 @@ export const MODULES = [
   "delivery",
   "showroom",
   "accountant",
+  // Catalogue Modifier access. Maintaining the product catalogue (bulk Excel
+  // upload / export and per-row price, model and picture edits) used to be
+  // welded to "admin or anyone in the storage module", so an admin had no way
+  // to let one specific person maintain it. It's its own module now: admins
+  // grant `catalogue.editor` from Admin → Users & Roles, per user.
+  "catalogue",
 ] as const;
 export type Module = (typeof MODULES)[number];
 
@@ -61,6 +67,11 @@ export const ROLES_PER_MODULE = {
   delivery: ["driver", "manager"],
   showroom: ["staff", "manager"],
   accountant: ["accountant", "manager"],
+  // A single capability role: the holder may open the Catalogue Modifier and
+  // change the catalogue. There is no "catalogue viewer" — reading the
+  // catalogue is already open to every signed-in user through the in-designer
+  // picker, so a read-only role would grant nothing.
+  catalogue: ["editor"],
 } as const satisfies Record<Module, readonly string[]>;
 
 export type ModuleRole<M extends Module = Module> =
@@ -338,6 +349,35 @@ export async function canAuthorQuotation(user: SessionUser): Promise<boolean> {
       g.module === "crm" &&
       (g.role === "presales" || g.role === "presales_manager"),
   );
+}
+
+/**
+ * True when the user may MODIFY the product catalogue — bulk Excel upload /
+ * export plus per-row price, model, spec and picture edits.
+ *
+ * Access is:
+ *   - admins (`users.role = 'admin'`),
+ *   - anyone holding the explicit `catalogue.editor` grant an admin hands out
+ *     per user from Admin → Users & Roles, or
+ *   - anyone in the `storage` module — the catalogue write endpoints have
+ *     always accepted storage staff, and revoking that here would take the
+ *     tool away from people already using it.
+ *
+ * `viewer` is deliberately excluded: it is the read-only admin role, and the
+ * catalogue endpoints previously let viewers write purely because
+ * `requireModule` short-circuits on `canReadAll`.
+ */
+export async function canModifyCatalogue(user: SessionUser): Promise<boolean> {
+  if (user.role === "admin") return true;
+  if (user.role === "viewer") return false;
+  if (await hasModule(user.id, "catalogue")) return true;
+  return hasModule(user.id, "storage");
+}
+
+/** Throw FORBIDDEN unless the user may modify the catalogue. */
+export async function requireCatalogueWrite(user: SessionUser): Promise<void> {
+  if (await canModifyCatalogue(user)) return;
+  throw new Error("FORBIDDEN");
 }
 
 /**

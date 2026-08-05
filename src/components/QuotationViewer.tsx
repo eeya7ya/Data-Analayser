@@ -407,6 +407,10 @@ export default function QuotationViewer({
     hold_transfer_at: (row.hold_transfer_at as string | null) ?? null,
     transferred_at: (row.transferred_at as string | null) ?? null,
     completed_at: (row.completed_at as string | null) ?? null,
+    // Version lineage — 'draft' / 'review' snapshots badge themselves in the
+    // approval bar and are handed to sales just like the original.
+    status: (row.status as string | null) ?? null,
+    parent_ref: (row.parent_ref as string | null) ?? null,
   };
 
   return (

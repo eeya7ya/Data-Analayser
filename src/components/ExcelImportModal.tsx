@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { QuotationItem } from "@/components/QuotationPreview";
+import Select from "@/components/Select";
 
 type XlsxModule = typeof import("xlsx");
 let xlsxPromise: Promise<XlsxModule> | null = null;
@@ -572,12 +573,12 @@ export default function ExcelImportModal({
                           {h || <span className="text-magic-ink/40">(blank)</span>}
                         </td>
                         <td className="px-2 py-1">
-                          <select
+                          <Select
                             value={mapping[i] ?? ""}
-                            onChange={(e) =>
+                            onChange={(next) =>
                               setMapping((cur) => ({
                                 ...cur,
-                                [i]: e.target.value as FieldKey | "",
+                                [i]: next as FieldKey | "",
                               }))
                             }
                             className="rounded-md border border-magic-border bg-white px-2 py-0.5 text-xs"
@@ -590,7 +591,7 @@ export default function ExcelImportModal({
                                 </option>
                               ),
                             )}
-                          </select>
+                          </Select>
                         </td>
                         <td className="px-2 py-1 text-magic-ink/60 truncate max-w-xs">
                           {rows[0]?.values[i] || ""}

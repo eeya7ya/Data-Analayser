@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
+import { requireCatalogueWrite } from "@/lib/modules";
 import { sql, ensureSchema } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -17,12 +18,14 @@ export const runtime = "nodejs";
  * is lossless: a re-uploaded file upserts each row by `model` and updates
  * the existing record in place.
  *
- * Admin-only: the download exposes full supplier pricing which isn't
- * intended for regular users.
+ * Restricted to the people who may modify the catalogue (admins,
+ * `catalogue.editor` grant holders, storage-module users) — the download
+ * exposes full supplier pricing, which isn't intended for regular users, and
+ * the export is one half of the round-trip they own.
  */
 export async function GET() {
   try {
-    await requireAdmin();
+    await requireCatalogueWrite(await requireUser());
     await ensureSchema();
     const q = sql();
     // picture_url comes back as a data URL (base64) for in-database
@@ -42,7 +45,10 @@ export async function GET() {
     if (msg === "UNAUTHENTICATED")
       return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     if (msg === "FORBIDDEN")
-      return NextResponse.json({ error: "Admin only" }, { status: 403 });
+      return NextResponse.json(
+        { error: "You don't have permission to modify the catalogue" },
+        { status: 403 },
+      );
     return NextResponse.json({ error: msg || "export failed" }, { status: 500 });
   }
 }

@@ -38,6 +38,7 @@ import {
 import { computeQuotationTotals } from "@/lib/quotationTotals";
 import { type PrintKind } from "@/lib/printFilename";
 import { runQuotationPrint } from "@/lib/printQuotation";
+import Select from "@/components/Select";
 
 export interface ExistingQuotation {
   id: number;
@@ -2035,9 +2036,9 @@ export default function Designer({
               <label className="block text-[10px] font-semibold uppercase text-magic-ink/60">
                 Brand
               </label>
-              <select
+              <Select
                 value={brandVariantId}
-                onChange={(e) => setBrandVariantId(e.target.value)}
+                onChange={(next) => setBrandVariantId(next)}
                 title="Select the logo, cover page and about-us page artwork for this quotation"
                 className="mt-1 rounded-md border border-magic-border px-2 py-1 text-sm min-w-[180px]"
               >
@@ -2046,13 +2047,12 @@ export default function Designer({
                     {v.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
         </div>
       </div>
       )}
-
 
       {/* ── Quotation preview & table editor ───────────────────────────────
           Hidden in create mode until a client folder is picked so the user
@@ -2187,7 +2187,7 @@ export default function Designer({
                   onClick: () => saveQuotation("draft"),
                   disabled: items.length === 0 || saving,
                   title:
-                    "Save a draft snapshot of this quotation (ref ends with D<n>)",
+                    "Save a draft snapshot of this quotation (ref ends with D<n>). It can be sent to sales and tracked exactly like the original.",
                   hidden: !(editMode && existing),
                 },
                 {
@@ -2195,7 +2195,7 @@ export default function Designer({
                   onClick: () => saveQuotation("review"),
                   disabled: items.length === 0 || saving,
                   title:
-                    "Save a review snapshot of this quotation (ref ends with R<n>)",
+                    "Save a revision of this quotation (ref ends with R<n>). It can be sent to sales and tracked exactly like the original.",
                   hidden: !(editMode && existing),
                 },
               ]}

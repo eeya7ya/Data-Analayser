@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Select from "@/components/Select";
 
 export interface EditableFolder {
   id: number;
@@ -206,10 +207,10 @@ export function EditFolderDialog({
             </button>
           </div>
           {kind === "company" && (
-            <select
+            <Select
               value={companyId ?? ""}
-              onChange={(e) =>
-                setCompanyId(e.target.value ? Number(e.target.value) : null)
+              onChange={(next) =>
+                setCompanyId(next ? Number(next) : null)
               }
               disabled={busy || companiesLoading}
               className="w-full rounded border border-magic-border bg-white px-3 py-2 text-sm"
@@ -222,7 +223,7 @@ export function EditFolderDialog({
                   {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           )}
           {reassigning && (
             <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">

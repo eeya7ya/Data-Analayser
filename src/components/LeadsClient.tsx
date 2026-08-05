@@ -6,6 +6,7 @@ import { confirmDelete } from "@/lib/confirmDelete";
 import { useRouter } from "next/navigation";
 import { LEAD_STATUS_LABEL } from "@/lib/leadConstants";
 import PageLoader from "@/components/PageLoader";
+import Select from "@/components/Select";
 
 /**
  * Leads list — master / detail (V1.4D).
@@ -344,9 +345,9 @@ export default function LeadsClient({
               placeholder="Search ref, title, owner…"
               className="w-52 rounded-lg border border-magic-border bg-white px-3 py-1.5 text-sm focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
             />
-            <select
+            <Select
               value={sort}
-              onChange={(e) => setSort(e.target.value as SortKey)}
+              onChange={(next) => setSort(next as SortKey)}
               className="rounded-lg border border-magic-border bg-white px-2.5 py-1.5 text-sm text-magic-ink/80 focus:border-magic-red focus:outline-none focus:ring-1 focus:ring-magic-red"
               title="Sort"
             >
@@ -354,7 +355,7 @@ export default function LeadsClient({
               <option value="oldest">Oldest first</option>
               <option value="priority">Priority</option>
               <option value="updated">Recently updated</option>
-            </select>
+            </Select>
             {canCreate && (
               <Link
                 href="/leads/new"

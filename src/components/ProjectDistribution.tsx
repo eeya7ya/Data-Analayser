@@ -12,6 +12,7 @@ import {
 } from "@/lib/icons";
 import { confirmDelete } from "@/lib/confirmDelete";
 import Spinner from "@/components/Spinner";
+import Select from "@/components/Select";
 
 /**
  * Project distribution tool — the project manager's "work order". Instead of
@@ -372,18 +373,16 @@ export default function ProjectDistribution({
         {/* Assignment + scope. */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Assign to">
-            <select
-              className={inputCls}
+            <Select
+              className={`${inputCls} inline-flex`}
               value={form.user_id}
-              onChange={(e) => {
+              onChange={(uid) => {
                 // The role follows the person — a technician is assigned as a
                 // technician, an engineer as an engineer — so there is nothing
                 // to re-select.
-                const uid = e.target.value;
                 const a = assignees.find((x) => String(x.id) === uid);
                 setForm((f) => ({ ...f, user_id: uid, role: roleForAssignee(a) }));
               }}
-              required
             >
               <option value="">Select a technician / engineer…</option>
               {assignees.map((a) => (
@@ -392,7 +391,7 @@ export default function ProjectDistribution({
                     ` — ${ROLES.find(([v]) => v === roleForAssignee(a))?.[1] ?? "Technician"}`}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field label="Assigned as">
             <div className={`${inputCls} bg-magic-soft/40 text-magic-ink/70`}>
@@ -422,10 +421,10 @@ export default function ProjectDistribution({
         {/* Master job — its checklist seeds this project on distribute. */}
         <div className="mt-3">
           <Field label="Master job (seeds the checklist)">
-            <select
-              className={inputCls}
+            <Select
+              className={`${inputCls} inline-flex`}
               value={form.template_id}
-              onChange={(e) => set("template_id", e.target.value)}
+              onChange={(next) => set("template_id", next)}
             >
               <option value="">
                 {masterJobs.length
@@ -437,7 +436,7 @@ export default function ProjectDistribution({
                   {j.name} ({j.items.length} step{j.items.length === 1 ? "" : "s"})
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
         </div>
 
@@ -463,17 +462,17 @@ export default function ProjectDistribution({
         <div className="mt-4 flex items-center justify-between gap-3">
           <div className="w-40">
             <Field label="Status">
-              <select
-                className={inputCls}
+              <Select
+                className={`${inputCls} inline-flex`}
                 value={form.status}
-                onChange={(e) => set("status", e.target.value)}
+                onChange={(next) => set("status", next)}
               >
                 {STATUSES.map(([v, l]) => (
                   <option key={v} value={v}>
                     {l}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
           </div>
           <button
@@ -550,9 +549,9 @@ export default function ProjectDistribution({
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <select
+                    <Select
                       value={d.status || "assigned"}
-                      onChange={(e) => void changeStatus(d, e.target.value)}
+                      onChange={(next) => void changeStatus(d, next)}
                       className="rounded-lg border border-magic-border bg-white px-2 py-1 text-xs font-semibold"
                     >
                       {STATUSES.map(([v, l]) => (
@@ -560,7 +559,7 @@ export default function ProjectDistribution({
                           {l}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     <button
                       type="button"
                       onClick={() => void remove(d)}

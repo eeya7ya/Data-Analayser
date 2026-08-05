@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { requireModule } from "@/lib/modules";
+import { requireCatalogueWrite } from "@/lib/modules";
 import { sql, ensureSchema } from "@/lib/db";
 import { offloadImages } from "@/lib/imageOffload";
 import { invalidateSystemsCache } from "@/lib/search";
@@ -58,8 +58,9 @@ export async function PATCH(
   ctx: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Catalogue Modifier write: admins and storage-module users.
-    await requireModule(await requireUser(), "storage");
+    // Catalogue Modifier write: admins, `catalogue.editor` grant holders, and
+    // storage-module users.
+    await requireCatalogueWrite(await requireUser());
     await ensureSchema();
     const { id: idParam } = await ctx.params;
     const id = Number(idParam);
@@ -176,8 +177,9 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Catalogue Modifier write: admins and storage-module users.
-    await requireModule(await requireUser(), "storage");
+    // Catalogue Modifier write: admins, `catalogue.editor` grant holders, and
+    // storage-module users.
+    await requireCatalogueWrite(await requireUser());
     await ensureSchema();
     const { id: idParam } = await ctx.params;
     const id = Number(idParam);

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { confirmDelete } from "@/lib/confirmDelete";
+import Select from "@/components/Select";
 
 type Encryption = "ssl_tls" | "starttls";
 
@@ -233,21 +234,21 @@ export default function EmailAdminPanel() {
             />
           </Field>
           <Field label="Encryption">
-            <select
+            <Select
               className={inputCls}
               value={config.encryption}
-              onChange={(e) =>
+              onChange={(next) =>
                 setConfig({
                   ...config,
-                  encryption: e.target.value as Encryption,
-                  imap_port: e.target.value === "starttls" ? 143 : 993,
-                  smtp_port: e.target.value === "starttls" ? 587 : 465,
+                  encryption: next as Encryption,
+                  imap_port: next === "starttls" ? 143 : 993,
+                  smtp_port: next === "starttls" ? 587 : 465,
                 })
               }
             >
               <option value="ssl_tls">SSL / TLS (IMAP 993, SMTP 465)</option>
               <option value="starttls">STARTTLS (IMAP 143, SMTP 587)</option>
-            </select>
+            </Select>
           </Field>
         </div>
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { QuotationItem } from "@/components/QuotationPreview";
+import Select from "@/components/Select";
 
 /**
  * Installation Calculator. Prices a complete installation from the admin
@@ -192,9 +193,9 @@ export default function InstallationCalculatorModal({
                 </datalist>
               </Field>
               <Field label="Location">
-                <select
+                <Select
                   value={locationId}
-                  onChange={(e) => setLocationId(e.target.value)}
+                  onChange={(next) => setLocationId(next)}
                   className={inputCls}
                 >
                   <option value="">— none —</option>
@@ -203,7 +204,7 @@ export default function InstallationCalculatorModal({
                       {r.name} (+{jod(r.unit_cost)})
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
 
               <Field label="Number of points">
@@ -212,28 +213,28 @@ export default function InstallationCalculatorModal({
               <div />
 
               <Field label="Cable">
-                <select value={cableId} onChange={(e) => setCableId(e.target.value)} className={inputCls}>
+                <Select value={cableId} onChange={(next) => setCableId(next)} className={inputCls}>
                   <option value="">— none —</option>
                   {cables.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name} ({jod(r.unit_cost)}/m)
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
               <Field label="Cable metres per point">
                 <input type="number" min="0" value={cableMeters} onChange={(e) => setCableMeters(e.target.value)} className={inputCls} />
               </Field>
 
               <Field label="Conduit / pipe">
-                <select value={conduitId} onChange={(e) => setConduitId(e.target.value)} className={inputCls}>
+                <Select value={conduitId} onChange={(next) => setConduitId(next)} className={inputCls}>
                   <option value="">— none —</option>
                   {conduits.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name} ({jod(r.unit_cost)}/m)
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
               <Field label="Conduit metres per point">
                 <input type="number" min="0" value={conduitMeters} onChange={(e) => setConduitMeters(e.target.value)} className={inputCls} />

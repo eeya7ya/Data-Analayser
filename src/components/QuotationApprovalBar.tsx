@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ConvertToProjectDialog from "@/components/ConvertToProjectDialog";
+import Select from "@/components/Select";
 
 /**
  * Action bar surfaced inside QuotationViewer. Presales hands the quotation
@@ -46,6 +47,15 @@ interface ApprovalState {
   // Executive-manager sign-off.
   exec_status?: "none" | "pending" | "confirmed" | "rejected" | null;
   exec_reject_reason?: string | null;
+  /**
+   * Quotation kind — 'active' for the original, 'draft' / 'review' for a
+   * version branched off it. Drafts and revisions are sent to sales and walk
+   * the same cycle as the original; the bar badges which version this is so
+   * nobody has to decode the D<n> / R<n> ref suffix.
+   */
+  status?: string | null;
+  /** The quotation ref this draft / revision was branched from. */
+  parent_ref?: string | null;
 }
 
 interface MeResponse {
@@ -190,6 +200,14 @@ export default function QuotationApprovalBar({
   const canSendToSales = isPresalesAuthor;
   const sentToSales = !!state.sent_to_sales_at;
   const salesAccepted = !!state.sales_accepted_at;
+  // Draft / revision snapshots carry the same handoff cycle as the original —
+  // label which version this is so the bar reads unambiguously on both sides.
+  const versionKind =
+    state.status === "draft"
+      ? "Draft"
+      : state.status === "review"
+        ? "Revision"
+        : null;
   // Human label for whoever the quotation was routed to, resolved from the
   // loaded sales list (null until it loads, or for legacy sends with no
   // recorded recipient).
@@ -436,6 +454,15 @@ export default function QuotationApprovalBar({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="font-semibold text-magic-ink/70">Approval:</span>
+          {versionKind && (
+            <span
+              title="A version branched off an existing quotation. It's sent to sales and tracked exactly like the original."
+              className="inline-flex items-center rounded-full border border-magic-accent/40 bg-magic-accent/10 px-2 py-0.5 text-xs font-medium text-magic-accent"
+            >
+              {versionKind}
+              {state.parent_ref ? ` of ${state.parent_ref}` : ""}
+            </span>
+          )}
           {sentToSales ? (
             <Pill tone={salesAccepted ? "ok" : "muted"}>
               Sent to sales{recipientName ? ` · ${recipientName}` : ""}
@@ -457,10 +484,10 @@ export default function QuotationApprovalBar({
         <div className="flex flex-wrap items-center gap-2">
           {canSendToSales && (
             <>
-              <select
+              <Select
                 value={selectedSalesId}
-                onChange={(e) =>
-                  setSelectedSalesId(e.target.value ? Number(e.target.value) : "")
+                onChange={(next) =>
+                  setSelectedSalesId(next ? Number(next) : "")
                 }
                 disabled={busy}
                 title="Choose which salesperson receives this quotation"
@@ -472,7 +499,7 @@ export default function QuotationApprovalBar({
                     {u.display_name || u.username}
                   </option>
                 ))}
-              </select>
+              </Select>
               <button
                 onClick={() => void sendToSales()}
                 disabled={busy}

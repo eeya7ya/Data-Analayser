@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera } from "@/lib/icons";
+import Select from "@/components/Select";
 
 /**
  * StockManagement — the V1.5A stock module surface (Storage workspace).
@@ -290,10 +291,10 @@ function StockView({
           onChange={(e) => setQuery(e.target.value)}
           className="min-w-0 flex-1 rounded border border-magic-border bg-white px-3 py-1.5 text-sm"
         />
-        <select
+        <Select
           value={nodeFilter}
-          onChange={(e) =>
-            setNodeFilter(e.target.value === "" ? "" : Number(e.target.value))
+          onChange={(next) =>
+            setNodeFilter(next === "" ? "" : Number(next))
           }
           className="rounded border border-magic-border bg-white px-2 py-1.5 text-sm"
         >
@@ -303,7 +304,7 @@ function StockView({
               {n.path}
             </option>
           ))}
-        </select>
+        </Select>
         {canRecord && (
           <button
             onClick={() => setShowModal(true)}
@@ -1009,9 +1010,9 @@ function NodeSelect({
       <label className="mb-1 block text-xs font-semibold text-magic-ink/70">
         {label}
       </label>
-      <select
+      <Select
         value={value}
-        onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+        onChange={(next) => onChange(next === "" ? "" : Number(next))}
         className="w-full rounded border border-magic-border bg-white px-2 py-1.5 text-sm"
       >
         <option value="">— pick a location —</option>
@@ -1020,7 +1021,7 @@ function NodeSelect({
             {n.path}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   );
 }
