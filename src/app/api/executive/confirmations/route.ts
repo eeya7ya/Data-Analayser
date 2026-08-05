@@ -22,6 +22,12 @@ export const dynamic = "force-dynamic";
  *
  * The status ('none' → 'pending' → 'confirmed' | 'rejected') is a sign-off
  * record; it does not block the existing send-to-sales pipeline.
+ *
+ * Note: no UI submits a QUOTATION any more — sign-off happens on the pricing
+ * sheet, upstream of the quotation, so the button on the quotation duplicated
+ * it and was removed. `type:'quotation'` stays supported here (and in the
+ * queue) so quotations submitted while that flow was live can still be
+ * confirmed or rejected.
  */
 
 type ItemType = "quotation" | "pricing";

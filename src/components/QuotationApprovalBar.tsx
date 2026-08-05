@@ -217,38 +217,14 @@ export default function QuotationApprovalBar({
     return u ? u.display_name || u.username : null;
   })();
 
-  // Executive-manager confirmation: a quotation is submitted to the executive
-  // by SALES / sales managers only — they own the deal (presales just prepare
-  // it), and admin is deliberately not part of this workflow gate.
-  const canSubmitExec = !!me?.module_roles.some(
-    (r) => r.module === "crm" && (r.role === "sales" || r.role === "sales_manager"),
-  );
+  // Executive-manager confirmation. Submitting a QUOTATION for sign-off is a
+  // retired step — the executive signs off the pricing sheet before the
+  // quotation is built (see PricingSheet), so the button here only duplicated
+  // work already done upstream. No submit action is offered; the row below is
+  // read-only and shows up solely for quotations that carry a decision from
+  // when the flow was live, so their history stays visible. The executive queue
+  // (/crm/executive/confirmations) still lists and decides anything pending.
   const execStatus = state.exec_status ?? "none";
-
-  async function submitExec() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/executive/confirmations", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          type: "quotation",
-          id: quotationId,
-          action: "submit",
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
-      await refetch();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function sendToSales() {
     if (
@@ -526,39 +502,23 @@ export default function QuotationApprovalBar({
         </div>
       </div>
 
-      {/* Executive confirmation — presales submits the finished quotation for
-          the executive manager to confirm. */}
-      {(canSubmitExec || execStatus !== "none") && (
+      {/* Executive confirmation — read-only history. Nothing renders on a
+          quotation that was never submitted, so the retired "Not submitted"
+          row and its Submit button are gone from every new quotation. */}
+      {execStatus !== "none" && (
         <div className="mt-3 border-t border-magic-border/60 pt-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-semibold text-magic-ink/70">Executive:</span>
-              {execStatus === "pending" && (
-                <Pill tone="muted">Awaiting confirmation</Pill>
-              )}
-              {execStatus === "confirmed" && <Pill tone="ok">Confirmed ✓</Pill>}
-              {execStatus === "rejected" && (
-                <Pill tone="warn">
-                  Rejected
-                  {state.exec_reject_reason &&
-                    `: ${state.exec_reject_reason.slice(0, 60)}`}
-                </Pill>
-              )}
-              {execStatus === "none" && (
-                <span className="text-magic-ink/45">Not submitted</span>
-              )}
-            </div>
-            {canSubmitExec && execStatus !== "pending" && (
-              <button
-                onClick={() => void submitExec()}
-                disabled={busy}
-                title="Send this quotation to the executive manager for confirmation"
-                className="px-3 py-1 text-xs font-semibold rounded bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 transition-colors"
-              >
-                {execStatus === "none"
-                  ? "Submit for executive confirmation"
-                  : "Re-submit for confirmation"}
-              </button>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-magic-ink/70">Executive:</span>
+            {execStatus === "pending" && (
+              <Pill tone="muted">Awaiting confirmation</Pill>
+            )}
+            {execStatus === "confirmed" && <Pill tone="ok">Confirmed ✓</Pill>}
+            {execStatus === "rejected" && (
+              <Pill tone="warn">
+                Rejected
+                {state.exec_reject_reason &&
+                  `: ${state.exec_reject_reason.slice(0, 60)}`}
+              </Pill>
             )}
           </div>
         </div>
