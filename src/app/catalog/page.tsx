@@ -4,6 +4,7 @@ import { canModifyCatalogue } from "@/lib/modules";
 import CatalogBrowser from "@/components/CatalogBrowser";
 import TopBar from "@/components/TopBar";
 import CatalogUploadSection from "./CatalogUploadSection";
+import CatalogHeader from "./CatalogHeader";
 import { sql, ensureSchema } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -100,20 +101,22 @@ export default async function CatalogPage() {
   // uses the read-only in-designer picker overlay instead.
   if (!(await canModifyCatalogue(user))) redirect("/");
   const initialSystems = await loadSystems();
+  // At-a-glance scale of the catalogue, straight off the aggregate the page
+  // already loads — no extra query. Zeroes just render as zeroes on a cold
+  // cache miss; the browser below repopulates on its own.
+  const productCount = initialSystems.reduce((n, s) => n + s.product_count, 0);
+  const vendorCount = new Set(initialSystems.map((s) => s.vendor)).size;
+  const systemCount = initialSystems.length;
+
   return (
     <div className="min-h-screen bg-magic-soft/40">
       <TopBar user={user} />
       <main className="max-w-screen-2xl mx-auto px-6 py-6 lg:px-10">
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold text-magic-ink">
-            Catalogue Modifier
-          </h1>
-          <p className="text-sm text-magic-ink/70">
-            Manage the product catalogue — upload / export, browse every product
-            with full specs, and edit prices, models and pictures. (Quotation
-            builders add products from the in-designer catalogue picker.)
-          </p>
-        </header>
+        <CatalogHeader
+          productCount={productCount}
+          vendorCount={vendorCount}
+          systemCount={systemCount}
+        />
         {/* Everyone who reaches this page may modify the catalogue (the gate
             above is the same rule the write endpoints enforce), so the upload /
             export tools show for everyone here. */}

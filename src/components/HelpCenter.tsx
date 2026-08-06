@@ -6,7 +6,6 @@ import {
   Search,
   ChevronDown,
   HelpCircle,
-  LifeBuoy,
   Compass,
   NotebookPen,
   Briefcase,
@@ -147,7 +146,7 @@ export default function HelpCenter({
         <div className="flex items-center justify-between gap-3 border-b border-magic-border/60 px-4 py-4">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-magic-red/15 to-magic-accent/15 text-magic-red">
-              <LifeBuoy className="h-5 w-5" />
+              <HelpCircle className="h-5 w-5" strokeWidth={2.25} />
             </span>
             <div className="min-w-0">
               <p className="text-sm font-bold leading-tight text-magic-ink">

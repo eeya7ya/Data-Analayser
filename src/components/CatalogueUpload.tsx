@@ -374,9 +374,11 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
   }, [toUpload, onDone]);
 
   return (
-    <div className="rounded-2xl border border-magic-border bg-white p-6">
-      <h2 className="text-lg font-bold text-magic-ink mb-1">Upload Product Catalogue</h2>
-      <p className="text-xs text-magic-ink/60 mb-4">
+    /* Renders inside the Bulk-Excel-tools card on /catalog, so this is a plain
+       block — a second bordered card here read as a competing panel, and its
+       own <h2> repeated the heading the tile above already carries. */
+    <div>
+      <p className="text-xs leading-relaxed text-magic-ink/60 mb-4">
         Upload an Excel file (.xlsx / .xls) with columns:{" "}
         <span className="font-mono text-magic-ink/80">
           vendor, System, Category, sub_category, Fast View, model, description, currency, price_si, Specifications
@@ -386,8 +388,8 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
       </p>
 
       {/* File picker */}
-      <div className="flex items-center gap-3 mb-4">
-        <label className="cursor-pointer rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors">
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-magic-red px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700">
           Choose file
           <input
             type="file"
@@ -401,7 +403,9 @@ export default function CatalogueUpload({ onDone }: { onDone?: () => void }) {
           />
         </label>
         {fileName && (
-          <span className="text-sm text-magic-ink/70">{fileName}</span>
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-magic-border bg-magic-soft/60 px-2.5 py-1.5 text-xs font-medium text-magic-ink/70">
+            {fileName}
+          </span>
         )}
       </div>
 

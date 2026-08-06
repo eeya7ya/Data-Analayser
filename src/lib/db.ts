@@ -594,7 +594,14 @@ export async function ensureSchema(): Promise<void> {
   // processes pay just one SELECT; cached per process via __mtSchemaPromise.
   if (usingD1()) {
     if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
-    globalForSchema.__mtSchemaPromise = ensureD1SchemaOnce();
+    // Seed the changelog here too, not just on the Postgres path below — D1 is
+    // the default database, so skipping it left the Product-updates feed frozen
+    // on whatever was already in `news_posts` while the version badge (derived
+    // from releaseNotes.ts) marched on without it.
+    globalForSchema.__mtSchemaPromise = (async () => {
+      await ensureD1SchemaOnce();
+      await _seedReleaseNotes();
+    })();
     return globalForSchema.__mtSchemaPromise;
   }
   if (globalForSchema.__mtSchemaPromise) return globalForSchema.__mtSchemaPromise;
@@ -3718,26 +3725,67 @@ async function _ensureSchemaOnce(): Promise<void> {
  * Seed the release-notes changelog (src/lib/releaseNotes.ts) into `news_posts`
  * so the Product-updates feed always reflects the shipped version.
  *
- * Runs once per process AFTER `_ensureSchemaOnce` (so `news_posts` exists),
- * and crucially OUTSIDE its "all migrations applied — nothing to do" early
- * return, so the changelog still seeds on warm/already-bootstrapped databases.
- * It is NOT gated by a migration flag and is idempotent by title, so adding a
- * note in releaseNotes.ts surfaces it on the next cold start with no
- * fingerprint bump. `created_by` is null (a system post) and the `all`
- * audience makes it visible to every role.
+ * Runs once per process AFTER the schema bootstrap (so `news_posts` exists) on
+ * BOTH backends, and crucially OUTSIDE their "all migrations applied — nothing
+ * to do" early returns, so the changelog still seeds on warm/already-
+ * bootstrapped databases. It is NOT gated by a migration flag and is idempotent
+ * by title, so adding a note in releaseNotes.ts surfaces it on the next cold
+ * start with no fingerprint bump. `created_by` is null (a system post) and the
+ * `all` audience makes it visible to every role.
+ *
+ * The existence check is a separate SELECT rather than an `insert … select …
+ * where not exists`, because that shape leans on Postgres' FROM-less SELECT and
+ * doesn't survive the D1 translator. Two statements per *missing* note; already
+ * seeded notes cost one SELECT each.
  */
 async function _seedReleaseNotes(): Promise<void> {
   const q = sql();
+  const d1 = usingD1();
   for (const note of RELEASE_NOTES) {
-    await q`
-      insert into news_posts
-        (title, body, audience_modules, audience_roles, pinned, created_by, created_at)
-      select ${note.title}, ${note.body},
-             ${note.audience_modules}::text[], ${note.audience_roles}::text[],
-             ${note.pinned}, null, ${note.date}::timestamptz
-      where not exists (
-        select 1 from news_posts where title = ${note.title}
-      )
-    `;
+    try {
+      const existing = (await q`
+        select id, body, created_by from news_posts
+        where title = ${note.title} limit 1
+      `) as Array<{ id: number; body: string; created_by: number | null }>;
+
+      // D1 stores the audience columns as JSON text and can't bind a JS array
+      // (the template builder would expand it into `?, ?` placeholders);
+      // Postgres takes the array as-is for text[]. Same split as /api/news POST.
+      const modules = d1
+        ? JSON.stringify(note.audience_modules)
+        : note.audience_modules;
+      const roles = d1 ? JSON.stringify(note.audience_roles) : note.audience_roles;
+      // `date` is an ISO day. D1's created_at is TEXT and the feed orders on it
+      // lexicographically, so store a full ISO timestamp to sort unambiguously
+      // against rows written by the app (which stamp a full timestamp).
+      const createdAt = d1 ? `${note.date}T00:00:00.000Z` : note.date;
+
+      if (existing.length > 0) {
+        // Already seeded. Re-publish the body if the file has moved on, so a
+        // correction to a shipped note reaches the feed instead of being frozen
+        // at whatever first landed. Only system rows (created_by is null) — an
+        // admin who edited the post from the News panel keeps their wording.
+        const row = existing[0];
+        if (row.created_by === null && row.body !== note.body) {
+          await q`
+            update news_posts set body = ${note.body}
+            where id = ${row.id} and created_by is null
+          `;
+        }
+        continue;
+      }
+
+      await q`
+        insert into news_posts
+          (title, body, audience_modules, audience_roles, pinned, created_by, created_at)
+        values (${note.title}, ${note.body}, ${modules}::text[], ${roles}::text[],
+                ${note.pinned}, null, ${createdAt}::timestamptz)
+      `;
+    } catch (err) {
+      // Never let a changelog seed take down every page that calls
+      // ensureSchema(). Log loudly instead — a stale Product-updates feed is
+      // otherwise silent, which is exactly how this drifted before.
+      console.error(`[releaseNotes] failed to seed "${note.title}"`, err);
+    }
   }
 }

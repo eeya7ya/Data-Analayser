@@ -251,7 +251,7 @@ export default function LoginClient({ className = "" }: { className?: string }) 
 
           <div className={s.fld}>
             <label htmlFor="p">{t.passL}</label>
-            <div className={s.in}>
+            <div className={`${s.in} ${s.hasEye}`}>
               <svg viewBox="0 0 24 24">
                 <rect x="4" y="10" width="16" height="10" rx="2" />
                 <path d="M8 10V7a4 4 0 0 1 8 0v3" />
