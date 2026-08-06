@@ -1469,3 +1469,17 @@ body > * {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Opt-out of the browser's native number stepper. Chrome's up/down arrows and
+ * Firefox's spin box step by the input's `step`, which on a money field means
+ * ±0.01 a click — no use for entering a price and easy to nudge by accident.
+ * Apply to a `type="number"` input that should be typed into, not stepped. */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

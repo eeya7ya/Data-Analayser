@@ -5,6 +5,7 @@ import type { SessionUser } from "@/lib/auth";
 import { confirmDelete } from "@/lib/confirmDelete";
 import { compressDataUrl } from "@/components/QuotationPreview";
 import Select from "@/components/Select";
+import { Search, X, Boxes, Loader2 } from "@/lib/icons";
 
 // Belt-and-braces upload cap. The compressDataUrl pass usually lands well
 // under this for any normal product photo (canvas re-encode at 800px /
@@ -218,14 +219,31 @@ export default function CatalogBrowser({
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [systems]);
 
+  // The biggest systems, offered as one-click chips on the empty state.
+  const topSystems = useMemo(
+    () =>
+      [...systems]
+        .sort((a, b) => b.product_count - a.product_count)
+        .slice(0, 6),
+    [systems],
+  );
+
   // ── Expanded specs state ──────────────────────────────────────────────────
   const [expandedSpec, setExpandedSpec] = useState<number | null>(null);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-4">
-      {/* ── Header ── */}
-      <div className="flex flex-wrap items-center gap-3">
+      {/* ── Browse controls ── */}
+      <section className="rounded-2xl border border-magic-border bg-white p-5 shadow-mt-soft">
+      <div className="mb-4 flex items-center gap-2">
+        <Search className="h-4 w-4 text-magic-red" />
+        <h2 className="text-sm font-bold text-magic-ink">Browse & edit</h2>
+        <span className="text-[11px] text-magic-ink/45">
+          changes here update the live catalogue presales pick from
+        </span>
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-48">
           <label className="block text-[11px] font-semibold uppercase tracking-wider text-magic-ink/60 mb-1">
             Select vendor / system
@@ -248,11 +266,17 @@ export default function CatalogBrowser({
             className="w-full rounded-lg border border-magic-border bg-white px-3 py-2.5 text-sm font-medium text-magic-ink shadow-sm cursor-pointer hover:border-magic-red/50 hover:bg-magic-soft/40 focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20 transition-all"
           >
             <option value="">— Pick a system —</option>
+            {/* The vendor is repeated inside its own optgroup on purpose: the
+                closed trigger shows only the chosen option's own text, and
+                several vendors ship a system of the same name (two "CCTV"s),
+                so leaving it out made the selection ambiguous exactly where
+                it's read most. */}
             {systemsByVendor.map(([vendor, list]) => (
               <optgroup key={vendor} label={vendor}>
                 {list.map((s, i) => (
                   <option key={`${vendor}-${i}`} value={`${s.vendor}||${s.system}`}>
-                    {s.system || s.vendor} — {s.product_count} products
+                    {s.vendor}
+                    {s.system ? ` — ${s.system}` : ""} · {s.product_count} products
                   </option>
                 ))}
               </optgroup>
@@ -284,46 +308,119 @@ export default function CatalogBrowser({
           <label className="block text-[11px] font-semibold uppercase tracking-wider text-magic-ink/60 mb-1">
             {selectedVendor ? "Filter / search" : "Global search (all vendors)"}
           </label>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={
-              selectedVendor
-                ? "e.g. 4MP bullet ColorVu PoE"
-                : "Search by keyword, model, vendor, category…"
-            }
-            className="w-full rounded-lg border border-magic-border bg-white px-3 py-2.5 text-sm font-medium text-magic-ink shadow-sm placeholder:text-magic-ink/30 hover:border-magic-red/50 hover:bg-magic-soft/40 focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20 transition-all"
-          />
+          <div className="relative flex items-center">
+            <Search className="pointer-events-none absolute left-3 h-4 w-4 text-magic-ink/30" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={
+                selectedVendor
+                  ? "e.g. 4MP bullet ColorVu PoE"
+                  : "Search by keyword, model, vendor, category…"
+              }
+              className="w-full rounded-lg border border-magic-border bg-white py-2.5 pl-9 pr-9 text-sm font-medium text-magic-ink shadow-sm placeholder:text-magic-ink/30 hover:border-magic-red/50 hover:bg-magic-soft/40 focus:outline-none focus:border-magic-red focus:ring-2 focus:ring-magic-red/20 transition-all"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+                className="absolute right-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-magic-ink/35 transition-colors hover:bg-magic-soft hover:text-magic-ink"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
       </div>
-
-      <p className="text-[11px] text-magic-ink/60 -mt-1">
-        Pick a vendor / system to browse its full catalogue, or search across
-        <b> every vendor</b>. Changes you make here update the live catalogue
-        that presales pick from in the quotation designer.
-      </p>
+      </section>
 
       {/* ── Product table ── */}
       <div className="flex-1 min-w-0">
         {!selectedVendor && !debouncedSearch.trim() && (
-          <div className="rounded-2xl border border-magic-border bg-white p-12 text-center text-magic-ink/40 text-sm">
-            Select a system above to browse its full product catalogue, or type
-            in the global search box to find products across every vendor.
+          <div className="rounded-2xl border border-magic-border bg-white px-6 py-12 text-center shadow-mt-soft">
+            <span className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-magic-soft text-magic-ink/35">
+              <Boxes className="h-7 w-7" />
+            </span>
+            <p className="mt-3.5 text-[15px] font-semibold text-magic-ink">
+              Pick a system to start
+            </p>
+            <p className="mx-auto mt-1 max-w-md text-[13px] leading-relaxed text-magic-ink/55">
+              Choose a vendor / system above to browse its full product
+              catalogue, or search to find products across every vendor.
+            </p>
+            {/* Jump straight in — the dropdown is a two-step interaction and
+                most sessions are headed for one of the big vendors anyway. */}
+            {topSystems.length > 0 && (
+              <div className="mt-5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-magic-ink/35">
+                  Jump to
+                </p>
+                <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2">
+                  {topSystems.map((s) => (
+                    <button
+                      key={`${s.vendor}||${s.system}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedVendor(s.vendor);
+                        setSelectedSystem(s.system || "");
+                        setSearch("");
+                        setSelectedSubCategory("");
+                        setProducts([]);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-full border border-magic-border bg-white py-1.5 pl-3 pr-2 text-xs font-semibold text-magic-ink/75 shadow-sm transition-colors hover:border-magic-red/40 hover:text-magic-red"
+                    >
+                      {/* Vendor stays in the label — several vendors ship a
+                          system of the same name (two "CCTV"s), so the system
+                          alone doesn't identify which one a chip opens. */}
+                      <span className="text-magic-ink/40">{s.vendor}</span>
+                      {s.system && <span>{s.system}</span>}
+                      <span className="rounded-full bg-magic-soft px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-magic-ink/45">
+                        {s.product_count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {loading && (
-          <div className="rounded-2xl border border-magic-border bg-white p-12 text-center text-magic-ink/40 text-sm animate-pulse">
-            {globalMode ? "Searching all vendors…" : "Loading products…"}
+          <div className="rounded-2xl border border-magic-border bg-white px-6 py-12 text-center shadow-mt-soft">
+            <Loader2 className="mx-auto h-6 w-6 animate-spin text-magic-red/60" />
+            <p className="mt-3 text-[13px] font-medium text-magic-ink/55">
+              {globalMode ? "Searching all vendors…" : "Loading products…"}
+            </p>
           </div>
         )}
 
         {!loading &&
           (selectedVendor || debouncedSearch.trim()) &&
           sorted.length === 0 && (
-            <div className="rounded-2xl border border-magic-border bg-white p-12 text-center text-magic-ink/40 text-sm">
-              No products found{search ? ` for "${search}"` : ""}.
+            <div className="rounded-2xl border border-dashed border-magic-border bg-white px-6 py-12 text-center shadow-mt-soft">
+              <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-magic-soft text-magic-ink/35">
+                <Search className="h-6 w-6" />
+              </span>
+              <p className="mt-3 text-[15px] font-semibold text-magic-ink">
+                No products found
+              </p>
+              <p className="mt-1 text-[13px] text-magic-ink/55">
+                {search
+                  ? `Nothing matches "${search}" here.`
+                  : "This system has no products yet."}
+              </p>
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-magic-border bg-white px-3.5 py-2 text-xs font-semibold text-magic-ink/75 shadow-sm transition-colors hover:border-magic-red/40 hover:text-magic-red"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Clear search
+                </button>
+              )}
             </div>
           )}
 
@@ -346,19 +443,26 @@ export default function CatalogBrowser({
         )}
 
         {sorted.length > 0 && (
-          <div className="rounded-2xl border border-magic-border bg-white overflow-hidden">
-            <div className="px-4 py-3 border-b border-magic-border flex items-center justify-between">
-              <span className="text-xs font-semibold text-magic-ink">
+          <div className="rounded-2xl border border-magic-border bg-white overflow-hidden shadow-mt-soft">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-magic-border bg-magic-soft/30 px-4 py-3">
+              <span className="flex min-w-0 items-center gap-2 text-[13px] font-bold text-magic-ink">
                 {globalMode ? (
-                  <>Global search results</>
+                  <>
+                    <Search className="h-3.5 w-3.5 shrink-0 text-magic-red" />
+                    Global search results
+                  </>
                 ) : (
                   <>
-                    {selectedVendor} — {selectedSystem || "All"}
+                    <Boxes className="h-3.5 w-3.5 shrink-0 text-magic-red" />
+                    <span className="truncate">
+                      {selectedVendor}
+                      {selectedSystem ? ` — ${selectedSystem}` : ""}
+                    </span>
                   </>
                 )}
-                <span className="ml-2 text-magic-ink/40 font-normal">
-                  {sorted.length} of {total} products
-                </span>
+              </span>
+              <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold tabular-nums text-magic-ink/55 shadow-sm ring-1 ring-magic-border">
+                {sorted.length} of {total} products
               </span>
             </div>
             <div className="overflow-x-auto max-h-[65vh] overflow-y-auto">
@@ -850,14 +954,24 @@ function EditProductModal({
                     className={commonClass}
                   />
                 ) : f.type === "number" ? (
-                  <input
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    value={Number(value) || 0}
-                    onChange={(e) => update(f.key, e.target.value)}
-                    className={commonClass}
-                  />
+                  // The browser's native stepper nudged the price by 0.01 a
+                  // click — useless on a catalogue price and easy to hit by
+                  // accident, so it's hidden (`no-spinner`) and the currency
+                  // sits in the field instead, where it answers "207.25 of
+                  // what?" without a trip to the column beside it.
+                  <span className="relative flex items-center">
+                    <span className="pointer-events-none absolute left-3 text-sm font-semibold text-magic-ink/35">
+                      {draft.currency || "USD"}
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={Number(value) || 0}
+                      onChange={(e) => update(f.key, e.target.value)}
+                      className={`${commonClass} no-spinner pl-14 text-right font-semibold tabular-nums`}
+                    />
+                  </span>
                 ) : f.type === "image" ? (
                   <PictureUploader
                     value={value == null ? null : String(value)}
