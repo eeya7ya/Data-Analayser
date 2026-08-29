@@ -174,6 +174,12 @@ export default function Designer({
     appSettings.brandVariants && appSettings.brandVariants.length > 0
       ? appSettings.brandVariants
       : BRAND_VARIANTS;
+  // A brand-new quotation starts on the admin's FIRST configured brand, not
+  // the shipped `DEFAULT_BRAND_VARIANT_ID` ("magic-tech"). Once an admin
+  // curates their brands the built-in id may not exist in their list, and
+  // defaulting to it made the preview/print fall back to the shipped Magic
+  // Tech artwork while the dropdown showed the admin's first brand as picked.
+  const defaultBrandVariantId = brandVariants[0]?.id ?? DEFAULT_BRAND_VARIANT_ID;
   const router = useRouter();
   const editMode = !!existing;
   const [projectName, setProjectName] = useState("");
@@ -225,7 +231,7 @@ export default function Designer({
     "percent",
   );
   const [brandVariantId, setBrandVariantId] = useState<string>(
-    DEFAULT_BRAND_VARIANT_ID,
+    defaultBrandVariantId,
   );
   const [folders, setFolders] = useState<ClientFolder[]>([]);
   const [folderId, setFolderId] = useState<number | null>(null);
@@ -833,7 +839,7 @@ export default function Designer({
         getBrandVariant(
           editDraft?.brandVariantId ??
             existing.config_json?.brandVariantId ??
-            DEFAULT_BRAND_VARIANT_ID,
+            defaultBrandVariantId,
           brandVariants,
         ).id,
       );
@@ -931,7 +937,7 @@ export default function Designer({
     setDiscountPercent(Number(d.discountPercent) || 0);
     setDiscountAmount(Number(d.discountAmount) || 0);
     setBrandVariantId(
-      getBrandVariant(d.brandVariantId || DEFAULT_BRAND_VARIANT_ID, brandVariants)
+      getBrandVariant(d.brandVariantId || defaultBrandVariantId, brandVariants)
         .id,
     );
     // Restore the previously picked client folder so a full-page refresh

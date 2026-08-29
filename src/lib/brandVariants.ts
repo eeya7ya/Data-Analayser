@@ -56,11 +56,23 @@ export const BRAND_VARIANTS: BrandVariant[] = [
 
 /**
  * Resolve a variant id to its bundle. When `variants` is supplied (the
- * admin-configured list persisted in app settings) it takes precedence, so
- * the cover/about/logo a quotation prints reflect whatever the admin set up
- * for that brand. Lookups fall back to the built-in list and finally to the
- * first available variant, so a quotation whose stored id was later removed
- * from the admin panel still prints *something* rather than crashing.
+ * admin-configured list persisted in app settings) it is AUTHORITATIVE: a
+ * lookup that misses falls back to the admin's first brand, never to the
+ * shipped built-ins.
+ *
+ * Reaching back to `BRAND_VARIANTS` on a miss was the bug behind "changing
+ * branding in the admin panel doesn't change the quotation designer or
+ * printing": once an admin curated their own brands, a quotation still
+ * pointing at a built-in id — e.g. the "magic-tech" default every new
+ * quotation starts on — matched the hardcoded list and silently printed the
+ * shipped Magic Tech logo / cover / about-us sheets instead of the admin's
+ * artwork. The dropdown then showed the admin's first brand as selected
+ * while the real state pointed at that phantom id.
+ *
+ * The built-in list is only consulted when NO admin list was supplied — in
+ * which case `list` already *is* `BRAND_VARIANTS`, so a fresh install still
+ * resolves the shipped brands, while a curated install is never shadowed by
+ * artwork the admin can no longer edit.
  */
 export function getBrandVariant(
   id?: string | null,
@@ -68,11 +80,7 @@ export function getBrandVariant(
 ): BrandVariant {
   const list = variants && variants.length > 0 ? variants : BRAND_VARIANTS;
   if (!id) return list[0];
-  return (
-    list.find((v) => v.id === id) ||
-    BRAND_VARIANTS.find((v) => v.id === id) ||
-    list[0]
-  );
+  return list.find((v) => v.id === id) || list[0];
 }
 
 /**
