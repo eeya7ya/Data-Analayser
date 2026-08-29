@@ -6,6 +6,7 @@ import {
   describeEmailError,
   EmailNotConfiguredError,
 } from "@/lib/email";
+import { SecretUndecryptableError } from "@/lib/emailCrypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,14 @@ export async function GET(req: Request) {
     if (err instanceof EmailNotConfiguredError) {
       return NextResponse.json(
         { error: err.message, notConfigured: true },
+        { status: 409 },
+      );
+    }
+    // Key rotated/lost: the row is fine, the password just needs re-entering.
+    // 409 (not 502) so the UI prompts instead of blaming the mail server.
+    if (err instanceof SecretUndecryptableError) {
+      return NextResponse.json(
+        { error: err.message, credentialsStale: true },
         { status: 409 },
       );
     }

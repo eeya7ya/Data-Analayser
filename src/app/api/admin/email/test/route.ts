@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
-import { decryptSecret } from "@/lib/emailCrypto";
+import { decryptSecret, SecretUndecryptableError } from "@/lib/emailCrypto";
 import {
   testConnection,
   getServerConfig,
@@ -98,6 +98,15 @@ export async function POST(req: Request) {
 
     return NextResponse.json(result);
   } catch (err) {
+    // Testing a saved account whose password predates the current
+    // EMAIL_ENCRYPTION_KEY: report it as a failed test with the fix, rather
+    // than a 500. `ok: false` keeps the response shape the UI already renders.
+    if (err instanceof SecretUndecryptableError) {
+      return NextResponse.json(
+        { ok: false, error: err.message, credentialsStale: true },
+        { status: 200 },
+      );
+    }
     const msg = err instanceof Error ? err.message : "UNKNOWN";
     const status =
       msg === "UNAUTHENTICATED" ? 401 : msg === "FORBIDDEN" ? 403 : 500;

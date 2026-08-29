@@ -1,26 +1,77 @@
-# Cloudflare bindings for the MagicTech app.
+# Cloudflare Workers deployment config for the MagicTech app.
 #
-# This file does NOT change the live Vercel deployment. It only takes effect
-# when the app is deployed to Cloudflare Pages (later) or when wrangler is
-# invoked locally for D1 / R2 admin tasks (e.g. `wrangler d1 execute`).
+# The app is BUILT by the OpenNext adapter (`npm run cf:build`), which compiles
+# the Next.js output into `.open-next/worker.js` plus a static asset directory.
+# `npm run cf:deploy` uploads both.
 #
 # Bindings:
-#   - magictech : the D1 SQLite database that will replace Postgres
-#                 after the dual-run validation period.
-#   - FILES     : the R2 bucket used for project_files uploads.
+#   - magictech            : the D1 SQLite database (primary datastore).
+#   - magictech_files      : the R2 bucket used for project_files uploads.
+#   - NEXT_INC_CACHE_R2_BUCKET : SEPARATE bucket for Next's incremental cache.
+#                            Deliberately not the files bucket, so cache objects
+#                            never land in the nightly backups or off-site mirror.
+#   - ASSETS               : static assets emitted by the build.
+#   - WORKER_SELF_REFERENCE : required by OpenNext for cache revalidation.
 #
 # The compatibility_date pins the Workers runtime feature set so a future
 # Cloudflare update doesn't silently change behaviour under us. Bump it
 # only when we deliberately want new runtime features.
 
 name = "magictech"
+# Custom entrypoint that wraps the generated `.open-next/worker.js` and adds the
+# `scheduled()` handler the Cloudflare cron trigger needs. See worker-entry.mjs.
+main = "worker-entry.mjs"
 compatibility_date = "2026-04-01"
-compatibility_flags = ["nodejs_compat"]
+# nodejs_compat            — Node built-ins (node:crypto, Buffer, streams) that
+#                            the 105 `runtime = "nodejs"` routes depend on.
+# global_fetch_strictly_public — fetch() to our own hostname goes out over the
+#                            public internet instead of looping back internally,
+#                            which is what the app's absolute-URL fetches expect.
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# Non-secret config. Secrets go through `wrangler secret put` instead so they
+# are never committed. APP_ORIGIN is the deployed URL, used for absolute
+# self-links (e.g. the synthetic request the cron handler builds).
+[vars]
+APP_ORIGIN = "https://magictech.workers.dev"
+
+# Next.js image optimisation, served by Cloudflare Images.
+[images]
+binding = "IMAGES"
+
+# Self-reference so the Worker can call itself for ISR revalidation.
+# `service` must match `name` above.
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "magictech"
+
+# ── Cron ──────────────────────────────────────────────────────────────────
+# Replaces the Vercel cron in vercel.json. Fires the daily DB backup at 02:00
+# UTC. Cloudflare invokes the Worker's `scheduled()` handler (see
+# src/worker.ts), which calls the same backup code the HTTP route uses.
+[triggers]
+crons = ["0 2 * * *"]
 
 # ── D1 ────────────────────────────────────────────────────────────────────
 # Created via:  wrangler d1 create magictech  (region: WEUR)
-# Apply schema: wrangler d1 execute magictech --remote --file=./d1/schema.sql
 # Inspect:      wrangler d1 execute magictech --remote --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+#
+# Schema: you do NOT need to apply d1/schema.sql by hand. The app bootstraps its
+# own schema through `ensureSchema()` on first request.
+#
+# Note that `wrangler d1 execute magictech --file=./d1/schema.sql` FAILS against
+# a fresh database with "duplicate column name: tenant_id". That is expected and
+# pre-dates this migration: the file's CREATE TABLE statements already include
+# the newer columns, while the ALTER TABLE ... ADD COLUMN block near the end
+# exists to upgrade OLDER databases, and SQLite has no ADD COLUMN IF NOT EXISTS.
+# The file is therefore an upgrade script, not a fresh-install script.
+#
+# With the app on Workers this binding is used directly (no REST round-trip),
+# which is a large latency win over the api.cloudflare.com path used from Vercel.
 
 [[d1_databases]]
 binding = "magictech"
@@ -30,8 +81,14 @@ database_id = "385c686f-31a1-46cb-b2ee-a919472ad978"
 # ── R2 ────────────────────────────────────────────────────────────────────
 # Created via:  wrangler r2 bucket create magictech-files
 # Bucket name must match what was created; the binding name is what the
-# Worker code references (`env.FILES`).
+# Worker code references.
 
 [[r2_buckets]]
 binding = "magictech_files"
 bucket_name = "magictech-files"
+
+# Incremental cache bucket. Create before first deploy:
+#   wrangler r2 bucket create magictech-opennext-cache
+[[r2_buckets]]
+binding = "NEXT_INC_CACHE_R2_BUCKET"
+bucket_name = "magictech-opennext-cache"

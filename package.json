@@ -2,12 +2,16 @@
   "name": "magictech-quotation-designer",
   "version": "1.4.4",
   "private": true,
-  "description": "MagicTech AI Quotation Designer — Next.js 15 + Vercel 2026 + Postgres + Groq",
+  "description": "MagicTech AI Quotation Designer — Next.js 15 on Cloudflare Workers + D1 + R2 + Groq",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "cf:build": "opennextjs-cloudflare build",
+    "cf:preview": "opennextjs-cloudflare preview",
+    "cf:deploy": "opennextjs-cloudflare deploy",
+    "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "db:init": "node scripts/init-db.mjs",
     "db:migrate": "node scripts/migrate-json-to-db.mjs",
     "db:restore-from-d1": "node scripts/migrate-d1-to-postgres.mjs",
@@ -28,7 +32,7 @@
     "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
     "mailparser": "^3.9.9",
-    "next": "15.5.14",
+    "next": "15.5.22",
     "nodemailer": "^8.0.10",
     "postgres": "^3.4.7",
     "react": "19.0.0",
@@ -39,6 +43,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.2",
     "@types/leaflet": "^1.9.21",
     "@types/mailparser": "^3.4.6",
     "@types/node": "^22.10.2",
@@ -48,10 +53,11 @@
     "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
-    "eslint-config-next": "15.5.14",
+    "eslint-config-next": "15.5.22",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "wrangler": "^4.118.0"
   },
   "engines": {
     "node": ">=20.0.0"

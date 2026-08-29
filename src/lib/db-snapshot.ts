@@ -15,7 +15,14 @@
  *   manifest.json        { generatedAt, restoreOrder, tables:[{name,rows,
  *                          columns:[{name,udt,...}], primaryKey, contentHash}] }
  *   data/<table>.json    JSON array of every row in that table
- *   all.json             { <table>: rows[] } convenience roll-up
+ *
+ * Memory note: this used to also emit an `all.json` roll-up holding a second
+ * copy of every row, which meant peak memory was ~3x the database size (the
+ * accumulator, the per-table files, and the roll-up string). Nothing ever read
+ * it — the restore route consumes manifest.json + data/<table>.json only — so
+ * it was dropped. That matters on Cloudflare Workers, where the 128MB memory
+ * ceiling is a hard limit that cannot be raised (Vercel simply let us ask for
+ * 1024MB). Archives that still contain all.json restore fine; it's ignored.
  *
  * The "one-click backup to R2" route uploads this ZIP straight into the R2
  * bucket, so R2 holds a complete, self-contained copy of the database that can
@@ -181,7 +188,6 @@ export async function buildDbSnapshotZip(q: SqlClient): Promise<DbSnapshot> {
   };
 
   const zip = new JSZip();
-  const allJson: Record<string, Array<Record<string, unknown>>> = {};
 
   for (const table of ordered) {
     const cols = (colsByTable.get(table) ?? []).sort(
@@ -198,8 +204,9 @@ export async function buildDbSnapshotZip(q: SqlClient): Promise<DbSnapshot> {
       .update(canonicalStringify(rows))
       .digest("hex");
 
-    zip.file(`data/${table}.json`, JSON.stringify(rows, jsonReplacer, 2));
-    allJson[table] = rows;
+    // No indent: this file is machine-read by the restore route, and
+    // pretty-printing inflates a full-database dump by a third for nothing.
+    zip.file(`data/${table}.json`, JSON.stringify(rows, jsonReplacer));
     manifest.totalRows += rows.length;
 
     manifest.tables.push({
@@ -217,7 +224,6 @@ export async function buildDbSnapshotZip(q: SqlClient): Promise<DbSnapshot> {
     });
   }
 
-  zip.file("all.json", JSON.stringify(allJson, jsonReplacer, 2));
   zip.file("manifest.json", JSON.stringify(manifest, null, 2));
   zip.file(
     "README.txt",

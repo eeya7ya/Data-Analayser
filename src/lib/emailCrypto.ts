@@ -54,21 +54,66 @@ export function encryptSecret(plaintext: string): string {
   ].join(":");
 }
 
+/**
+ * Thrown when a stored secret exists but cannot be decrypted with the current
+ * `EMAIL_ENCRYPTION_KEY` — almost always because the key was rotated or lost
+ * (e.g. moving hosts without carrying the old key across).
+ *
+ * This is deliberately distinct from "no mailbox configured" and from a normal
+ * auth failure: the row is intact, the key simply no longer matches, and the
+ * only fix is for the user to re-enter the mailbox password so it gets
+ * re-encrypted under the new key. Callers surface that instruction rather than
+ * leaking an AES error.
+ */
+export class SecretUndecryptableError extends Error {
+  constructor() {
+    super(
+      "Saved mailbox password can't be read with the current encryption key — " +
+        "it was saved under a previous EMAIL_ENCRYPTION_KEY. Re-enter the " +
+        "mailbox password to save it again under the current key.",
+    );
+    this.name = "SecretUndecryptableError";
+  }
+}
+
 export function decryptSecret(stored: string): string {
   const [ivB64, tagB64, ctB64] = stored.split(":");
   if (!ivB64 || !tagB64 || !ctB64) {
-    throw new Error("Stored secret is malformed.");
+    throw new SecretUndecryptableError();
   }
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    getKey(),
-    Buffer.from(ivB64, "base64"),
-  );
-  decipher.setAuthTag(Buffer.from(tagB64, "base64"));
-  return Buffer.concat([
-    decipher.update(Buffer.from(ctB64, "base64")),
-    decipher.final(),
-  ]).toString("utf8");
+  try {
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      getKey(),
+      Buffer.from(ivB64, "base64"),
+    );
+    decipher.setAuthTag(Buffer.from(tagB64, "base64"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(ctB64, "base64")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch (err) {
+    // A missing/!32-byte key is a deployment mistake, not stale ciphertext —
+    // let that error through so it's diagnosed as configuration.
+    if (err instanceof Error && /EMAIL_ENCRYPTION_KEY/.test(err.message)) {
+      throw err;
+    }
+    // Anything else here is GCM auth-tag rejection: wrong key for this value.
+    throw new SecretUndecryptableError();
+  }
+}
+
+/**
+ * Non-throwing variant for callers that want to *report* which accounts have
+ * become unreadable (e.g. an admin list) rather than fail the whole request.
+ */
+export function tryDecryptSecret(stored: string): string | null {
+  try {
+    return decryptSecret(stored);
+  } catch (err) {
+    if (err instanceof SecretUndecryptableError) return null;
+    throw err;
+  }
 }
 
 /** True when the encryption key is configured — lets the UI warn admins early. */

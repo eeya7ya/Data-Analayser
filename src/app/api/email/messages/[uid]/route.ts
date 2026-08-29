@@ -6,6 +6,7 @@ import {
   describeEmailError,
   EmailNotConfiguredError,
 } from "@/lib/email";
+import { SecretUndecryptableError } from "@/lib/emailCrypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,13 @@ export async function GET(
     if (err instanceof EmailNotConfiguredError) {
       return NextResponse.json(
         { error: err.message, notConfigured: true },
+        { status: 409 },
+      );
+    }
+    // Key rotated/lost: the row is fine, the password just needs re-entering.
+    if (err instanceof SecretUndecryptableError) {
+      return NextResponse.json(
+        { error: err.message, credentialsStale: true },
         { status: 409 },
       );
     }

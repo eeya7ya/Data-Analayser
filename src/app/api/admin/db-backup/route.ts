@@ -15,7 +15,6 @@ export const maxDuration = 60;
  *
  *   manifest.json        table order, columns, primary keys, content hashes
  *   data/<table>.json    every row in that table (lossless JSON)
- *   all.json             { <table>: rows[] } convenience roll-up
  *   README.txt           what's inside and how to restore
  *
  * This captures the DATA — clients, projects, quotations, leads, pricing,

@@ -1,4 +1,4 @@
-# MagicTech — AI Quotation Designer (Vercel 2026)
+# MagicTech — AI Quotation Designer (Cloudflare Workers)
 
 Professional low-current / ICT / AV / surveillance quotation designer. Powered
 by Next.js 15 (App Router), **Postgres** (any provider, accessed via a
@@ -87,7 +87,93 @@ npm run dev
 
 Open <http://localhost:3000>, sign in as `admin / admin123`, and go.
 
-## Deploy to Vercel
+## Deploy to Cloudflare Workers
+
+This is the current hosting target. The app is built into a Worker by the
+[OpenNext](https://opennext.js.org/cloudflare) adapter, so the 105 route
+handlers that declare `runtime = "nodejs"` keep running on the Node.js runtime
+unchanged — no rewrite to the edge runtime was needed.
+
+The database (D1) and file storage (R2) were already on Cloudflare before this
+migration and **do not move**. Nothing is migrated, copied, or re-imported, so
+there is no data-loss risk in the cutover itself.
+
+### One-time setup
+
+```bash
+npx wrangler login
+npx wrangler r2 bucket create magictech-opennext-cache   # Next's incremental cache
+```
+
+The cache deliberately uses its **own** bucket so cache objects never land in
+the nightly DB/files backups or the off-site mirror.
+
+You also need the **Workers Paid** plan ($5/mo): the bundle is ~4.1 MB
+compressed, over the 3 MB free-tier ceiling (the paid ceiling is 10 MB).
+
+### Secrets
+
+Set each with `npx wrangler secret put <NAME>`. Which ones you must carry over
+from the old host, and which you can simply regenerate:
+
+| Secret | Where it comes from |
+| --- | --- |
+| `AUTH_SECRET` | **Copy from the old host.** Regenerating it logs everyone out (accounts and hashed passwords survive — it only invalidates existing session JWTs). |
+| `EMAIL_ENCRYPTION_KEY` | Copy if you still have it. If not, generate a new one (`openssl rand -base64 32`) — see the warning below. |
+| `CRON_SECRET` | Regenerate freely — any random string. Must be set or the nightly backup is skipped. |
+| `GROQ_API_KEY` | Regenerate at the Groq console. |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Regenerate with `npm run vapid:gen`. Existing push subscriptions stop working and users re-enable notifications. |
+| `CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY` / `CLOUDFLARE_ACCOUNT_ID` | Regenerate in the Cloudflare dashboard (R2 → Manage API tokens). Still required: R2 presigned upload URLs need SigV4 signing, which bindings cannot do. |
+
+Plain (non-secret) vars go in `wrangler.toml` under `[vars]` — notably
+`APP_ORIGIN`, the deployed URL, used for absolute self-links.
+
+**D1 needs no credentials at all.** It is reached through the native binding
+(`env.magictech`), so `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_D1_DATABASE_ID`
+are only needed if you run the REST fallback (local scripts, or a non-Workers
+host).
+
+> **If `EMAIL_ENCRYPTION_KEY` is lost:** mailbox passwords in the database were
+> encrypted with it (AES-256-GCM) and cannot be recovered — that key is the only
+> thing that can decrypt them. Everything else in the database is unaffected.
+> The app handles this cleanly rather than crashing: affected accounts return
+> HTTP 409 with `credentialsStale: true` and a message telling the user to
+> re-enter the mailbox password, which re-encrypts it under the new key.
+
+### Build and deploy
+
+```bash
+npm run cf:build     # next build + OpenNext bundle
+npm run cf:preview   # run the built Worker locally in workerd
+npm run cf:deploy    # upload
+```
+
+### Cron
+
+The nightly DB backup runs from `wrangler.toml → [triggers] crons` at 02:00
+UTC. Cloudflare cron triggers invoke the Worker's `scheduled()` handler rather
+than making an HTTP request, so `worker-entry.mjs` implements `scheduled()` and
+calls the existing `/api/cron/db-backup` route with the same
+`Authorization: Bearer $CRON_SECRET` header Vercel used to inject. The backup
+logic itself is unchanged and there is still exactly one code path for it.
+
+### After cutover
+
+`vercel.json` is kept so you can roll back by re-pointing DNS. Once you're
+happy, **pause or delete the Vercel project** — otherwise both hosts run the
+daily backup cron. (They write the same R2 keys, so it's idempotent rather than
+harmful, just wasteful.)
+
+Verify against a real mailbox after the first deploy: outbound TCP is the one
+thing that cannot be tested outside Cloudflare's network. Use SMTP port **587**
+or **465** — Cloudflare blocks outbound port 25.
+
+---
+
+## Deploy to Vercel (legacy)
+
+The app ran on Vercel until the Cloudflare migration above. Kept for reference
+and rollback.
 
 Recommended path:
 
