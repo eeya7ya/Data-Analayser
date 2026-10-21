@@ -8,7 +8,10 @@ import QuotationPreview, {
 } from "./QuotationPreview";
 import { DEFAULT_TERMS } from "@/lib/quotationDraft";
 import type { AppSettings } from "@/lib/settings";
+import { getBrandVariant } from "@/lib/brandVariants";
 import { runQuotationPrint } from "@/lib/printQuotation";
+import { buildPrintTitle } from "@/lib/printFilename";
+import ProtectedPdfDialog from "@/components/ProtectedPdfDialog";
 import QuotationApprovalBar from "./QuotationApprovalBar";
 import QuotationStockCheckPanel from "./QuotationStockCheckPanel";
 import PageLoader from "./PageLoader";
@@ -121,6 +124,7 @@ export default function QuotationViewer({
   const [requestBusy, setRequestBusy] = useState(false);
   const [requestDone, setRequestDone] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [protectOpen, setProtectOpen] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -452,8 +456,9 @@ export default function QuotationViewer({
           items={[
             {
               label: "PDF Full",
-              onClick: () => runPrint(false),
-              title: "Print the full quotation — cover, about-us and items",
+              onClick: () => setProtectOpen(true),
+              title:
+                "Full quotation as a read-only, watermarked PDF — can't be edited or copied from",
             },
             {
               label: "PDF Draft",
@@ -498,6 +503,22 @@ export default function QuotationViewer({
           ]}
         />
       </div>
+      <ProtectedPdfDialog
+        open={protectOpen}
+        onClose={() => setProtectOpen(false)}
+        onPrint={() => runPrint(false)}
+        fileName={buildPrintTitle(header.ref, header.project_name)}
+        watermark={{
+          recipient: header.client_name,
+          reference: header.ref,
+          date: header.date,
+          logoUrl: getBrandVariant(
+            config.brandVariantId,
+            appSettings.brandVariants,
+          ).logoUrl,
+        }}
+        heading="PDF Full — read-only"
+      />
       {requestDone && (
         <div className="no-print mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
           Change request sent to the presales author — they&apos;ll get a

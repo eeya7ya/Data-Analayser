@@ -540,18 +540,24 @@ body > * {
   }
 
   /* Cover / about sheets — full-bleed artwork on a zero-margin page. The
-   * sheet is sized to a literal A4 (210x297mm) because Chrome's `100vh`
-   * in @media print does NOT reliably resolve to one printable page; with
-   * `100vh` the cover image fell back to its intrinsic aspect ratio and
-   * left a big blank gutter at the bottom of the page. Locking the sheet
-   * to 210x297mm and letting the image `object-fit: cover` fill it gives
-   * the same "covers the whole page" result every time. */
+   * sheet is locked to the A4 aspect ratio (Chrome's `100vh` in @media print
+   * does NOT reliably resolve to one printable page) and the image
+   * `object-fit: cover` fills it.
+   *
+   * Width is 100%, NOT a literal 210mm: Chrome lays every page out at the
+   * width of the default page area (210 − 2×12mm = 186mm) and scales a
+   * zero-margin named page up to fill its paper. A literal 210mm sheet is
+   * wider than that layout width, so Chrome shrank the WHOLE document to
+   * fit it (~89%) — white strips along the cover's right and bottom edges
+   * and every quotation page printed undersized. 100% + aspect-ratio fills
+   * the page exactly either way. */
   .quotation-sheet.full-bleed {
     display: block;
     padding: 0;
     page: full-bleed;
-    width: 210mm;
-    height: 297mm;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 210 / 297;
     min-height: 0;
     overflow: hidden;
   }
