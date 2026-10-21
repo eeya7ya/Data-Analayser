@@ -36,9 +36,10 @@ import {
   getBrandVariant,
 } from "@/lib/brandVariants";
 import { computeQuotationTotals } from "@/lib/quotationTotals";
-import { type PrintKind } from "@/lib/printFilename";
+import { buildPrintTitle, type PrintKind } from "@/lib/printFilename";
 import { runQuotationPrint } from "@/lib/printQuotation";
 import Select from "@/components/Select";
+import ProtectedPdfDialog from "@/components/ProtectedPdfDialog";
 
 export interface ExistingQuotation {
   id: number;
@@ -264,6 +265,7 @@ export default function Designer({
   // "Add row / Add column" toolbars). The toggle flips back off as soon as
   // the print dialog closes via `onafterprint`.
   const [printMode, setPrintMode] = useState(false);
+  const [protectOpen, setProtectOpen] = useState(false);
   // Bill of Quantities print toggle. Flipped on by the "Print BOQ" button
   // so QuotationPreview renders without the Unit Price / Total Price
   // columns, per-system subtotals and the Final Totals page. Cleared on
@@ -1882,6 +1884,19 @@ export default function Designer({
 
   return (
     <div className="space-y-4">
+      <ProtectedPdfDialog
+        open={protectOpen}
+        onClose={() => setProtectOpen(false)}
+        onPrint={() => printQuotation(false)}
+        fileName={buildPrintTitle(refCode, projectName)}
+        watermark={{
+          recipient: clientName,
+          reference: refCode,
+          date: new Date().toLocaleDateString("en-GB"),
+          logoUrl: getBrandVariant(brandVariantId, brandVariants).logoUrl,
+        }}
+        heading="PDF Full — read-only"
+      />
       {/* ── Settings toolbar ──────────────────────────────────────────────── */}
       {showDesignUI && (
       <div className="no-print rounded-2xl border border-magic-border bg-white p-4">
@@ -2137,8 +2152,9 @@ export default function Designer({
               items={[
                 {
                   label: "PDF Full",
-                  onClick: () => printQuotation(false),
-                  title: "Print the current quotation preview",
+                  onClick: () => setProtectOpen(true),
+                  title:
+                    "Full quotation as a read-only, watermarked PDF — can't be edited or copied from",
                 },
                 {
                   label: "Excel",

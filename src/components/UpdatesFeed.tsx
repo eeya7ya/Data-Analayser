@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Megaphone, Sparkles, Clock } from "@/lib/icons";
 import { APP_VERSION_LABEL } from "@/lib/version";
+import { showcaseForTitle } from "@/components/releaseShowcases";
 
 /**
  * The dedicated /updates feed. Reuses /api/news, which the server already
@@ -42,8 +43,11 @@ function relativeDate(iso: string): string {
   });
 }
 
-/** Split a note body into intro paragraphs and a bullet list. */
-function renderBody(body: string) {
+/**
+ * Split a note body into intro paragraphs and a bullet list. Shared with the
+ * one-time "What's new" popup (WhatsNewPopup) so both read the same.
+ */
+export function renderBody(body: string) {
   const lines = body.split("\n");
   const blocks: Array<
     { kind: "p"; text: string } | { kind: "ul"; items: string[] }
@@ -164,7 +168,9 @@ export default function UpdatesFeed() {
         </div>
       ) : (
         <ol className="relative space-y-4 before:absolute before:bottom-2 before:left-[15px] before:top-2 before:w-px before:bg-magic-border/70">
-          {posts.map((p) => (
+          {posts.map((p) => {
+            const showcase = showcaseForTitle(p.title);
+            return (
             <li key={p.id} className="relative pl-10">
               {/* Timeline node */}
               <span
@@ -195,10 +201,16 @@ export default function UpdatesFeed() {
                     {relativeDate(p.created_at)}
                   </span>
                 </div>
+                {showcase && (
+                  <div className="mt-3 max-w-md">
+                    <showcase.Visual />
+                  </div>
+                )}
                 {renderBody(p.body)}
               </article>
             </li>
-          ))}
+            );
+          })}
         </ol>
       )}
     </div>

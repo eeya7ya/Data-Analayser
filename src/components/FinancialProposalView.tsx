@@ -32,6 +32,8 @@ import {
   effectiveRowTotal,
 } from "@/lib/quotationTotals";
 import { runQuotationPrint } from "@/lib/printQuotation";
+import { buildPrintTitle } from "@/lib/printFilename";
+import ProtectedPdfDialog from "./ProtectedPdfDialog";
 import PageLoader from "./PageLoader";
 
 interface SavedConfig {
@@ -226,6 +228,7 @@ export default function FinancialProposalView({
   const [me, setMe] = useState<SessionMe["user"]>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [protectOpen, setProtectOpen] = useState(false);
   const storageKey = `mt:fp:overrides:${quotationId}`;
 
   // Hydrate overrides from localStorage. Stays empty server-side so the
@@ -535,6 +538,13 @@ export default function FinancialProposalView({
             Reset to defaults
           </button>
           <button
+            onClick={() => setProtectOpen(true)}
+            className="rounded-md border border-magic-border px-4 py-2 text-sm font-semibold hover:bg-magic-soft"
+            title="Read-only, watermarked PDF for the client — can't be edited or copied from"
+          >
+            Read-only PDF
+          </button>
+          <button
             onClick={runPrint}
             className="rounded-md bg-magic-red px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
           >
@@ -543,6 +553,14 @@ export default function FinancialProposalView({
         </div>
       </div>
 
+      <ProtectedPdfDialog
+        open={protectOpen}
+        onClose={() => setProtectOpen(false)}
+        onPrint={runPrint}
+        fileName={buildPrintTitle(ref, projectName || "Financial Proposal")}
+        watermark={{ recipient: submittedTo, reference: ref, date: dateLong, logoUrl: "/logo.png" }}
+        heading="Financial Proposal — read-only"
+      />
       <div className="overflow-x-auto print:overflow-x-visible">
         <div className="quotation-doc fp-doc">
           {/* ───── 1. Cover ─────────────────────────────────────────── */}

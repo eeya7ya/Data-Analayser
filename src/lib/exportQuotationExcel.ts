@@ -3,6 +3,7 @@ import type {
   QuotationExtraColumn,
 } from "@/components/QuotationPreview";
 import { computeQuotationTotals } from "@/lib/quotationTotals";
+import { watermarkLines } from "@/lib/watermark";
 
 /**
  * Everything the Excel exporter needs from a quotation. Both the Designer
@@ -46,6 +47,7 @@ export interface QuotationExcelInput {
  */
 export async function buildQuotationWorkbookBlob(
   input: QuotationExcelInput,
+  { lock = false }: { lock?: boolean } = {},
 ): Promise<Blob | null> {
   if (typeof window === "undefined" || input.items.length === 0) return null;
 
@@ -326,6 +328,36 @@ export async function buildQuotationWorkbookBlob(
 
   ws.views = [{ state: "frozen", ySplit: freezeAt, showGridLines: false }];
 
+  // ── Watermark ──────────────────────────────────────────────────────
+  // Same mark as the read-only PDF, as a small header line on every
+  // printed page.
+  const amp = (t: string) => t.replace(/&/g, "&&");
+  const [markTitle, markDetail] = watermarkLines({
+    recipient: input.clientName,
+    reference: input.refCode,
+    date: new Date().toLocaleDateString("en-GB"),
+  });
+  ws.headerFooter = {
+    oddHeader: `&C&"Arial,Bold"&9&KB91C1C${amp(markTitle)}&"Arial,Regular"&8&K808080  ${amp(markDetail)}`,
+  };
+
+  // ── Read-only ──────────────────────────────────────────────────────
+  // Sheet protection with a random, discarded password: cells can be viewed
+  // and copied but not changed. (Excel's sheet lock is a deterrent, not
+  // encryption — the protected PDF is the tamper-proof copy.)
+  if (lock) {
+    const pw = Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) =>
+      b.toString(16).padStart(2, "0"),
+    ).join("");
+    await ws.protect(pw, {
+      selectLockedCells: true,
+      selectUnlockedCells: true,
+      // The password is random and never stored, so key stretching buys
+      // nothing — keep the browser from hashing 100k rounds.
+      spinCount: 1000,
+    });
+  }
+
   // ── Serialise to a Blob ────────────────────────────────────────────
   const out = await wb.xlsx.writeBuffer();
   return new Blob([out], {
@@ -340,7 +372,7 @@ export async function buildQuotationWorkbookBlob(
 export async function exportQuotationExcel(
   input: QuotationExcelInput,
 ): Promise<void> {
-  const blob = await buildQuotationWorkbookBlob(input);
+  const blob = await buildQuotationWorkbookBlob(input, { lock: true });
   if (!blob) return;
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
