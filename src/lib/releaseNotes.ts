@@ -35,6 +35,21 @@ export interface ReleaseNote {
 /** Newest first. The first entry's `version` is the current app version. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.81",
+    date: "2026-10-21",
+    title: "v1.81 — Read-only PDF quotations with watermark",
+    audience_modules: ["all"],
+    audience_roles: ["all"],
+    pinned: true,
+    body: [
+      "Quotations sent to clients are now protected.",
+      "- Read-only — PDF Full gives a copy that can be viewed and printed, but not edited or copied.",
+      "- Encrypted — locked with AES-256. Add a password if you want one (optional).",
+      "- Watermark — the logo, client, REF and date are stamped on every page.",
+      "- Also — a Read-only PDF button on proposals, a locked Excel export, and a full-page cover in print.",
+    ].join("\n"),
+  },
+  {
     version: "1.80",
     date: "2026-07-08",
     title: "v1.80 — New departments + groundwork",

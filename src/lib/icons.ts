@@ -57,6 +57,7 @@ export {
   Crosshair,
   Database,
   DownloadSimple as Download,
+  Eye,
   Factory,
   Signature as FileSignature,
   FileXls as FileSpreadsheet,

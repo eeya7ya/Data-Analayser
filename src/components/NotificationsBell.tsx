@@ -75,6 +75,22 @@ function writeNotifCache(items: NotificationItem[], at = Date.now()) {
   }
 }
 
+// Fired when a message is marked read outside the bell (the "What's new"
+// popup), so every mounted bell drops it without waiting for the next poll.
+const NOTIF_READ_EVENT = "mt:notification-read";
+
+/** Persist a message notification as read for this user and clear it from the bell. */
+export function markNotificationRead(key: string) {
+  void fetch("/api/notifications", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ key, status: "read" }),
+  }).catch(() => {
+    // best-effort — the item is already gone locally
+  });
+  window.dispatchEvent(new CustomEvent<string>(NOTIF_READ_EVENT, { detail: key }));
+}
+
 const SEVERITY_STYLES: Record<
   NotificationItem["severity"],
   { dot: string; chip: string; title: string }
@@ -222,6 +238,19 @@ export default function NotificationsBell() {
       clearTimeout(kick);
       if (t) clearInterval(t);
     };
+  }, []);
+
+  useEffect(() => {
+    function onRead(e: Event) {
+      const key = (e as CustomEvent<string>).detail;
+      setItems((prev) => {
+        const next = prev.filter((x) => x.id !== key);
+        writeNotifCache(next, notifCache?.at ?? Date.now());
+        return next;
+      });
+    }
+    window.addEventListener(NOTIF_READ_EVENT, onRead);
+    return () => window.removeEventListener(NOTIF_READ_EVENT, onRead);
   }, []);
 
   useEffect(() => {

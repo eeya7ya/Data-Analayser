@@ -12,6 +12,7 @@ import NotificationsBell, {
 import SideNav from "@/components/SideNav";
 import HelpCenter from "@/components/HelpCenter";
 import AppFooter from "@/components/AppFooter";
+import WhatsNewPopup, { resetWhatsNew } from "@/components/WhatsNewPopup";
 
 interface ModuleRole {
   module: string;
@@ -79,6 +80,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
     await fetch("/api/auth/logout", { method: "POST" });
     moduleRolesCache = null;
     clearNotificationsCache();
+    resetWhatsNew();
     router.push("/login");
     router.refresh();
   }
@@ -142,6 +144,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
               <span className="hidden text-xs font-semibold sm:inline">Help</span>
             </button>
             <NotificationsBell />
+            <WhatsNewPopup />
             <span className="ml-1 hidden items-center gap-1.5 rounded-full border border-magic-border/60 bg-white/60 px-3 py-1 text-[11px] font-medium text-magic-ink/70 sm:inline-flex">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               {user.display_name || user.username}

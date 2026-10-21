@@ -1489,3 +1489,145 @@ body > * {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* ── "What's new" popup + v1.81 showcase (WhatsNewPopup, ProtectedPdfShowcase)
+ * One 10 s loop in two beats — 0–50 % "Encrypted" (text scrambles, padlock
+ * drops and locks, password types in), 50–100 % "Read-only" (view / print
+ * light up, a pencil is refused). Every part runs on the same 10 s clock so
+ * the beats stay in step with the two caption cards. */
+.wn-fade { animation: wn-fade 0.25s ease both; }
+.wn-pop { animation: wn-pop 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes wn-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wn-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.wn-anim .wn-lock,
+.wn-anim .wn-shackle,
+.wn-anim .wn-pulse,
+.wn-anim .wn-keypill,
+.wn-anim .wn-dot,
+.wn-anim .wn-badge,
+.wn-anim .wn-pupil,
+.wn-anim .wn-deny,
+.wn-anim .wn-doc {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.wn-anim .wn-doc { animation: wn-doc 10s infinite; }
+.wn-anim .wn-lines { animation: wn-lines 10s infinite; }
+.wn-anim .wn-cipher { animation: wn-cipher 10s infinite; }
+.wn-anim .wn-bit { animation: wn-flicker 1.1s ease-in-out infinite; }
+.wn-anim .wn-lock { animation: wn-lock 10s infinite; }
+.wn-anim .wn-shackle { animation: wn-shackle 10s infinite; }
+.wn-anim .wn-pulse { animation: wn-pulse 10s ease-out infinite; }
+.wn-anim .wn-keypill { animation: wn-keypill 10s infinite; }
+.wn-anim .wn-dot { animation: wn-dot 10s infinite both; animation-delay: calc(var(--i) * 0.12s); }
+.wn-anim .wn-badge { animation: wn-badge 10s infinite both; }
+.wn-anim .wn-badge-2 { animation-delay: 0.35s; }
+.wn-anim .wn-pupil { animation: wn-blink 10s infinite; }
+.wn-anim .wn-pencil { animation: wn-pencil 10s infinite; }
+.wn-anim .wn-deny { animation: wn-deny 10s infinite; }
+.wn-anim .wn-doc-deny { animation: wn-doc-deny 10s infinite; }
+.wn-anim .wn-card-enc { animation: wn-card-a 10s infinite; }
+.wn-anim .wn-card-ro { animation: wn-card-b 10s infinite; }
+.wn-anim .wn-card-enc .wn-bar { animation: wn-bar-a 10s linear infinite; }
+.wn-anim .wn-card-ro .wn-bar { animation: wn-bar-b 10s linear infinite; }
+
+@keyframes wn-doc {
+  0%, 24% { transform: translateY(0); }
+  25.5% { transform: translateY(2.5px); }
+  27.5%, 100% { transform: translateY(0); }
+}
+@keyframes wn-lines { 0%, 6% { opacity: 1; } 16%, 46% { opacity: 0; } 52%, 100% { opacity: 1; } }
+@keyframes wn-cipher { 0%, 6% { opacity: 0; } 16%, 44% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes wn-flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes wn-lock {
+  0%, 13% { opacity: 0; transform: translateY(-38px); }
+  19% { opacity: 1; transform: translateY(3px); }
+  22% { transform: translateY(0); }
+  45% { opacity: 1; transform: translateY(0) scale(1); }
+  50%, 100% { opacity: 0; transform: translateY(0) scale(0.85); }
+}
+@keyframes wn-shackle { 0%, 22% { transform: translateY(-6px); } 26%, 100% { transform: translateY(0); } }
+@keyframes wn-pulse {
+  0%, 25% { opacity: 0; transform: scale(0.7); }
+  27% { opacity: 0.6; }
+  40%, 100% { opacity: 0; transform: scale(1.6); }
+}
+@keyframes wn-keypill {
+  0%, 27% { opacity: 0; transform: translateY(6px) scale(0.9); }
+  31%, 45% { opacity: 1; transform: none; }
+  50%, 100% { opacity: 0; transform: none; }
+}
+@keyframes wn-dot {
+  0%, 31% { opacity: 0; transform: scale(0); }
+  33% { opacity: 1; transform: scale(1.25); }
+  34%, 45% { opacity: 1; transform: scale(1); }
+  50%, 100% { opacity: 0; transform: scale(1); }
+}
+@keyframes wn-badge {
+  0%, 52% { opacity: 0; transform: scale(0.4); }
+  56% { opacity: 1; transform: scale(1.12); }
+  58%, 92% { opacity: 1; transform: scale(1); }
+  97%, 100% { opacity: 0; transform: scale(0.9); }
+}
+@keyframes wn-blink { 0%, 61% { transform: scaleY(1); } 62.5% { transform: scaleY(0.1); } 64%, 100% { transform: scaleY(1); } }
+@keyframes wn-pencil {
+  0%, 57% { opacity: 0; transform: translate(60px, -34px); }
+  61% { opacity: 1; }
+  67% { transform: translate(0, 0); }
+  68.5% { transform: translate(-3px, 1px); }
+  70% { transform: translate(3px, -1px); }
+  71.5% { transform: translate(-3px, 1px); }
+  73% { transform: translate(2px, 0); }
+  74% { transform: translate(0, 0); }
+  77% { transform: translate(7px, -5px); }
+  88% { opacity: 1; transform: translate(7px, -5px); }
+  93%, 100% { opacity: 0; transform: translate(16px, -11px); }
+}
+@keyframes wn-deny {
+  0%, 71% { opacity: 0; transform: scale(0.3); }
+  75% { opacity: 1; transform: scale(1.15); }
+  77%, 89% { opacity: 1; transform: scale(1); }
+  94%, 100% { opacity: 0; transform: scale(0.8); }
+}
+@keyframes wn-doc-deny { 0%, 71% { opacity: 0; } 73% { opacity: 1; } 82%, 100% { opacity: 0; } }
+@keyframes wn-card-a { 0%, 46% { opacity: 1; } 50%, 96% { opacity: 0.5; } 100% { opacity: 1; } }
+@keyframes wn-card-b { 0%, 46% { opacity: 0.5; } 50%, 96% { opacity: 1; } 100% { opacity: 0.5; } }
+@keyframes wn-bar-a {
+  0% { transform: scaleX(0); opacity: 1; }
+  48% { transform: scaleX(1); opacity: 1; }
+  50%, 100% { transform: scaleX(1); opacity: 0; }
+}
+@keyframes wn-bar-b {
+  0%, 50% { transform: scaleX(0); opacity: 1; }
+  98% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
+/* Reduced motion: one still frame that tells the same story. */
+@media (prefers-reduced-motion: reduce) {
+  .wn-fade,
+  .wn-pop,
+  .wn-anim *,
+  .wn-anim .wn-bar {
+    animation: none !important;
+  }
+  .wn-anim .wn-cipher,
+  .wn-anim .wn-pulse,
+  .wn-anim .wn-bar,
+  .wn-anim .wn-doc-deny {
+    opacity: 0;
+  }
+  .wn-anim .wn-lock,
+  .wn-anim .wn-keypill,
+  .wn-anim .wn-dot,
+  .wn-anim .wn-badge,
+  .wn-anim .wn-pencil,
+  .wn-anim .wn-deny {
+    opacity: 1;
+    transform: none;
+  }
+}
