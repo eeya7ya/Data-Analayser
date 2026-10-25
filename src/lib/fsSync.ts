@@ -11,9 +11,9 @@
  *   Companies/<Company>/<Person>/<Project> [#id]/
  *   Individual clients/<Client>/<Project> [#id]/
  *   Unclassified clients/<Client>/<Project> [#id]/
- *     Quotations/        the project's in-app quotations, as an editable .xlsx
- *                        and a locked "(Read-only)" .xlsx (generated — never
- *                        uploaded back)
+ *     Quotations/        the project's in-app quotations, as an editable .xlsx,
+ *                        a locked "(Read-only)" .xlsx and the read-only,
+ *                        watermarked PDF (generated — never uploaded back)
  *     BOQs/  Quotation files/  PO files/  Other files/
  *                        the project's uploaded files, grouped like the app's
  *                        "BOQs / Files" tab
@@ -25,8 +25,10 @@
  *     upload is a new row), so a local copy with the right size is current.
  *   - Up (PC → app): a file the member drops into a project's BOQs / Quotation
  *     files / PO files / Other files folder (or straight into the project
- *     folder → Other) that the app doesn't already have (matched by project +
- *     name) is uploaded to that project with that kind.
+ *     folder → Other) that the app doesn't already have is uploaded to that
+ *     project with that kind. A file in a kind folder is matched by project,
+ *     kind and name (the folders keep same-named files of different kinds
+ *     apart); one straight in a project folder, by project and name.
  *   - Nothing is ever deleted on either side. A file the sync itself
  *     downloaded is never pushed back up, so deleting a file in the app does
  *     not resurrect it from the PC copy.
@@ -45,6 +47,7 @@ import {
   quotationExcelInputFromRow,
 } from "@/lib/exportQuotationExcel";
 import { buildPricingWorkbookBlob } from "@/lib/exportPricingExcel";
+import { createQuotationPdfRenderer, type QuotationPdfRenderer } from "@/lib/quotationPdf";
 import type { Constants, ProductInput } from "@/lib/pricing/calculations";
 
 // ── Manifest (GET /api/sync/manifest) ───────────────────────────────────────
@@ -90,6 +93,8 @@ export interface SyncQuotation {
   placements: number[];
   /** Client folder of a quotation that isn't filed under a live project. */
   folderId: number | null;
+  /** The member can open it in the viewer — the source of its PDF. */
+  canView?: boolean;
   clientName: string;
   updatedAt: string;
   /** Raw row fed to quotationExcelInputFromRow to build the workbook offline. */
@@ -135,6 +140,10 @@ export interface SyncReport {
   uploaded: number;
   /** Quotations whose .xlsx files were (re)generated this pass. */
   quotations: number;
+  /** Quotation PDFs (re)made this pass. */
+  pdfs: number;
+  /** Quotation PDFs still to make — the next pass carries on with them. */
+  pdfsPending: number;
   /** Pricing-project .xlsx files (re)generated this pass. */
   pricing: number;
   skipped: number;
@@ -654,9 +663,11 @@ const STATE_FILE = ".magictech-sync.json";
 interface SyncState {
   /** `<quotation id>|<folder path>` → updated_at last written there. */
   quotations: Record<string, string>;
+  /** Same key → updated_at of the PDF last written there. */
+  pdfs: Record<string, string>;
   /** pricing project id → last-written content fingerprint. */
   pricing: Record<string, string>;
-  /** `<project id>/<lower-cased local name>` → app file id we downloaded. */
+  /** `<project id>/<kind>/<lower-cased local name>` → app file id we downloaded. */
   downloaded: Record<string, number>;
 }
 
@@ -668,11 +679,12 @@ async function readState(root: FileSystemDirectoryHandle): Promise<SyncState> {
     const parsed = JSON.parse(await (await fh.getFile()).text()) as Partial<SyncState>;
     return {
       quotations: obj(parsed.quotations) as SyncState["quotations"],
+      pdfs: obj(parsed.pdfs) as SyncState["pdfs"],
       pricing: obj(parsed.pricing) as SyncState["pricing"],
       downloaded: obj(parsed.downloaded) as SyncState["downloaded"],
     };
   } catch {
-    return { quotations: {}, pricing: {}, downloaded: {} };
+    return { quotations: {}, pdfs: {}, pricing: {}, downloaded: {} };
   }
 }
 
@@ -691,23 +703,38 @@ async function writeState(
   }
 }
 
-const fileKey = (projectId: number, localName: string) =>
+/** A file of a project, by kind — the kind folders hold same-named files apart. */
+const fileKey = (projectId: number, kind: FileKind, localName: string) =>
+  `${projectId}/${kind}/${localName.toLowerCase()}`;
+/** The same file, whatever its kind. */
+const anyKindKey = (projectId: number, localName: string) =>
   `${projectId}/${localName.toLowerCase()}`;
 
 // ── The sync run ─────────────────────────────────────────────────────────────
 
+/** Time a pass spends on PDFs before it hands the rest to the next pass. */
+const PDF_BUDGET_MS = 90_000;
+
+export interface SyncOptions {
+  /** Progress line for the UI while a slow step (PDFs) runs. */
+  onProgress?: (message: string) => void;
+}
+
 /**
- * Run one full sync pass (tree, down, exports, up). Assumes read-write
+ * Run one full sync pass (tree, down, exports, up, PDFs). Assumes read-write
  * permission is already granted (call ensurePermission first). Errors on
  * individual items are collected into the report rather than aborting.
  */
 export async function runSync(
   root: FileSystemDirectoryHandle,
+  opts: SyncOptions = {},
 ): Promise<SyncReport> {
   const report: SyncReport = {
     downloaded: 0,
     uploaded: 0,
     quotations: 0,
+    pdfs: 0,
+    pdfsPending: 0,
     pricing: 0,
     skipped: 0,
     errors: [],
@@ -784,7 +811,7 @@ export async function runSync(
           await writeFile(dir, name, blob);
           return "downloaded";
         });
-        state.downloaded[fileKey(pid, name)] = f.id;
+        state.downloaded[fileKey(pid, fileKind(f.kind), name)] = f.id;
         if (outcome === "downloaded") report.downloaded++;
         else report.skipped++;
       } catch (e) {
@@ -793,20 +820,26 @@ export async function runSync(
     }
   }
 
+  // Where a quotation's exports go: each placement's Quotations/, or its
+  // client folder's "Quotations (no project)".
+  const quotationDirs = (quot: SyncQuotation): string[][] =>
+    quot.placements.length > 0
+      ? quot.placements.map((pid) => [...projectSegs(pid), QUOTATIONS_DIR])
+      : [
+          [
+            ...(quot.folderId !== null && layout.folderDirs.get(quot.folderId)
+              ? layout.folderDirs.get(quot.folderId)!
+              : [SECTION_DIRS.unclassified, entityDirName(quot.clientName, "Client")]),
+            UNFILED_QUOTATIONS_DIR,
+          ],
+        ];
+  const quotationBase = (quot: SyncQuotation) =>
+    safeName(quot.ref, `quotation-${quot.id}`, MAX_FILE_NAME - 20);
+
   // ── 3. Quotations → editable + read-only Excel in each placement ─────────
   for (const quot of m.quotations) {
-    const dirs: string[][] =
-      quot.placements.length > 0
-        ? quot.placements.map((pid) => [...projectSegs(pid), QUOTATIONS_DIR])
-        : [
-            [
-              ...(quot.folderId !== null && layout.folderDirs.get(quot.folderId)
-                ? layout.folderDirs.get(quot.folderId)!
-                : [SECTION_DIRS.unclassified, entityDirName(quot.clientName, "Client")]),
-              UNFILED_QUOTATIONS_DIR,
-            ],
-          ];
-    const base = safeName(quot.ref, `quotation-${quot.id}`, MAX_FILE_NAME - 20);
+    const dirs = quotationDirs(quot);
+    const base = quotationBase(quot);
     const editableName = `${base}.xlsx`;
     const lockedName = `${base}${READ_ONLY_SUFFIX}.xlsx`;
     let blobs: { editable: Blob; locked: Blob } | null | undefined;
@@ -874,32 +907,63 @@ export async function runSync(
 
   // ── 5. Up: files dropped into a project's folders → app ──────────────────
   // Everything the app already has, under every name a local copy can carry:
-  // the current local name, the raw name, and the old engine's name.
+  // the current local name, the raw name, and the old engine's name — by kind
+  // (for a file dropped in a kind folder) and whatever the kind (for one
+  // straight in the project folder, where no kind was chosen).
   const present = new Set<string>();
+  const presentAnyKind = new Set<string>();
   for (const f of m.files) {
+    const kind = fileKind(f.kind);
     for (const pid of new Set([...f.placements, f.projectId])) {
-      if (f.placements.includes(pid)) present.add(fileKey(pid, localNameOf(f, pid)));
-      present.add(fileKey(pid, f.filename));
-      present.add(fileKey(pid, safeFileName(f.filename, "")));
-      present.add(fileKey(pid, legacySafeSegment(f.filename)));
+      const names = [f.filename, safeFileName(f.filename, ""), legacySafeSegment(f.filename)];
+      if (f.placements.includes(pid)) names.push(localNameOf(f, pid));
+      for (const n of names) {
+        present.add(fileKey(pid, kind, n));
+        presentAnyKind.add(anyKindKey(pid, n));
+      }
     }
   }
+  const downloadedAnyKind = new Set(
+    Object.keys(state.downloaded).map((k) => {
+      const [pid, , ...name] = k.split("/");
+      return `${pid}/${name.join("/")}`;
+    }),
+  );
 
   const sectionDirs = new Set(Object.values(SECTION_DIRS).map((d) => d.toLowerCase()));
   const legacy = new Set<string>();
-  const drops: Array<{ projectId: number; kind: FileKind; handle: FileSystemFileHandle; label: string }> = [];
+  const drops: Array<{
+    projectId: number;
+    kind: FileKind;
+    /** Dropped in a kind folder (vs. straight in the project folder → other). */
+    chosen: boolean;
+    handle: FileSystemFileHandle;
+    label: string;
+  }> = [];
 
   const collectProject = async (projectId: number, dir: FileSystemDirectoryHandle, label: string) => {
     for await (const [name, entry] of dir.entries()) {
       if (entry.kind === "file") {
-        drops.push({ projectId, kind: "other", handle: entry as FileSystemFileHandle, label: `${label}/${name}` });
+        drops.push({
+          projectId,
+          kind: "other",
+          chosen: false,
+          handle: entry as FileSystemFileHandle,
+          label: `${label}/${name}`,
+        });
         continue;
       }
       const kind = UPLOAD_KIND_BY_DIR.get(name.toLowerCase());
       if (!kind) continue; // Quotations (generated), old _Quotations, user subfolders
       for await (const [fileName, fileEntry] of (entry as FileSystemDirectoryHandle).entries()) {
         if (fileEntry.kind !== "file") continue;
-        drops.push({ projectId, kind, handle: fileEntry as FileSystemFileHandle, label: `${label}/${name}/${fileName}` });
+        drops.push({
+          projectId,
+          kind,
+          chosen: true,
+          handle: fileEntry as FileSystemFileHandle,
+          label: `${label}/${name}/${fileName}`,
+        });
       }
     }
   };
@@ -930,21 +994,111 @@ export async function runSync(
   for (const drop of drops) {
     const name = drop.handle.name;
     if (isIgnoredFile(name)) continue;
-    const key = fileKey(drop.projectId, name);
-    if (present.has(key)) continue;
-    // Downloaded by the sync earlier but gone from the app now: it was deleted
-    // (or unshared) there — don't bring it back.
-    if (state.downloaded[key] !== undefined) continue;
+    const key = fileKey(drop.projectId, drop.kind, name);
+    const anyKey = anyKindKey(drop.projectId, name);
+    // A file the app already has — or one the sync downloaded earlier that is
+    // gone from the app now (deleted or unshared there): don't bring it back.
+    const known = drop.chosen
+      ? present.has(key) || state.downloaded[key] !== undefined
+      : presentAnyKind.has(anyKey) || downloadedAnyKind.has(anyKey);
+    if (known) continue;
     try {
       const file = await drop.handle.getFile();
       if (file.size <= 0) continue; // sign-upload rejects empty files
       await uploadFile(drop.projectId, drop.kind, file);
       report.uploaded++;
-      present.add(key); // don't double-upload within this pass
+      // Don't double-upload within this pass.
+      present.add(key);
+      presentAnyKind.add(anyKey);
     } catch (e) {
       report.errors.push(`↑ ${drop.label}: ${(e as Error).message}`);
     }
   }
 
+  // ── 6. Quotations → the read-only, watermarked PDF (last: it's the slow
+  //       part, so files and Excel never wait on it) ────────────────────────
+  await writeQuotationPdfs(root, m, state, report, quotationDirs, quotationBase, opts);
   return report;
+}
+
+/**
+ * Write `<REF>.pdf` — the same read-only, watermarked, encrypted document as
+ * the app's PDF Full — next to each quotation's Excel files. Rebuilt only when
+ * the quotation changed or the file is missing. Spends at most PDF_BUDGET_MS
+ * per pass and records progress after every quotation, so a large first sync
+ * carries on across passes (and survives the tab closing) instead of
+ * holding everything else up.
+ */
+async function writeQuotationPdfs(
+  root: FileSystemDirectoryHandle,
+  m: SyncManifest,
+  state: SyncState,
+  report: SyncReport,
+  quotationDirs: (quot: SyncQuotation) => string[][],
+  quotationBase: (quot: SyncQuotation) => string,
+  opts: SyncOptions,
+): Promise<void> {
+  const path = (segs: string[]) => segs.join("/");
+  const todo: Array<{ quot: SyncQuotation; dirs: string[][]; name: string }> = [];
+  for (const quot of m.quotations) {
+    // The PDF is rendered from the viewer, so only quotations the member can
+    // open there get one. And, as with the Excel export, a quotation without
+    // items has nothing to print.
+    if (quot.canView !== true) continue;
+    if (quotationExcelInputFromRow(quot.row).items.length === 0) continue;
+    const name = `${quotationBase(quot)}.pdf`;
+    const stale: string[][] = [];
+    for (const segs of quotationDirs(quot)) {
+      try {
+        const current = await inDir(root, segs, async (dir) =>
+          state.pdfs[`${quot.id}|${path(segs)}`] === quot.updatedAt &&
+          (await localSize(dir, name)) !== null,
+        );
+        if (current) report.skipped++;
+        else stale.push(segs);
+      } catch (e) {
+        report.errors.push(`⤓ ${path(segs)}/${name}: ${(e as Error).message}`);
+      }
+    }
+    if (stale.length > 0) todo.push({ quot, dirs: stale, name });
+  }
+  if (todo.length === 0) return;
+
+  const started = Date.now();
+  let renderer: QuotationPdfRenderer | null = null;
+  try {
+    for (let i = 0; i < todo.length; i++) {
+      if (Date.now() - started > PDF_BUDGET_MS) {
+        report.pdfsPending = todo.length - i;
+        break;
+      }
+      const { quot, dirs, name } = todo[i];
+      opts.onProgress?.(`Making PDFs — ${i + 1} of ${todo.length} (${quot.ref})`);
+      let bytes: Uint8Array;
+      try {
+        renderer ??= createQuotationPdfRenderer();
+        bytes = (await renderer.render(quot.id)).bytes;
+      } catch (e) {
+        report.errors.push(`⤓ ${quot.ref}.pdf: ${(e as Error).message}`);
+        continue;
+      }
+      const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
+      let wrote = false;
+      for (const segs of dirs) {
+        try {
+          await inDir(root, segs, (dir) => writeFile(dir, name, blob));
+          state.pdfs[`${quot.id}|${path(segs)}`] = quot.updatedAt;
+          wrote = true;
+        } catch (e) {
+          report.errors.push(`⤓ ${path(segs)}/${name}: ${(e as Error).message}`);
+        }
+      }
+      if (!wrote) continue;
+      report.pdfs++;
+      await writeState(root, state);
+    }
+  } finally {
+    renderer?.dispose();
+    opts.onProgress?.("");
+  }
 }

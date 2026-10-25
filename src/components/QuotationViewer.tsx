@@ -12,6 +12,7 @@ import { getBrandVariant } from "@/lib/brandVariants";
 import { runQuotationPrint } from "@/lib/printQuotation";
 import { buildPrintTitle } from "@/lib/printFilename";
 import ProtectedPdfDialog from "@/components/ProtectedPdfDialog";
+import type { WatermarkInfo } from "@/lib/watermark";
 import QuotationApprovalBar from "./QuotationApprovalBar";
 import QuotationStockCheckPanel from "./QuotationStockCheckPanel";
 import PageLoader from "./PageLoader";
@@ -251,7 +252,10 @@ export default function QuotationViewer({
 
   if (loadError) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+      <div
+        data-quotation-load-error={loadError}
+        className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700"
+      >
         <p className="font-semibold">Failed to load this quotation.</p>
         <p className="mt-1 break-words">{loadError}</p>
         <div className="mt-3 flex items-center gap-2">
@@ -417,8 +421,22 @@ export default function QuotationViewer({
     parent_ref: (row.parent_ref as string | null) ?? null,
   };
 
+  // Stamped on every page of the read-only PDF. Also published on the root
+  // element for the sync folder's background PDF (lib/quotationPdf), so both
+  // carry exactly the same mark.
+  const watermark: WatermarkInfo = {
+    recipient: header.client_name,
+    reference: header.ref,
+    date: header.date,
+    logoUrl: getBrandVariant(config.brandVariantId, appSettings.brandVariants)
+      .logoUrl,
+  };
+
   return (
-    <div>
+    <div
+      data-pdf-watermark={JSON.stringify(watermark)}
+      data-pdf-title={buildPrintTitle(header.ref, header.project_name)}
+    >
       <QuotationApprovalBar
         quotationId={id}
         initial={approvalState}
@@ -508,15 +526,7 @@ export default function QuotationViewer({
         onClose={() => setProtectOpen(false)}
         onPrint={() => runPrint(false)}
         fileName={buildPrintTitle(header.ref, header.project_name)}
-        watermark={{
-          recipient: header.client_name,
-          reference: header.ref,
-          date: header.date,
-          logoUrl: getBrandVariant(
-            config.brandVariantId,
-            appSettings.brandVariants,
-          ).logoUrl,
-        }}
+        watermark={watermark}
         heading="PDF Full — read-only"
       />
       {requestDone && (

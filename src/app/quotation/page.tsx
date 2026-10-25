@@ -19,6 +19,13 @@ interface SearchParams {
    * /api/quotations GET grants them read as the RFQ requester).
    */
   view?: string;
+  /**
+   * `bare=1` (with `view=1`) leaves out the top bar and back button. The sync
+   * folder loads the viewer this way in a hidden frame to build each
+   * quotation's PDF (lib/quotationPdf), so the app chrome — and its
+   * notification / popup requests — isn't loaded for every quotation.
+   */
+  bare?: string;
 }
 
 /**
@@ -108,18 +115,23 @@ export default async function QuotationPage({
   // rather than a disconnected page — just without the authoring affordances
   // (the viewer already locks editing for sales).
   const appSettings = await getAppSettings();
+  const bare = sp.bare === "1";
   return (
     <div className="min-h-screen bg-magic-soft/40 print-root">
-      <div className="no-print">
-        <TopBar user={user} />
-      </div>
-      <main className="mx-auto max-w-screen-xl px-4 py-4 sm:px-6 print-main">
-        <div className="no-print mb-3 flex items-center justify-between gap-3">
-          <BackButton fallbackHref="/crm" fallbackLabel="Back" />
-          <span className="inline-flex items-center rounded-full border border-magic-border bg-white px-2.5 py-1 text-xs font-semibold text-magic-ink/60">
-            View only
-          </span>
+      {!bare && (
+        <div className="no-print">
+          <TopBar user={user} />
         </div>
+      )}
+      <main className="mx-auto max-w-screen-xl px-4 py-4 sm:px-6 print-main">
+        {!bare && (
+          <div className="no-print mb-3 flex items-center justify-between gap-3">
+            <BackButton fallbackHref="/crm" fallbackLabel="Back" />
+            <span className="inline-flex items-center rounded-full border border-magic-border bg-white px-2.5 py-1 text-xs font-semibold text-magic-ink/60">
+              View only
+            </span>
+          </div>
+        )}
         <section className="rounded-2xl border border-magic-border bg-white p-5">
           <QuotationViewer quotationId={quotationId} appSettings={appSettings} />
         </section>

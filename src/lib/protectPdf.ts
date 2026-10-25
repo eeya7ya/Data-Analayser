@@ -34,11 +34,41 @@ export interface ProtectPdfOptions {
 }
 
 const PRODUCER = "MagicTech Quotation Designer";
-const DPI = 200;
+/** Resolution every protected page is rendered at. */
+export const PROTECTED_PDF_DPI = 200;
+const DPI = PROTECTED_PDF_DPI;
+
+/** One flattened page: JPEG bytes plus the page size in PDF points. */
+export interface ProtectedPage {
+  jpeg: Uint8Array;
+  width: number;
+  height: number;
+}
 
 function randomPassword(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Stamp the watermark onto a rendered page and encode it as JPEG. `width` /
+ * `height` are the page size in PDF points.
+ */
+export async function stampPage(
+  canvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  watermark: WatermarkInfo,
+  logo: ImageBitmap | null,
+): Promise<ProtectedPage> {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not render the page");
+  drawWatermark(ctx, canvas.width, canvas.height, watermark, logo);
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", 0.88),
+  );
+  if (!blob) throw new Error("Could not render the page");
+  return { jpeg: new Uint8Array(await blob.arrayBuffer()), width, height };
 }
 
 /** Render every page of `bytes` with pdf.js, stamp the watermark, encode JPEG. */
@@ -46,7 +76,7 @@ async function renderWatermarkedPages(
   bytes: Uint8Array,
   watermark: WatermarkInfo,
   onProgress?: (message: string) => void,
-): Promise<Array<{ jpeg: Uint8Array; width: number; height: number }>> {
+): Promise<ProtectedPage[]> {
   // The legacy build carries polyfills for the very recent JS features the
   // modern build needs, so it also runs on browsers a few versions behind.
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -61,7 +91,7 @@ async function renderWatermarkedPages(
   const task = pdfjs.getDocument({ data: bytes.slice() });
   try {
     const doc = await task.promise;
-    const out: Array<{ jpeg: Uint8Array; width: number; height: number }> = [];
+    const out: ProtectedPage[] = [];
     for (let n = 1; n <= doc.numPages; n++) {
       onProgress?.(`Preparing page ${n} of ${doc.numPages}…`);
       const page = await doc.getPage(n);
@@ -72,18 +102,11 @@ async function renderWatermarkedPages(
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
       await page.render({ canvas, viewport, background: "#ffffff" }).promise;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error(`Could not render page ${n}`);
-      drawWatermark(ctx, canvas.width, canvas.height, watermark, logo);
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", 0.88),
+      out.push(
+        await stampPage(canvas, size.width, size.height, watermark, logo).catch(() => {
+          throw new Error(`Could not render page ${n}`);
+        }),
       );
-      if (!blob) throw new Error(`Could not render page ${n}`);
-      out.push({
-        jpeg: new Uint8Array(await blob.arrayBuffer()),
-        width: size.width,
-        height: size.height,
-      });
       page.cleanup();
       canvas.width = canvas.height = 0;
     }
@@ -114,6 +137,18 @@ export async function protectPdf(
   }
 
   const pages = await renderWatermarkedPages(bytes, opts.watermark, opts.onProgress);
+  return buildProtectedPdf(pages, opts);
+}
+
+/**
+ * Assemble already-stamped page images into the encrypted, print-only PDF
+ * (steps 2 and 3 above).
+ */
+export async function buildProtectedPdf(
+  pages: ProtectedPage[],
+  opts: ProtectPdfOptions,
+): Promise<Uint8Array> {
+  const { PDFDocument } = await import("@cantoo/pdf-lib");
   const doc = await PDFDocument.create();
   for (const p of pages) {
     const img = await doc.embedJpg(p.jpeg);

@@ -37,6 +37,10 @@ export default function SyncFolderClient() {
   const [report, setReport] = useState<SyncReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [autoOn, setAutoOn] = useState(false);
+  const [progress, setProgress] = useState("");
+  // A pass that ran out of PDF time leaves the rest for the next pass, which
+  // starts on its own (while the tab is visible) until they're all made.
+  const [pdfsLeft, setPdfsLeft] = useState(false);
 
   // Guards a sync pass so the interval never overlaps a still-running one.
   const runningRef = useRef(false);
@@ -52,14 +56,19 @@ export default function SyncFolderClient() {
     runningRef.current = true;
     setSyncing(true);
     setError(null);
+    setPdfsLeft(false);
     try {
-      const r = await runSync(h);
+      const r = await runSync(h, { onProgress: setProgress });
       setReport(r);
+      // Carry on only while passes make progress (a pass that made none —
+      // e.g. a full disk — would otherwise retry the same PDFs forever).
+      setPdfsLeft(r.pdfsPending > 0 && r.pdfs > 0);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       runningRef.current = false;
       setSyncing(false);
+      setProgress("");
     }
   }, []);
 
@@ -97,6 +106,22 @@ export default function SyncFolderClient() {
     return () => window.clearInterval(id);
   }, [autoOn, perm, handle, doSync]);
 
+  useEffect(() => {
+    if (!pdfsLeft || perm !== "granted" || !handle) return;
+    let timer = 0;
+    const go = () => {
+      if (document.visibilityState !== "visible") return;
+      document.removeEventListener("visibilitychange", go);
+      timer = window.setTimeout(() => void doSync(), 1000);
+    };
+    document.addEventListener("visibilitychange", go);
+    go();
+    return () => {
+      document.removeEventListener("visibilitychange", go);
+      window.clearTimeout(timer);
+    };
+  }, [pdfsLeft, perm, handle, doSync]);
+
   const onChoose = useCallback(async () => {
     setError(null);
     try {
@@ -120,6 +145,7 @@ export default function SyncFolderClient() {
     setFolderName(null);
     setPerm("unknown");
     setReport(null);
+    setPdfsLeft(false);
     setAutoOn(false);
     try {
       localStorage.removeItem(AUTO_PREF_KEY);
@@ -232,6 +258,10 @@ export default function SyncFolderClient() {
           </label>
         )}
 
+        {syncing && progress && (
+          <p className="mt-3 text-sm text-magic-ink/60">{progress}</p>
+        )}
+
         {error && (
           <p className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -251,11 +281,18 @@ export default function SyncFolderClient() {
             <div className="mt-1 text-magic-ink/70">
               {report.downloaded} downloaded · {report.uploaded} uploaded ·{" "}
               {report.quotations} quotation{report.quotations === 1 ? "" : "s"} ·{" "}
+              {report.pdfs} PDF{report.pdfs === 1 ? "" : "s"} ·{" "}
               {report.pricing} pricing · {report.skipped} already in sync
               {report.errors.length > 0 && (
                 <> · {report.errors.length} problem(s)</>
               )}
             </div>
+            {report.pdfsPending > 0 && (
+              <div className="mt-1 text-xs text-magic-ink/55">
+                {report.pdfsPending} more PDF{report.pdfsPending === 1 ? "" : "s"} to
+                make — the sync carries on with them while this tab is open.
+              </div>
+            )}
             {report.errors.length > 0 && (
               <ul className="mt-1 max-h-32 list-disc space-y-0.5 overflow-y-auto pl-5 text-xs text-red-600">
                 {report.errors.slice(0, 20).map((e, i) => (
@@ -318,9 +355,12 @@ export default function SyncFolderClient() {
           <li>
             • Your quotations are exported into each project&rsquo;s{" "}
             <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">Quotations</code>{" "}
-            folder twice — an editable Excel and a locked{" "}
+            folder as an editable Excel, a locked{" "}
             <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">(Read-only)</code>{" "}
-            copy — and re-exported automatically when you edit them in the app.
+            Excel and a PDF — the same read-only, watermarked PDF as{" "}
+            <b>PDF Full</b> — and re-exported automatically when you edit them in
+            the app. The first sync of many quotations takes a while; the PDFs
+            come last.
           </li>
           <li>
             • Your priced projects from the Pricing module are exported as Excel

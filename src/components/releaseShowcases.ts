@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import ProtectedPdfShowcase from "@/components/ProtectedPdfShowcase";
+import SyncFolderShowcase from "@/components/SyncFolderShowcase";
 import { RELEASE_NOTES } from "@/lib/releaseNotes";
 
 /**
@@ -15,6 +16,7 @@ export interface ReleaseShowcase {
 
 const SHOWCASES: Record<string, ReleaseShowcase> = {
   "1.81": { headline: "Protected PDF quotations", Visual: ProtectedPdfShowcase },
+  "1.82": { headline: "Your sync folder, laid out like the CRM", Visual: SyncFolderShowcase },
 };
 
 /** The showcase for the release note with this title, if it has one. */

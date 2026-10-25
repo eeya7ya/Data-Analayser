@@ -42,6 +42,9 @@ interface FolderRow {
  *     BOQs / Files tab does.
  *   - `quotations` — in-app quotations (not stored as files); the full
  *     items_json / config_json ride along so the client builds the .xlsx.
+ *     `canView` mirrors the single-quotation read in /api/quotations: only a
+ *     quotation the member can open in the viewer gets the read-only PDF,
+ *     which the client renders from that viewer.
  *   - `pricingProjects` — the Pricing module, rendered into `_Pricing/`.
  *
  * The flat `clientName` / `projectName` fields of the previous manifest are
@@ -269,6 +272,12 @@ export async function GET() {
     // ── Quotations (scope unchanged from the previous manifest) ───────────
     const quotationRows = (await q`
       select q.id, q.ref, q.project_id, q.tax_percent, q.updated_at,
+             q.owner_id, q.sent_to_sales_to, q.sales_accepted_by,
+             exists (
+               select 1 from leads vl
+               where vl.created_by = ${uid} and vl.project_id = q.project_id
+                 and vl.deleted_at is null
+             ) as lead_viewer,
              q.client_name, q.client_email, q.client_phone,
              q.sales_engineer, q.prepared_by, q.project_name,
              q.items_json, q.config_json,
@@ -365,12 +374,19 @@ export async function GET() {
           company_id: r.quote_folder_company_id,
         });
       }
+      const isUser = (v: unknown) => v !== null && v !== undefined && Number(v) === Number(uid);
       return {
         id: Number(r.id),
         ref: String(r.ref ?? `quotation-${r.id}`),
         projectId: r.project_id === null ? null : Number(r.project_id),
         placements,
         folderId,
+        canView:
+          all ||
+          isUser(r.owner_id) ||
+          isUser(r.sent_to_sales_to) ||
+          isUser(r.sales_accepted_by) ||
+          Boolean(Number(r.lead_viewer)),
         // Previous-manifest fields (old tabs) — also the fallback client name
         // for a quotation that has neither a project nor a folder.
         projectName: String(r.project_folder || "Project"),

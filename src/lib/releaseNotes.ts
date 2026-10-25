@@ -45,7 +45,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "The Sync folder on your computer now has the same layout as the app, so a project is easy to find.",
       "- Same layout as the app — Companies › company › person › project, plus Individual clients and Unclassified clients.",
       "- A folder for each kind — BOQs, Quotation files, PO files and Other files. Drop a file into one to upload it as that kind.",
-      "- Quotations, twice — each one is saved as an editable Excel file and a locked (Read-only) copy.",
+      "- Quotations as Excel and PDF — an editable Excel, a locked (Read-only) Excel and the same read-only, watermarked PDF as PDF Full.",
       "- Fixed — the \"Name is not allowed\" error on client or project names with unusual characters.",
       "- Old folders — folders in the old layout are left as they are, and the Sync page lists them.",
     ].join("\n"),
