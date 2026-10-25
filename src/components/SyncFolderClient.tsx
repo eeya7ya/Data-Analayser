@@ -26,7 +26,10 @@ const AUTO_PREF_KEY = "mt-sync-auto";
 type Perm = "unknown" | "granted" | "prompt" | "denied";
 
 export default function SyncFolderClient() {
-  const [supported] = useState(isSyncSupported);
+  // Decided after mount: the server can't know the browser, and rendering the
+  // "not available" card there made every Chrome load fail hydration.
+  const [supported, setSupported] = useState<boolean | null>(null);
+  useEffect(() => setSupported(isSyncSupported()), []);
   const [handle, setHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
   const [perm, setPerm] = useState<Perm>("unknown");
@@ -34,6 +37,10 @@ export default function SyncFolderClient() {
   const [report, setReport] = useState<SyncReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [autoOn, setAutoOn] = useState(false);
+  const [progress, setProgress] = useState("");
+  // A pass that ran out of PDF time leaves the rest for the next pass, which
+  // starts on its own (while the tab is visible) until they're all made.
+  const [pdfsLeft, setPdfsLeft] = useState(false);
 
   // Guards a sync pass so the interval never overlaps a still-running one.
   const runningRef = useRef(false);
@@ -49,14 +56,19 @@ export default function SyncFolderClient() {
     runningRef.current = true;
     setSyncing(true);
     setError(null);
+    setPdfsLeft(false);
     try {
-      const r = await runSync(h);
+      const r = await runSync(h, { onProgress: setProgress });
       setReport(r);
+      // Carry on only while passes make progress (a pass that made none —
+      // e.g. a full disk — would otherwise retry the same PDFs forever).
+      setPdfsLeft(r.pdfsPending > 0 && r.pdfs > 0);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       runningRef.current = false;
       setSyncing(false);
+      setProgress("");
     }
   }, []);
 
@@ -94,6 +106,22 @@ export default function SyncFolderClient() {
     return () => window.clearInterval(id);
   }, [autoOn, perm, handle, doSync]);
 
+  useEffect(() => {
+    if (!pdfsLeft || perm !== "granted" || !handle) return;
+    let timer = 0;
+    const go = () => {
+      if (document.visibilityState !== "visible") return;
+      document.removeEventListener("visibilitychange", go);
+      timer = window.setTimeout(() => void doSync(), 1000);
+    };
+    document.addEventListener("visibilitychange", go);
+    go();
+    return () => {
+      document.removeEventListener("visibilitychange", go);
+      window.clearTimeout(timer);
+    };
+  }, [pdfsLeft, perm, handle, doSync]);
+
   const onChoose = useCallback(async () => {
     setError(null);
     try {
@@ -117,6 +145,7 @@ export default function SyncFolderClient() {
     setFolderName(null);
     setPerm("unknown");
     setReport(null);
+    setPdfsLeft(false);
     setAutoOn(false);
     try {
       localStorage.removeItem(AUTO_PREF_KEY);
@@ -137,6 +166,7 @@ export default function SyncFolderClient() {
     });
   }, []);
 
+  if (supported === null) return null;
   if (!supported) {
     return (
       <Card>
@@ -228,6 +258,10 @@ export default function SyncFolderClient() {
           </label>
         )}
 
+        {syncing && progress && (
+          <p className="mt-3 text-sm text-magic-ink/60">{progress}</p>
+        )}
+
         {error && (
           <p className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -247,11 +281,18 @@ export default function SyncFolderClient() {
             <div className="mt-1 text-magic-ink/70">
               {report.downloaded} downloaded · {report.uploaded} uploaded ·{" "}
               {report.quotations} quotation{report.quotations === 1 ? "" : "s"} ·{" "}
+              {report.pdfs} PDF{report.pdfs === 1 ? "" : "s"} ·{" "}
               {report.pricing} pricing · {report.skipped} already in sync
               {report.errors.length > 0 && (
                 <> · {report.errors.length} problem(s)</>
               )}
             </div>
+            {report.pdfsPending > 0 && (
+              <div className="mt-1 text-xs text-magic-ink/55">
+                {report.pdfsPending} more PDF{report.pdfsPending === 1 ? "" : "s"} to
+                make — the sync carries on with them while this tab is open.
+              </div>
+            )}
             {report.errors.length > 0 && (
               <ul className="mt-1 max-h-32 list-disc space-y-0.5 overflow-y-auto pl-5 text-xs text-red-600">
                 {report.errors.slice(0, 20).map((e, i) => (
@@ -261,32 +302,65 @@ export default function SyncFolderClient() {
             )}
           </div>
         )}
+
+        {report && report.legacyFolders.length > 0 && (
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+            <div className="flex items-center gap-2 font-medium">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {report.legacyFolders.length} folder
+              {report.legacyFolders.length === 1 ? " uses" : "s use"} the old
+              layout
+            </div>
+            <p className="mt-1 text-xs text-amber-900/80">
+              Your files are now kept in <b>Companies</b>,{" "}
+              <b>Individual clients</b> and <b>Unclassified clients</b>, the same
+              way the app shows them. The folders below are no longer updated —
+              nothing was deleted, so you can remove them yourself once you have
+              checked the new folders.
+            </p>
+            <p className="mt-1 max-h-20 overflow-y-auto text-xs text-amber-900/70">
+              {report.legacyFolders.join(" · ")}
+            </p>
+          </div>
+        )}
       </Card>
 
       <Card>
         <h3 className="text-sm font-semibold text-magic-ink">How it works</h3>
         <ul className="mt-2 space-y-1.5 text-sm text-magic-ink/70">
           <li>
-            • Files are organised as{" "}
+            • Folders follow the app:{" "}
             <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">
-              Client / Project [#id] / file
+              Companies / Company / Person / Project [#id]
             </code>
-            . Anything new in the app is downloaded into that structure.
+            ,{" "}
+            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">
+              Individual clients / Client / Project [#id]
+            </code>{" "}
+            and{" "}
+            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">
+              Unclassified clients / Client / Project [#id]
+            </code>
+            . Every project you can see in the app gets a folder.
           </li>
           <li>
-            • Drop a file into one of those{" "}
-            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">
-              [#id]
-            </code>{" "}
-            project folders and it uploads to that project on the next sync.
+            • Inside a project, files sit in{" "}
+            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">BOQs</code>,{" "}
+            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">Quotation files</code>,{" "}
+            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">PO files</code> and{" "}
+            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">Other files</code>{" "}
+            — like the app&rsquo;s BOQs / Files tab. Drop a file into one of them
+            and it uploads to that project, as that kind, on the next sync.
           </li>
           <li>
-            • Your quotations are exported as brand-matched Excel files into a{" "}
-            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">
-              _Quotations
-            </code>{" "}
-            subfolder, and re-exported automatically when you edit them in the
-            app.
+            • Your quotations are exported into each project&rsquo;s{" "}
+            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">Quotations</code>{" "}
+            folder as an editable Excel, a locked{" "}
+            <code className="rounded bg-magic-soft px-1 py-0.5 text-xs">(Read-only)</code>{" "}
+            Excel and a PDF — the same read-only, watermarked PDF as{" "}
+            <b>PDF Full</b> — and re-exported automatically when you edit them in
+            the app. The first sync of many quotations takes a while; the PDFs
+            come last.
           </li>
           <li>
             • Your priced projects from the Pricing module are exported as Excel
@@ -300,7 +374,8 @@ export default function SyncFolderClient() {
           <li>
             • Nothing is ever deleted on either side, and edits to an uploaded
             file the app already has aren&rsquo;t re-uploaded (add a
-            differently-named file for a new version).
+            differently-named file for a new version). A file deleted in the
+            app isn&rsquo;t uploaded again from your PC copy.
           </li>
           <li>
             • Sync only runs while this tab is open. Chrome/Edge asks you to

@@ -1631,3 +1631,191 @@ body > * {
     transform: none;
   }
 }
+
+/* ── v1.82 showcase (SyncFolderShowcase) — one 12 s loop in three beats:
+ * 0–33 % "Same folders" (app rows light up, the laptop's folders appear),
+ * 33–66 % "Excel + PDF" (three files pop into the project), 66–100 % "Drop
+ * to upload" (a file drops in, travels back, lands in the app). */
+.ws-anim svg [class^="ws-"],
+.ws-anim svg [class*=" ws-"] {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.ws-anim .ws-h1 { animation: ws-h1 12s infinite; }
+.ws-anim .ws-h2 { animation: ws-h2 12s infinite; }
+.ws-anim .ws-h3 { animation: ws-h3 12s infinite; }
+.ws-anim .ws-h4 { animation: ws-h4 12s infinite; }
+.ws-anim .ws-h4b { animation: ws-h4b 12s infinite; }
+.ws-anim .ws-p1 { animation: ws-p1 12s infinite; }
+.ws-anim .ws-p2 { animation: ws-p2 12s infinite; }
+.ws-anim .ws-p3 { animation: ws-p3 12s infinite; }
+.ws-anim .ws-p4 { animation: ws-p4 12s infinite; }
+.ws-anim .ws-f1 { animation: ws-f1 12s infinite; }
+.ws-anim .ws-f2 { animation: ws-f2 12s infinite; }
+.ws-anim .ws-f3 { animation: ws-f3 12s infinite; }
+.ws-anim .ws-f4 { animation: ws-f4 12s infinite; }
+.ws-anim .ws-c1 { animation: ws-c1 12s infinite; }
+.ws-anim .ws-c2 { animation: ws-c2 12s infinite; }
+.ws-anim .ws-c3 { animation: ws-c3 12s infinite; }
+.ws-anim .ws-stamp { animation: ws-stamp 12s infinite; }
+.ws-anim .ws-drop { animation: ws-drop 12s infinite; }
+.ws-anim .ws-bounce { animation: ws-bounce 12s infinite; }
+.ws-anim .ws-up { animation: ws-up 12s infinite; }
+.ws-anim .ws-new { animation: ws-new 12s infinite; }
+.ws-anim .ws-spin { animation: ws-spin 12s ease-in-out infinite; }
+.ws-anim .ws-card-1 { animation: ws-card-1 12s infinite; }
+.ws-anim .ws-card-2 { animation: ws-card-2 12s infinite; }
+.ws-anim .ws-card-3 { animation: ws-card-3 12s infinite; }
+.ws-anim .ws-card-1 .ws-bar { animation: ws-bar-1 12s linear infinite; }
+.ws-anim .ws-card-2 .ws-bar { animation: ws-bar-2 12s linear infinite; }
+.ws-anim .ws-card-3 .ws-bar { animation: ws-bar-3 12s linear infinite; }
+
+/* Beat 1 — each app row lights up as its folder is sent across. */
+@keyframes ws-h1 { 0%, 1.5% { opacity: 0; } 2.5%, 30% { opacity: 1; } 32%, 100% { opacity: 0; } }
+@keyframes ws-h2 { 0%, 6.5% { opacity: 0; } 7.5%, 30% { opacity: 1; } 32%, 100% { opacity: 0; } }
+@keyframes ws-h3 { 0%, 11.5% { opacity: 0; } 12.5%, 30% { opacity: 1; } 32%, 100% { opacity: 0; } }
+@keyframes ws-h4 { 0%, 16.5% { opacity: 0; } 17.5%, 30% { opacity: 1; } 32%, 100% { opacity: 0; } }
+@keyframes ws-p1 {
+  0%, 2% { opacity: 0; transform: translate(0, 0); }
+  3% { opacity: 1; }
+  4.5% { transform: translate(25px, -5px); }
+  6% { opacity: 1; transform: translate(50px, 0); }
+  7%, 100% { opacity: 0; transform: translate(50px, 0); }
+}
+@keyframes ws-p2 {
+  0%, 7% { opacity: 0; transform: translate(0, 0); }
+  8% { opacity: 1; }
+  9.5% { transform: translate(25px, -5px); }
+  11% { opacity: 1; transform: translate(50px, 0); }
+  12%, 100% { opacity: 0; transform: translate(50px, 0); }
+}
+@keyframes ws-p3 {
+  0%, 12% { opacity: 0; transform: translate(0, 0); }
+  13% { opacity: 1; }
+  14.5% { transform: translate(25px, -5px); }
+  16% { opacity: 1; transform: translate(50px, 0); }
+  17%, 100% { opacity: 0; transform: translate(50px, 0); }
+}
+@keyframes ws-p4 {
+  0%, 17% { opacity: 0; transform: translate(0, 0); }
+  18% { opacity: 1; }
+  19.5% { transform: translate(25px, -5px); }
+  21% { opacity: 1; transform: translate(50px, 0); }
+  22%, 100% { opacity: 0; transform: translate(50px, 0); }
+}
+@keyframes ws-f1 { 0%, 5.5% { opacity: 0; transform: translateX(-6px); } 7.5%, 95% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: none; } }
+@keyframes ws-f2 { 0%, 10.5% { opacity: 0; transform: translateX(-6px); } 12.5%, 95% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: none; } }
+@keyframes ws-f3 { 0%, 15.5% { opacity: 0; transform: translateX(-6px); } 17.5%, 95% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: none; } }
+@keyframes ws-f4 { 0%, 20.5% { opacity: 0; transform: translateX(-6px); } 22.5%, 95% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: none; } }
+
+/* Beat 2 — Excel, locked Excel, then the stamped PDF. */
+@keyframes ws-c1 {
+  0%, 35% { opacity: 0; transform: translateY(6px) scale(0.6); }
+  38% { opacity: 1; transform: scale(1.12); }
+  40%, 95% { opacity: 1; transform: none; }
+  98%, 100% { opacity: 0; transform: none; }
+}
+@keyframes ws-c2 {
+  0%, 39% { opacity: 0; transform: translateY(6px) scale(0.6); }
+  42% { opacity: 1; transform: scale(1.12); }
+  44%, 95% { opacity: 1; transform: none; }
+  98%, 100% { opacity: 0; transform: none; }
+}
+@keyframes ws-c3 {
+  0%, 43% { opacity: 0; transform: translateY(6px) scale(0.6); }
+  46% { opacity: 1; transform: scale(1.12); }
+  48%, 95% { opacity: 1; transform: none; }
+  98%, 100% { opacity: 0; transform: none; }
+}
+@keyframes ws-stamp {
+  0%, 50% { opacity: 0; transform: scale(2.2); }
+  53% { opacity: 1; transform: scale(0.9); }
+  55%, 100% { opacity: 1; transform: none; }
+}
+
+/* Beat 3 — a file dropped on the laptop uploads to the app. */
+@keyframes ws-drop {
+  0%, 67% { opacity: 0; transform: translateY(-46px); }
+  69% { opacity: 1; }
+  74% { opacity: 1; transform: translateY(0); }
+  76.5%, 100% { opacity: 0; transform: translateY(3px) scale(0.5); }
+}
+@keyframes ws-bounce {
+  0%, 74.5% { transform: none; }
+  76% { transform: scale(1.18, 0.82); }
+  78% { transform: scale(0.94, 1.08); }
+  80%, 100% { transform: none; }
+}
+@keyframes ws-up {
+  0%, 77% { opacity: 0; transform: translate(50px, 0); }
+  78% { opacity: 1; }
+  80.5% { transform: translate(25px, 5px); }
+  83% { opacity: 1; transform: translate(0, 0); }
+  84%, 100% { opacity: 0; transform: translate(0, 0); }
+}
+@keyframes ws-h4b { 0%, 83% { opacity: 0; } 85%, 94% { opacity: 1; } 97%, 100% { opacity: 0; } }
+@keyframes ws-new {
+  0%, 83% { opacity: 0; transform: scale(0.4); }
+  86% { opacity: 1; transform: scale(1.2); }
+  88%, 95% { opacity: 1; transform: none; }
+  98%, 100% { opacity: 0; transform: none; }
+}
+@keyframes ws-spin {
+  0%, 2% { transform: rotate(0); }
+  23%, 76% { transform: rotate(360deg); }
+  85%, 100% { transform: rotate(0); }
+}
+
+@keyframes ws-card-1 { 0%, 31% { opacity: 1; } 33%, 98% { opacity: 0.5; } 100% { opacity: 1; } }
+@keyframes ws-card-2 { 0%, 31% { opacity: 0.5; } 33%, 64% { opacity: 1; } 66%, 100% { opacity: 0.5; } }
+@keyframes ws-card-3 { 0%, 64% { opacity: 0.5; } 66%, 98% { opacity: 1; } 100% { opacity: 0.5; } }
+@keyframes ws-bar-1 {
+  0% { transform: scaleX(0); opacity: 1; }
+  32% { transform: scaleX(1); opacity: 1; }
+  33%, 100% { transform: scaleX(1); opacity: 0; }
+}
+@keyframes ws-bar-2 {
+  0%, 33% { transform: scaleX(0); opacity: 1; }
+  65% { transform: scaleX(1); opacity: 1; }
+  66%, 100% { transform: scaleX(1); opacity: 0; }
+}
+@keyframes ws-bar-3 {
+  0%, 66% { transform: scaleX(0); opacity: 1; }
+  99% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
+/* Reduced motion: the finished picture — folders mirrored, files in, upload landed. */
+@media (prefers-reduced-motion: reduce) {
+  .ws-anim *,
+  .ws-anim .ws-bar {
+    animation: none !important;
+  }
+  .ws-anim .ws-p1,
+  .ws-anim .ws-p2,
+  .ws-anim .ws-p3,
+  .ws-anim .ws-p4,
+  .ws-anim .ws-up,
+  .ws-anim .ws-drop,
+  .ws-anim .ws-bar,
+  .ws-anim .ws-h1,
+  .ws-anim .ws-h2,
+  .ws-anim .ws-h3,
+  .ws-anim .ws-h4 {
+    opacity: 0;
+  }
+  .ws-anim .ws-f1,
+  .ws-anim .ws-f2,
+  .ws-anim .ws-f3,
+  .ws-anim .ws-f4,
+  .ws-anim .ws-c1,
+  .ws-anim .ws-c2,
+  .ws-anim .ws-c3,
+  .ws-anim .ws-stamp,
+  .ws-anim .ws-h4b,
+  .ws-anim .ws-new,
+  .ws-anim .ws-card {
+    opacity: 1;
+    transform: none;
+  }
+}
